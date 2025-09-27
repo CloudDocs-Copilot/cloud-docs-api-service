@@ -1,0 +1,30 @@
+[{
+  "_id": {
+    "$oid": "68d76e4f8fe2e9e745c80e6b"
+  },
+  "filename": "7e3ef3c6253235897fdde468a1676dd7",
+  "originalname": "file.pdf",
+  "url": "/storage/7e3ef3c6253235897fdde468a1676dd7",
+  "uploadedBy": {
+    "$oid": "68d764a88fe2e9e745c80e5c"
+  },
+  "uploadedAt": {
+    "$date": "2025-09-27T04:55:43.682Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68d76ea08fe2e9e745c80e6d"
+  },
+  "filename": "b9d390aac8ee872e769b337f6f0a9cbd",
+  "originalname": "file.pdf",
+  "url": "/storage/b9d390aac8ee872e769b337f6f0a9cbd",
+  "uploadedBy": {
+    "$oid": "68d764a88fe2e9e745c80e5c"
+  },
+  "uploadedAt": {
+    "$date": "2025-09-27T04:57:04.665Z"
+  },
+  "__v": 0
+}]
