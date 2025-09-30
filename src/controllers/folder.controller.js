@@ -5,7 +5,7 @@ async function create(req, res) {
     const folder = await folderService.createFolder({ name: req.body.name, owner: req.user.id });
     res.status(201).json(folder);
   } catch (err) {
-    res.status(400).json({ error: err.message });
+  res.status(400).json({ error: err.message });
   }
 }
 

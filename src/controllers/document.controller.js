@@ -3,7 +3,7 @@ const documentService = require('../services/document.service.js');
 async function share(req, res) {
   try {
     const doc = await documentService.shareDocument(req.params.id, req.body.userIds);
-    res.json({ message: 'Documento compartido', doc });
+  res.json({ message: 'Document shared successfully', doc });
   } catch (err) {
     const status = err.message === 'Documento no encontrado' ? 404 : 400;
     res.status(status).json({ error: err.message });
@@ -13,7 +13,7 @@ async function share(req, res) {
 async function remove(req, res) {
   try {
     await documentService.deleteDocument(req.params.id);
-    res.json({ message: 'Documento eliminado correctamente' });
+  res.json({ message: 'Document deleted successfully' });
   } catch (err) {
     const status = err.message === 'Documento no encontrado' ? 404 : 500;
     res.status(status).json({ error: err.message });
@@ -37,7 +37,7 @@ async function list(req, res) {
 async function download(req, res) {
   try {
     const doc = await documentService.findDocumentById(req.params.id);
-    if (!doc) return res.status(404).json({ error: 'Documento no encontrado' });
+  if (!doc) return res.status(404).json({ error: 'Document not found' });
     const filePath = `storage/${doc.filename}`;
     res.download(filePath, doc.originalname);
   } catch (err) {
