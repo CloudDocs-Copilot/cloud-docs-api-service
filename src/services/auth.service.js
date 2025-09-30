@@ -51,5 +51,17 @@ async function updateUser(id, { name, email, password }) {
 module.exports = {
   registerUser,
   loginUser,
-  updateUser
+  updateUser,
+  async changePassword(userId, { currentPassword, newPassword }) {
+    const user = await User.findById(userId);
+    if (!user) throw new Error('User not found');
+    const valid = await bcrypt.compare(currentPassword, user.password);
+    if (!valid) throw new Error('Current password is incorrect');
+    const saltRounds = Number.parseInt(BCRYPT_SALT_ROUNDS, 10) || 10;
+    user.password = await bcrypt.hash(newPassword, saltRounds);
+    user.lastPasswordChange = new Date();
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
+    await user.save();
+    return { message: 'Password updated successfully' };
+  }
 };

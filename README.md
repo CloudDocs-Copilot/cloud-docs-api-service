@@ -112,6 +112,7 @@ npm run dev
 | GET    | `/api`                      | Health check |
 | POST   | `/api/auth/register`        | Registro usuario |
 | POST   | `/api/auth/login`           | Login y obtención de JWT |
+| PATCH  | `/api/auth/:id/password`    | Cambio de contraseña (autenticado) |
 | POST   | `/api/documents/upload`     | Subir documento (autenticado) |
 | GET    | `/api/documents`            | Listar documentos |
 | DELETE | `/api/documents/:id`        | Eliminar documento |

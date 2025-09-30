@@ -1,4 +1,4 @@
-const { registerUser, loginUser, updateUser } = require('../services/auth.service.js');
+const { registerUser, loginUser, updateUser, changePassword } = require('../services/auth.service.js');
 
 async function register(req, res) {
   try {
@@ -34,3 +34,18 @@ async function update(req, res) {
 }
 
 module.exports = { register, login, update };
+async function passwordChange(req, res) {
+  try {
+    if (req.user && req.user.id !== req.params.id && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    const result = await changePassword(req.params.id, req.body);
+    res.json(result);
+  } catch (err) {
+    const status =
+      err.message === 'User not found' ? 404 : err.message.includes('incorrect') ? 401 : 400;
+    res.status(status).json({ error: err.message });
+  }
+}
+
+module.exports = { register, login, update, passwordChange };

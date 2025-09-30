@@ -8,15 +8,17 @@ async function shareDocument(id, userIds) {
     { $addToSet: { sharedWith: { $each: userIds } } },
     { new: true }
   );
-  if (!doc) throw new Error('Documento no encontrado');
+  if (!doc) throw new Error('Document not found');
   return doc;
 }
 
 async function deleteDocument(id) {
   const doc = await Document.findByIdAndDelete(id);
-  if (!doc) throw new Error('Documento no encontrado');
+  if (!doc) throw new Error('Document not found');
   const filePath = `storage/${doc.filename}`;
-  fs.unlink(filePath, (err) => { if (err) console.error('Error al eliminar archivo:', err); });
+  fs.unlink(filePath, err => {
+    if (err) console.error('Error al eliminar archivo:', err);
+  });
   return doc;
 }
 
