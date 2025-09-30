@@ -1,45 +1,47 @@
-[{
-  "_id": {
-    "$oid": "68d76ea08fe2e9e745c80e6d"
+[
+  {
+    "_id": {
+      "$oid": "68d76ea08fe2e9e745c80e6d"
+    },
+    "filename": "b9d390aac8ee872e769b337f6f0a9cbd",
+    "originalname": "file.pdf",
+    "url": "/storage/b9d390aac8ee872e769b337f6f0a9cbd",
+    "uploadedBy": {
+      "$oid": "68d764a88fe2e9e745c80e5c"
+    },
+    "uploadedAt": {
+      "$date": "2025-09-27T04:57:04.665Z"
+    },
+    "__v": 0
   },
-  "filename": "b9d390aac8ee872e769b337f6f0a9cbd",
-  "originalname": "file.pdf",
-  "url": "/storage/b9d390aac8ee872e769b337f6f0a9cbd",
-  "uploadedBy": {
-    "$oid": "68d764a88fe2e9e745c80e5c"
+  {
+    "_id": {
+      "$oid": "68d7723e8fe2e9e745c80e71"
+    },
+    "filename": "5cd2b78f227b647d4b7b8e13ab36bc5e",
+    "originalname": "file.pdf",
+    "url": "/storage/5cd2b78f227b647d4b7b8e13ab36bc5e",
+    "uploadedBy": {
+      "$oid": "68d764a88fe2e9e745c80e5c"
+    },
+    "uploadedAt": {
+      "$date": "2025-09-27T05:12:30.162Z"
+    },
+    "__v": 0
   },
-  "uploadedAt": {
-    "$date": "2025-09-27T04:57:04.665Z"
-  },
-  "__v": 0
-},
-{
-  "_id": {
-    "$oid": "68d7723e8fe2e9e745c80e71"
-  },
-  "filename": "5cd2b78f227b647d4b7b8e13ab36bc5e",
-  "originalname": "file.pdf",
-  "url": "/storage/5cd2b78f227b647d4b7b8e13ab36bc5e",
-  "uploadedBy": {
-    "$oid": "68d764a88fe2e9e745c80e5c"
-  },
-  "uploadedAt": {
-    "$date": "2025-09-27T05:12:30.162Z"
-  },
-  "__v": 0
-},
-{
-  "_id": {
-    "$oid": "68d7726b8fe2e9e745c80e73"
-  },
-  "filename": "84e80bdc4ad163561a83e6a558e87e0a",
-  "originalname": "Constancia zonificacion_casa rivera real.pdf",
-  "url": "/storage/84e80bdc4ad163561a83e6a558e87e0a",
-  "uploadedBy": {
-    "$oid": "68d764a88fe2e9e745c80e5c"
-  },
-  "uploadedAt": {
-    "$date": "2025-09-27T05:13:15.636Z"
-  },
-  "__v": 0
-}]
+  {
+    "_id": {
+      "$oid": "68d7726b8fe2e9e745c80e73"
+    },
+    "filename": "84e80bdc4ad163561a83e6a558e87e0a",
+    "originalname": "Constancia zonificacion_casa rivera real.pdf",
+    "url": "/storage/84e80bdc4ad163561a83e6a558e87e0a",
+    "uploadedBy": {
+      "$oid": "68d764a88fe2e9e745c80e5c"
+    },
+    "uploadedAt": {
+      "$date": "2025-09-27T05:13:15.636Z"
+    },
+    "__v": 0
+  }
+]

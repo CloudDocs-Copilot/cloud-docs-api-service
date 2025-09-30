@@ -11,14 +11,14 @@ async function authenticateToken(req, res, next) {
   try {
     const decoded = jwtService.verifyToken(token);
     const user = await User.findById(decoded.id);
-      if (!user) return next(new HttpError(401, 'User no longer exists'));
+    if (!user) return next(new HttpError(401, 'User no longer exists'));
     if (user.active === false) return next(new HttpError(401, 'User account deactivated'));
 
     if (decoded.tokenCreatedAt) {
       const tokenCreated = new Date(decoded.tokenCreatedAt);
       const userUpdated = new Date(user.updatedAt);
       if (userUpdated > tokenCreated) {
-          return next(new HttpError(401, 'Token invalidated due to user changes'));
+        return next(new HttpError(401, 'Token invalidated due to user changes'));
       }
     }
 
