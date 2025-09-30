@@ -31,13 +31,20 @@ async function loginUser({ email, password }) {
 }
 
 async function updateUser(id, { name, email, password }) {
-  const update = { name, email };
+  const user = await User.findById(id);
+  if (!user) throw new Error('User not found');
+
+  if (name !== undefined) user.name = name;
+  if (email !== undefined) user.email = email;
+
   if (password) {
     const saltRounds = Number.parseInt(BCRYPT_SALT_ROUNDS, 10) || 10;
-    update.password = await bcrypt.hash(password, saltRounds);
+    user.password = await bcrypt.hash(password, saltRounds);
+    user.lastPasswordChange = new Date();
+    user.tokenVersion = (user.tokenVersion || 0) + 1; // invalidate existing tokens
   }
-  const user = await User.findByIdAndUpdate(id, update, { new: true });
-  if (!user) throw new Error('Usuario no encontrado');
+
+  await user.save();
   return user;
 }
 
