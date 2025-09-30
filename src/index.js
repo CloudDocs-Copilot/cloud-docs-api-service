@@ -18,7 +18,13 @@ app.get('/api', (req, res) => {
   res.json({ message: 'API running' });
 });
 
-// Global error handler (after routes)
+// 404 catch-all (after all defined routes, before error handler)
+const HttpError = require('./models/error.model');
+app.use((req, _res, next) => {
+  next(new HttpError(404, 'Route not found'));
+});
+
+// Global error handler
 const errorHandler = require('./middlewares/error.middleware.js');
 app.use(errorHandler);
 
