@@ -1,5 +1,5 @@
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+const jwtService = require('./jwt.service.js');
 const User = require('../models/user.model.js');
 
 // Variables de entorno configurables
@@ -21,10 +21,12 @@ async function loginUser({ email, password }) {
   if (!user) throw new Error('User not found');
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) throw new Error('Invalid password');
-  if (!JWT_SECRET || JWT_SECRET === 'change_me_dev') {
-    console.warn('[auth] JWT_SECRET está usando el valor por defecto; cambia esto en producción');
-  }
-  const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  const token = jwtService.signToken({
+    id: user._id,
+    email: user.email,
+    role: user.role,
+    tokenVersion: user.tokenVersion
+  });
   return { token, user };
 }
 
