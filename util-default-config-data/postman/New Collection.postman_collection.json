@@ -1,0 +1,83 @@
+{
+	"info": {
+		"_postman_id": "26d1e603-adce-4a31-be35-2daca0b24465",
+		"name": "New Collection",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "47963169",
+		"_collection_link": "https://palmira-ramirez-s-team.postman.co/workspace/TFM-endpoints-de-prueba-backend~7e133945-e697-415e-9fe4-eb80ea523833/collection/47963169-26d1e603-adce-4a31-be35-2daca0b24465?action=share&source=collection_link&creator=47963169"
+	},
+	"item": [
+		{
+			"name": "Registro de usuario",
+			"request": {
+				"method": "GET",
+				"header": []
+			},
+			"response": []
+		},
+		{
+			"name": "Login de usuario",
+			"request": {
+				"method": "GET",
+				"header": []
+			},
+			"response": []
+		},
+		{
+			"name": "Crear carpeta expediente",
+			"request": {
+				"method": "GET",
+				"header": []
+			},
+			"response": []
+		},
+		{
+			"name": "Subir documento",
+			"request": {
+				"method": "GET",
+				"header": []
+			},
+			"response": []
+		},
+		{
+			"name": "Listar documentos",
+			"request": {
+				"method": "GET",
+				"header": []
+			},
+			"response": []
+		},
+		{
+			"name": "Descargar el archivo PDF",
+			"request": {
+				"method": "GET",
+				"header": []
+			},
+			"response": []
+		},
+		{
+			"name": "Borrar documento",
+			"request": {
+				"method": "GET",
+				"header": []
+			},
+			"response": []
+		},
+		{
+			"name": "Actualizar dato de usuario",
+			"request": {
+				"method": "GET",
+				"header": []
+			},
+			"response": []
+		},
+		{
+			"name": "Compartir documento con otros usuarios",
+			"request": {
+				"method": "GET",
+				"header": []
+			},
+			"response": []
+		}
+	]
+}

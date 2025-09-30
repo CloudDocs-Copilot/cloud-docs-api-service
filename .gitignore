@@ -42,8 +42,7 @@ Thumbs.db
 # OS / misc
 *.tgz
 
-# Mongo backups
-mongo-backup/
+
 
 # Uploads & storage (binary artifacts not for version control)
 uploads/

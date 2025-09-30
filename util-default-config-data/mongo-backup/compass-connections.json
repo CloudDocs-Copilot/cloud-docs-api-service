@@ -1,0 +1,26 @@
+{
+  "type": "Compass Connections",
+  "version": {
+    "$numberInt": "1"
+  },
+  "connections": [
+    {
+      "id": "7a8926c8-c30a-47b1-961a-d58188c5c3bd",
+      "lastUsed": {
+        "$date": {
+          "$numberLong": "1758946583838"
+        }
+      },
+      "favorite": {
+        "name": "TFM pruebas CloudDocs Copilot"
+      },
+      "savedConnectionType": "recent",
+      "connectionOptions": {
+        "connectionString": "mongodb://localhost:27017/",
+        "oidc": {
+          "serializedState": "eyJvaWRjUGx1Z2luU3RhdGVWZXJzaW9uIjoxLCJzdGF0ZSI6W119"
+        }
+      }
+    }
+  ]
+}
