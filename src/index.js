@@ -18,6 +18,10 @@ app.get('/api', (req, res) => {
   res.json({ message: 'API running' });
 });
 
+// Global error handler (after routes)
+const errorHandler = require('./middlewares/error.middleware.js');
+app.use(errorHandler);
+
 const PORT = process.env.PORT || 4000;
 
 async function start() {

@@ -4,7 +4,8 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon src/index.js",
+    "format": "npx prettier --write ."
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
