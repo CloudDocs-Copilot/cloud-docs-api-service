@@ -1,51 +1,32 @@
-const { registerUser, loginUser, updateUser, changePassword } = require('../services/auth.service.js');
+const authServices = require('../services/auth.service.js');
 
-async function register(req, res) {
+const HttpError = require('../models/error.model');
+
+async function register(req, res, next) {
   try {
-    const user = await registerUser(req.body);
+    const { name, email, password } = req.body;
+    if (!name || !email || !password) {
+      return next(new HttpError(400, 'Missing required fields'));
+    }
+    const user = await authServices.registerUser(req.body);
     res.status(201).json({ message: 'User registered successfully', user });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    if (err.message && err.message.includes('duplicate key')) {
+      return next(new HttpError(409, 'Email already registered'));
+    }
+    next(err);
   }
 }
 
-async function login(req, res) {
+async function login(req, res, next) {
   try {
-    const result = await loginUser(req.body);
+    const result = await authServices.loginUser(req.body);
     res.json(result);
   } catch (err) {
-    const status = err.message === 'User not found' ? 404 : 401;
-    res.status(status).json({ error: err.message });
+    if (err.message === 'User not found') return next(new HttpError(404, 'Invalid credentials'));
+    if (err.message === 'Invalid password') return next(new HttpError(401, 'Invalid credentials'));
+    next(err);
   }
 }
 
-async function update(req, res) {
-  try {
-    // Authorization: user can only update self unless admin
-    if (req.user && req.user.id !== req.params.id && req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
-    const user = await updateUser(req.params.id, req.body);
-    res.json({ message: 'User updated successfully', user });
-  } catch (err) {
-    const status = err.message === 'User not found' ? 404 : 400;
-    res.status(status).json({ error: err.message });
-  }
-}
-
-module.exports = { register, login, update };
-async function passwordChange(req, res) {
-  try {
-    if (req.user && req.user.id !== req.params.id && req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
-    const result = await changePassword(req.params.id, req.body);
-    res.json(result);
-  } catch (err) {
-    const status =
-      err.message === 'User not found' ? 404 : err.message.includes('incorrect') ? 401 : 400;
-    res.status(status).json({ error: err.message });
-  }
-}
-
-module.exports = { register, login, update, passwordChange };
+module.exports = { register, login };

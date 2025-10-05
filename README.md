@@ -56,22 +56,8 @@ util-default-config-data/
 - name, owner (User), documents []
 - createdAt / updatedAt
 
-## Seguridad y autenticación
-
-El middleware de autenticación (`auth.middleware.js`) aplica múltiples validaciones al token:
-
-1. Usuario existe y está activo
-2. `tokenVersion` sincronizado (invalida tokens tras cambio de contraseña)
-3. Cambio de email invalida el token
-4. Cambios del documento de usuario (`updatedAt`) posteriores a la emisión invalidan
-5. `lastPasswordChange` vs `iat` para invalidar tokens emitidos antes
-6. Manejo específico de expiración y formato de token
-
 La firma del token se realiza en `jwt.service.js` agregando `tokenCreatedAt` para comprobaciones adicionales.
 
-## Variables de entorno (`.env`)
-
-Ejemplo (`.env.example`):
 
 ```
 PORT=4000
@@ -106,19 +92,18 @@ npm run dev
 ```
 
 ## Endpoints base
-
-| Método | Ruta                        | Descripción |
-|--------|-----------------------------|-------------|
-| GET    | `/api`                      | Health check |
 | POST   | `/api/auth/register`        | Registro usuario |
 | POST   | `/api/auth/login`           | Login y obtención de JWT |
-| PATCH  | `/api/auth/:id/password`    | Cambio de contraseña (autenticado) |
+| PATCH  | `/api/users/:id/activate`   | Activar usuario (admin) |
+| PATCH  | `/api/users/:id/deactivate` | Desactivar usuario (admin) |
 | POST   | `/api/documents/upload`     | Subir documento (autenticado) |
 | GET    | `/api/documents`            | Listar documentos |
 | DELETE | `/api/documents/:id`        | Eliminar documento |
 | POST   | `/api/documents/:id/share`  | Compartir documento |
 | GET    | `/api/folders`              | Listar carpetas |
 | POST   | `/api/folders`              | Crear carpeta |
+| DELETE | `/api/folders/:id`          | Eliminar carpeta (`?force=true` para borrar con documentos) |
+| PATCH  | `/api/folders/:id`          | Renombrar carpeta (mueve el directorio en FS) |
 
 > Para más detalle importa la colección Postman incluida en `util-default-config-data/postman`.
 

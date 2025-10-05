@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const folderSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
-    owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     documents: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Document' }]
   },
   {
@@ -26,5 +26,8 @@ const folderSchema = new mongoose.Schema(
     }
   }
 );
+
+// Nombre de carpeta único por propietario
+folderSchema.index({ owner: 1, name: 1 }, { unique: true });
 
 module.exports = mongoose.model('Folder', folderSchema);

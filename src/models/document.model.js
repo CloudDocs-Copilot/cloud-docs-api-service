@@ -7,7 +7,7 @@ const documentSchema = new mongoose.Schema(
     url: String,
     uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     folder: { type: mongoose.Schema.Types.ObjectId, ref: 'Folder' },
-    uploadedAt: { type: Date, default: Date.now }, // kept for backward compatibility; createdAt also available via timestamps
+  uploadedAt: { type: Date, default: Date.now }, // mantenido por compatibilidad hacia atrás; createdAt también disponible por timestamps
     sharedWith: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
   },
   {

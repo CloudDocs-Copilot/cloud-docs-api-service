@@ -5,8 +5,9 @@ const cors = require('cors');
 const authRoutes = require('./routes/auth.routes.js');
 const documentRoutes = require('./routes/document.routes.js');
 const folderRoutes = require('./routes/folder.routes.js');
+const userRoutes = require('./routes/user.routes.js');
 const HttpError = require('./models/error.model');
-// Global error handler
+// Manejador global de errores
 const errorHandler = require('./middlewares/error.middleware.js');
 const PORT = process.env.PORT || 4000;
 
@@ -17,12 +18,13 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/folders', folderRoutes);
+app.use('/api/users', userRoutes);
 
 app.get('/api', (req, res) => {
   res.json({ message: 'API running' });
 });
 
-// 404 catch-all (after all defined routes, before error handler)
+// Captura 404 (después de todas las rutas definidas y antes del manejador de errores)
 
 app.use((req, _res, next) => {
   next(new HttpError(404, 'Route not found'));
