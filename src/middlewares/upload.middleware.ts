@@ -1,8 +1,8 @@
-const multer = require('multer');
-const path = require('path');
-const crypto = require('crypto');
-const fs = require('fs');
-const HttpError = require('../models/error.model');
+import multer from 'multer';
+import path from 'path';
+import crypto from 'crypto';
+import fs from 'fs';
+import HttpError from '../models/error.model';
 
 // Asegura que el directorio de cargas exista
 const uploadDir = path.join(process.cwd(), 'uploads');
@@ -22,17 +22,17 @@ const storage = multer.diskStorage({
   }
 });
 
-function fileFilter(_req, file, cb) {
+function fileFilter(_req: Express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback): void {
   if (!ALLOWED.includes(file.mimetype)) {
-    return cb(new HttpError(400, 'Unsupported file type'));
+    return cb(new HttpError(400, 'Unsupported file type') as any);
   }
   cb(null, true);
 }
 
-const upload = multer({
+export const upload = multer({
   storage,
   fileFilter,
   limits: { fileSize: MAX_SIZE }
 });
 
-module.exports = { upload };
+export default { upload };

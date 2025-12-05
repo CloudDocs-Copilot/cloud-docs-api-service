@@ -1,17 +1,28 @@
 module.exports = {
+  // Preset para TypeScript
+  preset: 'ts-jest',
+
   // Entorno de ejecución
   testEnvironment: 'node',
 
   // Patrón de archivos de test
   testMatch: [
-    '**/tests/**/*.test.js',
-    '**/tests/**/*.spec.js'
+    '**/tests/**/*.test.ts',
+    '**/tests/**/*.spec.ts'
   ],
+
+  // Transformación de archivos TypeScript
+  transform: {
+    '^.+\\.ts$': 'ts-jest'
+  },
+
+  // Módulos de TypeScript
+  moduleFileExtensions: ['ts', 'js', 'json'],
 
   // Cobertura de código
   collectCoverageFrom: [
-    'src/**/*.js',
-    '!src/index.js', // Excluir el punto de entrada principal
+    'src/**/*.ts',
+    '!src/index.ts', // Excluir el punto de entrada principal
     '!src/docs/**',
     '!**/node_modules/**'
   ],

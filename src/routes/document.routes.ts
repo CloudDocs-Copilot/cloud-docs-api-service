@@ -1,7 +1,8 @@
-const express = require('express');
-const authMiddleware = require('../middlewares/auth.middleware.js');
-const documentController = require('../controllers/document.controller.js');
-const { upload } = require('../middlewares/upload.middleware.js');
+import express from 'express';
+import authMiddleware from '../middlewares/auth.middleware';
+import * as documentController from '../controllers/document.controller';
+import { upload } from '../middlewares/upload.middleware';
+
 const router = express.Router();
 
 router.post('/:id/share', authMiddleware, documentController.share);
@@ -10,4 +11,4 @@ router.post('/upload', authMiddleware, upload.single('file'), documentController
 router.get('/', authMiddleware, documentController.list);
 router.get('/download/:id', authMiddleware, documentController.download);
 
-module.exports = router;
+export default router;

@@ -1,16 +1,31 @@
-const jwtService = require('../services/jwt.service');
-const HttpError = require('../models/error.model');
-const User = require('../models/user.model');
+import { Request, Response, NextFunction } from 'express';
+import { verifyToken } from '../services/jwt.service';
+import HttpError from '../models/error.model';
+import User from '../models/user.model';
+
+export interface AuthRequest extends Request {
+  user?: {
+    id: string;
+    email: string;
+    name: string;
+    active: boolean;
+    role: string;
+  };
+}
 
 // Middleware de autenticación avanzado
-async function authenticateToken(req, res, next) {
+export async function authenticateToken(req: AuthRequest, _res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
-  if (!token) return next(new HttpError(401, 'Access token required'));
+  
+  if (!token) {
+    return next(new HttpError(401, 'Access token required'));
+  }
 
   try {
-    const decoded = jwtService.verifyToken(token);
+    const decoded = verifyToken(token);
     const user = await User.findById(decoded.id);
+    
     if (!user) return next(new HttpError(401, 'User no longer exists'));
     if (user.active === false) return next(new HttpError(401, 'User account deactivated'));
 
@@ -30,8 +45,8 @@ async function authenticateToken(req, res, next) {
       return next(new HttpError(401, 'Token invalidated due to password change'));
     }
 
-    if (decoded.iat && user.lastPasswordChange) {
-      const tokenIssuedAt = new Date(decoded.iat * 1000);
+    if ((decoded as any).iat && user.lastPasswordChange) {
+      const tokenIssuedAt = new Date((decoded as any).iat * 1000);
       const passwordChangeTime = new Date(user.lastPasswordChange.getTime() - 5000);
       if (tokenIssuedAt < passwordChangeTime) {
         return next(new HttpError(401, 'Token invalidated due to password change'));
@@ -39,14 +54,15 @@ async function authenticateToken(req, res, next) {
     }
 
     req.user = {
-      id: user._id,
+      id: user._id.toString(),
       email: user.email,
       name: user.name,
       active: user.active,
       role: user.role
     };
+    
     next();
-  } catch (error) {
+  } catch (error: any) {
     if (error.name === 'TokenExpiredError') {
       return next(new HttpError(401, 'Token expired'));
     }
@@ -57,4 +73,4 @@ async function authenticateToken(req, res, next) {
   }
 }
 
-module.exports = authenticateToken;
+export default authenticateToken;
