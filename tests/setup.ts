@@ -1,6 +1,6 @@
-const request = require('supertest');
-const mongoose = require('mongoose');
-const app = require('../src/app'); // Necesitarás exportar app por separado
+import request from 'supertest';
+import mongoose from 'mongoose';
+import app from '../src/app';
 
 /**
  * Configuración global para tests de integración
@@ -34,4 +34,4 @@ afterAll(async () => {
   }
 });
 
-module.exports = { request, app };
+export { request, app };

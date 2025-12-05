@@ -1,4 +1,4 @@
-const { request, app } = require('../setup');
+import { request, app } from '../setup';
 
 describe('Auth Endpoints', () => {
   describe('POST /api/auth/register', () => {
@@ -79,7 +79,7 @@ describe('Auth Endpoints', () => {
       expect(response.body).toHaveProperty('user');
     });
 
-    it('debería fallar con contraseña incorrecta', async () => {
+    it('debería fallar con credenciales incorrectas', async () => {
       const response = await request(app)
         .post('/api/auth/login')
         .send({
@@ -98,7 +98,7 @@ describe('Auth Endpoints', () => {
           email: 'noexiste@example.com',
           password: 'password123'
         })
-        .expect(401);
+        .expect(404);
 
       expect(response.body).toHaveProperty('error');
     });

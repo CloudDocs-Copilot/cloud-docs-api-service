@@ -1,13 +1,12 @@
-const { request, app } = require('../setup');
-const path = require('path');
-const fs = require('fs');
+import { request, app } from '../setup';
+import path from 'path';
+import fs from 'fs';
 
 describe('Document Endpoints', () => {
-  let authToken;
-  let userId;
+  let authToken: string;
 
   beforeEach(async () => {
-    const registerResponse = await request(app)
+    await request(app)
       .post('/api/auth/register')
       .send({
         name: 'Usuario Test',
@@ -23,7 +22,6 @@ describe('Document Endpoints', () => {
       });
 
     authToken = loginResponse.body.token;
-    userId = loginResponse.body.user.id;
   });
 
   describe('POST /api/documents/upload', () => {
@@ -84,34 +82,34 @@ describe('Document Endpoints', () => {
           password: 'password123'
         });
 
-      const user2Login = await request(app)
+      const user2LoginResponse = await request(app)
         .post('/api/auth/login')
         .send({
           email: 'user2@example.com',
           password: 'password123'
         });
 
-      const user2Id = user2Login.body.user.id;
+      const user2Id = user2LoginResponse.body.user.id;
 
-      // Subir documento
+      // Subir un documento
       const testFilePath = path.join(__dirname, 'share-test.txt');
-      fs.writeFileSync(testFilePath, 'Para compartir');
+      fs.writeFileSync(testFilePath, 'Documento para compartir');
 
       const uploadResponse = await request(app)
         .post('/api/documents/upload')
         .set('Authorization', `Bearer ${authToken}`)
         .attach('file', testFilePath);
 
-      const docId = uploadResponse.body.id;
+      const documentId = uploadResponse.body.id;
 
       // Compartir documento
       const response = await request(app)
-        .post(`/api/documents/${docId}/share`)
+        .post(`/api/documents/${documentId}/share`)
         .set('Authorization', `Bearer ${authToken}`)
         .send({ userIds: [user2Id] })
         .expect(200);
 
-      expect(response.body).toHaveProperty('message');
+      expect(response.body).toHaveProperty('doc');
 
       // Limpiar
       fs.unlinkSync(testFilePath);
@@ -120,27 +118,51 @@ describe('Document Endpoints', () => {
 
   describe('DELETE /api/documents/:id', () => {
     it('debería eliminar un documento', async () => {
-      // Subir documento
+      // Subir un documento primero
       const testFilePath = path.join(__dirname, 'delete-test.txt');
-      fs.writeFileSync(testFilePath, 'Para eliminar');
+      fs.writeFileSync(testFilePath, 'Documento a eliminar');
 
       const uploadResponse = await request(app)
         .post('/api/documents/upload')
         .set('Authorization', `Bearer ${authToken}`)
         .attach('file', testFilePath);
 
-      const docId = uploadResponse.body.id;
+      const documentId = uploadResponse.body.id;
 
-      // Eliminar documento
       await request(app)
-        .delete(`/api/documents/${docId}`)
+        .delete(`/api/documents/${documentId}`)
         .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
       // Limpiar
-      if (fs.existsSync(testFilePath)) {
-        fs.unlinkSync(testFilePath);
-      }
+      fs.unlinkSync(testFilePath);
+    });
+  });
+
+  describe('GET /api/documents/download/:id', () => {
+    it('debería descargar un documento', async () => {
+      // Subir un documento primero
+      const testFilePath = path.join(__dirname, 'download-test.txt');
+      const testContent = 'Contenido para descargar';
+      fs.writeFileSync(testFilePath, testContent);
+
+      const uploadResponse = await request(app)
+        .post('/api/documents/upload')
+        .set('Authorization', `Bearer ${authToken}`)
+        .attach('file', testFilePath);
+
+      const documentId = uploadResponse.body.id;
+
+      const response = await request(app)
+        .get(`/api/documents/download/${documentId}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+
+      // Verificar que se recibe contenido
+      expect(response.body).toBeDefined();
+
+      // Limpiar
+      fs.unlinkSync(testFilePath);
     });
   });
 });

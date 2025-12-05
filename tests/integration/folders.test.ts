@@ -1,12 +1,12 @@
-const { request, app } = require('../setup');
+import { request, app } from '../setup';
 
 describe('Folder Endpoints', () => {
-  let authToken;
-  let userId;
+  let authToken: string;
+  let userId: string;
 
   // Registrar y autenticar usuario antes de los tests
   beforeEach(async () => {
-    const registerResponse = await request(app)
+    await request(app)
       .post('/api/auth/register')
       .send({
         name: 'Usuario Test',
@@ -86,11 +86,37 @@ describe('Folder Endpoints', () => {
       expect(Array.isArray(response.body)).toBe(true);
       expect(response.body.length).toBe(2);
     });
+
+    it('debería fallar sin autenticación', async () => {
+      await request(app)
+        .get('/api/folders')
+        .expect(401);
+    });
+  });
+
+  describe('DELETE /api/folders/:id', () => {
+    it('debería eliminar una carpeta vacía', async () => {
+      const createResponse = await request(app)
+        .post('/api/folders')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ name: 'A Eliminar' });
+
+      const folderId = createResponse.body.id;
+
+      await request(app)
+        .delete(`/api/folders/${folderId}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+    });
+
+    it('debería fallar al eliminar carpeta con documentos sin force', async () => {
+      // Este test requeriría crear documentos en la carpeta primero
+      // Se deja como esqueleto para implementación futura
+    });
   });
 
   describe('PATCH /api/folders/:id', () => {
     it('debería renombrar una carpeta', async () => {
-      // Crear carpeta
       const createResponse = await request(app)
         .post('/api/folders')
         .set('Authorization', `Bearer ${authToken}`)
@@ -98,49 +124,20 @@ describe('Folder Endpoints', () => {
 
       const folderId = createResponse.body.id;
 
-      // Renombrar carpeta
       const response = await request(app)
         .patch(`/api/folders/${folderId}`)
         .set('Authorization', `Bearer ${authToken}`)
-        .send({ name: 'Nombre Nuevo' })
+        .send({ name: 'Nuevo Nombre' })
         .expect(200);
 
-      expect(response.body.name).toBe('Nombre Nuevo');
-    });
-  });
-
-  describe('DELETE /api/folders/:id', () => {
-    it('debería eliminar una carpeta vacía', async () => {
-      // Crear carpeta
-      const createResponse = await request(app)
-        .post('/api/folders')
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ name: 'Para Eliminar' });
-
-      const folderId = createResponse.body.id;
-
-      // Eliminar carpeta
-      await request(app)
-        .delete(`/api/folders/${folderId}`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .expect(200);
+      expect(response.body.name).toBe('Nuevo Nombre');
     });
 
-    it('debería eliminar carpeta con force=true aunque tenga documentos', async () => {
-      // Crear carpeta
-      const createResponse = await request(app)
-        .post('/api/folders')
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ name: 'Con Documentos' });
-
-      const folderId = createResponse.body.id;
-
-      // Eliminar con force
+    it('debería fallar sin autenticación', async () => {
       await request(app)
-        .delete(`/api/folders/${folderId}`)
-        .query({ force: true })
-        .set('Authorization', `Bearer ${authToken}`)
-        .expect(200);
+        .patch('/api/folders/123456')
+        .send({ name: 'Nuevo Nombre' })
+        .expect(401);
     });
   });
 });

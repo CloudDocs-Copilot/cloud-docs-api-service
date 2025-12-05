@@ -1,4 +1,4 @@
-const jwtService = require('../../src/services/jwt.service');
+import * as jwtService from '../../src/services/jwt.service';
 
 describe('JWT Service', () => {
   const testPayload = {
