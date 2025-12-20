@@ -58,7 +58,12 @@ export async function registerUser({ name, email, password, role = 'user' }: Reg
  * @throws Error si las credenciales son inválidas
  */
 export async function loginUser({ email, password }: LoginUserDto): Promise<AuthResponse> {
-  const user = await User.findOne({ email });
+  // Validar explícitamente los tipos para evitar inyección NoSQL u otros valores inesperados
+  if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
+    throw new Error('Invalid credentials');
+  }
+
+  const user = await User.findOne({ email: { $eq: email } });
   if (!user) throw new Error('User not found');
   
   const valid = await bcrypt.compare(password, user.password);
