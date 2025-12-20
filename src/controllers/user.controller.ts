@@ -44,7 +44,7 @@ export async function update(req: AuthRequest, res: Response, next: NextFunction
       return next(new HttpError(400, 'Missing required fields'));
     }
     
-    console.log(name, email);
+    console.log('Updating user with name=%s email=%s', name, email);
     const user = await userService.updateUser(req.params.id, req.body);
     res.json({ message: 'User updated successfully', user });
   } catch (err: any) {
