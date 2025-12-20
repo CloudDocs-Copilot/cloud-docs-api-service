@@ -1,5 +1,9 @@
 import * as jwtService from '../../src/services/jwt.service';
 
+/**
+ * Tests unitarios para el servicio JWT
+ * Prueba la generación y verificación de tokens JWT
+ */
 describe('JWT Service', () => {
   const testPayload = {
     id: '123456',
@@ -8,13 +12,13 @@ describe('JWT Service', () => {
   };
 
   describe('signToken', () => {
-    it('debería generar un token válido', () => {
+    it('should generate a valid token', () => {
       const token = jwtService.signToken(testPayload);
       expect(typeof token).toBe('string');
       expect(token.length).toBeGreaterThan(0);
     });
 
-    it('el token debería contener tokenCreatedAt', () => {
+    it('token should contain tokenCreatedAt', () => {
       const token = jwtService.signToken(testPayload);
       const decoded = jwtService.verifyToken(token);
       expect(decoded).toHaveProperty('tokenCreatedAt');
@@ -22,7 +26,7 @@ describe('JWT Service', () => {
   });
 
   describe('verifyToken', () => {
-    it('debería verificar un token válido', () => {
+    it('should verify a valid token', () => {
       const token = jwtService.signToken(testPayload);
       const decoded = jwtService.verifyToken(token);
       
@@ -31,15 +35,15 @@ describe('JWT Service', () => {
       expect(decoded.role).toBe(testPayload.role);
     });
 
-    it('debería lanzar error con token inválido', () => {
-      const invalidToken = 'token.invalido.aqui';
+    it('should throw error with invalid token', () => {
+      const invalidToken = 'invalid.token.here';
       
       expect(() => {
         jwtService.verifyToken(invalidToken);
       }).toThrow();
     });
 
-    it('debería lanzar error con token vacío', () => {
+    it('should throw error with empty token', () => {
       expect(() => {
         jwtService.verifyToken('');
       }).toThrow();

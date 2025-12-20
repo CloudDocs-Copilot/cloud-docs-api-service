@@ -1,64 +1,61 @@
 import { request, app } from '../setup';
+import { registerAndLogin } from '../helpers';
+import { folderUser, basicFolder, duplicateFolder, multipleFolders } from '../fixtures';
+import { FolderBuilder } from '../builders';
 
+/**
+ * Tests de integración para endpoints de carpetas
+ * Prueba creación, listado, eliminación y renombrado de carpetas
+ */
 describe('Folder Endpoints', () => {
   let authToken: string;
   let userId: string;
 
-  // Registrar y autenticar usuario antes de los tests
+  // Register and authenticate user before tests
   beforeEach(async () => {
-    await request(app)
-      .post('/api/auth/register')
-      .send({
-        name: 'Usuario Test',
-        email: 'folder-test@example.com',
-        password: 'password123'
-      });
-
-    const loginResponse = await request(app)
-      .post('/api/auth/login')
-      .send({
-        email: 'folder-test@example.com',
-        password: 'password123'
-      });
-
-    authToken = loginResponse.body.token;
-    userId = loginResponse.body.user.id;
+    const auth = await registerAndLogin({
+      name: folderUser.name,
+      email: folderUser.email,
+      password: folderUser.password
+    });
+    authToken = auth.token;
+    userId = auth.userId;
   });
 
   describe('POST /api/folders', () => {
-    it('debería crear una nueva carpeta', async () => {
+    it('should create a new folder', async () => {
       const response = await request(app)
         .post('/api/folders')
         .set('Authorization', `Bearer ${authToken}`)
-        .send({ name: 'Mi Carpeta' })
+        .send({ name: basicFolder.name })
         .expect(201);
 
       expect(response.body).toHaveProperty('id');
-      expect(response.body.name).toBe('Mi Carpeta');
+      expect(response.body.name).toBe(basicFolder.name);
       expect(response.body.owner).toBe(userId);
     });
 
-    it('debería fallar sin token de autenticación', async () => {
+    it('should fail without authentication token', async () => {
       const response = await request(app)
         .post('/api/folders')
-        .send({ name: 'Mi Carpeta' })
+        .send({ name: basicFolder.name })
         .expect(401);
 
       expect(response.body).toHaveProperty('error');
     });
 
-    it('debería fallar con nombre duplicado para el mismo usuario', async () => {
-      // Crear primera carpeta
+    it('should fail with duplicate name for same user', async () => {
+      // Create first folder
       await request(app)
         .post('/api/folders')
         .set('Authorization', `Bearer ${authToken}`)
-        .send({ name: 'Duplicada' });
+        .send({ name: duplicateFolder.name });
 
-      // Intentar crear carpeta con el mismo nombre
+      // Try to create folder with same name
       const response = await request(app)
         .post('/api/folders')
         .set('Authorization', `Bearer ${authToken}`)
-        .send({ name: 'Duplicada' })
+        .send({ name: duplicateFolder.name })
         .expect(409);
 
       expect(response.body.error).toContain('already exists');
@@ -66,17 +63,14 @@ describe('Folder Endpoints', () => {
   });
 
   describe('GET /api/folders', () => {
-    it('debería listar las carpetas del usuario', async () => {
-      // Crear algunas carpetas
-      await request(app)
-        .post('/api/folders')
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ name: 'Carpeta 1' });
-
-      await request(app)
-        .post('/api/folders')
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ name: 'Carpeta 2' });
+    it('should list user folders', async () => {
+      // Create some folders
+      for (const folder of multipleFolders.slice(0, 2)) {
+        await request(app)
+          .post('/api/folders')
+          .set('Authorization', `Bearer ${authToken}`)
+          .send({ name: folder.name });
+      }
 
       const response = await request(app)
         .get('/api/folders')
@@ -87,7 +81,7 @@ describe('Folder Endpoints', () => {
       expect(response.body.length).toBe(2);
     });
 
-    it('debería fallar sin autenticación', async () => {
+    it('should fail without authentication', async () => {
       await request(app)
         .get('/api/folders')
         .expect(401);
@@ -95,7 +89,7 @@ describe('Folder Endpoints', () => {
   });
 
   describe('DELETE /api/folders/:id', () => {
-    it('debería eliminar una carpeta vacía', async () => {
+    it('should delete an empty folder', async () => {
       const createResponse = await request(app)
         .post('/api/folders')
         .set('Authorization', `Bearer ${authToken}`)
@@ -109,31 +103,34 @@ describe('Folder Endpoints', () => {
         .expect(200);
     });
 
-    it('debería fallar al eliminar carpeta con documentos sin force', async () => {
-      // Este test requeriría crear documentos en la carpeta primero
-      // Se deja como esqueleto para implementación futura
+    it('should fail to delete folder with documents without force', async () => {
+      // This test would require creating documents in the folder first
+      // Left as skeleton for future implementation
     });
   });
 
   describe('PATCH /api/folders/:id', () => {
-    it('debería renombrar una carpeta', async () => {
+    it('should rename a folder', async () => {
+      const originalFolder = new FolderBuilder().withName('Nombre Original').build();
+      const newName = 'Nuevo Nombre';
+
       const createResponse = await request(app)
         .post('/api/folders')
         .set('Authorization', `Bearer ${authToken}`)
-        .send({ name: 'Nombre Original' });
+        .send({ name: originalFolder.name });
 
       const folderId = createResponse.body.id;
 
       const response = await request(app)
         .patch(`/api/folders/${folderId}`)
         .set('Authorization', `Bearer ${authToken}`)
-        .send({ name: 'Nuevo Nombre' })
+        .send({ name: newName })
         .expect(200);
 
-      expect(response.body.name).toBe('Nuevo Nombre');
+      expect(response.body.name).toBe(newName);
     });
 
-    it('debería fallar sin autenticación', async () => {
+    it('should fail without authentication', async () => {
       await request(app)
         .patch('/api/folders/123456')
         .send({ name: 'Nuevo Nombre' })

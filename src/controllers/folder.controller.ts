@@ -2,6 +2,9 @@ import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import * as folderService from '../services/folder.service';
 
+/**
+ * Controlador para crear una nueva carpeta
+ */
 export async function create(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const folder = await folderService.createFolder({
@@ -14,6 +17,9 @@ export async function create(req: AuthRequest, res: Response, next: NextFunction
   }
 }
 
+/**
+ * Controlador para listar carpetas del usuario
+ */
 export async function list(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const folders = await folderService.listFolders(req.user!.id);
@@ -23,6 +29,9 @@ export async function list(req: AuthRequest, res: Response, next: NextFunction):
   }
 }
 
+/**
+ * Controlador para eliminar una carpeta
+ */
 export async function remove(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const forceParam = (req.query && req.query.force) || 'false';
@@ -40,6 +49,9 @@ export async function remove(req: AuthRequest, res: Response, next: NextFunction
   }
 }
 
+/**
+ * Controlador para renombrar una carpeta
+ */
 export async function rename(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const folder = await folderService.renameFolder({

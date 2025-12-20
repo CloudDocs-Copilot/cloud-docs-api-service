@@ -4,6 +4,15 @@ import crypto from 'crypto';
 import fs from 'fs';
 import HttpError from '../models/error.model';
 
+/**
+ * Configuración del middleware de subida de archivos
+ * 
+ * Utiliza Multer para manejar la subida de archivos con:
+ * - Almacenamiento en disco con nombres aleatorios
+ * - Validación de tipos MIME permitidos
+ * - Límite de tamaño configurable
+ */
+
 // Asegura que el directorio de cargas exista
 const uploadDir = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadDir)) {

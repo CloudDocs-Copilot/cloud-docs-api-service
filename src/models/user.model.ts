@@ -1,5 +1,9 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
+/**
+ * Interfaz del modelo de Usuario
+ * Define la estructura de datos para los usuarios del sistema
+ */
 export interface IUser extends Document {
   name: string;
   email: string;
@@ -12,6 +16,16 @@ export interface IUser extends Document {
   updatedAt: Date;
 }
 
+/**
+ * Schema de Mongoose para el modelo de Usuario
+ * 
+ * Características:
+ * - Email único
+ * - Contraseña hasheada (nunca se expone en JSON)
+ * - Sistema de versionado de tokens para invalidación
+ * - Timestamps automáticos (createdAt, updatedAt)
+ * - Transformación automática para eliminar datos sensibles en respuestas
+ */
 const userSchema = new Schema<IUser>(
   {
     name: { type: String, required: true },

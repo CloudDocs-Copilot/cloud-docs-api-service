@@ -3,6 +3,10 @@ import { AuthRequest } from '../middlewares/auth.middleware';
 import { registerUser, loginUser } from '../services/auth.service';
 import HttpError from '../models/error.model';
 
+/**
+ * Controlador de registro de usuario
+ * Valida datos requeridos, fortaleza de contraseña y registra nuevo usuario
+ */
 export async function register(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const { name, email, password } = req.body;
@@ -17,10 +21,17 @@ export async function register(req: AuthRequest, res: Response, next: NextFuncti
     if (err.message && err.message.includes('duplicate key')) {
       return next(new HttpError(409, 'Email already registered'));
     }
+    if (err.message && err.message.includes('Password validation failed')) {
+      return next(new HttpError(400, err.message));
+    }
     next(err);
   }
 }
 
+/**
+ * Controlador de inicio de sesión
+ * Autentica usuario y retorna token JWT
+ */
 export async function login(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const result = await loginUser(req.body);

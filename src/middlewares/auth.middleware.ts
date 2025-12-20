@@ -13,7 +13,15 @@ export interface AuthRequest extends Request {
   };
 }
 
-// Middleware de autenticación avanzado
+/**
+ * Middleware de autenticación avanzado
+ * 
+ * Verifica el token JWT y valida:
+ * - Existencia del usuario
+ * - Estado activo del usuario
+ * - Validez del token tras cambios en el usuario
+ * - Expiración del token por cambio de contraseña
+ */
 export async function authenticateToken(req: AuthRequest, _res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];

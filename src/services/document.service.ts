@@ -5,7 +5,14 @@ import DocumentModel, { IDocument } from '../models/document.model';
 import Folder from '../models/folder.model';
 import User from '../models/user.model';
 import HttpError from '../models/error.model';
+import { sanitizePathOrThrow } from '../utils/path-sanitizer';
 
+/**
+ * Valida si un string es un ObjectId válido de MongoDB
+ * 
+ * @param id - String a validar
+ * @returns true si es un ObjectId válido
+ */
 function isValidObjectId(id: string): boolean {
   return mongoose.Types.ObjectId.isValid(id);
 }
@@ -67,8 +74,14 @@ export async function deleteDocument({ id, userId }: DeleteDocumentDto): Promise
   // Elimina el archivo físico desde uploads/ o storage/
   try {
     if (doc.filename) {
-      const uploadsPath = path.join(process.cwd(), 'uploads', doc.filename);
-      const storagePath = path.join(process.cwd(), 'storage', doc.filename);
+      // Sanitizar el path para prevenir Path Traversal
+      const uploadsBase = path.join(process.cwd(), 'uploads');
+      const storageBase = path.join(process.cwd(), 'storage');
+      
+      const safeFilename = sanitizePathOrThrow(doc.filename, uploadsBase);
+      const uploadsPath = path.join(uploadsBase, safeFilename);
+      const storagePath = path.join(storageBase, safeFilename);
+      
       if (fs.existsSync(uploadsPath)) fs.unlinkSync(uploadsPath);
       else if (fs.existsSync(storagePath)) fs.unlinkSync(storagePath);
     }
@@ -95,10 +108,14 @@ export async function deleteDocument({ id, userId }: DeleteDocumentDto): Promise
 export async function uploadDocument({ file, userId, folderId }: UploadDocumentDto): Promise<IDocument> {
   if (!file || !file.filename) throw new HttpError(400, 'File is required');
 
+  // Sanitizar el filename para prevenir Path Traversal
+  const uploadsBase = path.join(process.cwd(), 'uploads');
+  const safeFilename = sanitizePathOrThrow(file.filename, uploadsBase);
+
   const docData: any = {
-    filename: file.filename,
+    filename: safeFilename,
     originalname: file.originalname,
-    url: `/uploads/${file.filename}`,
+    url: `/uploads/${safeFilename}`,
     uploadedBy: userId
   };
 

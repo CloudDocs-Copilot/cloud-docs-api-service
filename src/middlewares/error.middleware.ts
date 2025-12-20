@@ -11,6 +11,12 @@ interface MulterError extends Error {
   code?: string;
 }
 
+/**
+ * Mapea errores específicos de Mongoose a respuestas HTTP estándar
+ * 
+ * @param err - Error de Mongoose a mapear
+ * @returns Objeto con status y mensaje, o null si no es un error de Mongoose conocido
+ */
 function mapMongooseError(err: MongooseError): { status: number; message: string } | null {
   // ValidationError (validación de esquema)
   if (err.name === 'ValidationError') {
@@ -36,6 +42,16 @@ function mapMongooseError(err: MongooseError): { status: number; message: string
   return null;
 }
 
+/**
+ * Manejador global de errores de la aplicación
+ * 
+ * Procesa y formatea diferentes tipos de errores:
+ * - HttpError personalizado
+ * - Errores de Mongoose (validación, cast, duplicados)
+ * - Errores de JWT (expirado, inválido)
+ * - Errores de Multer (límites de subida)
+ * - Errores no manejados
+ */
 export function errorHandler(err: any, _req: Request, res: Response, _next: NextFunction): void {
   // Error de aplicación tipado personalizado
   if (err instanceof HttpError) {

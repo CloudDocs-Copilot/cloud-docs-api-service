@@ -1,50 +1,37 @@
 import { request, app } from '../setup';
-import path from 'path';
-import fs from 'fs';
+import { registerAndLogin, uploadTestFile } from '../helpers';
+import { docUser, secondUser } from '../fixtures';
 
+/**
+ * Tests de integración para endpoints de documentos
+ * Prueba subida, listado, compartir, eliminar y descarga de documentos
+ */
 describe('Document Endpoints', () => {
   let authToken: string;
 
   beforeEach(async () => {
-    await request(app)
-      .post('/api/auth/register')
-      .send({
-        name: 'Usuario Test',
-        email: 'doc-test@example.com',
-        password: 'password123'
-      });
-
-    const loginResponse = await request(app)
-      .post('/api/auth/login')
-      .send({
-        email: 'doc-test@example.com',
-        password: 'password123'
-      });
-
-    authToken = loginResponse.body.token;
+    const { token } = await registerAndLogin({
+      name: docUser.name,
+      email: docUser.email,
+      password: docUser.password
+    });
+    authToken = token;
   });
 
   describe('POST /api/documents/upload', () => {
-    it('debería subir un documento', async () => {
-      // Crear un archivo temporal para el test
-      const testFilePath = path.join(__dirname, 'test-file.txt');
-      fs.writeFileSync(testFilePath, 'Contenido de prueba');
+    it('should upload a document', async () => {
+      const response = await uploadTestFile(authToken, {
+        filename: 'test-file.txt',
+        content: 'Test content'
+      });
 
-      const response = await request(app)
-        .post('/api/documents/upload')
-        .set('Authorization', `Bearer ${authToken}`)
-        .attach('file', testFilePath)
-        .expect(201);
-
+      expect(response.status).toBe(201);
       expect(response.body).toHaveProperty('id');
       expect(response.body).toHaveProperty('filename');
       expect(response.body).toHaveProperty('originalname');
-
-      // Limpiar archivo temporal
-      fs.unlinkSync(testFilePath);
     });
 
-    it('debería fallar sin archivo', async () => {
+    it('should fail without file', async () => {
       const response = await request(app)
         .post('/api/documents/upload')
         .set('Authorization', `Bearer ${authToken}`)
@@ -55,7 +42,7 @@ describe('Document Endpoints', () => {
   });
 
   describe('GET /api/documents', () => {
-    it('debería listar los documentos del usuario', async () => {
+    it('should list user documents', async () => {
       const response = await request(app)
         .get('/api/documents')
         .set('Authorization', `Bearer ${authToken}`)
@@ -64,7 +51,7 @@ describe('Document Endpoints', () => {
       expect(Array.isArray(response.body)).toBe(true);
     });
 
-    it('debería fallar sin autenticación', async () => {
+    it('should fail without authentication', async () => {
       await request(app)
         .get('/api/documents')
         .expect(401);
@@ -72,37 +59,23 @@ describe('Document Endpoints', () => {
   });
 
   describe('POST /api/documents/:id/share', () => {
-    it('debería compartir un documento con otros usuarios', async () => {
-      // Crear otro usuario
-      await request(app)
-        .post('/api/auth/register')
-        .send({
-          name: 'Usuario 2',
-          email: 'user2@example.com',
-          password: 'password123'
-        });
+    it('should share a document with other users', async () => {
+      // Create another user
+      const { userId: user2Id } = await registerAndLogin({
+        name: secondUser.name,
+        email: secondUser.email,
+        password: secondUser.password
+      });
 
-      const user2LoginResponse = await request(app)
-        .post('/api/auth/login')
-        .send({
-          email: 'user2@example.com',
-          password: 'password123'
-        });
-
-      const user2Id = user2LoginResponse.body.user.id;
-
-      // Subir un documento
-      const testFilePath = path.join(__dirname, 'share-test.txt');
-      fs.writeFileSync(testFilePath, 'Documento para compartir');
-
-      const uploadResponse = await request(app)
-        .post('/api/documents/upload')
-        .set('Authorization', `Bearer ${authToken}`)
-        .attach('file', testFilePath);
+      // Upload a document
+      const uploadResponse = await uploadTestFile(authToken, {
+        filename: 'share-test.txt',
+        content: 'Document to share'
+      });
 
       const documentId = uploadResponse.body.id;
 
-      // Compartir documento
+      // Share document
       const response = await request(app)
         .post(`/api/documents/${documentId}/share`)
         .set('Authorization', `Bearer ${authToken}`)
@@ -110,22 +83,16 @@ describe('Document Endpoints', () => {
         .expect(200);
 
       expect(response.body).toHaveProperty('doc');
-
-      // Limpiar
-      fs.unlinkSync(testFilePath);
     });
   });
 
   describe('DELETE /api/documents/:id', () => {
-    it('debería eliminar un documento', async () => {
-      // Subir un documento primero
-      const testFilePath = path.join(__dirname, 'delete-test.txt');
-      fs.writeFileSync(testFilePath, 'Documento a eliminar');
-
-      const uploadResponse = await request(app)
-        .post('/api/documents/upload')
-        .set('Authorization', `Bearer ${authToken}`)
-        .attach('file', testFilePath);
+    it('should delete a document', async () => {
+      // Upload a document first
+      const uploadResponse = await uploadTestFile(authToken, {
+        filename: 'delete-test.txt',
+        content: 'Document to delete'
+      });
 
       const documentId = uploadResponse.body.id;
 
@@ -133,23 +100,16 @@ describe('Document Endpoints', () => {
         .delete(`/api/documents/${documentId}`)
         .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
-
-      // Limpiar
-      fs.unlinkSync(testFilePath);
     });
   });
 
   describe('GET /api/documents/download/:id', () => {
-    it('debería descargar un documento', async () => {
-      // Subir un documento primero
-      const testFilePath = path.join(__dirname, 'download-test.txt');
-      const testContent = 'Contenido para descargar';
-      fs.writeFileSync(testFilePath, testContent);
-
-      const uploadResponse = await request(app)
-        .post('/api/documents/upload')
-        .set('Authorization', `Bearer ${authToken}`)
-        .attach('file', testFilePath);
+    it('should download a document', async () => {
+      // Upload a document first
+      const uploadResponse = await uploadTestFile(authToken, {
+        filename: 'download-test.txt',
+        content: 'Content to download'
+      });
 
       const documentId = uploadResponse.body.id;
 
@@ -158,11 +118,8 @@ describe('Document Endpoints', () => {
         .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
-      // Verificar que se recibe contenido
+      // Verify content is received
       expect(response.body).toBeDefined();
-
-      // Limpiar
-      fs.unlinkSync(testFilePath);
     });
   });
 });

@@ -5,6 +5,13 @@ import User from '../models/user.model';
 import HttpError from '../models/error.model';
 import DocumentModel from '../models/document.model';
 
+/**
+ * Sanitiza un nombre de carpeta para uso seguro en el sistema de archivos
+ * Elimina caracteres inválidos para Windows/Linux y nombres reservados
+ * 
+ * @param name - Nombre original de la carpeta
+ * @returns Nombre sanitizado y seguro para el sistema de archivos
+ */
 function sanitizeDirName(name: string): string {
   // Normaliza y elimina caracteres no seguros para Windows/Linux
   let s = String(name || '')
@@ -34,23 +41,38 @@ function sanitizeDirName(name: string): string {
   return s;
 }
 
+/**
+ * DTO para creación de carpeta
+ */
 export interface CreateFolderDto {
   name: string;
   owner: string;
 }
 
+/**
+ * DTO para eliminación de carpeta
+ */
 export interface DeleteFolderDto {
   id: string;
   owner: string;
   force?: boolean;
 }
 
+/**
+ * DTO para renombrado de carpeta
+ */
 export interface RenameFolderDto {
   id: string;
   owner: string;
   name: string;
 }
 
+/**
+ * Crea una nueva carpeta en la base de datos y el sistema de archivos
+ * 
+ * @param CreateFolderDto - Datos de la carpeta
+ * @returns Carpeta creada
+ */
 export async function createFolder({ name, owner }: CreateFolderDto): Promise<IFolder> {
   if (!name) throw new HttpError(400, 'Folder name is required');
   if (!owner) throw new HttpError(400, 'Owner is required');
@@ -80,10 +102,22 @@ export async function createFolder({ name, owner }: CreateFolderDto): Promise<IF
   }
 }
 
+/**
+ * Lista todas las carpetas de un usuario con sus documentos
+ * 
+ * @param owner - ID del propietario
+ * @returns Lista de carpetas con documentos populados
+ */
 export function listFolders(owner: string): Promise<IFolder[]> {
   return Folder.find({ owner }).populate('documents');
 }
 
+/**
+ * Elimina una carpeta y opcionalmente sus documentos
+ * 
+ * @param DeleteFolderDto - Datos de eliminación
+ * @returns Resultado de la operación
+ */
 export async function deleteFolder({ id, owner, force = false }: DeleteFolderDto): Promise<{ success: boolean }> {
   const folder = await Folder.findById(id);
   if (!folder) throw new HttpError(404, 'Folder not found');

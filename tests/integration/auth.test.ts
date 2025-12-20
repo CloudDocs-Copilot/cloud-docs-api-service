@@ -1,13 +1,18 @@
 import { request, app } from '../setup';
+import { UserBuilder } from '../builders';
+import { authUser } from '../fixtures';
 
+/**
+ * Tests de integración para endpoints de autenticación
+ * Prueba el registro, login y validaciones de seguridad
+ */
 describe('Auth Endpoints', () => {
   describe('POST /api/auth/register', () => {
-    it('debería registrar un nuevo usuario', async () => {
-      const userData = {
-        name: 'Usuario Test',
-        email: 'test@example.com',
-        password: 'password123'
-      };
+    it('should register a new user', async () => {
+      const userData = new UserBuilder()
+        .withUniqueEmail('test')
+        .withStrongPassword()
+        .build();
 
       const response = await request(app)
         .post('/api/auth/register')
@@ -18,10 +23,10 @@ describe('Auth Endpoints', () => {
       expect(response.body.user.email).toBe(userData.email);
     });
 
-    it('debería fallar con datos incompletos', async () => {
+    it('should fail with incomplete data', async () => {
       const userData = {
-        email: 'test@example.com'
-        // Falta name y password
+        email: new UserBuilder().withUniqueEmail('incomplete').build().email
+        // Missing name and password
       };
 
       const response = await request(app)
@@ -32,19 +37,19 @@ describe('Auth Endpoints', () => {
       expect(response.body).toHaveProperty('error');
     });
 
-    it('debería fallar con email duplicado', async () => {
-      const userData = {
-        name: 'Usuario Test',
-        email: 'duplicate@example.com',
-        password: 'password123'
-      };
+    it('should fail with duplicate email', async () => {
+      const userData = new UserBuilder()
+        .withName('Usuario Test')
+        .withEmail('duplicate@example.com')
+        .withStrongPassword()
+        .build();
 
-      // Primer registro
+      // First registration
       await request(app)
         .post('/api/auth/register')
         .send(userData);
 
-      // Segundo registro con el mismo email
+      // Second registration with same email
       const response = await request(app)
         .post('/api/auth/register')
         .send(userData)
@@ -56,22 +61,18 @@ describe('Auth Endpoints', () => {
 
   describe('POST /api/auth/login', () => {
     beforeEach(async () => {
-      // Registrar usuario antes de cada test de login
+      // Register user before each login test
       await request(app)
         .post('/api/auth/register')
-        .send({
-          name: 'Usuario Test',
-          email: 'login@example.com',
-          password: 'password123'
-        });
+        .send(authUser);
     });
 
-    it('debería hacer login con credenciales correctas', async () => {
+    it('should login with correct credentials', async () => {
       const response = await request(app)
         .post('/api/auth/login')
         .send({
-          email: 'login@example.com',
-          password: 'password123'
+          email: authUser.email,
+          password: authUser.password
         })
         .expect(200);
 
@@ -79,24 +80,24 @@ describe('Auth Endpoints', () => {
       expect(response.body).toHaveProperty('user');
     });
 
-    it('debería fallar con credenciales incorrectas', async () => {
+    it('should fail with incorrect credentials', async () => {
       const response = await request(app)
         .post('/api/auth/login')
         .send({
-          email: 'login@example.com',
-          password: 'wrongpassword'
+          email: authUser.email,
+          password: 'WrongPass@123'
         })
         .expect(401);
 
       expect(response.body).toHaveProperty('error');
     });
 
-    it('debería fallar con email no existente', async () => {
+    it('should fail with non-existent email', async () => {
       const response = await request(app)
         .post('/api/auth/login')
         .send({
           email: 'noexiste@example.com',
-          password: 'password123'
+          password: 'Test@1234'
         })
         .expect(404);
 
