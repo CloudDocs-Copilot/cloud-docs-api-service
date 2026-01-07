@@ -76,8 +76,18 @@ describe('Auth Endpoints', () => {
         })
         .expect(200);
 
-      expect(response.body).toHaveProperty('token');
+      // Verificar que NO devuelve token en JSON
+      expect(response.body).not.toHaveProperty('token');
+      // Verificar que devuelve el usuario
       expect(response.body).toHaveProperty('user');
+      expect(response.body).toHaveProperty('message');
+      // Verificar que envía la cookie
+      expect(response.headers['set-cookie']).toBeDefined();
+      const cookies: string[] = response.headers['set-cookie'] as unknown as string[];
+      const tokenCookie = cookies.find((cookie: string) => cookie.startsWith('token='));
+      expect(tokenCookie).toBeDefined();
+      // Verificar que la cookie tiene httpOnly
+      expect(tokenCookie).toMatch(/HttpOnly/);
     });
 
     it('should fail with incorrect credentials', async () => {
@@ -102,6 +112,46 @@ describe('Auth Endpoints', () => {
         .expect(404);
 
       expect(response.body).toHaveProperty('error');
+    });
+  });
+
+  describe('POST /api/auth/logout', () => {
+    beforeEach(async () => {
+      // Register user before logout test
+      await request(app)
+        .post('/api/auth/register')
+        .send(authUser);
+    });
+
+    it('should logout successfully and clear cookie', async () => {
+      // Primero hacer login
+      const loginResponse = await request(app)
+        .post('/api/auth/login')
+        .send({
+          email: authUser.email,
+          password: authUser.password
+        })
+        .expect(200);
+
+      const cookies: string[] = loginResponse.headers['set-cookie'] as unknown as string[];
+      const tokenCookie = cookies.find((cookie: string) => cookie.startsWith('token='));
+
+      // Hacer logout con la cookie
+      const logoutResponse = await request(app)
+        .post('/api/auth/logout')
+        .set('Cookie', tokenCookie?.split(';')[0] || '')
+        .expect(200);
+
+      expect(logoutResponse.body).toHaveProperty('message');
+      expect(logoutResponse.body.message).toBe('Logout successful');
+      
+      // Verificar que la cookie se limpia
+      const clearCookies: string[] | undefined = logoutResponse.headers['set-cookie'] as unknown as string[] | undefined;
+      if (clearCookies) {
+        const clearedTokenCookie = clearCookies.find((cookie: string) => cookie.startsWith('token='));
+        // La cookie debe estar vac\u00eda o con Max-Age=0
+        expect(clearedTokenCookie).toBeDefined();
+      }
     });
   });
 });

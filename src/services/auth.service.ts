@@ -41,6 +41,18 @@ export interface AuthResponse {
  * @throws Error si la contraseña no cumple los requisitos de seguridad
  */
 export async function registerUser({ name, email, password, role = 'user' }: RegisterUserDto): Promise<Partial<IUser>> {
+  // Validar nombre (solo alfanumérico y espacios)
+  const nameRegex = /^[a-zA-Z0-9\s]+$/;
+  if (!name || !nameRegex.test(name.trim())) {
+    throw new Error('Name must contain only alphanumeric characters and spaces');
+  }
+  
+  // Validar formato de email
+  const emailRegex = /^[^\s@]+@([^\s@.]+\.)+[^\s@.]{2,}$/;
+  if (!email || !emailRegex.test(email.toLowerCase())) {
+    throw new Error('Invalid email format');
+  }
+
   // Validar fortaleza de la contraseña
   validatePasswordOrThrow(password);
   
@@ -65,6 +77,11 @@ export async function loginUser({ email, password }: LoginUserDto): Promise<Auth
 
   const user = await User.findOne({ email: { $eq: email } });
   if (!user) throw new Error('User not found');
+  
+  // Validar que el usuario esté activo
+  if (!user.active) {
+    throw new Error('User account is not active');
+  }
   
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) throw new Error('Invalid password');

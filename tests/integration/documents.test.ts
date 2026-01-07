@@ -7,20 +7,20 @@ import { docUser, secondUser } from '../fixtures';
  * Prueba subida, listado, compartir, eliminar y descarga de documentos
  */
 describe('Document Endpoints', () => {
-  let authToken: string;
+  let authCookies: string[];
 
   beforeEach(async () => {
-    const { token } = await registerAndLogin({
+    const auth = await registerAndLogin({
       name: docUser.name,
       email: docUser.email,
       password: docUser.password
     });
-    authToken = token;
+    authCookies = auth.cookies;
   });
 
   describe('POST /api/documents/upload', () => {
     it('should upload a document', async () => {
-      const response = await uploadTestFile(authToken, {
+      const response = await uploadTestFile(authCookies, {
         filename: 'test-file.txt',
         content: 'Test content'
       });
@@ -32,9 +32,10 @@ describe('Document Endpoints', () => {
     });
 
     it('should fail without file', async () => {
+      const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
       const response = await request(app)
         .post('/api/documents/upload')
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', tokenCookie?.split(';')[0] || '')
         .expect(400);
 
       expect(response.body).toHaveProperty('error');
@@ -43,9 +44,10 @@ describe('Document Endpoints', () => {
 
   describe('GET /api/documents', () => {
     it('should list user documents', async () => {
+      const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
       const response = await request(app)
         .get('/api/documents')
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', tokenCookie?.split(';')[0] || '')
         .expect(200);
 
       expect(Array.isArray(response.body)).toBe(true);
@@ -68,7 +70,7 @@ describe('Document Endpoints', () => {
       });
 
       // Upload a document
-      const uploadResponse = await uploadTestFile(authToken, {
+      const uploadResponse = await uploadTestFile(authCookies, {
         filename: 'share-test.txt',
         content: 'Document to share'
       });
@@ -76,9 +78,10 @@ describe('Document Endpoints', () => {
       const documentId = uploadResponse.body.id;
 
       // Share document
+      const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
       const response = await request(app)
         .post(`/api/documents/${documentId}/share`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', tokenCookie?.split(';')[0] || '')
         .send({ userIds: [user2Id] })
         .expect(200);
 
@@ -89,16 +92,17 @@ describe('Document Endpoints', () => {
   describe('DELETE /api/documents/:id', () => {
     it('should delete a document', async () => {
       // Upload a document first
-      const uploadResponse = await uploadTestFile(authToken, {
+      const uploadResponse = await uploadTestFile(authCookies, {
         filename: 'delete-test.txt',
         content: 'Document to delete'
       });
 
       const documentId = uploadResponse.body.id;
 
+      const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
       await request(app)
         .delete(`/api/documents/${documentId}`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', tokenCookie?.split(';')[0] || '')
         .expect(200);
     });
   });
@@ -106,16 +110,17 @@ describe('Document Endpoints', () => {
   describe('GET /api/documents/download/:id', () => {
     it('should download a document', async () => {
       // Upload a document first
-      const uploadResponse = await uploadTestFile(authToken, {
+      const uploadResponse = await uploadTestFile(authCookies, {
         filename: 'download-test.txt',
         content: 'Content to download'
       });
 
       const documentId = uploadResponse.body.id;
 
+      const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
       const response = await request(app)
         .get(`/api/documents/download/${documentId}`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', tokenCookie?.split(';')[0] || '')
         .expect(200);
 
       // Verify content is received

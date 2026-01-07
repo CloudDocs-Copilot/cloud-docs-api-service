@@ -1,7 +1,7 @@
 import { request, app } from '../setup';
 import path from 'path';
 import fs from 'fs';
-import { registerAndLogin } from '../helpers';
+import { registerAndLogin, getAuthCookie } from '../helpers';
 import { securityUser } from '../fixtures';
 
 /**
@@ -17,17 +17,17 @@ import { securityUser } from '../fixtures';
  * Las utilidades de validación (url-validator, path-sanitizer) se prueban unitariamente.
  */
 describe('Security - URL and Path Validation', () => {
-  // Token compartido para todos los tests de integración
-  let globalAuthToken: string;
+  // Cookies compartidas para todos los tests de integración
+  let globalAuthCookies: string[];
 
   beforeAll(async () => {
     // Usar helper para autenticación
-    const { token } = await registerAndLogin({
+    const auth = await registerAndLogin({
       name: securityUser.name,
       email: securityUser.email,
       password: securityUser.password
     });
-    globalAuthToken = token;
+    globalAuthCookies = auth.cookies;
   });
   
   describe('Path Traversal Protection', () => {
@@ -38,7 +38,7 @@ describe('Security - URL and Path Validation', () => {
       
       const response = await request(app)
         .post('/api/documents/upload')
-        .set('Authorization', `Bearer ${globalAuthToken}`)
+        .set('Cookie', getAuthCookie(globalAuthCookies))
         .attach('file', testFile, '../../../etc/passwd.txt');
 
       // El upload puede ser exitoso (201), rechazado por MIME (400), o fallar por otros motivos
@@ -54,7 +54,7 @@ describe('Security - URL and Path Validation', () => {
       
       const response = await request(app)
         .post('/api/documents/upload')
-        .set('Authorization', `Bearer ${globalAuthToken}`)
+        .set('Cookie', getAuthCookie(globalAuthCookies))
         .attach('file', testFile, '%2e%2e%2f%2e%2e%2fetc%2fpasswd.txt');
 
       // Multer sanitiza el nombre a UUID
@@ -66,7 +66,7 @@ describe('Security - URL and Path Validation', () => {
       
       const response = await request(app)
         .post('/api/documents/upload')
-        .set('Authorization', `Bearer ${globalAuthToken}`)
+        .set('Cookie', getAuthCookie(globalAuthCookies))
         .attach('file', testFile, 'legitimate-file.txt');
 
       // Debe ser exitoso o rechazado por tipo MIME
@@ -78,7 +78,7 @@ describe('Security - URL and Path Validation', () => {
       
       const response = await request(app)
         .post('/api/documents/upload')
-        .set('Authorization', `Bearer ${globalAuthToken}`)
+        .set('Cookie', getAuthCookie(globalAuthCookies))
         .attach('file', testFile, 'file\x00.txt');
 
       // Multer sanitiza o rechaza
@@ -90,7 +90,7 @@ describe('Security - URL and Path Validation', () => {
       
       const response = await request(app)
         .post('/api/documents/upload')
-        .set('Authorization', `Bearer ${globalAuthToken}`)
+        .set('Cookie', getAuthCookie(globalAuthCookies))
         .attach('file', testFile, '/etc/passwd');
 
       // Multer sanitiza a UUID
@@ -102,7 +102,7 @@ describe('Security - URL and Path Validation', () => {
       
       const response = await request(app)
         .post('/api/documents/upload')
-        .set('Authorization', `Bearer ${globalAuthToken}`)
+        .set('Cookie', getAuthCookie(globalAuthCookies))
         .attach('file', testFile, 'file<>:|?.txt');
 
       // El nombre debe ser sanitizado automáticamente por Multer (UUID)
@@ -119,7 +119,7 @@ describe('Security - URL and Path Validation', () => {
       
       const response = await request(app)
         .post('/api/documents/upload')
-        .set('Authorization', `Bearer ${globalAuthToken}`)
+        .set('Cookie', getAuthCookie(globalAuthCookies))
         .attach('file', maliciousFile, 'malware.exe');
 
       // Debe rechazar por tipo MIME (400) o por autenticación (401)
@@ -131,7 +131,7 @@ describe('Security - URL and Path Validation', () => {
       
       const response = await request(app)
         .post('/api/documents/upload')
-        .set('Authorization', `Bearer ${globalAuthToken}`)
+        .set('Cookie', getAuthCookie(globalAuthCookies))
         .attach('file', scriptFile, 'script.sh');
 
       // Debe rechazar por tipo MIME o por autenticación
@@ -144,7 +144,7 @@ describe('Security - URL and Path Validation', () => {
       // Solo .txt está permitido por defecto (text/plain en ALLOWED_MIME_TYPES)
       const response = await request(app)
         .post('/api/documents/upload')
-        .set('Authorization', `Bearer ${globalAuthToken}`)
+        .set('Cookie', getAuthCookie(globalAuthCookies))
         .attach('file', validFile, 'document.txt');
 
       // Debe aceptar text/plain o fallar por autenticación
@@ -159,7 +159,7 @@ describe('Security - URL and Path Validation', () => {
       
       const response = await request(app)
         .post('/api/documents/upload')
-        .set('Authorization', `Bearer ${globalAuthToken}`)
+        .set('Cookie', getAuthCookie(globalAuthCookies))
         .attach('file', testFile, longName);
 
       // Multer convierte a UUID, así que es aceptado o falla por autenticación
@@ -172,7 +172,7 @@ describe('Security - URL and Path Validation', () => {
       
       const response = await request(app)
         .post('/api/documents/upload')
-        .set('Authorization', `Bearer ${globalAuthToken}`)
+        .set('Cookie', getAuthCookie(globalAuthCookies))
         .attach('file', testFile, normalName);
 
       expect([201, 400, 401]).toContain(response.status);
@@ -187,7 +187,7 @@ describe('Security - URL and Path Validation', () => {
       const testFile = Buffer.from('download test content');
       const uploadResponse = await request(app)
         .post('/api/documents/upload')
-        .set('Authorization', `Bearer ${globalAuthToken}`)
+        .set('Cookie', getAuthCookie(globalAuthCookies))
         .attach('file', testFile, 'download-test.txt');
 
       if (uploadResponse.status === 201) {
@@ -199,7 +199,7 @@ describe('Security - URL and Path Validation', () => {
       // Intentar manipular el ID para acceder a otros archivos
       await request(app)
         .get('/api/documents/download/../../../etc/passwd')
-        .set('Authorization', `Bearer ${globalAuthToken}`)
+        .set('Cookie', getAuthCookie(globalAuthCookies))
         .expect(404); // Debe fallar el routing o la validación
     });
 
@@ -211,7 +211,7 @@ describe('Security - URL and Path Validation', () => {
 
       const response = await request(app)
         .get(`/api/documents/download/${documentId}`)
-        .set('Authorization', `Bearer ${globalAuthToken}`);
+        .set('Cookie', getAuthCookie(globalAuthCookies));
 
       // Si el archivo existe, debe descargarse correctamente
       if (response.status === 200) {

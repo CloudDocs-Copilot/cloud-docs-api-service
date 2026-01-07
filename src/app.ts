@@ -3,6 +3,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import mongoSanitize from 'express-mongo-sanitize';
+import cookieParser from 'cookie-parser';
 import swaggerUi from 'swagger-ui-express';
 import openapiSpec from './docs/openapi.json';
 import authRoutes from './routes/auth.routes';
@@ -56,6 +57,9 @@ app.use(helmet({
 // Desarrollo: Permite orígenes localhost automáticamente
 // Producción: Solo permite dominios explícitamente autorizados desde la variable ALLOWED_ORIGINS
 app.use(cors(getCorsOptions()));
+
+// Middleware para parsear cookies
+app.use(cookieParser());
 
 // Middleware de parsing del body
 app.use(express.json());
