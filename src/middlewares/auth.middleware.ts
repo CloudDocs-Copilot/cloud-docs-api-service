@@ -16,15 +16,21 @@ export interface AuthRequest extends Request {
 /**
  * Middleware de autenticación avanzado
  * 
- * Verifica el token JWT y valida:
+ * Verifica el token JWT desde cookie HttpOnly y valida:
  * - Existencia del usuario
  * - Estado activo del usuario
  * - Validez del token tras cambios en el usuario
  * - Expiración del token por cambio de contraseña
  */
 export async function authenticateToken(req: AuthRequest, _res: Response, next: NextFunction): Promise<void> {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  // Intentar obtener el token desde la cookie primero
+  let token = req.cookies?.token;
+  
+  // Fallback: si no hay cookie, intentar con header Authorization (para compatibilidad temporal)
+  if (!token) {
+    const authHeader = req.headers['authorization'];
+    token = authHeader && authHeader.split(' ')[1];
+  }
   
   if (!token) {
     return next(new HttpError(401, 'Access token required'));

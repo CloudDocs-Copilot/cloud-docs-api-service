@@ -49,8 +49,12 @@ export async function shareDocument({ id, userId, userIds }: ShareDocumentDto): 
   if (!doc) throw new Error('Document not found');
   if (String(doc.uploadedBy) !== String(userId)) throw new HttpError(403, 'Forbidden');
 
+  // Filtra el owner de la lista de usuarios con los que compartir
+  const filteredIds = uniqueIds.filter(id => String(id) !== String(userId));
+  if (filteredIds.length === 0) throw new HttpError(400, 'Cannot share document with yourself as the owner');
+
   // Opcionalmente, filtra solo usuarios existentes
-  const existingUsers = await User.find({ _id: { $in: uniqueIds } }, { _id: 1 }).lean();
+  const existingUsers = await User.find({ _id: { $in: filteredIds } }, { _id: 1 }).lean();
   const existingIds = existingUsers.map(u => String(u._id));
   if (existingIds.length === 0) throw new HttpError(400, 'No valid users found to share with');
 

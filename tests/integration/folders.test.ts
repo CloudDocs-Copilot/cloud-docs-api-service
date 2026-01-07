@@ -8,7 +8,7 @@ import { FolderBuilder } from '../builders';
  * Prueba creación, listado, eliminación y renombrado de carpetas
  */
 describe('Folder Endpoints', () => {
-  let authToken: string;
+  let authCookies: string[];
   let userId: string;
 
   // Register and authenticate user before tests
@@ -18,15 +18,16 @@ describe('Folder Endpoints', () => {
       email: folderUser.email,
       password: folderUser.password
     });
-    authToken = auth.token;
+    authCookies = auth.cookies;
     userId = auth.userId;
   });
 
   describe('POST /api/folders', () => {
     it('should create a new folder', async () => {
+      const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
       const response = await request(app)
         .post('/api/folders')
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', tokenCookie?.split(';')[0] || '')
         .send({ name: basicFolder.name })
         .expect(201);
 
@@ -45,16 +46,17 @@ describe('Folder Endpoints', () => {
     });
 
     it('should fail with duplicate name for same user', async () => {
+      const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
       // Create first folder
       await request(app)
         .post('/api/folders')
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', tokenCookie?.split(';')[0] || '')
         .send({ name: duplicateFolder.name });
 
       // Try to create folder with same name
       const response = await request(app)
         .post('/api/folders')
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', tokenCookie?.split(';')[0] || '')
         .send({ name: duplicateFolder.name })
         .expect(409);
 
@@ -64,17 +66,18 @@ describe('Folder Endpoints', () => {
 
   describe('GET /api/folders', () => {
     it('should list user folders', async () => {
+      const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
       // Create some folders
       for (const folder of multipleFolders.slice(0, 2)) {
         await request(app)
           .post('/api/folders')
-          .set('Authorization', `Bearer ${authToken}`)
+          .set('Cookie', tokenCookie?.split(';')[0] || '')
           .send({ name: folder.name });
       }
 
       const response = await request(app)
         .get('/api/folders')
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', tokenCookie?.split(';')[0] || '')
         .expect(200);
 
       expect(Array.isArray(response.body)).toBe(true);
@@ -90,16 +93,17 @@ describe('Folder Endpoints', () => {
 
   describe('DELETE /api/folders/:id', () => {
     it('should delete an empty folder', async () => {
+      const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
       const createResponse = await request(app)
         .post('/api/folders')
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', tokenCookie?.split(';')[0] || '')
         .send({ name: 'A Eliminar' });
 
       const folderId = createResponse.body.id;
 
       await request(app)
         .delete(`/api/folders/${folderId}`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', tokenCookie?.split(';')[0] || '')
         .expect(200);
     });
 
@@ -111,19 +115,20 @@ describe('Folder Endpoints', () => {
 
   describe('PATCH /api/folders/:id', () => {
     it('should rename a folder', async () => {
+      const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
       const originalFolder = new FolderBuilder().withName('Nombre Original').build();
       const newName = 'Nuevo Nombre';
 
       const createResponse = await request(app)
         .post('/api/folders')
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', tokenCookie?.split(';')[0] || '')
         .send({ name: originalFolder.name });
 
       const folderId = createResponse.body.id;
 
       const response = await request(app)
         .patch(`/api/folders/${folderId}`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', tokenCookie?.split(';')[0] || '')
         .send({ name: newName })
         .expect(200);
 

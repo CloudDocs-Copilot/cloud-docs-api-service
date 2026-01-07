@@ -46,15 +46,15 @@ describe('Password Validation', () => {
     it('should reject weak new password', async () => {
       // Register and login user for this test
       const oldPassword = 'OldPass@123';
-      const { token: authToken, userId } = await registerAndLogin({
+      const auth = await registerAndLogin({
         name: 'Test User 1',
         email: 'changepass1@example.com',
         password: oldPassword
       });
 
       const response = await request(app)
-        .patch(`/api/users/${userId}/password`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .patch(`/api/users/${auth.userId}/password`)
+        .set('Cookie', auth.cookies.find((c: string) => c.startsWith('token='))?.split(';')[0] || '')
         .send({
           currentPassword: oldPassword,
           newPassword: 'weak' // Contraseña débil
@@ -67,15 +67,15 @@ describe('Password Validation', () => {
     it('should reject new password without special character', async () => {
       // Register and login user for this test
       const oldPassword = 'OldPass@123';
-      const { token: authToken, userId } = await registerAndLogin({
+      const auth = await registerAndLogin({
         name: 'Test User 2',
         email: 'changepass2@example.com',
         password: oldPassword
       });
 
       const response = await request(app)
-        .patch(`/api/users/${userId}/password`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .patch(`/api/users/${auth.userId}/password`)
+        .set('Cookie', auth.cookies.find((c: string) => c.startsWith('token='))?.split(';')[0] || '')
         .send({
           currentPassword: oldPassword,
           newPassword: 'NewPassword123' // Sin carácter especial
@@ -88,15 +88,15 @@ describe('Password Validation', () => {
     it('should accept strong new password', async () => {
       // Register and login user for this test
       const oldPassword = 'OldPass@123';
-      const { token: authToken, userId } = await registerAndLogin({
+      const auth = await registerAndLogin({
         name: 'Test User 3',
         email: 'changepass3@example.com',
         password: oldPassword
       });
 
       const response = await request(app)
-        .patch(`/api/users/${userId}/password`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .patch(`/api/users/${auth.userId}/password`)
+        .set('Cookie', auth.cookies.find((c: string) => c.startsWith('token='))?.split(';')[0] || '')
         .send({
           currentPassword: oldPassword,
           newPassword: 'NewStrong@Pass456'

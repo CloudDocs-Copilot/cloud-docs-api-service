@@ -8,6 +8,7 @@ import { UserBuilder } from '../builders/user.builder';
 
 export interface AuthResult {
   token: string;
+  cookies: string[];
   userId: string;
   user: {
     id: string;
@@ -46,8 +47,25 @@ export async function loginUser(email: string, password: string): Promise<AuthRe
     .send({ email, password })
     .expect(200);
 
+  // Extraer cookies de la respuesta
+  const cookies: string[] = Array.isArray(response.headers['set-cookie']) 
+    ? response.headers['set-cookie'] 
+    : response.headers['set-cookie'] 
+      ? [response.headers['set-cookie']]
+      : [];
+  
+  // Extraer el token de la cookie
+  let token = '';
+  if (cookies.length > 0) {
+    const tokenCookie = cookies.find((cookie: string) => cookie.startsWith('token='));
+    if (tokenCookie) {
+      token = tokenCookie.split(';')[0].split('=')[1];
+    }
+  }
+
   return {
-    token: response.body.token,
+    token,
+    cookies,
     userId: response.body.user.id,
     user: response.body.user
   };
@@ -95,6 +113,7 @@ export async function createAuthenticatedUsers(count: number): Promise<AuthResul
 
 /**
  * Obtiene headers de autenticación para requests
+ * @deprecated Usar cookies directamente en los requests
  */
 export function getAuthHeaders(token: string): Record<string, string> {
   return {
@@ -103,13 +122,25 @@ export function getAuthHeaders(token: string): Record<string, string> {
 }
 
 /**
- * Verifica si un token es válido
+ * Obtiene la cookie de autenticación formateada para requests
  */
-export async function verifyToken(token: string): Promise<boolean> {
+export function getAuthCookie(cookies: string[]): string {
+  if (cookies.length === 0) return '';
+  
+  const tokenCookie = cookies.find((cookie: string) => cookie.startsWith('token='));
+  if (!tokenCookie) return '';
+  
+  return tokenCookie.split(';')[0];
+}
+
+/**
+ * Verifica si un token es válido usando cookies
+ */
+export async function verifyToken(cookies: string[]): Promise<boolean> {
   try {
     const response = await request(app)
       .get('/api/documents')
-      .set('Authorization', `Bearer ${token}`);
+      .set('Cookie', getAuthCookie(cookies));
 
     return response.status !== 401;
   } catch {
@@ -124,6 +155,15 @@ export async function verifyToken(token: string): Promise<boolean> {
 export async function getAuthToken(): Promise<string> {
   const { token } = await registerAndLogin();
   return token;
+}
+
+/**
+ * Obtiene las cookies de autenticación para tests
+ * Registra y autentica un usuario por defecto
+ */
+export async function getAuthCookies(): Promise<string[]> {
+  const { cookies } = await registerAndLogin();
+  return cookies;
 }
 
 /**

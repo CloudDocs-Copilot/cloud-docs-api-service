@@ -39,9 +39,10 @@ export function deleteTempFiles(filePaths: string[]): void {
 
 /**
  * Crea un archivo de prueba y lo sube usando la API
+ * @param authData - Puede ser un token (string) o cookies (array de strings)
  */
 export async function uploadTestFile(
-  authToken: string,
+  authData: string | string[],
   options?: {
     filename?: string;
     content?: string;
@@ -56,10 +57,19 @@ export async function uploadTestFile(
   const filePath = builder.createTempFile();
 
   try {
-    const response = await request(app)
-      .post('/api/documents/upload')
-      .set('Authorization', `Bearer ${authToken}`)
-      .attach('file', filePath);
+    const req = request(app).post('/api/documents/upload');
+    
+    // Usar cookies si es un array, de lo contrario usar Authorization header
+    if (Array.isArray(authData)) {
+      const tokenCookie = authData.find((cookie: string) => cookie.startsWith('token='));
+      if (tokenCookie) {
+        req.set('Cookie', tokenCookie.split(';')[0]);
+      }
+    } else {
+      req.set('Authorization', `Bearer ${authData}`);
+    }
+    
+    const response = await req.attach('file', filePath);
 
     return response;
   } finally {
@@ -69,16 +79,17 @@ export async function uploadTestFile(
 
 /**
  * Sube múltiples archivos
+ * @param authData - Puede ser un token (string) o cookies (array de strings)
  */
 export async function uploadMultipleFiles(
-  authToken: string,
+  authData: string | string[],
   count: number,
   prefix: string = 'file'
 ): Promise<any[]> {
   const results: any[] = [];
 
   for (let i = 0; i < count; i++) {
-    const response = await uploadTestFile(authToken, {
+    const response = await uploadTestFile(authData, {
       filename: `${prefix}-${i + 1}.txt`,
       content: `Content for ${prefix} ${i + 1}`
     });
