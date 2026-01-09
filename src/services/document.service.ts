@@ -436,7 +436,8 @@ export async function uploadDocument({
   }
 
   // Construir path en el sistema de archivos
-  const sanitizedFilename = sanitizePathOrThrow(file.filename);
+  const uploadsRoot = path.join(process.cwd(), 'uploads');
+  const sanitizedFilename = sanitizePathOrThrow(file.filename, uploadsRoot);
   const documentPath = `${folder.path}/${sanitizedFilename}`;
   
   const storageRoot = path.join(process.cwd(), 'storage');
@@ -455,7 +456,6 @@ export async function uploadDocument({
   );
 
   // Mover archivo desde uploads/ a la estructura organizada
-  const uploadsRoot = path.join(process.cwd(), 'uploads');
   const tempPath = path.join(uploadsRoot, sanitizedFilename);
 
   // Validar que el archivo temporal está dentro del directorio uploads

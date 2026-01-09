@@ -181,7 +181,10 @@ url: `/storage/${safeSlug}${newDocPath}`
 
 #### `uploadDocument()`
 ```typescript
-// ✅ Sanitización completa en upload
+// ✅ Sanitización completa en upload con baseDir para validación adicional
+const uploadsRoot = path.join(process.cwd(), 'uploads');
+const sanitizedFilename = sanitizePathOrThrow(file.filename, uploadsRoot);
+
 const safeSlug = organization.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
 const folderPathComponents = folder.path.split('/').filter(p => p).map(component => 
   component.replace(/[^a-z0-9_.-]/gi, '-')
@@ -191,12 +194,19 @@ const physicalPath = path.join(
   storageRoot, 
   safeSlug,
   ...folderPathComponents,
-  sanitizedFilename
+  sanitizedFilename  // Usa sanitizedFilename en lugar de file.filename
 );
 
-// ✅ Validación adicional de tempPath
-const uploadsRoot = path.join(process.cwd(), 'uploads');
+// ✅ tempPath usa sanitizedFilename (no file.filename directo)
 const tempPath = path.join(uploadsRoot, sanitizedFilename);
+
+// ✅ Validación adicional que tempPath está dentro de uploadsRoot
+if (!isPathWithinBase(tempPath, uploadsRoot)) {
+  throw new HttpError(400, 'Invalid temporary upload path');
+}
+```
+
+**Importante:** La función `sanitizePathOrThrow` ahora recibe `uploadsRoot` como segundo parámetro para realizar validación de que el path está dentro del directorio permitido, cumpliendo con la recomendación de Copilot Autofix.
 
 if (!isPathWithinBase(tempPath, uploadsRoot)) {
   throw new HttpError(400, 'Invalid temporary upload path');
