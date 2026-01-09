@@ -6,7 +6,7 @@ import Folder from '../models/folder.model';
 import User from '../models/user.model';
 import Organization from '../models/organization.model';
 import HttpError from '../models/error.model';
-import { sanitizePathOrThrow } from '../utils/path-sanitizer';
+import { sanitizePathOrThrow, isPathWithinBase } from '../utils/path-sanitizer';
 import { validateFolderAccess } from './folder.service';
 
 /**
@@ -421,7 +421,7 @@ export async function uploadDocument({
   }
 
   // Construir path en el sistema de archivos
-  const sanitizedFilename = sanitizePathOrThrow(file.filename, process.cwd());
+  const sanitizedFilename = sanitizePathOrThrow(file.filename);
   const documentPath = `${folder.path}/${sanitizedFilename}`;
   
   const storageRoot = path.join(process.cwd(), 'storage');
@@ -440,8 +440,13 @@ export async function uploadDocument({
   );
 
   // Mover archivo desde uploads/ a la estructura organizada
-  // Usar file.filename original que fue generado por multer (ya es seguro)
-  const tempPath = path.join(process.cwd(), 'uploads', file.filename);
+  const uploadsRoot = path.join(process.cwd(), 'uploads');
+  const tempPath = path.join(uploadsRoot, sanitizedFilename);
+
+  // Validar que el archivo temporal está dentro del directorio uploads
+  if (!isPathWithinBase(tempPath, uploadsRoot)) {
+    throw new HttpError(400, 'Invalid temporary upload path');
+  }
   
   // Asegurar que el directorio existe
   const dirPath = path.dirname(physicalPath);

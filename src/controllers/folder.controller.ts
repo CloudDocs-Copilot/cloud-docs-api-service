@@ -106,6 +106,12 @@ export async function share(req: AuthRequest, res: Response, next: NextFunction)
     if (!userIdToShare) {
       return next(new HttpError(400, 'Target user ID is required'));
     }
+
+    if (typeof userIdToShare !== 'string' || !mongoose.Types.ObjectId.isValid(userIdToShare)) {
+      return next(new HttpError(400, 'Invalid target user ID'));
+    }
+
+    const normalizedTargetUserId = new mongoose.Types.ObjectId(userIdToShare).toString();
     
     if (role === undefined || role === null) {
       return next(new HttpError(400, 'Role is required'));
@@ -130,7 +136,7 @@ export async function share(req: AuthRequest, res: Response, next: NextFunction)
     const folder = await folderService.shareFolder({
       folderId: req.params.id,
       userId: req.user!.id,
-      targetUserId: userIdToShare,
+      targetUserId: normalizedTargetUserId,
       role: roleString as 'viewer' | 'editor'
     });
     
