@@ -15,16 +15,6 @@ export async function upload(req: AuthRequest, res: Response, next: NextFunction
       return next(new HttpError(400, 'File is required'));
     }
     
-    // Validar que el filename generado por multer sea seguro
-    if (!req.file.filename || typeof req.file.filename !== 'string') {
-      return next(new HttpError(400, 'Invalid file upload'));
-    }
-    
-    // Validar que el filename no contenga caracteres peligrosos
-    if (req.file.filename.includes('..') || req.file.filename.includes('/') || req.file.filename.includes('\\')) {
-      return next(new HttpError(400, 'Invalid filename detected'));
-    }
-    
     if (!req.body.folderId) {
       return next(new HttpError(400, 'Folder ID is required'));
     }

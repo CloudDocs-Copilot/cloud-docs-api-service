@@ -436,19 +436,10 @@ export async function uploadDocument({
   }
 
   // Construir path en el sistema de archivos
-  // Validar y sanitizar el filename primero (dato controlado por usuario)
-  if (!file.filename || typeof file.filename !== 'string') {
-    throw new HttpError(400, 'Invalid filename');
-  }
-  
+  // Sanitizar filename (multer genera UUID, pero sanitizamos por defensa en profundidad)
   const uploadsRoot = path.join(process.cwd(), 'uploads');
-  const sanitizedFilename = sanitizePathOrThrow(file.filename);
-  
-  // Construir tempPath y validar que está dentro del directorio uploads
+  const sanitizedFilename = sanitizePathOrThrow(file.filename, uploadsRoot);
   const tempPath = path.join(uploadsRoot, sanitizedFilename);
-  if (!isPathWithinBase(tempPath, uploadsRoot)) {
-    throw new HttpError(400, 'Invalid temporary upload path');
-  }
   
   // Construir paths de destino
   const documentPath = `${folder.path}/${sanitizedFilename}`;
@@ -468,6 +459,7 @@ export async function uploadDocument({
   );
 
   // Validar que el path de destino está dentro del directorio storage
+  // (validación final por defensa en profundidad)
   if (!isPathWithinBase(physicalPath, storageRoot)) {
     throw new HttpError(400, 'Invalid destination path');
   }
