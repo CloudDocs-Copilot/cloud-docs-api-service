@@ -90,6 +90,11 @@ export async function addUserToOrganization(
     throw new HttpError(404, 'Organization not found');
   }
 
+  // Validar que el userId tenga el formato esperado de un ObjectId de MongoDB
+  if (typeof userId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(userId)) {
+    throw new HttpError(400, 'Invalid user ID');
+  }
+
   const user = await User.findById(userId);
   if (!user) {
     throw new HttpError(404, 'User not found');
