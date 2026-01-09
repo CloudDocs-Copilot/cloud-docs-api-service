@@ -121,6 +121,11 @@ export async function createFolder({
   if (!owner) throw new HttpError(400, 'Owner is required');
   if (!organizationId) throw new HttpError(400, 'Organization ID is required');
   if (!parentId) throw new HttpError(400, 'Parent folder ID is required');
+
+  // Validar que el organizationId sea un ObjectId válido y no un objeto de consulta
+  if (typeof organizationId !== 'string' || !mongoose.Types.ObjectId.isValid(organizationId)) {
+    throw new HttpError(400, 'Invalid organization ID');
+  }
   
   // Validar que el usuario exista
   const user = await User.findById(owner);
