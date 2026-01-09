@@ -131,7 +131,17 @@ export function sanitizePath(
   }
 
   // Normalizar el path (elimina .., ., etc.)
-  const normalizedPath = path.normalize(filePath);
+  let normalizedPath = path.normalize(filePath);
+
+  // Sanitizar todos los componentes del path usando whitelist
+  // Solo permitir caracteres seguros: a-z, A-Z, 0-9, _, -, .
+  const pathComponents = normalizedPath.split(path.sep).filter(p => p);
+  const sanitizedComponents = pathComponents.map(component => 
+    component.replace(/[^a-z0-9_.-]/gi, '_')
+  );
+  
+  // Reconstruir el path con componentes sanitizados
+  normalizedPath = sanitizedComponents.join(path.sep);
 
   // Si se proporciona baseDir, asegurar que el path está dentro
   if (baseDir) {
@@ -161,7 +171,9 @@ export function sanitizePath(
 
   // Sanitizar el nombre de archivo
   const sanitizedFileName = sanitizeFileName(fileName);
-  const sanitizedPath = path.join(path.dirname(normalizedPath), sanitizedFileName);
+  const sanitizedPath = sanitizedComponents.length > 1 
+    ? path.join(...sanitizedComponents.slice(0, -1), sanitizedFileName)
+    : sanitizedFileName;
 
   return {
     isValid: errors.length === 0,

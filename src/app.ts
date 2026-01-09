@@ -63,7 +63,10 @@ app.use(cors(getCorsOptions()));
 // Middleware para parsear cookies
 app.use(cookieParser());
 
-// Configuración de protección CSRF
+// Middleware de parsing del body (necesario ANTES de CSRF)
+app.use(express.json());
+
+// Configuración de protección CSRF (DEBE ir después de cookieParser y body parser)
 const csrfProtection = doubleCsrf({
   getSecret: () => process.env.CSRF_SECRET || 'default-csrf-secret-change-in-production',
   cookieName: '__Host-psifi.x-csrf-token',
@@ -83,8 +86,11 @@ const csrfProtection = doubleCsrf({
 
 const doubleCsrfProtection = csrfProtection.doubleCsrfProtection;
 
-// Middleware de parsing del body
-app.use(express.json());
+// Aplicar protección CSRF INMEDIATAMENTE (excepto en tests)
+// Esto protege TODAS las rutas que usan cookies
+if (process.env.NODE_ENV !== 'test') {
+  app.use(doubleCsrfProtection);
+}
 
 // Protección contra inyección NoSQL
 // Sanitiza los datos de entrada eliminando caracteres especiales de MongoDB ($, .)
@@ -105,12 +111,7 @@ app.get('/api/csrf-token', (req: Request, res: Response) => {
   res.json({ token });
 });
 
-// Aplicar protección CSRF solo en producción y desarrollo (no en tests)
-if (process.env.NODE_ENV !== 'test') {
-  app.use('/api', doubleCsrfProtection);
-}
-
-// Rutas de la API
+// Rutas de la API (ya protegidas por CSRF globalmente)
 app.use('/api/auth', authRoutes);
 app.use('/api/organizations', organizationRoutes);
 app.use('/api/documents', documentRoutes);
