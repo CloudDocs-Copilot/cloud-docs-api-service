@@ -147,6 +147,9 @@ const newPathComponents = newDocPath.split('/').filter(p => p).map(component =>
 
 const oldPhysicalPath = path.join(storageRoot, safeSlug, ...oldPathComponents);
 const newPhysicalPath = path.join(storageRoot, safeSlug, ...newPathComponents);
+
+// ✅ URL sanitizada
+doc.url = `/storage/${safeSlug}${newDocPath}`;
 ```
 
 #### `copyDocument()`
@@ -159,6 +162,36 @@ const sourcePathComponents = (doc.path || '').split('/').filter(p => p).map(comp
 const targetPathComponents = newDocPath.split('/').filter(p => p).map(component => 
   component.replace(/[^a-z0-9_.-]/gi, '-')
 );
+
+// ✅ URL sanitizada
+url: `/storage/${safeSlug}${newDocPath}`
+```
+
+#### `uploadDocument()`
+```typescript
+// ✅ Sanitización completa en upload
+const safeSlug = organization.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+const folderPathComponents = folder.path.split('/').filter(p => p).map(component => 
+  component.replace(/[^a-z0-9_.-]/gi, '-')
+);
+
+const physicalPath = path.join(
+  storageRoot, 
+  safeSlug,
+  ...folderPathComponents,
+  sanitizedFilename
+);
+
+// ✅ Validación adicional de tempPath
+const uploadsRoot = path.join(process.cwd(), 'uploads');
+const tempPath = path.join(uploadsRoot, sanitizedFilename);
+
+if (!isPathWithinBase(tempPath, uploadsRoot)) {
+  throw new HttpError(400, 'Invalid temporary upload path');
+}
+
+// ✅ URL sanitizada
+url: `/storage/${safeSlug}${documentPath}`
 ```
 
 ---
@@ -177,10 +210,14 @@ const orgDir = path.join(storageRoot, safeSlug);
 
 #### `createUserRootFolder()`
 ```typescript
-// ✅ Sanitización de slug y userId
+// ✅ Sanitización de slug y userId en filesystem
 const safeSlug = organization.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
 const safeUserId = userId.toString().replace(/[^a-z0-9]/gi, '');
 const folderPath = path.join(storageRoot, safeSlug, safeUserId);
+
+// ✅ Sanitización de slug en path de BD
+const safeSlugForPath = organization.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+path: `/${safeSlugForPath}/${userId}`
 ```
 
 ---
@@ -221,6 +258,23 @@ const newPathComponents = newPath.split('/').filter(p => p).map(component =>
 );
 const oldFolderPath = path.join(storageRoot, safeSlug, ...oldPathComponents);
 const newFolderPath = path.join(storageRoot, safeSlug, ...newPathComponents);
+```
+
+---
+
+### 4. `src/services/auth.service.ts`
+
+**Funciones Corregidas:**
+
+#### `register()` - Creación de carpeta raíz de usuario
+```typescript
+// ✅ Sanitización completa en registro
+const safeSlug = organization.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+const rootFolderPath = `/${safeSlug}/${user._id}`;
+
+const storageRoot = path.join(process.cwd(), 'storage');
+const safeUserId = user._id.toString().replace(/[^a-z0-9]/gi, '');
+const userStoragePath = path.join(storageRoot, safeSlug, safeUserId);
 ```
 
 ---

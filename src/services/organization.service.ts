@@ -343,6 +343,9 @@ async function createUserRootFolder(
     return existingRoot;
   }
 
+  // Sanitizar slug para prevenir path traversal
+  const safeSlugForPath = organization.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+  
   // Crear carpeta raíz
   const rootFolder = await Folder.create({
     name: `root_user_${userId}`,
@@ -351,7 +354,7 @@ async function createUserRootFolder(
     organization: organizationId,
     parent: null,
     isRoot: true,
-    path: `/${organization.slug}/${userId}`,
+    path: `/${safeSlugForPath}/${userId}`,
     documents: [],
     sharedWith: [],
     permissions: [],

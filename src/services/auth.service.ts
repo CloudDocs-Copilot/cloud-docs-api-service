@@ -119,11 +119,15 @@ export async function registerUser({
   
   // Crear carpeta raíz del usuario
   const rootFolderName = `root_user_${user._id}`;
-  const rootFolderPath = `/${organization.slug}/${user._id}`;
+  
+  // Sanitizar org.slug para prevenir path traversal
+  const safeSlug = organization.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+  const rootFolderPath = `/${safeSlug}/${user._id}`;
   
   // Crear directorio físico
   const storageRoot = path.join(process.cwd(), 'storage');
-  const userStoragePath = path.join(storageRoot, organization.slug, user._id.toString());
+  const safeUserId = user._id.toString().replace(/[^a-z0-9]/gi, '');
+  const userStoragePath = path.join(storageRoot, safeSlug, safeUserId);
   
   if (!fs.existsSync(userStoragePath)) {
     fs.mkdirSync(userStoragePath, { recursive: true });

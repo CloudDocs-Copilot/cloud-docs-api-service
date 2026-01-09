@@ -210,7 +210,7 @@ export async function moveDocument({
   // Actualizar documento en BD
   doc.folder = targetFolder._id as mongoose.Types.ObjectId;
   doc.path = newDocPath;
-  doc.url = `/storage/${org.slug}${newDocPath}`;
+  doc.url = `/storage/${safeSlug}${newDocPath}`;
   await doc.save();
 
   return doc;
@@ -311,7 +311,7 @@ export async function copyDocument({
     folder: targetFolderId,
     organization: doc.organization,
     path: newDocPath,
-    url: `/storage/${org.slug}${newDocPath}`
+    url: `/storage/${safeSlug}${newDocPath}`
   });
 
   // Actualizar almacenamiento del usuario
