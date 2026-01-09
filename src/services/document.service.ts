@@ -102,7 +102,13 @@ export async function deleteDocument({ id, userId }: DeleteDocumentDto): Promise
       const org = await Organization.findById(doc.organization);
       if (org && doc.path) {
         const storageRoot = path.join(process.cwd(), 'storage');
-        const filePath = path.join(storageRoot, org.slug, ...doc.path.split('/').filter(p => p));
+        // Sanitizar org.slug para prevenir path traversal
+        const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+        // Sanitizar componentes del path
+        const pathComponents = doc.path.split('/').filter(p => p).map(component => 
+          component.replace(/[^a-z0-9_.-]/gi, '-')
+        );
+        const filePath = path.join(storageRoot, safeSlug, ...pathComponents);
         
         if (fs.existsSync(filePath)) {
           fs.unlinkSync(filePath);
@@ -169,11 +175,21 @@ export async function moveDocument({
   if (!org) throw new HttpError(404, 'Organization not found');
 
   // Construir nuevo path
-  const newDocPath = `${targetFolder.path}/${doc.filename}`;
   const storageRoot = path.join(process.cwd(), 'storage');
+  const safeFilename = sanitizePathOrThrow(doc.filename || '', storageRoot);
+  const newDocPath = `${targetFolder.path}/${safeFilename}`;
   
-  const oldPhysicalPath = path.join(storageRoot, org.slug, ...doc.path!.split('/').filter(p => p));
-  const newPhysicalPath = path.join(storageRoot, org.slug, ...newDocPath.split('/').filter(p => p));
+  // Sanitizar paths para prevenir path traversal
+  const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+  const oldPathComponents = (doc.path || '').split('/').filter(p => p).map(component => 
+    component.replace(/[^a-z0-9_.-]/gi, '-')
+  );
+  const newPathComponents = newDocPath.split('/').filter(p => p).map(component => 
+    component.replace(/[^a-z0-9_.-]/gi, '-')
+  );
+  
+  const oldPhysicalPath = path.join(storageRoot, safeSlug, ...oldPathComponents);
+  const newPhysicalPath = path.join(storageRoot, safeSlug, ...newPathComponents);
 
   // Mover archivo físico
   try {
@@ -251,11 +267,21 @@ export async function copyDocument({
   const newFilename = `${basename}-copy-${Date.now()}${ext}`;
 
   // Construir paths
-  const newDocPath = `${targetFolder.path}/${newFilename}`;
+  const safeNewFilename = sanitizePathOrThrow(newFilename, process.cwd());
+  const newDocPath = `${targetFolder.path}/${safeNewFilename}`;
   const storageRoot = path.join(process.cwd(), 'storage');
   
-  const sourcePhysicalPath = path.join(storageRoot, org.slug, ...doc.path!.split('/').filter(p => p));
-  const targetPhysicalPath = path.join(storageRoot, org.slug, ...newDocPath.split('/').filter(p => p));
+  // Sanitizar paths para prevenir path traversal
+  const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+  const sourcePathComponents = (doc.path || '').split('/').filter(p => p).map(component => 
+    component.replace(/[^a-z0-9_.-]/gi, '-')
+  );
+  const targetPathComponents = newDocPath.split('/').filter(p => p).map(component => 
+    component.replace(/[^a-z0-9_.-]/gi, '-')
+  );
+  
+  const sourcePhysicalPath = path.join(storageRoot, safeSlug, ...sourcePathComponents);
+  const targetPhysicalPath = path.join(storageRoot, safeSlug, ...targetPathComponents);
 
   // Copiar archivo físico
   try {

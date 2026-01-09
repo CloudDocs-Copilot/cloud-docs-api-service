@@ -156,7 +156,13 @@ export async function createFolder({
     
     // Crear el directorio físico
     const storageRoot = path.join(process.cwd(), 'storage');
-    const folderPath = path.join(storageRoot, org.slug, ...newPath.split('/').filter(p => p));
+    // Sanitizar slug para prevenir path traversal
+    const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+    // Sanitizar cada componente del path
+    const pathComponents = newPath.split('/').filter(p => p).map(component => 
+      component.replace(/[^a-z0-9_.-]/gi, '-')
+    );
+    const folderPath = path.join(storageRoot, safeSlug, ...pathComponents);
     
     if (!fs.existsSync(folderPath)) {
       fs.mkdirSync(folderPath, { recursive: true });
@@ -371,7 +377,12 @@ export async function deleteFolder({ id, userId, force = false }: DeleteFolderDt
     const org = await Organization.findById(folder.organization);
     if (org) {
       const storageRoot = path.join(process.cwd(), 'storage');
-      const folderPath = path.join(storageRoot, org.slug, ...folder.path.split('/').filter(p => p));
+      // Sanitizar slug y path para prevenir path traversal
+      const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+      const pathComponents = folder.path.split('/').filter(p => p).map(component => 
+        component.replace(/[^a-z0-9_.-]/gi, '-')
+      );
+      const folderPath = path.join(storageRoot, safeSlug, ...pathComponents);
       
       if (fs.existsSync(folderPath)) {
         fs.rmSync(folderPath, { recursive: true, force: true });
@@ -457,8 +468,16 @@ export async function renameFolder({ id, userId, name, displayName }: RenameFold
     const org = await Organization.findById(folder.organization);
     if (org) {
       const storageRoot = path.join(process.cwd(), 'storage');
-      const oldFolderPath = path.join(storageRoot, org.slug, ...oldPath.split('/').filter(p => p));
-      const newFolderPath = path.join(storageRoot, org.slug, ...newPath.split('/').filter(p => p));
+      // Sanitizar slug y paths para prevenir path traversal
+      const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+      const oldPathComponents = oldPath.split('/').filter(p => p).map(component => 
+        component.replace(/[^a-z0-9_.-]/gi, '-')
+      );
+      const newPathComponents = newPath.split('/').filter(p => p).map(component => 
+        component.replace(/[^a-z0-9_.-]/gi, '-')
+      );
+      const oldFolderPath = path.join(storageRoot, safeSlug, ...oldPathComponents);
+      const newFolderPath = path.join(storageRoot, safeSlug, ...newPathComponents);
       
       if (fs.existsSync(oldFolderPath) && oldFolderPath !== newFolderPath) {
         fs.renameSync(oldFolderPath, newFolderPath);

@@ -62,7 +62,10 @@ export async function createOrganization(
   });
 
   // Crear estructura de directorios en el filesystem
-  const orgDir = path.join(process.cwd(), 'storage', organization.slug);
+  const storageRoot = path.join(process.cwd(), 'storage');
+  // Sanitizar slug para prevenir path traversal
+  const safeSlug = organization.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+  const orgDir = path.join(storageRoot, safeSlug);
   try {
     if (!fs.existsSync(orgDir)) {
       fs.mkdirSync(orgDir, { recursive: true });
@@ -355,11 +358,14 @@ async function createUserRootFolder(
   });
 
   // Crear directorio físico
+  const storageRoot = path.join(process.cwd(), 'storage');
+  // Sanitizar slug y userId para prevenir path traversal
+  const safeSlug = organization.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+  const safeUserId = userId.toString().replace(/[^a-z0-9]/gi, '');
   const folderPath = path.join(
-    process.cwd(),
-    'storage',
-    organization.slug,
-    userId.toString()
+    storageRoot,
+    safeSlug,
+    safeUserId
   );
 
   try {
