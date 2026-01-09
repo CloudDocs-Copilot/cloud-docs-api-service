@@ -77,6 +77,11 @@ export async function validateFolderAccess(
   userId: string,
   requiredRole?: FolderPermissionRole
 ): Promise<boolean> {
+  // Validar que el folderId sea un ObjectId válido y no un objeto de consulta
+  if (typeof folderId !== 'string' || !mongoose.Types.ObjectId.isValid(folderId)) {
+    throw new HttpError(400, 'Invalid folder ID');
+  }
+
   const folder = await Folder.findById(folderId);
   
   if (!folder) {
