@@ -7,13 +7,15 @@ interface UserData {
   name: string;
   email: string;
   password: string;
+  organizationId?: string;
 }
 
 export class UserBuilder {
   private userData: UserData = {
     name: 'Default User',
     email: 'default@example.com',
-    password: 'Default@123'
+    password: 'Default@123',
+    organizationId: 'test-org-default'
   };
 
   /**
@@ -41,11 +43,20 @@ export class UserBuilder {
   }
 
   /**
+   * Establece el organizationId del usuario
+   */
+  withOrganizationId(organizationId: string): UserBuilder {
+    this.userData.organizationId = organizationId;
+    return this;
+  }
+
+  /**
    * Genera un email único basado en timestamp
    */
   withUniqueEmail(prefix: string = 'user'): UserBuilder {
     const timestamp = Date.now();
     this.userData.email = `${prefix}-${timestamp}@example.com`;
+    this.userData.organizationId = `test-org-${timestamp}`;
     return this;
   }
 
@@ -88,7 +99,8 @@ export class UserBuilder {
     return {
       name: this.userData.name,
       email: this.userData.email,
-      password: this.userData.password
+      password: this.userData.password,
+      organizationId: this.userData.organizationId
     };
   }
 
@@ -129,6 +141,7 @@ export const createUser = (overrides?: Partial<UserData>): UserData => {
   if (overrides?.name) builder.withName(overrides.name);
   if (overrides?.email) builder.withEmail(overrides.email);
   if (overrides?.password) builder.withPassword(overrides.password);
+  if (overrides?.organizationId) builder.withOrganizationId(overrides.organizationId);
   
   return builder.build();
 };

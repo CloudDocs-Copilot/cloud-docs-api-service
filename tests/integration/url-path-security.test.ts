@@ -181,13 +181,22 @@ describe('Security - URL and Path Validation', () => {
 
   describe('Download Path Validation', () => {
     let documentId: string;
+    let testAuthCookies: string[];
 
     beforeAll(async () => {
+      // Registrar usuario específico para estos tests
+      const auth = await registerAndLogin({
+        name: 'Download Test User',
+        email: 'download-test@example.com',
+        password: 'Download@123'
+      });
+      testAuthCookies = auth.cookies;
+      
       // Subir un documento legítimo
       const testFile = Buffer.from('download test content');
       const uploadResponse = await request(app)
         .post('/api/documents/upload')
-        .set('Cookie', getAuthCookie(globalAuthCookies))
+        .set('Cookie', getAuthCookie(testAuthCookies))
         .attach('file', testFile, 'download-test.txt');
 
       if (uploadResponse.status === 201) {
@@ -199,7 +208,7 @@ describe('Security - URL and Path Validation', () => {
       // Intentar manipular el ID para acceder a otros archivos
       await request(app)
         .get('/api/documents/download/../../../etc/passwd')
-        .set('Cookie', getAuthCookie(globalAuthCookies))
+        .set('Cookie', getAuthCookie(testAuthCookies))
         .expect(404); // Debe fallar el routing o la validación
     });
 
@@ -211,7 +220,7 @@ describe('Security - URL and Path Validation', () => {
 
       const response = await request(app)
         .get(`/api/documents/download/${documentId}`)
-        .set('Cookie', getAuthCookie(globalAuthCookies));
+        .set('Cookie', getAuthCookie(testAuthCookies));
 
       // Si el archivo existe, debe descargarse correctamente
       if (response.status === 200) {

@@ -1,12 +1,27 @@
 import { request, app } from '../setup';
 import { UserBuilder } from '../builders';
 import { authUser } from '../fixtures';
+import Organization from '../../src/models/organization.model';
+import mongoose from 'mongoose';
 
 /**
  * Tests de integración para endpoints de autenticación
  * Prueba el registro, login y validaciones de seguridad
  */
 describe('Auth Endpoints', () => {
+  let testOrgId: string;
+
+  beforeEach(async () => {
+    // Crear una organización de prueba para cada test
+    const tempOwnerId = new mongoose.Types.ObjectId();
+    const org = await Organization.create({
+      name: `Test Org ${Date.now()}`,
+      owner: tempOwnerId,
+      members: [tempOwnerId]
+    });
+    testOrgId = org._id.toString();
+  });
+
   describe('POST /api/auth/register', () => {
     it('should register a new user', async () => {
       const userData = new UserBuilder()
@@ -16,7 +31,7 @@ describe('Auth Endpoints', () => {
 
       const response = await request(app)
         .post('/api/auth/register')
-        .send(userData)
+        .send({ ...userData, organizationId: testOrgId })
         .expect(201);
 
       expect(response.body).toHaveProperty('user');
@@ -47,12 +62,12 @@ describe('Auth Endpoints', () => {
       // First registration
       await request(app)
         .post('/api/auth/register')
-        .send(userData);
+        .send({ ...userData, organizationId: testOrgId });
 
       // Second registration with same email
       const response = await request(app)
         .post('/api/auth/register')
-        .send(userData)
+        .send({ ...userData, organizationId: testOrgId })
         .expect(409);
 
       expect(response.body).toHaveProperty('error');
@@ -64,7 +79,7 @@ describe('Auth Endpoints', () => {
       // Register user before each login test
       await request(app)
         .post('/api/auth/register')
-        .send(authUser);
+        .send({ ...authUser, organizationId: testOrgId });
     });
 
     it('should login with correct credentials', async () => {
@@ -120,7 +135,7 @@ describe('Auth Endpoints', () => {
       // Register user before logout test
       await request(app)
         .post('/api/auth/register')
-        .send(authUser);
+        .send({ ...authUser, organizationId: testOrgId });
     });
 
     it('should logout successfully and clear cookie', async () => {

@@ -5,6 +5,8 @@
 
 import { request, app } from '../setup';
 import { UserBuilder } from '../builders/user.builder';
+import Organization from '../../src/models/organization.model';
+import mongoose from 'mongoose';
 
 export interface AuthResult {
   token: string;
@@ -15,6 +17,23 @@ export interface AuthResult {
     email: string;
     name: string;
   };
+  organizationId?: string;
+}
+
+/**
+ * Crea una organización de prueba para los tests legacy
+ */
+async function createTestOrganization(): Promise<string> {
+  // Crear un owner temporal para la organización
+  const tempOwnerId = new mongoose.Types.ObjectId();
+  
+  const org = await Organization.create({
+    name: `Test Org ${Date.now()}`,
+    owner: tempOwnerId,
+    members: [tempOwnerId]
+  });
+  
+  return org._id.toString();
 }
 
 /**
@@ -24,6 +43,7 @@ export async function registerUser(userData?: {
   name?: string;
   email?: string;
   password?: string;
+  organizationId?: string;
 }): Promise<any> {
   const user = new UserBuilder()
     .withName(userData?.name || 'Test User')
@@ -31,9 +51,12 @@ export async function registerUser(userData?: {
     .withPassword(userData?.password || 'Test@1234')
     .build();
 
+  // Si no se proporciona organizationId, crear una organización de prueba
+  const organizationId = userData?.organizationId || await createTestOrganization();
+
   const response = await request(app)
     .post('/api/auth/register')
-    .send(user);
+    .send({ ...user, organizationId });
 
   return response;
 }
@@ -78,6 +101,7 @@ export async function registerAndLogin(userData?: {
   name?: string;
   email?: string;
   password?: string;
+  organizationId?: string;
 }): Promise<AuthResult> {
   const user = new UserBuilder()
     .withName(userData?.name || 'Test User')
@@ -85,13 +109,19 @@ export async function registerAndLogin(userData?: {
     .withPassword(userData?.password || 'Test@1234')
     .build();
 
+  // Si no se proporciona organizationId, crear una organización de prueba
+  const organizationId = userData?.organizationId || await createTestOrganization();
+
   // Registrar
   await request(app)
     .post('/api/auth/register')
-    .send(user);
+    .send({ ...user, organizationId });
 
   // Login
-  return await loginUser(user.email, user.password);
+  const authResult = await loginUser(user.email, user.password);
+  authResult.organizationId = organizationId;
+  
+  return authResult;
 }
 
 /**

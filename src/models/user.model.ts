@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema, Types } from 'mongoose';
 
 /**
  * Interfaz del modelo de Usuario
@@ -12,6 +12,12 @@ export interface IUser extends Document {
   active: boolean;
   tokenVersion: number;
   lastPasswordChange?: Date;
+  /** Referencia a la organización a la que pertenece el usuario */
+  organization?: Types.ObjectId;
+  /** Referencia a la carpeta raíz personal del usuario */
+  rootFolder?: Types.ObjectId;
+  /** Almacenamiento utilizado por el usuario en bytes */
+  storageUsed: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -34,7 +40,21 @@ const userSchema = new Schema<IUser>(
     role: { type: String, enum: ['user', 'admin'], default: 'user' },
     active: { type: Boolean, default: true },
     tokenVersion: { type: Number, default: 0 },
-    lastPasswordChange: { type: Date }
+    lastPasswordChange: { type: Date },
+    organization: {
+      type: Schema.Types.ObjectId,
+      ref: 'Organization',
+      index: true,
+    },
+    rootFolder: {
+      type: Schema.Types.ObjectId,
+      ref: 'Folder',
+    },
+    storageUsed: {
+      type: Number,
+      default: 0,
+      min: [0, 'Storage used cannot be negative'],
+    },
   },
   {
     timestamps: true,
@@ -58,5 +78,10 @@ const userSchema = new Schema<IUser>(
     }
   }
 );
+
+// Índice compuesto para optimizar búsquedas por organización y email
+userSchema.index({ organization: 1, email: 1 });
+// Índice para búsquedas por organización y estado activo
+userSchema.index({ organization: 1, active: 1 });
 
 export default mongoose.model<IUser>('User', userSchema);

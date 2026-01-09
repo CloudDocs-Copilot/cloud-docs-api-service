@@ -7,6 +7,7 @@ import path from 'path';
 import fs from 'fs';
 import { request, app } from '../setup';
 import { DocumentBuilder } from '../builders/document.builder';
+import User from '../../src/models/user.model';
 
 /**
  * Crea un archivo temporal para pruebas
@@ -38,6 +39,18 @@ export function deleteTempFiles(filePaths: string[]): void {
 }
 
 /**
+ * Extrae el userId del token JWT
+ */
+function extractUserIdFromToken(token: string): string | null {
+  try {
+    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+    return payload.id || payload.userId || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Crea un archivo de prueba y lo sube usando la API
  * @param authData - Puede ser un token (string) o cookies (array de strings)
  */
@@ -47,6 +60,8 @@ export async function uploadTestFile(
     filename?: string;
     content?: string;
     mimeType?: string;
+    folderId?: string;
+    organizationId?: string;
   }
 ): Promise<any> {
   const builder = new DocumentBuilder()
@@ -57,19 +72,45 @@ export async function uploadTestFile(
   const filePath = builder.createTempFile();
 
   try {
+    let token = '';
     const req = request(app).post('/api/documents/upload');
     
     // Usar cookies si es un array, de lo contrario usar Authorization header
     if (Array.isArray(authData)) {
       const tokenCookie = authData.find((cookie: string) => cookie.startsWith('token='));
       if (tokenCookie) {
-        req.set('Cookie', tokenCookie.split(';')[0]);
+        const cookieValue = tokenCookie.split(';')[0];
+        req.set('Cookie', cookieValue);
+        token = cookieValue.split('=')[1];
       }
     } else {
       req.set('Authorization', `Bearer ${authData}`);
+      token = authData;
     }
     
-    const response = await req.attach('file', filePath);
+    // Si no se proporciona folderId u organizationId, obtenerlos del usuario
+    let folderId = options?.folderId;
+    let organizationId = options?.organizationId;
+    
+    if (!folderId || !organizationId) {
+      const userId = extractUserIdFromToken(token);
+      if (userId) {
+        const user = await User.findById(userId);
+        if (user) {
+          if (!folderId && user.rootFolder) {
+            folderId = user.rootFolder.toString();
+          }
+          if (!organizationId && user.organization) {
+            organizationId = user.organization.toString();
+          }
+        }
+      }
+    }
+    
+    const response = await req
+      .attach('file', filePath)
+      .field('folderId', folderId || '')
+      .field('organizationId', organizationId || '');
 
     return response;
   } finally {

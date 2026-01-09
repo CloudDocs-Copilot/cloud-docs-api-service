@@ -9,10 +9,10 @@ import HttpError from '../models/error.model';
  */
 export async function register(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, organizationId } = req.body;
     
-    if (!name || !email || !password) {
-      return next(new HttpError(400, 'Missing required fields'));
+    if (!name || !email || !password || !organizationId) {
+      return next(new HttpError(400, 'Missing required fields (name, email, password, organizationId)'));
     }
     
     const user = await registerUser(req.body);

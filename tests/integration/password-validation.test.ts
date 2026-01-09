@@ -27,9 +27,13 @@ describe('Password Validation', () => {
     });
 
     it('should accept strong password', async () => {
+      // Crear organización de prueba primero
+      const auth = await registerAndLogin();
+      
       const user = new UserBuilder()
         .withUniqueEmail('strong')
         .withPassword(strongPasswordUser.password)
+        .withOrganizationId(auth.organizationId!)
         .build();
 
       const response = await request(app)

@@ -1,5 +1,6 @@
 import request from 'supertest';
 import mongoose from 'mongoose';
+import { MongoMemoryServer } from 'mongodb-memory-server';
 import app from '../src/app';
 
 /**
@@ -11,13 +12,14 @@ import app from '../src/app';
  * - Cierra la conexión después de todos los tests
  */
 
-// Base de datos de prueba (puede usar MongoDB Memory Server para tests más rápidos)
-const TEST_MONGO_URI = process.env.TEST_MONGO_URI || 'mongodb://127.0.0.1:27017/clouddocs-test';
+let mongoServer: MongoMemoryServer;
 
 // Conectar antes de todos los tests
 beforeAll(async () => {
   if (mongoose.connection.readyState === 0) {
-    await mongoose.connect(TEST_MONGO_URI);
+    mongoServer = await MongoMemoryServer.create();
+    const mongoUri = mongoServer.getUri();
+    await mongoose.connect(mongoUri);
   }
 });
 
@@ -35,6 +37,9 @@ afterEach(async () => {
 afterAll(async () => {
   if (mongoose.connection.readyState === 1) {
     await mongoose.connection.close();
+  }
+  if (mongoServer) {
+    await mongoServer.stop();
   }
 });
 

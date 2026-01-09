@@ -1,32 +1,146 @@
 import mongoose, { Document, Schema, Model, Types } from 'mongoose';
 
 /**
+ * Tipo de carpeta en el sistema
+ * - root: Carpeta raíz personal del usuario
+ * - folder: Carpeta normal creada por el usuario
+ * - shared: Carpeta compartida
+ */
+export type FolderType = 'root' | 'folder' | 'shared';
+
+/**
+ * Roles de permisos para carpetas compartidas
+ */
+export type FolderPermissionRole = 'viewer' | 'editor' | 'owner';
+
+/**
+ * Interfaz para permisos de carpeta
+ */
+export interface IFolderPermission {
+  userId: Types.ObjectId;
+  role: FolderPermissionRole;
+}
+
+/**
  * Interfaz del modelo de Carpeta
  * Define la estructura de datos para las carpetas del sistema
  */
 export interface IFolder extends Document {
+  /** Identificador técnico de la carpeta (ej: root_user_{userId} para carpetas raíz) */
   name: string;
+  /** Nombre para mostrar (opcional, si no se especifica se usa name) */
+  displayName?: string;
+  /** Tipo de carpeta */
+  type: FolderType;
+  /** Usuario propietario de la carpeta */
   owner: Types.ObjectId;
+  /** Organización a la que pertenece la carpeta */
+  organization: Types.ObjectId;
+  /** Carpeta padre (null para carpetas raíz) */
+  parent: Types.ObjectId | null;
+  /** Indica si es una carpeta raíz de usuario */
+  isRoot: boolean;
+  /** Path completo de la carpeta en el filesystem */
+  path: string;
+  /** Lista de documentos contenidos en esta carpeta */
   documents: Types.ObjectId[];
+  /** Usuarios con los que se ha compartido esta carpeta */
+  sharedWith: Types.ObjectId[];
+  /** Permisos detallados por usuario */
+  permissions: IFolderPermission[];
   createdAt: Date;
   updatedAt: Date;
+  /** Virtual: Nombre visible (displayName o name) */
+  visibleName?: string;
+  /** Método para verificar acceso de un usuario */
+  hasAccess(userId: string, requiredRole?: FolderPermissionRole): boolean;
+  /** Método para compartir carpeta con un usuario */
+  shareWith(userId: string, role?: FolderPermissionRole): void;
+  /** Método para remover acceso de un usuario */
+  unshareWith(userId: string): void;
 }
 
 /**
  * Schema de Mongoose para el modelo de Carpeta
  * 
  * Características:
- * - Referencia al usuario propietario
- * - Lista de documentos contenidos
- * - Índice único compuesto (owner + name) para evitar nombres duplicados por usuario
- * - Timestamps automáticos
- * - Transformación automática para eliminar _id en respuestas
+ * - Estructura jerárquica con parent/child
+ * - Multi-tenancy con organización
+ * - Sistema de permisos granular
+ * - Path completo para filesystem
+ * - Índices optimizados para consultas frecuentes
  */
 const folderSchema = new Schema<IFolder>(
   {
-    name: { type: String, required: true },
-    owner: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    documents: [{ type: Schema.Types.ObjectId, ref: 'Document' }]
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    displayName: {
+      type: String,
+      trim: true,
+    },
+    type: {
+      type: String,
+      enum: ['root', 'folder', 'shared'],
+      default: 'folder',
+      required: true,
+    },
+    owner: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true,
+    },
+    organization: {
+      type: Schema.Types.ObjectId,
+      ref: 'Organization',
+      required: true,
+      index: true,
+    },
+    parent: {
+      type: Schema.Types.ObjectId,
+      ref: 'Folder',
+      default: null,
+      index: true,
+    },
+    isRoot: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    path: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    documents: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: 'Document',
+      },
+    ],
+    sharedWith: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
+    permissions: [
+      {
+        userId: {
+          type: Schema.Types.ObjectId,
+          ref: 'User',
+          required: true,
+        },
+        role: {
+          type: String,
+          enum: ['viewer', 'editor', 'owner'],
+          required: true,
+        },
+      },
+    ],
   },
   {
     timestamps: true,
@@ -50,10 +164,107 @@ const folderSchema = new Schema<IFolder>(
 );
 
 /**
- * Índice único compuesto: nombre de carpeta único por propietario
- * Permite que diferentes usuarios tengan carpetas con el mismo nombre
+ * Índices para optimizar consultas
  */
-folderSchema.index({ owner: 1, name: 1 }, { unique: true });
+// Índice compuesto para buscar carpetas por organización y propietario
+folderSchema.index({ organization: 1, owner: 1 });
+// Índice para buscar carpetas hijas de una carpeta padre
+folderSchema.index({ organization: 1, parent: 1 });
+// Índice para encontrar la carpeta raíz de un usuario
+folderSchema.index({ owner: 1, isRoot: 1 });
+// Índice para buscar por nombre dentro de una organización y padre
+folderSchema.index({ organization: 1, parent: 1, name: 1 });
+
+/**
+ * Virtual para obtener el nombre a mostrar
+ * Si no hay displayName, usa el name técnico
+ */
+folderSchema.virtual('visibleName').get(function (this: IFolder) {
+  return this.displayName || this.name;
+});
+
+/**
+ * Método de instancia para verificar si un usuario tiene acceso
+ */
+folderSchema.methods.hasAccess = function (
+  userId: string,
+  requiredRole?: FolderPermissionRole
+): boolean {
+  const userIdStr = userId.toString();
+
+  // El owner siempre tiene acceso completo
+  if (this.owner.toString() === userIdStr) {
+    return true;
+  }
+
+  // Verificar en la lista de permisos
+  const permission = this.permissions.find(
+    (p: IFolderPermission) => p.userId.toString() === userIdStr
+  );
+
+  if (!permission) {
+    return false;
+  }
+
+  // Si no se requiere un rol específico, cualquier permiso es suficiente
+  if (!requiredRole) {
+    return true;
+  }
+
+  // Verificar jerarquía de roles: owner > editor > viewer
+  const roleHierarchy: Record<FolderPermissionRole, number> = {
+    owner: 3,
+    editor: 2,
+    viewer: 1,
+  };
+
+  return (roleHierarchy[permission.role as FolderPermissionRole] ?? 0) >= roleHierarchy[requiredRole];
+};
+
+/**
+ * Método de instancia para compartir carpeta con un usuario
+ */
+folderSchema.methods.shareWith = function (
+  userId: string,
+  role: FolderPermissionRole = 'viewer'
+) {
+  const userIdStr = userId.toString();
+
+  // No compartir con el owner
+  if (this.owner.toString() === userIdStr) {
+    return;
+  }
+
+  // Verificar si ya está compartido
+  const existingPermission = this.permissions.find(
+    (p: IFolderPermission) => p.userId.toString() === userIdStr
+  );
+
+  if (existingPermission) {
+    // Actualizar rol
+    existingPermission.role = role;
+  } else {
+    // Agregar nuevo permiso
+    this.permissions.push({ userId: userId as any, role });
+    if (!this.sharedWith.some((id: Types.ObjectId) => id.toString() === userIdStr)) {
+      this.sharedWith.push(userId as any);
+    }
+  }
+};
+
+/**
+ * Método de instancia para remover acceso de un usuario
+ */
+folderSchema.methods.unshareWith = function (userId: string) {
+  const userIdStr = userId.toString();
+
+  this.permissions = this.permissions.filter(
+    (p: IFolderPermission) => p.userId.toString() !== userIdStr
+  );
+  this.sharedWith = this.sharedWith.filter(
+    (id: Types.ObjectId) => id.toString() !== userIdStr
+  );
+};
 
 const Folder: Model<IFolder> = mongoose.model<IFolder>('Folder', folderSchema);
 

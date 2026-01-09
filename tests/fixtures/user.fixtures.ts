@@ -7,6 +7,7 @@ export interface UserFixture {
   name: string;
   email: string;
   password: string;
+  organizationId?: string;
 }
 
 /**
@@ -15,7 +16,8 @@ export interface UserFixture {
 export const basicUser: UserFixture = {
   name: 'Usuario Test',
   email: 'test@example.com',
-  password: 'Test@1234'
+  password: 'Test@1234',
+  organizationId: 'test-org-basic'
 };
 
 /**
@@ -71,36 +73,42 @@ export const weakPasswordUsers = [
     name: 'Test User',
     email: 'test1@example.com',
     password: 'weakpass123!',
+    organizationId: 'test-org-weak-1',
     expectedError: 'uppercase'
   },
   {
     name: 'Test User',
     email: 'test2@example.com',
     password: 'WEAKPASS123!',
+    organizationId: 'test-org-weak-2',
     expectedError: 'lowercase'
   },
   {
     name: 'Test User',
     email: 'test3@example.com',
     password: 'WeakPass!',
+    organizationId: 'test-org-weak-3',
     expectedError: 'number'
   },
   {
     name: 'Test User',
     email: 'test4@example.com',
     password: 'WeakPass123',
+    organizationId: 'test-org-weak-4',
     expectedError: 'special character'
   },
   {
     name: 'Test User',
     email: 'test5@example.com',
     password: 'Wp1!',
+    organizationId: 'test-org-weak-5',
     expectedError: 'at least 8 characters'
   },
   {
     name: 'Test User',
     email: 'test6@example.com',
     password: 'Weak Pass123!',
+    organizationId: 'test-org-weak-6',
     expectedError: 'whitespace'
   }
 ];
@@ -111,5 +119,6 @@ export const weakPasswordUsers = [
 export const strongPasswordUser: UserFixture = {
   name: 'Strong Pass User',
   email: 'strong@example.com',
-  password: 'StrongP@ss123!'
+  password: 'StrongP@ss123!',
+  organizationId: 'test-org-strong'
 };
