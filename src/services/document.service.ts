@@ -463,7 +463,7 @@ export async function uploadDocument({
     throw new HttpError(400, 'Invalid temporary upload path');
   }
   
-  // Validar que el path físico está dentro del directorio storage
+  // Validar que el path de destino está dentro del directorio storage
   if (!isPathWithinBase(physicalPath, storageRoot)) {
     throw new HttpError(400, 'Invalid destination path');
   }
