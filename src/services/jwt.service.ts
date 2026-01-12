@@ -1,54 +1,68 @@
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change_me_dev';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1d';
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || JWT_SECRET;
+
+// Por defecto (si no usas env vars)
+const ACCESS_EXPIRES_IN = process.env.JWT_ACCESS_EXPIRES_IN || '15m';
+const REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '30d';
+
+export type TokenType = 'access' | 'refresh';
 
 /**
  * Estructura del payload del token JWT
  */
 export interface TokenPayload {
   id: string;
-  email: string;
-  role: string;
+  email?: string;
+  role?: string;
   tokenVersion?: number;
   tokenCreatedAt?: string;
+  type: TokenType;
 }
 
-/**
- * Opciones para la firma del token
- */
 export interface SignTokenOptions {
   expiresIn?: string | number;
 }
 
-/**
- * Firma un token JWT con el payload proporcionado
- * 
- * @param payload - Datos a incluir en el token
- * @param options - Opciones de configuración (tiempo de expiración)
- * @returns Token JWT firmado
- */
-export function signToken(payload: Partial<TokenPayload>, options: SignTokenOptions = {}): string {
-  const expiresIn: string | number = options.expiresIn || JWT_EXPIRES_IN;
+function signWith(secret: string, payload: Partial<TokenPayload>, options: SignTokenOptions = {}): string {
+  const expiresIn = options.expiresIn;
   return jwt.sign(
     { ...payload, tokenCreatedAt: new Date().toISOString() } as object,
-    JWT_SECRET,
+    secret,
     { expiresIn } as jwt.SignOptions
   );
 }
 
-/**
- * Verifica y decodifica un token JWT
- * 
- * @param token - Token JWT a verificar
- * @returns Payload decodificado del token
- * @throws Error si el token es inválido o ha expirado
- */
-export function verifyToken(token: string): TokenPayload {
+export function signAccessToken(
+  payload: Omit<Partial<TokenPayload>, 'type'>,
+  options: SignTokenOptions = {}
+): string {
+  return signWith(JWT_SECRET, { ...payload, type: 'access' }, { expiresIn: options.expiresIn || ACCESS_EXPIRES_IN });
+}
+
+export function signRefreshToken(
+  payload: Omit<Partial<TokenPayload>, 'type'>,
+  options: SignTokenOptions = {}
+): string {
+  return signWith(
+    JWT_REFRESH_SECRET,
+    { ...payload, type: 'refresh' },
+    { expiresIn: options.expiresIn || REFRESH_EXPIRES_IN }
+  );
+}
+
+export function verifyAccessToken(token: string): TokenPayload {
   return jwt.verify(token, JWT_SECRET) as TokenPayload;
 }
 
+export function verifyRefreshToken(token: string): TokenPayload {
+  return jwt.verify(token, JWT_REFRESH_SECRET) as TokenPayload;
+}
+
 export default {
-  signToken,
-  verifyToken
+  signAccessToken,
+  signRefreshToken,
+  verifyAccessToken,
+  verifyRefreshToken
 };

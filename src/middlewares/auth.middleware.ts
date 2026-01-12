@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { verifyToken } from '../services/jwt.service';
+import { verifyAccessToken } from '../services/jwt.service';
 import HttpError from '../models/error.model';
 import User from '../models/user.model';
 
@@ -37,7 +37,7 @@ export async function authenticateToken(req: AuthRequest, _res: Response, next: 
   }
 
   try {
-    const decoded = verifyToken(token);
+    const decoded = verifyAccessToken(token);
     const user = await User.findById(decoded.id);
     
     if (!user) return next(new HttpError(401, 'User no longer exists'));

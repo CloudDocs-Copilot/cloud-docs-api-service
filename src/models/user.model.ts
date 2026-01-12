@@ -33,6 +33,10 @@ export interface IUser extends Document {
   preferences: IUserPreferences;
   createdAt: Date;
   updatedAt: Date;
+  loginAttempts?: number;
+  lockUntil?: Date | null;
+  refreshTokenHash?: string | null;
+  refreshTokenExpiresAt?: Date | null;
 }
 
 /**
@@ -108,6 +112,10 @@ const userSchema = new Schema<IUser>(
       documentUpdates: { type: Boolean, default: true },
       aiAnalysis: { type: Boolean, default: true }
     },
+    loginAttempts: { type: Number, default: 0 },
+    lockUntil: { type: Date, default: null },
+    refreshTokenHash: { type: String, default: null },
+    refreshTokenExpiresAt: { type: Date, default: null },
   },
   {
     timestamps: true,

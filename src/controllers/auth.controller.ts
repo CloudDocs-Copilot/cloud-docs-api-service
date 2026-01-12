@@ -1,79 +1,116 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { registerUser, loginUser, confirmUserAccount } from '../services/auth.service';
+import { registerUser, loginUser, refreshSession, revokeRefresh } from '../services/auth.service';
 import HttpError from '../models/error.model';
 
-/**
- * Controlador de registro de usuario
- * Valida datos requeridos, fortaleza de contraseña y registra nuevo usuario
- */
+function cookieBaseOptions() {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? ('strict' as const) : ('lax' as const),
+    path: '/',
+  };
+}
+
 export async function register(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { name, email, password} = req.body;
-    
-    if (!name || !email || !password) {
-      return next(new HttpError(400, 'Missing required fields (name, email, password)'));
+    const { name, email, password, organizationId } = req.body;
+
+    if (!name || !email || !password || !organizationId) {
+      return next(new HttpError(400, 'Missing required fields (name, email, password, organizationId)'));
     }
-    
+
     const user = await registerUser(req.body);
     res.status(201).json({ message: 'User registered successfully', user });
   } catch (err: any) {
     if (err.message && err.message.includes('duplicate key')) {
       return next(new HttpError(409, 'Email already registered'));
-    }
-    if (err.message && err.message.includes('Invalid email format')) {
-      return next(new HttpError(400, 'Invalid email format'));
-    }
-    if (err.message && err.message.includes('Name must contain only alphanumeric characters and spaces')) {
-      return next(new HttpError(400, 'Invalid name format'));
-    }
-    if (err.message && err.message.includes('Password validation failed')) {
-      return next(new HttpError(400, err.message));
-    }
+    } 
     next(err);
   }
 }
 
-/**
- * Controlador de inicio de sesión
- * Autentica usuario y envía token JWT en cookie HttpOnly
- */
 export async function login(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { email, password } = req.body;
-    
-    if ( !email || !password) {
+    const { email, password, rememberMe } = req.body;
+
+    if (!email || !password) {
       return next(new HttpError(400, 'Missing required fields'));
     }
-    const result = await loginUser(req.body);
-    
-    // Configuración de la cookie
-    const cookieOptions = {
-      httpOnly: true, // La cookie no es accesible desde JavaScript del cliente
-      secure: process.env.NODE_ENV === 'production', // Solo HTTPS en producción
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' as const : 'lax' as const, // Protección CSRF
-      maxAge: 24 * 60 * 60 * 1000, // 24 horas en milisegundos
-      path: '/' // Cookie disponible en toda la aplicación
-    };
-    
-    // Enviar token en cookie HttpOnly
-    res.cookie('token', result.token, cookieOptions);
-    
-    // Devolver solo los datos del usuario, no el token
+
+    const result = await loginUser({ email, password, rememberMe });
+
+    // Access cookie: 15 min (900000 ms)
+    res.cookie('token', result.accessToken, {
+      ...cookieBaseOptions(),
+      maxAge: 15 * 60 * 1000,
+    });
+
+    // Refresh cookie: 30 días SOLO si rememberMe
+    if (rememberMe && result.refreshToken) {
+      res.cookie('refreshToken', result.refreshToken, {
+        ...cookieBaseOptions(),
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+      });
+    } else {
+      // si no pidió rememberMe, por seguridad limpia refresh anterior si existiera
+      res.clearCookie('refreshToken', { ...cookieBaseOptions() });
+    }
+
     res.json({ message: 'Login successful', user: result.user });
+    } catch (err: any) {
+    // Si el service ya tiró HttpError, lo mandamos tal cual (mantiene status y mensaje)
+    if (err instanceof HttpError) return next(err);
+
+    // Fallback defensivo por si llega otro tipo de error
+    if (err?.message) {
+      if (err.message === 'User not found') return next(new HttpError(404, 'Usuario no existe'));
+      if (err.message === 'Invalid password') return next(new HttpError(401, 'Contraseña incorrecta'));
+      if (err.message === 'User account is not active') return next(new HttpError(403, 'Cuenta desactivada'));
+
+      if (typeof err.message === 'string' && err.message.startsWith('Account locked')) {
+        return next(new HttpError(423, err.message));
+      }
+    }
+
+    return next(new HttpError(500, 'Internal server error'));
+  }
+}
+
+/**
+ * POST /api/auth/refresh
+ * Requiere cookie refreshToken
+ * Devuelve user y setea nuevas cookies (access + refresh rotado)
+ */
+export async function refresh(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const refreshToken = req.cookies?.refreshToken;
+    const result = await refreshSession(refreshToken);
+
+    // nuevo access 15m
+    res.cookie('token', result.accessToken, {
+      ...cookieBaseOptions(),
+      maxAge: 15 * 60 * 1000,
+    });
+
+    // refresh rotado 30d
+    res.cookie('refreshToken', result.refreshToken, {
+      ...cookieBaseOptions(),
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    });
+
+    res.json({ message: 'Session refreshed', user: result.user });
   } catch (err: any) {
-    if (err.message === 'User not found') return next(new HttpError(404, 'Invalid credentials'));
-    if (err.message === 'Invalid password') return next(new HttpError(401, 'Invalid credentials'));
-    if (err.message === 'User account is not active') return next(new HttpError(403, 'Account is not active'));
     next(err);
   }
 }
 
 /**
- * Controlador de cierre de sesión
- * Limpia la cookie del token JWT
+ * Logout: limpia cookies y revoca refresh si existe
+ * (NO necesita authMiddleware)
  */
-export async function logout(_req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+export async function logout(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     // Limpiar la cookie del token
     res.clearCookie('token', {
@@ -82,6 +119,12 @@ export async function logout(_req: AuthRequest, res: Response, next: NextFunctio
       sameSite: process.env.NODE_ENV === 'production' ? 'strict' as const : 'lax' as const,
       path: '/'
     });
+    const refreshToken = req.cookies?.refreshToken;
+    await revokeRefresh(refreshToken);
+
+    res.clearCookie('token', { ...cookieBaseOptions() });
+    res.clearCookie('refreshToken', { ...cookieBaseOptions() });
+
     res.json({ message: 'Logout successful' });
   } catch (err: any) {
     next(err);
@@ -115,4 +158,4 @@ export async function confirmAccount(req: any, res: Response, next: NextFunction
   }
 }
 
-export default { register, login, logout };
+export default { register, login, refresh, logout };
