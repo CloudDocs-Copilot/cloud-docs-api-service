@@ -20,6 +20,13 @@ export interface ChangePasswordDto {
 }
 
 /**
+ * DTO para actualización de avatar
+ */
+export interface UpdateAvatarDto {
+  avatar: string;
+}
+
+/**
  * Obtiene todos los usuarios del sistema
  * La contraseña se excluye automáticamente por la transformación del esquema
  * 
@@ -106,10 +113,27 @@ export async function deleteUser(id: string): Promise<IUser> {
   return user;
 }
 
+/**
+ * Actualiza el avatar de un usuario
+ * 
+ * @param id - ID del usuario
+ * @param UpdateAvatarDto - URL o path del avatar
+ * @returns Usuario actualizado
+ */
+export async function updateAvatar(id: string, { avatar }: UpdateAvatarDto): Promise<IUser> {
+  const user = await User.findById(id);
+  if (!user) throw new HttpError(404, 'User not found');
+  
+  user.avatar = avatar;
+  await user.save();
+  return user;
+}
+
 export default {
   getAllUsers,
   setUserActive,
   updateUser,
   changePassword,
-  deleteUser
+  deleteUser,
+  updateAvatar
 };

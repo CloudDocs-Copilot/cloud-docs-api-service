@@ -110,7 +110,8 @@ export async function registerUser({
     password: hashed, 
     role,
     organization: organizationId,
-    storageUsed: 0
+    storageUsed: 0,
+    active: true
   });
   
   // Agregar usuario a la organización

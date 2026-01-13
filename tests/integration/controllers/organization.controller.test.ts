@@ -349,6 +349,7 @@ describe('OrganizationController Integration Tests', () => {
         name: 'Outsider',
         email: 'outsider@test.com',
         password: 'hashedpassword123',
+        active: true,
       });
       const token3 = jwtService.signToken({
         id: user3._id.toString(),
@@ -603,6 +604,7 @@ describe('OrganizationController Integration Tests', () => {
         name: 'Outsider',
         email: 'outsider@test.com',
         password: 'hashedpassword123',
+        active: true,
       });
       const token3 = jwtService.signToken({
         id: user3._id.toString(),

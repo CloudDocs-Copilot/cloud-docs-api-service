@@ -18,6 +18,8 @@ export interface IUser extends Document {
   rootFolder?: Types.ObjectId;
   /** Almacenamiento utilizado por el usuario en bytes */
   storageUsed: number;
+  /** URL o path del avatar del usuario */
+  avatar?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -67,7 +69,7 @@ const userSchema = new Schema<IUser>(
       },
       default: 'user',
     },
-    active: { type: Boolean, default: true },
+    active: { type: Boolean, default: false },
     tokenVersion: { type: Number, default: 0 },
     lastPasswordChange: { type: Date },
     organization: {
@@ -83,6 +85,12 @@ const userSchema = new Schema<IUser>(
       type: Number,
       default: 0,
       min: [0, 'Storage used cannot be negative'],
+    },
+    avatar: {
+      type: String,
+      trim: true,
+      maxlength: [2048, 'Avatar URL cannot exceed 2048 characters'],
+      default: null,
     },
   },
   {

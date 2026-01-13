@@ -11,6 +11,7 @@ router.patch('/:id/activate', authenticateToken, requireAdmin, userController.ac
 router.patch('/:id/deactivate', authenticateToken, requireAdmin, userController.deactivate);
 router.put('/:id', authenticateToken, userController.update);
 router.patch('/:id/password', authenticateToken, userController.changePassword);
+router.patch('/:id/avatar', authenticateToken, userController.updateAvatar);
 router.delete('/:id', authenticateToken, requireAdmin, userController.remove);
 
 export default router;

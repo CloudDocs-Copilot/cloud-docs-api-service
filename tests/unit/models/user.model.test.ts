@@ -262,7 +262,7 @@ describe('User Model - Organization Integration', () => {
       expect(user.email).toBe('test@example.com');
       expect(user.role).toBe('admin');
       expect(user.tokenVersion).toBe(5);
-      expect(user.active).toBe(true); // default value
+      expect(user.active).toBe(false); // default value
     });
 
     it('should not expose password in JSON', async () => {
@@ -278,4 +278,126 @@ describe('User Model - Organization Integration', () => {
       expect(userJSON.name).toBe('Test User');
     });
   });
+
+  describe('Avatar Field', () => {
+    it('should allow creating user without avatar (default null)', async () => {
+      const user = await User.create({
+        name: 'Test User',
+        email: 'test@example.com',
+        password: 'hashedpassword123',
+        organization: testOrgId,
+      });
+
+      expect(user.avatar).toBeNull();
+    });
+
+    it('should allow setting avatar URL', async () => {
+      const avatarUrl = 'https://example.com/avatar.jpg';
+      const user = await User.create({
+        name: 'Test User',
+        email: 'test@example.com',
+        password: 'hashedpassword123',
+        organization: testOrgId,
+        avatar: avatarUrl,
+      });
+
+      expect(user.avatar).toBe(avatarUrl);
+    });
+
+    it('should trim whitespace from avatar URL', async () => {
+      const user = await User.create({
+        name: 'Test User',
+        email: 'test@example.com',
+        password: 'hashedpassword123',
+        organization: testOrgId,
+        avatar: '  https://example.com/avatar.jpg  ',
+      });
+
+      expect(user.avatar).toBe('https://example.com/avatar.jpg');
+    });
+
+    it('should allow empty string for avatar', async () => {
+      const user = await User.create({
+        name: 'Test User',
+        email: 'test@example.com',
+        password: 'hashedpassword123',
+        organization: testOrgId,
+        avatar: '',
+      });
+
+      expect(user.avatar).toBe('');
+    });
+
+    it('should reject avatar URL exceeding 2048 characters', async () => {
+      const longUrl = 'https://example.com/' + 'a'.repeat(2050);
+
+      await expect(
+        User.create({
+          name: 'Test User',
+          email: 'test@example.com',
+          password: 'hashedpassword123',
+          organization: testOrgId,
+          avatar: longUrl,
+        })
+      ).rejects.toThrow(/cannot exceed 2048 characters/i);
+    });
+
+    it('should allow data URLs as avatar', async () => {
+      const dataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+      const user = await User.create({
+        name: 'Test User',
+        email: 'test@example.com',
+        password: 'hashedpassword123',
+        organization: testOrgId,
+        avatar: dataUrl,
+      });
+
+      expect(user.avatar).toBe(dataUrl);
+    });
+
+    it('should allow relative paths as avatar', async () => {
+      const relativePath = '/uploads/avatars/user123.jpg';
+      const user = await User.create({
+        name: 'Test User',
+        email: 'test@example.com',
+        password: 'hashedpassword123',
+        organization: testOrgId,
+        avatar: relativePath,
+      });
+
+      expect(user.avatar).toBe(relativePath);
+    });
+
+    it('should update avatar successfully', async () => {
+      const user = await User.create({
+        name: 'Test User',
+        email: 'test@example.com',
+        password: 'hashedpassword123',
+        organization: testOrgId,
+        avatar: 'https://example.com/old.jpg',
+      });
+
+      user.avatar = 'https://example.com/new.jpg';
+      await user.save();
+
+      const updatedUser = await User.findById(user._id);
+      expect(updatedUser?.avatar).toBe('https://example.com/new.jpg');
+    });
+
+    it('should include avatar in JSON response', async () => {
+      const avatarUrl = 'https://example.com/avatar.jpg';
+      const user = await User.create({
+        name: 'Test User',
+        email: 'test@example.com',
+        password: 'hashedpassword123',
+        organization: testOrgId,
+        avatar: avatarUrl,
+      });
+
+      const userJSON = user.toJSON();
+      expect(userJSON.avatar).toBe(avatarUrl);
+      expect(userJSON.password).toBeUndefined();
+    });
+  });
 });
+

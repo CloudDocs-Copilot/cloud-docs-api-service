@@ -106,4 +106,27 @@ export async function remove(req: AuthRequest, res: Response, next: NextFunction
   }
 }
 
-export default { list, activate, deactivate, update, changePassword, remove };
+/**
+ * Controlador para actualizar el avatar del usuario
+ * Solo el propio usuario puede actualizar su avatar
+ */
+export async function updateAvatar(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (req.user && req.user.id !== req.params.id) {
+      return next(new HttpError(403, 'Forbidden'));
+    }
+    
+    const { avatar } = req.body;
+    if (avatar === undefined || avatar === null) {
+      return next(new HttpError(400, 'Avatar URL is required'));
+    }
+    
+    const user = await userService.updateAvatar(req.params.id, { avatar });
+    res.json({ message: 'Avatar updated successfully', user });
+  } catch (err: any) {
+    const status = err.message === 'User not found' ? 404 : 400;
+    next(new HttpError(status, err.message));
+  }
+}
+
+export default { list, activate, deactivate, update, changePassword, remove, updateAvatar };

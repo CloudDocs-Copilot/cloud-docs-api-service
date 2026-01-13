@@ -29,7 +29,8 @@ describe('AuthService Integration Tests', () => {
       name: 'Org Owner',
       email: 'owner@test.com',
       password: 'hashedPassword123',
-      role: 'admin'
+      role: 'admin',
+      active: true
     });
 
     const org = await Organization.create({
@@ -155,25 +156,17 @@ describe('AuthService Integration Tests', () => {
     });
 
     it('should fail if organization has reached max users', async () => {
-      // Actualizar organización para permitir solo 2 usuarios (owner + 1)
+      // Actualizar organización para permitir solo 1 usuario (el owner ya cuenta como 1)
       await Organization.findByIdAndUpdate(testOrgId, {
-        'settings.maxUsers': 2,
+        'settings.maxUsers': 1,
       });
 
-      // Crear primer usuario (ya hay 1 owner)
-      await authService.registerUser({
-        name: 'User 1',
-        email: 'user1@test.com',
-        password: 'StrongP@ss111',
-        organizationId: testOrgId.toString(),
-      });
-
-      // Intentar crear segundo usuario (debe fallar)
+      // Intentar crear un usuario (debe fallar porque owner ya está activo y cuenta)
       await expect(
         authService.registerUser({
-          name: 'User 2',
-          email: 'user2@test.com',
-          password: 'StrongP@ss222',
+          name: 'User 1',
+          email: 'user1@test.com',
+          password: 'StrongP@ss111',
           organizationId: testOrgId.toString(),
         })
       ).rejects.toThrow('Organization has reached maximum users limit');
