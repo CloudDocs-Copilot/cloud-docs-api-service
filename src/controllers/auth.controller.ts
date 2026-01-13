@@ -63,7 +63,7 @@ export async function login(req: AuthRequest, res: Response, next: NextFunction)
     // Si el service ya tiró HttpError, lo mandamos tal cual (mantiene status y mensaje)
     if (err instanceof HttpError) return next(err);
 
-    // Fallback defensivo por si llega otro tipo de error
+    // Fallback defensivo por si llega otro tipo de error.
     if (err?.message) {
       if (err.message === 'User not found') return next(new HttpError(404, 'Usuario no existe'));
       if (err.message === 'Invalid password') return next(new HttpError(401, 'Contraseña incorrecta'));
