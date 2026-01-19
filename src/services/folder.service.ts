@@ -315,8 +315,22 @@ export async function shareFolder({
   const targetUser = await User.findById(targetUserId);
   if (!targetUser) throw new HttpError(404, 'Target user not found');
   
-  if (targetUser.organization?.toString() !== folder.organization.toString()) {
-    throw new HttpError(403, 'Target user does not belong to this organization');
+  // Validar compatibilidad de organización:
+  // - Ambos sin organización: OK (usuarios personales)
+  // - Ambos con la misma organización: OK
+  // - Uno con org y otro sin org: NO permitido
+  // - Diferentes organizaciones: NO permitido
+  const folderOrgId = folder.organization?.toString();
+  const userOrgId = targetUser.organization?.toString();
+  
+  if (folderOrgId !== userOrgId) {
+    if (!folderOrgId && !userOrgId) {
+      // Ambos son usuarios personales - OK
+    } else if (folderOrgId && userOrgId) {
+      throw new HttpError(403, 'Users belong to different organizations');
+    } else {
+      throw new HttpError(403, 'Cannot share between personal and organization users');
+    }
   }
   
   // Usar el método shareWith del modelo

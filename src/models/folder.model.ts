@@ -34,8 +34,8 @@ export interface IFolder extends Document {
   type: FolderType;
   /** Usuario propietario de la carpeta */
   owner: Types.ObjectId;
-  /** Organización a la que pertenece la carpeta */
-  organization: Types.ObjectId;
+  /** Organización a la que pertenece la carpeta (opcional para usuarios sin organización) */
+  organization?: Types.ObjectId;
   /** Carpeta padre (null para carpetas raíz) */
   parent: Types.ObjectId | null;
   /** Indica si es una carpeta raíz de usuario */
@@ -103,8 +103,9 @@ const folderSchema = new Schema<IFolder>(
     organization: {
       type: Schema.Types.ObjectId,
       ref: 'Organization',
-      required: [true, 'Organization is required'],
+      required: false,
       index: true,
+      default: null,
     },
     parent: {
       type: Schema.Types.ObjectId,
@@ -185,6 +186,8 @@ folderSchema.index({ organization: 1, parent: 1 });
 folderSchema.index({ owner: 1, isRoot: 1 });
 // Índice para buscar por nombre dentro de una organización y padre
 folderSchema.index({ organization: 1, parent: 1, name: 1 });
+// Índice adicional para usuarios sin organización (carpetas personales)
+folderSchema.index({ owner: 1, parent: 1 }, { sparse: true, partialFilterExpression: { organization: null } });
 
 /**
  * Virtual para obtener el nombre a mostrar

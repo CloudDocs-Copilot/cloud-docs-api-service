@@ -67,6 +67,7 @@ app.use(express.json());
 // Ver documentación completa en: CSRF-PROTECTION-EXPLANATION.md
 // Protege POST/PUT/PATCH/DELETE con validación de tokens en cookies y headers
 // Configuración: __Host-psifi.x-csrf-token (sameSite=strict, httpOnly=true, secure en prod)
+
 app.use(csrfProtectionMiddleware);
 
 // Protección contra inyección NoSQL

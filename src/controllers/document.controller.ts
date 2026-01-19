@@ -63,7 +63,7 @@ export async function list(req: AuthRequest, res: Response, next: NextFunction):
 export async function getRecent(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
-    const organizationId = req.query.organizationId as string;
+    const organizationId = req.params.organizationId;
     
     if (!organizationId) {
       return next(new HttpError(400, 'Organization ID is required'));
