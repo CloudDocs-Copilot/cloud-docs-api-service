@@ -20,6 +20,7 @@ interface MulterError extends Error {
 function mapMongooseError(err: MongooseError): { status: number; message: string } | null {
   // ValidationError (validación de esquema)
   if (err.name === 'ValidationError') {
+    console.error('[mongoose-validation-error]', err);
     return { status: 400, message: 'Validation failed' };
   }
   

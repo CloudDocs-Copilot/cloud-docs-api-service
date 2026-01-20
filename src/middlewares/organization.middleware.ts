@@ -14,9 +14,9 @@ import Organization from '../models/organization.model';
 export function validateOrganizationMembership(source: 'body' | 'params' | 'query' = 'body') {
   return async (req: AuthRequest, _res: Response, next: NextFunction): Promise<void> => {
     try {
-      // En params la ruta usa :id, en body/query se llama organizationId
+       // En params buscar :id u :organizationId
       const organizationId = source === 'params' 
-        ? req.params.id 
+        ? (req.params.organizationId || req.params.id)
         : req[source]?.organizationId;
       
       if (!organizationId) {

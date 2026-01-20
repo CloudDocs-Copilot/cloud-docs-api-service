@@ -148,18 +148,23 @@ organizationSchema.statics.findBySlug = function (slug: string) {
   return this.findOne({ slug, active: true });
 };
 
-// Configuración para que los virtuals se incluyan en JSON
+// Configuración para que los virtuals se incluyan en JSON y Object
 organizationSchema.set('toJSON', {
   virtuals: true,
   versionKey: false,
   transform: (_doc, ret) => {
-    delete ret.id; // Eliminar el campo 'id' duplicado que genera mongoose
+    delete ret._id; // Eliminar _id y usar el virtual 'id'
     return ret;
   },
 });
 
 organizationSchema.set('toObject', {
   virtuals: true,
+  versionKey: false,
+  transform: (_doc, ret) => {
+    delete ret._id; // Eliminar _id y usar el virtual 'id'
+    return ret;
+  },
 });
 
 /**

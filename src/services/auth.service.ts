@@ -18,7 +18,7 @@ export interface RegisterUserDto {
   name: string;
   email: string;
   password: string;
-  organizationId: string;
+  organizationId?: string;
   role?: 'user' | 'admin';
 }
 
@@ -72,93 +72,146 @@ export async function registerUser({
   // Validar fortaleza de la contraseña
   validatePasswordOrThrow(password);
   
-  // Validar que organizationId sea un ObjectId válido
-  if (!mongoose.Types.ObjectId.isValid(organizationId)) {
-    throw new HttpError(400, 'Invalid organization ID');
-  }
+  let organization = null;
   
-  // Verificar que la organización exista y esté activa
-  const organization = await Organization.findOne({ 
-    _id: organizationId, 
-    active: true 
-  });
-  
-  if (!organization) {
-    throw new HttpError(404, 'Organization not found or inactive');
-  }
-  
-  // Validar cuota de usuarios
-  const currentUsersCount = await User.countDocuments({ 
-    organization: organizationId,
-    active: true 
-  });
-  
-  if (currentUsersCount >= (organization.settings.maxUsers || 100)) {
-    throw new HttpError(
-      403,
-      `Organization has reached maximum users limit (${organization.settings.maxUsers})`
-    );
+  // Validar organización solo si se proporciona
+  if (organizationId) {
+    // Validar que organizationId sea un ObjectId válido
+    if (!mongoose.Types.ObjectId.isValid(organizationId)) {
+      throw new HttpError(400, 'Invalid organization ID');
+    }
+    
+    // Verificar que la organización exista y esté activa
+    organization = await Organization.findOne({ 
+      _id: organizationId, 
+      active: true 
+    });
+    
+    if (!organization) {
+      throw new HttpError(404, 'Organization not found or inactive');
+    }
+    
+    // Validar cuota de usuarios
+    const currentUsersCount = await User.countDocuments({ 
+      organization: organizationId,
+      active: true 
+    });
+    
+    if (currentUsersCount >= (organization.settings.maxUsers || 100)) {
+      throw new HttpError(
+        403,
+        `Organization has reached maximum users limit (${organization.settings.maxUsers})`
+      );
+    }
   }
   
   // Hashear contraseña
   const hashed = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
   
-  // Crear usuario con referencia a organización
-  const user = await User.create({ 
-    name, 
-    email, 
-    password: hashed, 
-    role,
-    organization: organizationId,
-    storageUsed: 0,
-    active: true
-  });
+  let user: IUser | null = null;
+  let rootFolder = null;
+  let userStoragePath = '';
   
-  // Agregar usuario a la organización
-  organization.members.push(user._id as mongoose.Types.ObjectId);
-  await organization.save();
-  
-  // Crear carpeta raíz del usuario
-  const rootFolderName = `root_user_${user._id}`;
-  
-  // Sanitizar org.slug para prevenir path traversal
-  const safeSlug = organization.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-  const rootFolderPath = `/${safeSlug}/${user._id}`;
-  
-  // Crear directorio físico
-  const storageRoot = path.join(process.cwd(), 'storage');
-  const safeUserId = user._id.toString().replace(/[^a-z0-9]/gi, '');
-  const userStoragePath = path.join(storageRoot, safeSlug, safeUserId);
-  
-  if (!fs.existsSync(userStoragePath)) {
-    fs.mkdirSync(userStoragePath, { recursive: true });
+  try {
+    // Crear usuario con referencia a organización (opcional)
+    user = await User.create({ 
+      name, 
+      email, 
+      password: hashed, 
+      role,
+      organization: organizationId || undefined,
+      storageUsed: 0,
+      active: true
+    });
+    
+    // Agregar usuario a la organización si existe
+    if (organization) {
+      organization.members.push(user._id as mongoose.Types.ObjectId);
+      await organization.save();
+    }
+    
+    // Crear carpeta raíz del usuario
+    const rootFolderName = `root_user_${user._id}`;
+    
+    // Sanitizar org.slug para prevenir path traversal o usar 'users' si no hay organización
+    const safeSlug = organization 
+      ? organization.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '')
+      : 'users';
+    const rootFolderPath = `/${safeSlug}/${user._id}`;
+    
+    // Crear directorio físico
+    const storageRoot = path.join(process.cwd(), 'storage');
+    const safeUserId = user._id.toString().replace(/[^a-z0-9]/gi, '');
+    userStoragePath = path.join(storageRoot, safeSlug, safeUserId);
+    
+    if (!fs.existsSync(userStoragePath)) {
+      fs.mkdirSync(userStoragePath, { recursive: true });
+    }
+    
+    // Crear carpeta raíz en la base de datos
+    rootFolder = await Folder.create({
+      name: rootFolderName,
+      displayName: 'RootFolder',
+      type: 'root',
+      organization: organizationId || undefined,
+      owner: user._id,
+      parent: null,
+      path: rootFolderPath,
+      permissions: [{
+        userId: user._id,
+        role: 'owner'
+      }]
+    });
+    
+    // Actualizar usuario con carpeta raíz
+    user.rootFolder = rootFolder._id as mongoose.Types.ObjectId;
+    await user.save();
+    
+    // Retornar datos del usuario (incluyendo _id manualmente)
+    const userObj = user.toJSON();
+    return {
+      ...userObj,
+      _id: user._id,
+    };
+  } catch (error) {
+    // Rollback: Limpiar todo lo que se creó
+    
+    // 1. Eliminar carpeta de la base de datos
+    if (rootFolder?._id) {
+      await Folder.findByIdAndDelete(rootFolder._id).catch(err => 
+        console.error('Error deleting folder during rollback:', err)
+      );
+    }
+    
+    // 2. Remover usuario de la organización
+    if (organization && user?._id) {
+      organization.members = organization.members.filter(
+        (memberId) => memberId.toString() !== user?._id.toString()
+      );
+      await organization.save().catch(err => 
+        console.error('Error removing user from organization during rollback:', err)
+      );
+    }
+    
+    // 3. Eliminar usuario de la base de datos
+    if (user?._id) {
+      await User.findByIdAndDelete(user._id).catch(err => 
+        console.error('Error deleting user during rollback:', err)
+      );
+    }
+    
+    // 4. Eliminar directorio físico
+    if (userStoragePath && fs.existsSync(userStoragePath)) {
+      try {
+        fs.rmSync(userStoragePath, { recursive: true, force: true });
+      } catch (cleanupError) {
+        console.error('Error deleting storage directory during rollback:', cleanupError);
+      }
+    }
+    
+    // Re-lanzar el error original
+    throw error;
   }
-  
-  // Crear carpeta raíz en la base de datos
-  const rootFolder = await Folder.create({
-    name: rootFolderName,
-    displayName: 'Mi Unidad',
-    type: 'root',
-    organization: organizationId,
-    owner: user._id,
-    parent: null,
-    path: rootFolderPath,
-    permissions: [{
-      userId: user._id,
-      role: 'owner'
-    }]
-  });
-  
-  // Actualizar usuario con carpeta raíz
-  user.rootFolder = rootFolder._id as mongoose.Types.ObjectId;
-  await user.save();
-  
-  // Retornar datos del usuario (incluyendo _id manualmente)
-  const userObj = user.toJSON();
-  return {
-    ...userObj,
-    _id: user._id,
-  };
 }
 
 /**

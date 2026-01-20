@@ -34,11 +34,11 @@ router.post(
 router.get('/', documentController.list);
 
 /**
- * @route   GET /api/documents/recent
- * @desc    Obtiene documentos recientes del usuario
- * @access  Authenticated users
+ * @route   GET /api/documents/recent/:organizationId
+ * @desc    Obtiene documentos recientes del usuario en una organización
+ * @access  Authenticated users (organization members)
  */
-router.get('/recent', documentController.getRecent);
+router.get('/recent/:organizationId', validateOrganizationMembership('params'), documentController.getRecent);
 
 /**
  * @route   GET /api/documents/:id
@@ -81,5 +81,7 @@ router.post('/:id/copy', documentController.copy);
  * @access  Document owner
  */
 router.delete('/:id', documentController.remove);
+
+
 
 export default router;

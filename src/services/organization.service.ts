@@ -77,6 +77,24 @@ export async function createOrganization(
     throw new HttpError(500, 'Failed to create organization directory');
   }
 
+  // Actualizar organización del usuario owner
+  owner.organization = organization._id;
+  await owner.save();
+
+  // Crear carpeta raíz para el usuario owner
+  try {
+    await createUserRootFolder(ownerId, organization._id.toString());
+  } catch (error) {
+    // Si falla, limpiar lo creado
+    await Organization.findByIdAndDelete(organization._id);
+    owner.organization = undefined;
+    await owner.save();
+    if (fs.existsSync(orgDir)) {
+      fs.rmSync(orgDir, { recursive: true, force: true });
+    }
+    throw error;
+  }
+
   return organization;
 }
 
@@ -338,15 +356,57 @@ async function createUserRootFolder(
     throw new HttpError(404, 'Organization not found');
   }
 
-  // Verificar si ya existe una carpeta raíz para este usuario
+  // Buscar carpeta raíz del usuario (sin filtrar por organización)
   const existingRoot = await Folder.findOne({
     owner: userId,
-    organization: organizationId,
     isRoot: true,
   });
 
   if (existingRoot) {
-    return existingRoot;
+    // Si ya tiene una carpeta raíz con esta organización, retornarla
+    if (existingRoot.organization?.toString() === organizationId) {
+      return existingRoot;
+    }
+    
+    // Si tiene una carpeta raíz sin organización, actualizarla
+    if (!existingRoot.organization) {
+      existingRoot.organization = new mongoose.Types.ObjectId(organizationId);
+      
+      // Actualizar path con el slug de la organización
+      const safeSlug = organization.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+      existingRoot.path = `/${safeSlug}/${userId}`;
+      
+      await existingRoot.save();
+      
+      // Mover directorio físico de /users/{userId} a /{orgSlug}/{userId}
+      const storageRoot = path.join(process.cwd(), 'storage');
+      const safeUserId = userId.toString().replace(/[^a-z0-9]/gi, '');
+      const oldPath = path.join(storageRoot, 'users', safeUserId);
+      const newPath = path.join(storageRoot, safeSlug, safeUserId);
+      
+      try {
+        if (fs.existsSync(oldPath)) {
+          // Asegurar que el directorio de destino existe
+          const newDir = path.dirname(newPath);
+          if (!fs.existsSync(newDir)) {
+            fs.mkdirSync(newDir, { recursive: true });
+          }
+          // Mover el directorio
+          fs.renameSync(oldPath, newPath);
+        } else if (!fs.existsSync(newPath)) {
+          // Si no existe el directorio antiguo, crear el nuevo
+          fs.mkdirSync(newPath, { recursive: true });
+        }
+      } catch (error) {
+        console.error('Error moving user storage directory:', error);
+        // No lanzar error, solo registrar
+      }
+      
+      return existingRoot;
+    }
+    
+    // Si tiene una carpeta raíz con OTRA organización, error
+    throw new HttpError(409, 'User already has a root folder in another organization');
   }
 
   // Sanitizar slug para prevenir path traversal
