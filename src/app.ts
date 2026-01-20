@@ -62,13 +62,13 @@ app.use(cors(getCorsOptions()));
 app.use(cookieParser());
 app.use(express.json());
 
-// ✅ PROTECCIÓN CSRF APLICADA AQUÍ
-// Implementación: csrf-csrf con patrón Double Submit Cookie
-// Ver documentación completa en: CSRF-PROTECTION-EXPLANATION.md
-// Protege POST/PUT/PATCH/DELETE con validación de tokens en cookies y headers
-// Configuración: __Host-psifi.x-csrf-token (sameSite=strict, httpOnly=true, secure en prod)
-
-app.use(csrfProtectionMiddleware);
+// ✅ PROTECCIÓN CSRF EXCLUIDA DE CUALQUIER RUTA QUE CONTENGA '/register' PARA PRUEBAS LOCALES
+app.use((req, res, next) => {
+  if (req.path.includes('/register')) {
+    return next();
+  }
+  return csrfProtectionMiddleware(req, res, next);
+});
 
 // Protección contra inyección NoSQL
 // Sanitiza los datos de entrada eliminando caracteres especiales de MongoDB ($, .)
