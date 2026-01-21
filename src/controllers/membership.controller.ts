@@ -167,6 +167,11 @@ export async function inviteUserToOrganization(
     if (!userId) {
       return next(new HttpError(400, 'userId is required'));
     }
+
+    // Ensure userId is a string and looks like a MongoDB ObjectId to avoid NoSQL injection
+    if (typeof userId !== 'string' || !/^[a-fA-F0-9]{24}$/.test(userId)) {
+      return next(new HttpError(400, 'Invalid userId format'));
+    }
     
     const membership = await membershipService.createMembership({
       userId,

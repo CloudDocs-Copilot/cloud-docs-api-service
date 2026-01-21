@@ -21,6 +21,11 @@ export async function createMembership({
   role?: MembershipRole;
   invitedBy?: string;
 }): Promise<IMembership> {
+  // Validate userId to ensure it is a simple identifier and not a query object
+  if (typeof userId !== 'string' || !/^[a-fA-F0-9]{24}$/.test(userId)) {
+    throw new HttpError(400, 'Invalid userId format');
+  }
+
   const organization = await Organization.findById(organizationId);
   if (!organization) {
     throw new HttpError(404, 'Organization not found');
