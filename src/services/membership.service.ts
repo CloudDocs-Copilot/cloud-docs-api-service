@@ -43,7 +43,7 @@ export async function createMembership({
   // Verificar si ya existe membresía
   const existingMembership = await Membership.findOne({
     user: { $eq: userId },
-    organization: organizationId,
+    organization: { $eq: organizationId },
   });
 
   if (existingMembership) {
@@ -52,7 +52,7 @@ export async function createMembership({
 
   // Verificar límite de usuarios del plan
   const activeMembersCount = await Membership.countDocuments({
-    organization: organizationId,
+    organization: { $eq: organizationId },
     status: MembershipStatus.ACTIVE,
   });
 
@@ -178,7 +178,7 @@ export async function hasActiveMembership(
   }
   const membership = await Membership.findOne({
     user: { $eq: userId },
-    organization: organizationId,
+    organization: { $eq: organizationId },
     status: MembershipStatus.ACTIVE,
   });
   return !!membership;
@@ -197,7 +197,7 @@ export async function getMembership(
   }
   return Membership.findOne({
     user: { $eq: userId },
-    organization: organizationId,
+    organization: { $eq: organizationId },
     status: MembershipStatus.ACTIVE,
   });
 }
@@ -240,8 +240,11 @@ export async function getActiveOrganization(userId: string): Promise<string | nu
   }
 
   // Si no tiene o no es válida, buscar la primera membresía activa
+  if (typeof userId !== 'string' || !/^[a-fA-F0-9]{24}$/.test(userId)) {
+    return null;
+  }
   const membership = await Membership.findOne({
-    user: userId,
+    user: { $eq: userId },
     status: MembershipStatus.ACTIVE,
   });
 
@@ -282,7 +285,7 @@ export async function switchActiveOrganization(
  */
 export async function getOrganizationMembers(organizationId: string): Promise<IMembership[]> {
   return Membership.find({
-    organization: organizationId,
+    organization: { $eq: organizationId },
     status: MembershipStatus.ACTIVE,
   })
     .populate('user', 'name email avatar')
@@ -297,9 +300,12 @@ export async function updateMemberRole(
   organizationId: string,
   newRole: MembershipRole
 ): Promise<IMembership> {
+  if (typeof userId !== 'string' || !/^[a-fA-F0-9]{24}$/.test(userId)) {
+    throw new HttpError(400, 'Invalid userId');
+  }
   const membership = await Membership.findOne({
-    user: userId,
-    organization: organizationId,
+    user: { $eq: userId },
+    organization: { $eq: organizationId },
   });
 
   if (!membership) {
@@ -434,9 +440,12 @@ export async function removeMembershipById(
  * Limpia el rootFolder asociado y actualiza referencias
  */
 export async function removeMembership(userId: string, organizationId: string): Promise<void> {
+  if (typeof userId !== 'string' || !/^[a-fA-F0-9]{24}$/.test(userId)) {
+    throw new HttpError(400, 'Invalid userId');
+  }
   const membership = await Membership.findOne({
-    user: userId,
-    organization: organizationId,
+    user: { $eq: userId },
+    organization: { $eq: organizationId },
   });
 
   if (!membership) {
