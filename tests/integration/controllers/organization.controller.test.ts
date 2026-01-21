@@ -9,6 +9,8 @@ import User from '../../../src/models/user.model';
 import Folder from '../../../src/models/folder.model';
 import Document from '../../../src/models/document.model';
 import * as jwtService from '../../../src/services/jwt.service';
+import { createMembership } from '../../../src/services/membership.service';
+import { MembershipRole } from '../../../src/models/membership.model';
 
 describe('OrganizationController Integration Tests', () => {
   let mongoServer: MongoMemoryServer;
@@ -129,8 +131,8 @@ describe('OrganizationController Integration Tests', () => {
         .send({ name: 'Default Settings Org' });
 
       expect(response.status).toBe(201);
-      expect(response.body.organization.settings.maxStoragePerUser).toBe(5368709120); // 5GB default
-      expect(response.body.organization.settings.maxUsers).toBe(100);
+      expect(response.body.organization.settings.maxStoragePerUser).toBe(1073741824); // 1GB FREE plan default
+      expect(response.body.organization.settings.maxUsers).toBe(3); // FREE plan max users
     });
   });
 
@@ -143,14 +145,28 @@ describe('OrganizationController Integration Tests', () => {
         members: [testUserId],
       });
       testOrgId = org._id.toString();
+
+      // Crear membresía activa para el owner (requerida por middleware)
+      await createMembership({
+        userId: testUserId.toString(),
+        organizationId: testOrgId,
+        role: MembershipRole.OWNER,
+      });
     });
 
     it('should list all organizations where user is member', async () => {
       // Crear segunda organización donde el usuario también es miembro
-      await Organization.create({
+      const secondOrg = await Organization.create({
         name: 'Second Org',
         owner: testUser2Id,
         members: [testUser2Id, testUserId],
+      });
+
+      // Crear membresía para el usuario en la segunda organización
+      await createMembership({
+        userId: testUserId.toString(),
+        organizationId: secondOrg._id.toString(),
+        role: MembershipRole.MEMBER,
       });
 
       const response = await request(app)
@@ -193,6 +209,12 @@ describe('OrganizationController Integration Tests', () => {
         members: [testUserId],
       });
       testOrgId = org._id.toString();
+
+      await createMembership({
+        userId: testUserId.toString(),
+        organizationId: testOrgId,
+        role: MembershipRole.OWNER,
+      });
     });
 
     it('should get organization details if user is member', async () => {
@@ -233,6 +255,12 @@ describe('OrganizationController Integration Tests', () => {
         members: [testUserId],
       });
       testOrgId = org._id.toString();
+
+      await createMembership({
+        userId: testUserId.toString(),
+        organizationId: testOrgId,
+        role: MembershipRole.OWNER,
+      });
     });
 
     it('should update organization if user is owner', async () => {
@@ -284,6 +312,12 @@ describe('OrganizationController Integration Tests', () => {
         members: [testUserId],
       });
       testOrgId = org._id.toString();
+
+      await createMembership({
+        userId: testUserId.toString(),
+        organizationId: testOrgId,
+        role: MembershipRole.OWNER,
+      });
     });
 
     it('should soft delete organization if user is owner', async () => {
@@ -329,6 +363,17 @@ describe('OrganizationController Integration Tests', () => {
         members: [testUserId, testUser2Id],
       });
       testOrgId = org._id.toString();
+
+      await createMembership({
+        userId: testUserId.toString(),
+        organizationId: testOrgId,
+        role: MembershipRole.OWNER,
+      });
+      await createMembership({
+        userId: testUser2Id.toString(),
+        organizationId: testOrgId,
+        role: MembershipRole.MEMBER,
+      });
     });
 
     it('should list all organization members', async () => {
@@ -376,6 +421,13 @@ describe('OrganizationController Integration Tests', () => {
 
       // Asignar organización al owner
       await User.findByIdAndUpdate(testUserId, { organization: testOrgId });
+
+      // Crear membresía del owner
+      await createMembership({
+        userId: testUserId.toString(),
+        organizationId: testOrgId,
+        role: MembershipRole.OWNER,
+      });
     });
 
     it('should add member to organization if user is owner', async () => {
@@ -464,6 +516,17 @@ describe('OrganizationController Integration Tests', () => {
         members: [testUserId, testUser2Id],
       });
       testOrgId = org._id.toString();
+
+      await createMembership({
+        userId: testUserId.toString(),
+        organizationId: testOrgId,
+        role: MembershipRole.OWNER,
+      });
+      await createMembership({
+        userId: testUser2Id.toString(),
+        organizationId: testOrgId,
+        role: MembershipRole.MEMBER,
+      });
     });
 
     it('should remove member from organization if user is owner', async () => {
@@ -515,37 +578,46 @@ describe('OrganizationController Integration Tests', () => {
       });
       testOrgId = org._id.toString();
 
-      // Crear carpetas raíz para los usuarios
-      const rootFolder1 = await Folder.create({
-        name: `root_user_${testUserId}`,
-        displayName: 'My Files',
-        type: 'root',
-        organization: testOrgId,
+      // Crear membresías para ambos usuarios
+      await createMembership({
+        userId: testUserId.toString(),
+        organizationId: testOrgId,
+        role: MembershipRole.OWNER,
+      });
+      await createMembership({
+        userId: testUser2Id.toString(),
+        organizationId: testOrgId,
+        role: MembershipRole.MEMBER,
+      });
+      // Usar carpetas raíz creadas por las membresías
+      const rootFolder1 = await Folder.findOne({
         owner: testUserId,
-        path: '/',
+        organization: testOrgId,
+        isRoot: true,
+      });
+      const rootFolder2 = await Folder.findOne({
+        owner: testUser2Id,
+        organization: testOrgId,
         isRoot: true,
       });
 
-      const rootFolder2 = await Folder.create({
-        name: `root_user_${testUser2Id}`,
-        displayName: 'My Files',
-        type: 'root',
-        organization: testOrgId,
-        owner: testUser2Id,
-        path: '/',
-        isRoot: true,
-      });
+      if (!rootFolder1 || !rootFolder2) {
+        throw new Error('Root folders not found for users');
+      }
+
+      const rootFolder1Id = rootFolder1._id;
+      const rootFolder2Id = rootFolder2._id;
 
       // Actualizar usuarios con storageUsed
       await User.findByIdAndUpdate(testUserId, {
         organization: testOrgId,
-        rootFolder: rootFolder1._id,
+        rootFolder: rootFolder1Id,
         storageUsed: 1000000, // 1MB
       });
 
       await User.findByIdAndUpdate(testUser2Id, {
         organization: testOrgId,
-        rootFolder: rootFolder2._id,
+        rootFolder: rootFolder2Id,
         storageUsed: 2000000, // 2MB
       });
 
@@ -554,7 +626,7 @@ describe('OrganizationController Integration Tests', () => {
         filename: 'doc1.txt',
         originalname: 'doc1.txt',
         organization: testOrgId,
-        folder: rootFolder1._id,
+        folder: rootFolder1Id,
         path: '/doc1.txt',
         size: 1000000,
         mimeType: 'text/plain',
@@ -565,7 +637,7 @@ describe('OrganizationController Integration Tests', () => {
         filename: 'doc2.txt',
         originalname: 'doc2.txt',
         organization: testOrgId,
-        folder: rootFolder2._id,
+        folder: rootFolder2Id,
         path: '/doc2.txt',
         size: 2000000,
         mimeType: 'text/plain',
@@ -579,7 +651,7 @@ describe('OrganizationController Integration Tests', () => {
         type: 'folder',
         organization: testOrgId,
         owner: testUserId,
-        parent: rootFolder1._id,
+        parent: rootFolder1Id,
         path: '/subfolder',
         isRoot: false,
       });
@@ -594,7 +666,7 @@ describe('OrganizationController Integration Tests', () => {
       expect(response.body.success).toBe(true);
       expect(response.body.stats).toBeDefined();
       expect(response.body.stats.totalUsers).toBe(2);
-      expect(response.body.stats.totalStorageLimit).toBe(10737418240); // 2 users * 5GB default
+      expect(response.body.stats.totalStorageLimit).toBe(2147483648); // 2 users * 1GB (FREE plan)
       expect(response.body.stats.totalDocuments).toBe(2);
       expect(response.body.stats.totalFolders).toBe(3); // 2 root + 1 subfolder
     });

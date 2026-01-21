@@ -22,7 +22,7 @@ router.post(
   '/upload',
   uploadRateLimiter,
   upload.single('file'),
-  validateOrganizationMembership('body'),
+  /*validateOrganizationMembership('body'),*/
   documentController.upload
 );
 

@@ -120,29 +120,35 @@ export async function registerAndLogin(userData?: {
     .withPassword(userData?.password || 'Test@1234')
     .build();
 
-  // Solo crear organización si se solicita explícitamente
-  let organizationId = userData?.organizationId;
-  if (!organizationId && userData?.createOrganization !== false) {
-    // Por defecto crea organización para mantener compatibilidad con tests existentes
-    organizationId = await createTestOrganization();
-  }
-
-  const payload: any = { ...user };
-  if (organizationId) {
-    payload.organizationId = organizationId;
-  }
-
-  // Registrar
+  // Registrar (sin asignación de organización en esta ruta)
   await request(app)
     .post('/api/auth/register')
-    .send(payload);
+    .send({ ...user });
 
   // Login
   const authResult = await loginUser(user.email, user.password);
+
+  // Crear organización vía API si se solicita (por defecto sí)
+  let organizationId = userData?.organizationId;
+  if (!organizationId && userData?.createOrganization !== false) {
+    const cookies = authResult.cookies;
+    const tokenCookie = cookies.find((cookie: string) => cookie.startsWith('token='));
+    const cookieHeader = tokenCookie ? tokenCookie.split(';')[0] : '';
+
+    const orgResponse = await request(app)
+      .post('/api/organizations')
+      .set('Cookie', cookieHeader)
+      .send({ name: `Test Org ${Date.now()}` });
+
+    if (orgResponse.status === 201) {
+      organizationId = orgResponse.body.organization.id;
+    }
+  }
+
   if (organizationId) {
     authResult.organizationId = organizationId;
   }
-  
+
   return authResult;
 }
 
