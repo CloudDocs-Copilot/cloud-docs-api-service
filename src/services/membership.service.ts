@@ -25,6 +25,10 @@ export async function createMembership({
   if (typeof userId !== 'string' || !userId.trim()) {
     throw new HttpError(400, 'Invalid userId');
   }
+  // Validate userId to ensure it is a simple identifier and not a query object
+  if (typeof userId !== 'string' || !/^[a-fA-F0-9]{24}$/.test(userId)) {
+    throw new HttpError(400, 'Invalid userId format');
+  }
 
   const organization = await Organization.findById(organizationId);
   if (!organization) {
