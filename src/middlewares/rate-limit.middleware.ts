@@ -41,6 +41,8 @@ export const generalRateLimiter = rateLimit({
   max: 100, // Limit of 100 requests per time window
   standardHeaders: true, // Returns rate limit info in `RateLimit-*` headers
   legacyHeaders: false, // Disables legacy `X-RateLimit-*` headers
+  // Skip rate limiting in test environment
+  skip: (_req: Request) => process.env.NODE_ENV === 'test',
   message: {
     error: 'Too many requests from this IP, please try again later.',
     retryAfter: 'Check the Retry-After header to know when you can try again.'
@@ -79,7 +81,9 @@ export const authRateLimiter = rateLimit({
   legacyHeaders: false,
   skipSuccessfulRequests: true, // Does not count successful requests (valid authentications)
   // Skip rate limiting in test environment
-  skip: (_req: Request) => process.env.NODE_ENV === 'test',
+  skip: (_req: Request) => {
+    return process.env.NODE_ENV === 'test';
+  },
   message: {
     error: 'Too many failed authentication attempts.',
     retryAfter: 'Your account has been temporarily blocked for security.'
@@ -114,6 +118,9 @@ export const createResourceRateLimiter = rateLimit({
   max: 30, // Maximum 30 resources created per hour
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (_req: Request) => {
+    return process.env.NODE_ENV === 'test';
+  },
   message: {
     error: 'Resource creation limit exceeded.',
     retryAfter: 'You have reached the limit of resources you can create per hour.'
@@ -146,6 +153,9 @@ export const uploadRateLimiter = rateLimit({
   max: 20, // Maximum 20 files uploaded per hour
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (_req: Request) => {
+    return process.env.NODE_ENV === 'test';
+  },
   message: {
     error: 'File upload limit exceeded.',
     retryAfter: 'You have reached the file upload limit per hour.'
@@ -210,6 +220,9 @@ export const userBasedRateLimiter = rateLimit({
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (_req: Request) => {
+    return process.env.NODE_ENV === 'test';
+  },
   // Función para generar una clave única por usuario/IP
   keyGenerator: (req: Request) => {
     // Si el usuario está autenticado, usa su ID + IP

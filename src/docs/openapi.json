@@ -2,21 +2,37 @@
   "openapi": "3.0.3",
   "info": {
     "title": "CloudDocs Copilot Backend API",
-    "version": "1.0.0",
-    "description": "API REST para gestión de autenticación, usuarios, documentos y carpetas."
+    "version": "3.0.0",
+    "description": "API REST multi-tenant para gestión de organizaciones, membresías, autenticación, usuarios, documentos y carpetas con planes de suscripción."
   },
   "servers": [
     { "url": "/" }
   ],
   "components": {
-    "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT"
-      }
-    },
     "schemas": {
+      "Membership": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "ID único de la membresía" },
+          "user": { "type": "string", "description": "ID del usuario" },
+          "organization": { "type": "string", "description": "ID de la organización" },
+          "role": { 
+            "type": "string", 
+            "enum": ["viewer", "member", "admin", "owner"],
+            "description": "Rol del usuario en la organización"
+          },
+          "status": { 
+            "type": "string", 
+            "enum": ["active", "suspended"],
+            "description": "Estado de la membresía"
+          },
+          "rootFolder": { "type": "string", "description": "ID de la carpeta raíz específica para esta organización" },
+          "invitedBy": { "type": "string", "description": "ID del usuario que invitó" },
+          "joinedAt": { "type": "string", "format": "date-time" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
       "Organization": {
         "type": "object",
         "properties": {
@@ -24,21 +40,27 @@
           "name": { "type": "string", "description": "Nombre de la organización (3-100 caracteres)" },
           "slug": { "type": "string", "description": "Identificador URL-safe único" },
           "owner": { "type": "string", "description": "ID del usuario propietario" },
+          "plan": {
+            "type": "string",
+            "enum": ["FREE", "BASIC", "PREMIUM", "ENTERPRISE"],
+            "description": "Plan de suscripción de la organización"
+          },
           "members": { 
             "type": "array", 
             "items": { "type": "string" },
-            "description": "IDs de usuarios miembros"
+            "description": "IDs de usuarios miembros (legacy - usar Membership)"
           },
           "settings": {
             "type": "object",
             "properties": {
-              "maxStoragePerUser": { "type": "number", "description": "Límite de almacenamiento por usuario en bytes (default: 5GB)" },
+              "maxStoragePerUser": { "type": "number", "description": "Límite de almacenamiento por usuario en bytes" },
+              "maxStorageTotal": { "type": "number", "description": "Límite de almacenamiento total de la organización en bytes (-1 = ilimitado)" },
               "allowedFileTypes": { 
                 "type": "array", 
                 "items": { "type": "string" },
-                "description": "Tipos MIME permitidos"
+                "description": "Extensiones de archivo permitidas"
               },
-              "maxUsers": { "type": "number", "description": "Número máximo de usuarios (default: 50)" }
+              "maxUsers": { "type": "number", "description": "Número máximo de usuarios (-1 = ilimitado)" }
             }
           },
           "active": { "type": "boolean", "description": "Estado de la organización" },
@@ -62,8 +84,7 @@
           "name": { "type": "string" },
           "email": { "type": "string", "format": "email" },
           "role": { "type": "string", "enum": ["user", "admin"] },
-          "organization": { "type": "string", "description": "ID de la organización del usuario" },
-          "rootFolder": { "type": "string", "description": "ID de la carpeta raíz del usuario" },
+          "organization": { "type": "string", "description": "ID de la organización activa del usuario (opcional)" },
           "storageUsed": { "type": "number", "description": "Almacenamiento usado en bytes" },
           "active": { "type": "boolean" },
           "createdAt": { "type": "string", "format": "date-time" },
@@ -155,6 +176,47 @@
         "properties": {
           "success": { "type": "boolean" },
           "message": { "type": "string" }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Solicitud inválida",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "No autenticado o token inválido",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "No tienes permisos para realizar esta acción",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Recurso no encontrado",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
         }
       }
     }
@@ -450,22 +512,21 @@
       "post": {
         "summary": "Registrar usuario",
         "tags": ["Authentication"],
-        "description": "Registra un nuevo usuario en una organización existente. Crea automáticamente su carpeta raíz y valida cuotas",
+        "description": "Registra un nuevo usuario en el sistema. El usuario debe crear o unirse a una organización posteriormente usando los endpoints de Membership.",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["name", "email", "password", "organizationId"],
+                "required": ["name", "email", "password"],
                 "properties": {
                   "name": { "type": "string", "minLength": 2 },
                   "email": { "type": "string", "format": "email" },
                   "password": { 
                     "type": "string",
                     "description": "Mínimo 8 caracteres, debe incluir mayúscula, minúscula, número y carácter especial"
-                  },
-                  "organizationId": { "type": "string", "description": "ID de la organización a la que se unirá el usuario" }
+                  }
                 }
               }
             }
@@ -1213,47 +1274,219 @@
           "404": { "$ref": "#/components/responses/NotFound" }
         }
       }
-    }
-  },
-  "components": {
-    "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT"
+    },
+    "/api/memberships/my-organizations": {
+      "get": {
+        "summary": "Obtener organizaciones del usuario autenticado",
+        "tags": ["Memberships"],
+        "description": "Retorna todas las membresías activas del usuario con información de organización y rol",
+        "responses": {
+          "200": {
+            "description": "Lista de organizaciones donde el usuario es miembro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "memberships": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Membership" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
       }
     },
-    "responses": {
-      "BadRequest": {
-        "description": "Solicitud inválida",
-        "content": {
-          "application/json": {
-            "schema": { "$ref": "#/components/schemas/Error" }
+    "/api/memberships/set-active": {
+      "post": {
+        "summary": "Cambiar organización activa del usuario",
+        "tags": ["Memberships"],
+        "description": "Establece una organización como activa para el usuario. El usuario debe ser miembro activo de la organización.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["organizationId"],
+                "properties": {
+                  "organizationId": { "type": "string", "description": "ID de la organización a activar" }
+                }
+              }
+            }
           }
+        },
+        "responses": {
+          "200": {
+            "description": "Organización activa actualizada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string" },
+                    "activeOrganization": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/api/memberships/organization/{organizationId}/members": {
+      "get": {
+        "summary": "Listar miembros de una organización",
+        "tags": ["Memberships"],
+        "description": "Retorna todas las membresías activas de la organización con información de usuarios",
+        "parameters": [
+          { "name": "organizationId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de miembros",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "members": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Membership" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
         }
       },
-      "Unauthorized": {
-        "description": "No autenticado o token inválido",
-        "content": {
-          "application/json": {
-            "schema": { "$ref": "#/components/schemas/Error" }
+      "post": {
+        "summary": "Invitar usuario a la organización",
+        "tags": ["Memberships"],
+        "description": "Crea una nueva membresía y carpeta raíz para el usuario. Solo OWNER o ADMIN pueden invitar.",
+        "parameters": [
+          { "name": "organizationId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["userId"],
+                "properties": {
+                  "userId": { "type": "string", "description": "ID del usuario a invitar" },
+                  "role": {
+                    "type": "string",
+                    "enum": ["viewer", "member", "admin"],
+                    "default": "member",
+                    "description": "Rol del nuevo miembro"
+                  }
+                }
+              }
+            }
           }
+        },
+        "responses": {
+          "201": {
+            "description": "Membresía creada exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string" },
+                    "membership": { "$ref": "#/components/schemas/Membership" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/api/memberships/organization/{organizationId}/members/{membershipId}": {
+      "delete": {
+        "summary": "Eliminar miembro de la organización",
+        "tags": ["Memberships"],
+        "description": "Suspende la membresía. No se puede eliminar al OWNER. Solo OWNER o ADMIN pueden eliminar miembros.",
+        "parameters": [
+          { "name": "organizationId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "membershipId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Membresía eliminada",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Success" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
         }
       },
-      "Forbidden": {
-        "description": "No tienes permisos para realizar esta acción",
-        "content": {
-          "application/json": {
-            "schema": { "$ref": "#/components/schemas/Error" }
+      "patch": {
+        "summary": "Actualizar rol de miembro",
+        "tags": ["Memberships"],
+        "description": "Cambia el rol de un miembro. No se puede cambiar el rol del OWNER. Solo OWNER puede cambiar roles.",
+        "parameters": [
+          { "name": "organizationId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "membershipId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["role"],
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "enum": ["viewer", "member", "admin"],
+                    "description": "Nuevo rol para el miembro"
+                  }
+                }
+              }
+            }
           }
-        }
-      },
-      "NotFound": {
-        "description": "Recurso no encontrado",
-        "content": {
-          "application/json": {
-            "schema": { "$ref": "#/components/schemas/Error" }
-          }
+        },
+        "responses": {
+          "200": {
+            "description": "Rol actualizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "membership": { "$ref": "#/components/schemas/Membership" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
         }
       }
     }

@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import HttpError from '../models/error.model';
 import * as organizationService from '../services/organization.service';
+import { SubscriptionPlan } from '../models/types/organization.types';
 
 /**
  * Crea una nueva organización
@@ -9,7 +10,7 @@ import * as organizationService from '../services/organization.service';
  */
 export async function createOrganization(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { name, settings } = req.body;
+    const { name, plan } = req.body;
     
     if (!name) {
       return next(new HttpError(400, 'Organization name is required'));
@@ -18,7 +19,7 @@ export async function createOrganization(req: AuthRequest, res: Response, next: 
     const organization = await organizationService.createOrganization({
       name,
       ownerId: req.user!.id,
-      settings
+      plan: plan || SubscriptionPlan.FREE // Default to FREE plan
     });
     
     res.status(201).json({

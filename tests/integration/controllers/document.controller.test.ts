@@ -9,6 +9,8 @@ import User from '../../../src/models/user.model';
 import Folder from '../../../src/models/folder.model';
 import Document from '../../../src/models/document.model';
 import * as jwtService from '../../../src/services/jwt.service';
+import { createMembership } from '../../../src/services/membership.service';
+import { MembershipRole } from '../../../src/models/membership.model';
 
 describe('DocumentController - New Endpoints Integration Tests', () => {
   let mongoServer: MongoMemoryServer;
@@ -66,6 +68,18 @@ describe('DocumentController - New Endpoints Integration Tests', () => {
       members: [testUserId, testUser2Id],
     });
     testOrgId = org._id;
+
+    // Crear membresías requeridas por middleware
+    await createMembership({
+      userId: testUserId.toString(),
+      organizationId: testOrgId.toString(),
+      role: MembershipRole.OWNER,
+    });
+    await createMembership({
+      userId: testUser2Id.toString(),
+      organizationId: testOrgId.toString(),
+      role: MembershipRole.MEMBER,
+    });
 
     // Crear carpetas
     const rootFolder = await Folder.create({
@@ -180,8 +194,7 @@ describe('DocumentController - New Endpoints Integration Tests', () => {
 
     it('should return recent documents of authenticated user', async () => {
       const response = await request(app)
-        .get('/api/documents/recent')
-        .query({ organizationId: testOrgId.toString() })
+        .get(`/api/documents/recent/${testOrgId.toString()}`)
         .set('Authorization', `Bearer ${testToken}`);
 
       expect(response.status).toBe(200);
@@ -196,8 +209,8 @@ describe('DocumentController - New Endpoints Integration Tests', () => {
 
     it('should respect limit parameter', async () => {
       const response = await request(app)
-        .get('/api/documents/recent')
-        .query({ organizationId: testOrgId.toString(), limit: 2 })
+        .get(`/api/documents/recent/${testOrgId.toString()}`)
+        .query({ limit: 2 })
         .set('Authorization', `Bearer ${testToken}`);
 
       expect(response.status).toBe(200);

@@ -54,7 +54,7 @@ describe('Folder Model - Hierarchical Structure', () => {
       expect(folder.name).toBe('Test Folder');
       expect(folder.type).toBe('folder');
       expect(folder.owner.toString()).toBe(testUserId.toString());
-      expect(folder.organization.toString()).toBe(testOrgId.toString());
+      expect(folder.organization?.toString()).toBe(testOrgId.toString());
       expect(folder.parent).toBeNull();
       expect(folder.isRoot).toBe(false);
       expect(folder.path).toBe('/test-org/folder');
@@ -73,17 +73,18 @@ describe('Folder Model - Hierarchical Structure', () => {
       expect(folder.type).toBe('folder');
     });
 
-    it('should require organization field', async () => {
-      await expect(
-        Folder.create({
-          name: 'No Org Folder',
-          type: 'folder',
-          owner: testUserId,
-          parent: null,
-          isRoot: false,
-          path: '/folder',
-        })
-      ).rejects.toThrow();
+    it('should allow organization field to be optional', async () => {
+      const folder = await Folder.create({
+        name: 'No Org Folder',
+        type: 'folder',
+        owner: testUserId,
+        parent: null,
+        isRoot: false,
+        path: '/folder',
+      });
+
+      expect(folder.organization).toBeNull();
+      expect(folder.name).toBe('No Org Folder');
     });
   });
 

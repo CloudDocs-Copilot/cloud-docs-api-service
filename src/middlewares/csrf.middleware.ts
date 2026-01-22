@@ -1,5 +1,6 @@
-import { Request } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import { doubleCsrf } from 'csrf-csrf';
+
 
 /**
  * ✅ PROTECCIÓN CSRF - Double Submit Cookie Pattern
@@ -32,14 +33,25 @@ const csrfProtection = doubleCsrf({
     httpOnly: true,
   },
   size: 64,
-  ignoredMethods: process.env.NODE_ENV === 'test' 
+  ignoredMethods: process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development'
     ? ['GET', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE']
     : ['GET', 'HEAD', 'OPTIONS'],
   getSessionIdentifier: (req: Request) => req.ip || 'anonymous',
 });
-
+// Rutas que NO requieren CSRF (autenticación pública)
+const CSRF_EXCLUDED_ROUTES = [
+  '/api/auth/login',
+  '/api/auth/register',
+  '/api/csrf-token',
+];
 // Exportar el middleware de protección CSRF
-export const csrfProtectionMiddleware = csrfProtection.doubleCsrfProtection;
+export const csrfProtectionMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  if (CSRF_EXCLUDED_ROUTES.includes(req.path)) {
+    return next();
+  }  
+  return csrfProtection.doubleCsrfProtection(req, res, next);
+  
+};
 
 // Exportar la función para generar tokens CSRF
 export const generateCsrfToken = csrfProtection.generateCsrfToken;

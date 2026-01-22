@@ -43,4 +43,7 @@ afterAll(async () => {
   }
 });
 
+// Ensure the environment is set to 'test' to skip rate limiting
+process.env.NODE_ENV = 'test';
+
 export { request, app };

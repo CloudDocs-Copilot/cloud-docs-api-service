@@ -46,7 +46,7 @@ export function validateUrlMiddleware(options: UrlValidationOptions) {
     errorMessage = 'Invalid URL detected'
   } = options;
 
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (req: Request, _res: Response, next: NextFunction): void => {
     const errors: string[] = [];
 
     // Validar cada campo especificado
@@ -150,7 +150,7 @@ export function validateRedirectUrl(allowedDomains: string[]) {
  * router.get('/proxy', validateQueryUrl(['url'], ['trusted.com']), controller.proxy);
  */
 export function validateQueryUrl(paramNames: string[], allowedDomains?: string[]) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (req: Request, _res: Response, next: NextFunction): void => {
     const errors: string[] = [];
 
     for (const param of paramNames) {
@@ -187,7 +187,7 @@ export function validateQueryUrl(paramNames: string[], allowedDomains?: string[]
  * router.post('/api', scanForUrls(['trusted.com']), controller.handle);
  */
 export function scanForUrls(allowedDomains?: string[]) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (req: Request, _res: Response, next: NextFunction): void => {
     const errors: string[] = [];
     
     // Función recursiva para buscar URLs en objetos
@@ -230,7 +230,7 @@ export function scanForUrls(allowedDomains?: string[]) {
  * Middleware de información - agrega headers informativos sobre la política de URLs
  * Útil para debugging y documentación de API
  */
-export function addUrlPolicyHeaders(req: Request, res: Response, next: NextFunction): void {
+export function addUrlPolicyHeaders(_req: Request, res: Response, next: NextFunction): void {
   res.setHeader('X-URL-Policy-Schemes', URL_VALIDATION_CONFIG.allowedSchemes.join(', '));
   res.setHeader('X-URL-Policy-Max-Length', URL_VALIDATION_CONFIG.maxLength.toString());
   res.setHeader('X-URL-Policy-Private-IPs', 'blocked');

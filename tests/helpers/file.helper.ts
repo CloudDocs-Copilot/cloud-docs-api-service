@@ -92,7 +92,7 @@ export async function uploadTestFile(
     let folderId = options?.folderId;
     let organizationId = options?.organizationId;
     
-    if (!folderId || !organizationId) {
+    if (!folderId || organizationId === undefined) {
       const userId = extractUserIdFromToken(token);
       if (userId) {
         const user = await User.findById(userId);
@@ -100,17 +100,23 @@ export async function uploadTestFile(
           if (!folderId && user.rootFolder) {
             folderId = user.rootFolder.toString();
           }
-          if (!organizationId && user.organization) {
+          if (organizationId === undefined && user.organization) {
             organizationId = user.organization.toString();
           }
         }
       }
     }
     
-    const response = await req
-      .attach('file', filePath)
-      .field('folderId', folderId || '')
-      .field('organizationId', organizationId || '');
+    // Construir campos del formulario
+    req.attach('file', filePath);
+    req.field('folderId', folderId || '');
+    
+    // Solo enviar organizationId si existe
+    if (organizationId) {
+      req.field('organizationId', organizationId);
+    }
+    
+    const response = await req;
 
     return response;
   } finally {
