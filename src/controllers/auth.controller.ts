@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middlewares/auth.middleware';
-import { registerUser, loginUser } from '../services/auth.service';
+import { registerUser, loginUser, confirmUserAccount } from '../services/auth.service';
 import HttpError from '../models/error.model';
 
 /**
@@ -82,9 +82,35 @@ export async function logout(_req: AuthRequest, res: Response, next: NextFunctio
       sameSite: process.env.NODE_ENV === 'production' ? 'strict' as const : 'lax' as const,
       path: '/'
     });
-    
     res.json({ message: 'Logout successful' });
   } catch (err: any) {
+    next(err);
+  }
+}
+
+
+/**
+ * Controlador para confirmar cuenta de usuario mediante token JWT
+ * Activa el usuario si el token es válido
+ */
+export async function confirmAccount(req: any, res: Response, next: NextFunction) {
+  try {
+    const { token } = req.params;
+    if (!token) {
+      return next(new HttpError(400, 'Token is required'));
+    }
+    let result;
+    try {
+      result = await confirmUserAccount(token);
+    } catch (err: any) {
+      return next(new HttpError(400, err.message || 'Invalid or expired token'));
+    }
+    if (result.userAlreadyActive) {
+      res.json({ success: true, message: 'Account already confirmed' });
+      return;
+    }
+    res.json({ success: true, message: 'Account confirmed successfully' });
+  } catch (err) {
     next(err);
   }
 }

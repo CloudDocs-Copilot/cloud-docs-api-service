@@ -11,4 +11,7 @@ router.post('/register', authRateLimiter, authController.register);
 router.post('/login', authRateLimiter, authController.login);
 router.post('/logout', authMiddleware, authController.logout);
 
+// Confirmación de cuenta por email
+router.get('/confirm/:token', authRateLimiter, authController.confirmAccount);
+
 export default router;
