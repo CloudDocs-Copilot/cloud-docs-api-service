@@ -56,7 +56,9 @@ function mapMongooseError(err: MongooseError): { status: number; message: string
 export function errorHandler(err: any, _req: Request, res: Response, _next: NextFunction): void {
   // Error de aplicación tipado personalizado
   if (err instanceof HttpError) {
-    console.error('[http-error]', { message: err.message, details: err.details, stack: err.stack });
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('[http-error]', { message: err.message, details: err.details, stack: err.stack });
+    }
     res.status(err.statusCode).json({
       success: false,
       error: err.message
@@ -67,20 +69,26 @@ export function errorHandler(err: any, _req: Request, res: Response, _next: Next
   // Mapeo específico de Mongoose
   const mongooseMapped = mapMongooseError(err);
   if (mongooseMapped) {
-    console.error('[mongoose-error]', { original: err.message, stack: err.stack });
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('[mongoose-error]', { original: err.message, stack: err.stack });
+    }
     res.status(mongooseMapped.status).json({ success: false, error: mongooseMapped.message });
     return;
   }
 
   // Errores de token / librería de autenticación
   if (err.name === 'TokenExpiredError') {
-    console.error('[auth-token-expired]', err);
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('[auth-token-expired]', err);
+    }
     res.status(401).json({ success: false, error: 'Token expired' });
     return;
   }
   
   if (err.name === 'JsonWebTokenError') {
-    console.error('[auth-token-invalid]', err);
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('[auth-token-invalid]', err);
+    }
     res.status(401).json({ success: false, error: 'Invalid token' });
     return;
   }
@@ -88,13 +96,17 @@ export function errorHandler(err: any, _req: Request, res: Response, _next: Next
   // Errores de Multer (carga de archivos)
   const multerErr = err as MulterError;
   if (multerErr.code && multerErr.code.startsWith('LIMIT_')) {
-    console.error('[upload-limit]', err);
+    if (process.env.NODE_ENV !== 'test') {
+      console.error('[upload-limit]', err);
+    }
     res.status(400).json({ success: false, error: 'File upload limits exceeded' });
     return;
   }
 
   // Respaldo para no manejados
-  console.error('[unhandled-error]', err);
+  if (process.env.NODE_ENV !== 'test') {
+    console.error('[unhandled-error]', err);
+  }
   res.status(500).json({ success: false, error: 'Internal server error' });
 }
 

@@ -1,32 +1,50 @@
-# Migración a Sistema Multi-Tenant - Documentación Completa
+# Migración a Sistema Multi-Tenant con Membresías - Documentación Completa
 
 ## 📋 Resumen de Cambios
 
-Este documento describe la transformación completa del sistema CloudDocs de una arquitectura monolítica a un **sistema multi-tenant** con gestión de organizaciones, permisos granulares y estructura jerárquica de carpetas.
+Este documento describe la transformación completa del sistema CloudDocs a una arquitectura **multi-tenant avanzada** con relación muchos-a-muchos entre Usuarios y Organizaciones mediante la entidad **Membership**, sistema de planes de suscripción con límites hardcodeados, y aislamiento completo de datos por organización.
 
-**Fecha de implementación:** Enero 2026  
-**Estado:** ✅ Completado y Validado (198/198 tests passing)
+**Fecha de implementación:** Enero 22, 2025  
+**Estado:** ✅ Completado - Producción Ready  
+**Branch:** `update_document_flow_add_membership_entity`
 
 ---
 
-## 🏗️ Arquitectura Multi-Tenant
+## 🏗️ Arquitectura Multi-Tenant con Membresías
 
-### ¿Qué es Multi-Tenancy?
+### Concepto Principal
 
-Multi-tenancy permite que múltiples organizaciones (tenants) compartan la misma infraestructura de aplicación mientras mantienen sus datos completamente separados y seguros. Cada organización opera como una entidad independiente con:
+Esta arquitectura permite que **un usuario pertenezca a múltiples organizaciones simultáneamente**, con una relación muchos-a-muchos implementada mediante la entidad **Membership**. Cada usuario puede cambiar entre organizaciones (contexto activo) y operar en diferentes espacios de trabajo completamente aislados.
 
-- **Usuarios aislados** por organización
-- **Carpetas y documentos privados** a nivel de organización
-- **Configuraciones personalizadas** (cuotas, tipos de archivo permitidos)
-- **Sistema de permisos** independiente por organización
+### Características Clave
 
-### Beneficios del Sistema Multi-Tenant
+- **Relación Muchos-a-Muchos:** Usuario ↔ Organización mediante Membership
+- **Múltiples Organizaciones por Usuario:** Un usuario puede crear/pertenecer a N organizaciones
+- **Organización Activa:** El usuario trabaja en el contexto de una organización a la vez
+- **Aislamiento Total:** Cada organización tiene su propio storage físico y datos
+- **Planes de Suscripción:** FREE, BASIC, PREMIUM, ENTERPRISE con límites hardcodeados
+- **Roles Granulares:** owner, admin, member, viewer con jerarquía de permisos
+- **RootFolder por Membership:** Cada membresía tiene su carpeta raíz independiente
 
-1. **Escalabilidad**: Soporta múltiples empresas sin duplicar infraestructura
-2. **Seguridad**: Aislamiento total de datos entre organizaciones
-3. **Flexibilidad**: Cada organización configura sus propias políticas
-4. **Colaboración**: Usuarios comparten documentos dentro de su organización
-5. **Gestión de Recursos**: Control de cuotas de almacenamiento por usuario/organización
+### Diferencias con Sistema Anterior
+
+| Aspecto | Sistema Anterior | Sistema Actual (Membership) |
+|---------|------------------|----------------------------|
+| Relación User-Org | 1:1 (User.organization) | N:N (Membership) |
+| Org en Registro | OBLIGATORIA | OPCIONAL (usuario puede estar sin org) |
+| RootFolder | En User (global) | En Membership (por organización) |
+| Usuarios/Org | Array members[] | Tabla Membership con metadatos |
+| Planes | Configuración manual | Enum + PLAN_LIMITS hardcoded |
+| Cambiar Org | No soportado | switchActiveOrganization() |
+
+### Beneficios de la Nueva Arquitectura
+
+1. **Flexibilidad:** Usuario puede trabajar en múltiples proyectos/empresas
+2. **Escalabilidad:** Relación N:N soporta casos de uso complejos
+3. **Aislamiento:** Storage físico completamente separado por organización
+4. **Validaciones Automáticas:** Planes con límites hardcodeados auto-validados
+5. **Auditoría:** Membership guarda joinedAt, invitedBy, etc.
+6. **Roles Avanzados:** Sistema de roles más granular que owner/member
 
 ---
 
@@ -96,11 +114,11 @@ const org = await Organization.create({
 
 ---
 
-### 2. **Folder Permissions** (Permisos de Carpeta)
-
-Sistema granular de permisos que permite compartir carpetas con control de acceso.
+### 4. **Folder** (Con Permisos - Sistema Anterior)
 
 **Ubicación:** [`src/models/folder.model.ts`](src/models/folder.model.ts)
+
+**Nota:** Este modelo tiene el sistema de permisos del sistema anterior, compatible con la nueva arquitectura.
 
 #### Tipos de Carpetas
 
@@ -243,81 +261,61 @@ await folder.save();
 
 ---
 
-### 3. **User Updates** (Actualizaciones en Usuario)
-
-Extensión del modelo User para soportar multi-tenancy.
-
-**Ubicación:** [`src/models/user.model.ts`](src/models/user.model.ts)
-
-#### Nuevas Propiedades
-
-```typescript
-interface IUser {
-  // ... propiedades existentes
-  organization?: ObjectId;   // 🆕 Organización del usuario
-  rootFolder?: ObjectId;     // 🆕 Carpeta raíz personal
-  storageUsed: number;       // 🆕 Almacenamiento usado (bytes)
-}
-```
-
-#### Comportamiento
-
-- **organization**: Asignada al registrarse o ser agregado a una organización
-- **rootFolder**: Creada automáticamente al unirse a una organización
-- **storageUsed**: Actualizado al subir/eliminar documentos, validado contra `maxStoragePerUser`
-
----
-
-### 4. **Document Updates** (Actualizaciones en Documento)
-
-Extensión del modelo Document para multi-tenancy y estructura jerárquica.
+### 5. **Document** (Actualizado para Multi-Org)
 
 **Ubicación:** [`src/models/document.model.ts`](src/models/document.model.ts)
 
-#### Nuevas Propiedades Obligatorias
-
 ```typescript
-interface IDocument {
-  // ... propiedades existentes
-  organization: ObjectId;    // 🆕 Organización (OBLIGATORIO)
-  folder: ObjectId;          // 🆕 Carpeta contenedora (OBLIGATORIO)
-  path: string;              // Path completo en filesystem
-  size: number;              // Tamaño en bytes
-  sharedWith: ObjectId[];    // 🆕 Usuarios con acceso
+interface IDocument extends Document {
+  name: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  path: string;
+  organization: Types.ObjectId;    // Organización (OBLIGATORIO)
+  uploadedBy: Types.ObjectId;      // Usuario que subió
+  folder: Types.ObjectId;          // Carpeta contenedora
+  sharedWith: Types.ObjectId[];    // Usuarios con acceso
+  createdAt: Date;
+  updatedAt: Date;
 }
 ```
 
-#### Validaciones
-
-- **organization**: Requerido, debe existir y estar activa
-- **folder**: Requerido, el usuario debe tener permisos de `editor` o superior
-- **size**: Validado contra `storageUsed` del usuario y `maxStoragePerUser`
-
 ---
 
-## 🔄 Flujo de Trabajo Multi-Tenant
+## 🔄 Flujo de Trabajo Actualizado
 
-### 1. Registro de Usuario y Organización
+### 1. Registro de Usuario (Sin Organización)
 
 ```typescript
-// 1. Usuario se registra
+// 1. Usuario se registra SIN organización
 POST /api/auth/register
 {
   "name": "John Doe",
-  "email": "john@acme.com",
+  "email": "john@example.com",
   "password": "SecurePass123!",
-  "organizationId": "org123"  // 🆕 OBLIGATORIO
+  "role": "user"
+  // ✅ NO requiere organizationId
 }
 
-// 2. Sistema verifica:
-//    - Organización existe y está activa
-//    - No excede maxUsers
-//    - Email único
+// 2. Sistema crea:
+//    - Usuario con organization: undefined
+//    - NO crea rootFolder (se crea al unirse a org)
+//    - Retorna token JWT
 
-// 3. Sistema crea:
-//    - Usuario con organization: org123
-//    - Carpeta raíz personal: root_user_{userId}
-//    - Asigna usuario a organization.members[]
+// Respuesta:
+{
+  "success": true,
+  "message": "User registered successfully",
+  "user": {
+    "id": "697008fa...",
+    "name": "John Doe",
+    "email": "john@example.com",
+    "role": "user"
+    // organization: undefined
+    // rootFolder: undefined
+  }
+}
 ```
 
 ### 2. Creación de Carpetas
@@ -351,75 +349,149 @@ POST /api/folders
 }
 ```
 
-### 3. Compartir Carpeta con Permisos
+### 3. Ver Mis Organizaciones
 
 ```typescript
-// Compartir carpeta con un compañero
-POST /api/folders/{folderId}/share
+GET /api/memberships/my-organizations
+Authorization: Bearer <token>
+
+// Respuesta:
 {
-  "targetUserId": "user456",
-  "permission": "editor"  // viewer | editor | owner
+  "success": true,
+  "count": 1,
+  "data": [
+    {
+      "_id": "6970123abc...",
+      "user": "697008fa...",
+      "organization": {
+        "_id": "697005c7...",
+        "name": "Mi Empresa Tech",
+        "slug": "mi-empresa-tech-1768949190760",
+        "plan": 0
+      },
+      "role": "owner",
+      "status": "active",
+      "rootFolder": "697005c8...",  // 🔑 RootFolder de esta membresía
+      "joinedAt": "2025-01-22T10:30:00.000Z"
+    }
+  ]
 }
-
-// Validaciones del sistema:
-// 1. Usuario que comparte tiene rol 'owner' en la carpeta
-// 2. targetUser pertenece a la misma organización
-// 3. targetUser existe y está activo
-
-// Resultado:
-// - user456 agregado a folder.sharedWith[]
-// - Permiso 'editor' agregado a folder.permissions[]
 ```
 
-### 4. Subir Documento
+### 4. Subir Documento (Con Validaciones de Plan)
 
 ```typescript
-// Subir archivo a carpeta compartida
 POST /api/documents/upload
+Authorization: Bearer <token>
 FormData {
-  file: [archivo],
-  organizationId: "org123",   // 🆕 OBLIGATORIO
-  folderId: "folder456"       // 🆕 OBLIGATORIO
+  file: <archivo.pdf>
+  // folderId: opcional - usa rootFolder si no se especifica
 }
 
-// Validaciones del sistema:
-// 1. Usuario tiene permiso 'editor' o superior en la carpeta
-// 2. Organización permite el tipo de archivo
-// 3. No excede cuota de almacenamiento (storageUsed + fileSize <= maxStoragePerUser)
+// Sistema ejecuta (document.service.ts):
+// 1. activeOrgId = await getActiveOrganization(userId)
+//    → Si no tiene org activa, lanza error
+// 2. membership = await getMembership(userId, activeOrgId)
+// 3. effectiveFolderId = folderId || membership.rootFolder
+// 4. Validaciones de plan:
+//    - fileSize <= PLAN_LIMITS[org.plan].maxFileSize
+//    - currentOrgStorage + fileSize <= org.settings.maxStorageTotal
+//    - fileExtension in org.settings.allowedFileTypes
+// 5. Crea documento y actualiza storage
 
-// Sistema actualiza:
-// - Crea documento con organization y folder
-// - Incrementa user.storageUsed
-// - Agrega documento a folder.documents[]
-```
-
-### 5. Acceso a Documentos
+// Ejemplo Plan FREE (falla si archivo > 10MB):
+{Invitar Usuario a Organización
 
 ```typescript
-// Listar documentos en carpeta
-GET /api/documents?folderId=folder456
+POST /api/organizations/{organizationId}/members
+Authorization: Bearer <token-owner>
+{
+  "userId": "697009ab..."  // ID del usuario a invitar
+}
 
 // Validaciones:
-// 1. Usuario tiene acceso a la carpeta (hasAccess verificado)
-// 2. Filtra documentos de la misma organización
+// 1. Usuario autenticado es owner de la organización
+// 2. Organización no excede maxUsers del plan
+//    FREE: max 3 usuarios
+//    BASIC: max 10 usuarios, etc.
+// 3. Usuario a invitar existe y no es miembro ya
 
-// Retorna solo documentos donde:
-// - document.organization === user.organization
-// - Usuario tiene permisos en document.folder
-```
+// Sistema ejecuta:
+// 1. Verifica límite: memberships activas < org.settings.maxUsers
+// 2. Llama a createMembership(userId, organizationId, role: MEMBER)
+// 3. Crea rootFolder para el nuevo miembro
 
----
+// Ejemplo error (4º usuario en plan FREE):
+{
+  "success": false,
+  "message": "Organization has reached maximum number of users (3) for FREE plan"
+}
 
-## 🔒 Sistema de Permisos
-
-### Validación en Carpetas
+### 6. Cambiar Organización Activa (Multi-Org)
 
 ```typescript
-// En folder.service.ts
-async validateFolderAccess(
-  folderId: string,
-  userId: string,
-  requiredRole: FolderPermissionRole = 'viewer'
+// Usuario crea segunda organización
+POST /api/organizations
+{
+  "name": "Proyecto Personal",
+  "plan": 0
+}
+
+// Ahora usuario tiene 2 organizaciones
+GET /api/memberships/my-organizations
+// Retorna 2 membresías
+
+// Cambiar org activa
+POST /api/memberships/switch/697010ab...
+Authorization: Bearer <token>
+
+// Sistema ejecuta:
+// 1. Verifica que usuario tiene membership activa en esa org
+// 2. Actualiza User.activeOrganization
+// 3. Próximos uploads irán a la nueva org activa
+
+// Respuesta:
+{
+  "success": true,
+  "message": "ActiMembership
+
+**Ubicación:** [`src/middlewares/organization.middleware.ts`](src/middlewares/organization.middleware.ts)
+
+```typescript
+// Valida membership activa
+export const validateOrganizationMembership = async (req, res, next) => {
+  const organizationId = req.params.organizationId;
+  const userId = req.user!.id;
+  
+  const hasAccess = await hasActiveMembership(userId, organizationId);
+  if (!hasAccess) {
+    throw new HttpError(403, 'You are not a member of this organization');
+  }
+  
+  next();
+};
+
+// Requiere organización activa
+export const requireActiveOrganization = async (req, res, next) => {
+  const userId = req.user!.id;
+  const activeOrgId = await getActiveOrganization(userId);
+  
+  if (!activeOrgId) {
+    throw new HttpError(403, 'User must have an active organization');
+  }
+  
+  next();
+};
+
+// Valida rol mínimo
+export const validateMinimumRole = (requiredRole: MembershipRole) => {
+  return async (req, res, next) => {
+    const membership = await getMembership(userId, organizationId);
+    if (!hasMinimumRole(membership.role, requiredRole)) {
+      throw new HttpError(403, 'Insufficient permissions');
+    }
+    next();
+  }edRole: FolderPermissionRole = 'viewer'
 ): Promise<IFolder> {
   const folder = await Folder.findById(folderId);
   
@@ -508,13 +580,149 @@ async uploadDocument(file, userId, folderId, organizationId) {
 ### Liberación de Cuota al Eliminar
 
 ```typescript
-async deleteDocument(documentId, userId) {
-  const document = await Document.findById(documentId);
-  const user = await User.findById(userId);
+asy🚀 Servicios Implementados
+
+### MembershipService (Nuevo)
+
+**Ubicación:** [`src/services/membership.service.ts`](src/services/membership.service.ts)
+
+**10 Funciones Principales:**
+
+---
+
+##  Guía de Testing Completa
+
+Ver [`ENDPOINTS-TESTING-GUIDE.md`](ENDPOINTS-TESTING-GUIDE.md) para:
+- 15 casos de prueba con ejemplos HTTP
+- Validación de límites de plan FREE
+- Tests de multi-organización
+- Orden recomendado de testing
+
+---
+
+## 🔧 Cambios Técnicos Detallados
+
+### Fase 1-2: Creación de Membership Model
+
+**Archivos:** `src/models/membership.model.ts`
+
+- Enums: MembershipRole, MembershipStatus
+- Índices: compound unique (user + organization)
+- Campos: user, organization, role, status, rootFolder, joinedAt, invitedBy Upload (sin organizationId en body)
+GET    /api/documents/recent                       // Recientes (filtra por org activa)
+GET    /api/documents/:id                          // Obtener documento
+DELETE /api/documents/:id                          // Eliminar
+```
+
+### Auth (Actualizado)
+
+```typescript
+POST   /api/auth/register                          // Registro (sin organizationId)
+POST   /api/auth/login                             // Login
+GET    /api/auth/me                                // Info usuario
+```
+
+---
+
+## 🧪 Testing y Validación
+
+### Tests Existentes
+
+Los tests del sistema anterior (folders, documents, etc.) necesitarán actualizarse para:
+- Crear memberships antes de operaciones
+- Usar getActiveOrganization() en lugar de pasar organizationId
+- Verificar validaciones de límites de plan
+// 1. Crear membership + rootFolder físico
+createMembership(userId, organizationId, role, invitedBy?): Promise<IMembership>
+
+// 2. Eliminar membership (soft delete) + limpieza storage
+removeMembership(userId, organizationId): Promise<void>
+
+// 3. Obtener membership específica
+getMembership(userId, organizationId): Promise<IMembership | null>
+
+// 4. Listar memberships del usuario (populated)
+getUserMemberships(userId): Promise<IMembership[]>
+
+// 5. Listar miembros de organización
+getOrganizationMembers(organizationId): Promise<IMembership[]>
+
+// 6. Validar membership activa
+hasActiveMembership(userId, organizationId): Promise<boolean>
+
+// 7. Obtener org activa del usuario
+getActiveOrganization(userId): Promise<string | null>
+
+// 8. Cambiar org activa
+switchActiveOrganization(userId, organizationId): Promise<void>
+
+// 9. Actualizar rol
+updateMembershipRole(userId, organizationId, newRole): Promise<IMembership>
+
+// 10. Transferir ownership
+transferOwnership(currentOwnerId, newOwnerId, organizationId): Promise<void>
+```
+
+---
+
+### OrganizationService (Actualizado)
+
+**Ubicación:** [`src/services/organization.service.ts`](src/services/organization.service.ts)
+
+**Cambios Clave:**
+
+```typescript
+// Ahora delega a MembershipService
+async createOrganization({ name, ownerId, plan = SubscriptionPlan.FREE }) {
+  const organization = await Organization.create({ name, owner: ownerId, plan });
   
-  // 1. Validar permisos
-  // 2. Eliminar archivo físico
-  fs.unlinkSync(document.path);
+  // 🆕 Delega a createMembership (crea rootFolder automáticamente)
+  await createMembership(ownerId, organization._id, MembershipRole.OWNER);
+  
+  return organization;
+}
+
+// Actualizado para usar Membership
+async addUserToOrganization(organizationId, userId) {
+  const org = await Organization.findById(organizationId);
+  
+  // Validar límite de usuarios según plan
+  const activeMemberships = await Membership.countDocuments({
+    organization: organizationId,
+    status: MembershipStatus.ACTIVE
+  });
+  
+  if (activeMemberships >= org.settings.maxUsers) {
+    throw new HttpError(
+      400,
+      `Organization has reached maximum number of users (${org.settings.maxUsers})`
+    );
+  }
+  
+  // 🆕 Usa createMembership en lugar de push al array
+  await createMembership(userId, organizationId, MembershipRole.MEMBER);
+  
+  return org;
+}
+
+// ⚠️ DEPRECATED
+async createUserRootFolder(userId, organizationId) {
+  // Esta función ya no se usa - rootFolder se crea en createMembership
+  console.warn('createUserRootFolder is deprecated - use createMembership instead');
+}
+```
+
+---
+
+### DocumentService (Actualizado)
+
+**Ubicación:** [`src/services/document.service.ts`](src/services/document.service.ts)
+
+**Cambios:**
+
+1. **DTOs sin organizationId** (se obtiene de org activa)
+2. **getUserRecentDocuments** filtra por org activa
+3. **uploadDocument** usa Membership.rootFolder y valida límites de plan
   
   // 3. Liberar cuota
   user.storageUsed -= document.size;
@@ -815,20 +1023,36 @@ it('should allow duplicate folder names (identified by path)', async () => {
 | `documents.test.ts` | 7/7 ✅ | Agregado `organizationId` y `folderId`, actualizada estructura de respuesta |
 | `folders.test.ts` | 9/9 ✅ | Agregado `organizationId` y `parentId`, permitir duplicados |
 | `password-validation.test.ts` | 10/10 ✅ | Agregado `organizationId` a fixtures de passwords |
-| `url-path-security.test.ts` | 21/21 ✅ | Autenticación dedicada para tests de descarga |
+|  ✅ Validaciones Implementadas
 
-**Total:** 54/54 tests legacy migrados + 144 tests existentes = **198/198 tests passing (100%)**
+### Plan FREE (Ejemplo)
 
----
+| Límite | Valor | Validación |
+|--------|-------|------------|
+| Usuarios | 3 | Al invitar 4º usuario → Error |
+| Storage/usuario | 1 GB | Al subir si excede → Error |
+| Storage total | 3 GB | Al subir si org excede → Error |
+| Tamaño archivo | 10 MB | Al subir archivo > 10MB → Error |
+| Tipos archivo | pdf, txt, doc, docx | Al subir .xlsx → Error |
 
-## 🌳 Estructura Jerárquica de Carpetas
+### Mensajes de Error
 
-### Jerarquía de Carpetas
+```typescript
+// Límite de usuarios
+"Organization has reached maximum number of users (3) for FREE plan"
 
+// Tamaño de archivo
+"File size exceeds plan limit of 10 MB"
+
+// Tipo de archivo
+"File type 'xlsx' is not allowed. Allowed types: pdf, txt, doc, docx"
+
+// Storage total
+"Organization storage limit exceeded"
+
+// Sin organización
+"User must belong to an active organization"
 ```
-Organization (Organización)
-└── Users (Usuarios)
-    ├── User 1
     │   ├── Root Folder (Carpeta Raíz)
     │   │   ├── Folder A
     │   │   │   ├── Subfolder A1
@@ -974,40 +1198,7 @@ copyDocument(
 ): Promise<IDocument>
 
 // Compartir documento
-shareDocument(
-  documentId: string,
-  ownerId: string,
-  targetUserId: string
-): Promise<IDocument>
-
-// Obtener documentos recientes
-getUserRecentDocuments(
-  userId: string,
-  organizationId: string,
-  limit?: number
-): Promise<IDocument[]>
-```
-
-**Tests:** 26/26 passing ✅
-
----
-
-## 📚 Middlewares
-
-### 1. Organization Middleware
-
-**Ubicación:** [`src/middlewares/organization.middleware.ts`](src/middlewares/organization.middleware.ts)
-
-**Validaciones:**
-- Organización existe y está activa
-- Usuario es miembro de la organización
-- Organización no excede límite de usuarios
-
----
-
-### 2. Role Middleware
-
-**Ubicación:** [`src/middlewares/role.middleware.ts`](src/middlewares/role.middleware.ts)
+`src/middlewares/role.middleware.ts`](src/middlewares/role.middleware.ts)
 
 **Uso:**
 ```typescript
@@ -1042,57 +1233,7 @@ DELETE /api/organizations/:id/members/:userId  // Remover miembro
 ```
 
 ### Folders (Actualizados)
-
-```typescript
-POST   /api/folders                    // Crear carpeta (requiere organizationId, parentId)
-GET    /api/folders                    // Listar carpetas del usuario
-GET    /api/folders/:id                // Obtener carpeta
-GET    /api/folders/:id/contents       // Obtener contenido (subcarpetas + documentos)
-PUT    /api/folders/:id                // Actualizar carpeta
-DELETE /api/folders/:id                // Eliminar carpeta
-POST   /api/folders/:id/share          // Compartir carpeta (requiere targetUserId, permission)
-DELETE /api/folders/:id/share/:userId  // Dejar de compartir
-```
-
-### Documents (Actualizados)
-
-```typescript
-POST   /api/documents/upload           // Subir documento (requiere organizationId, folderId)
-GET    /api/documents                  // Listar documentos (filtrado por folderId)
-GET    /api/documents/:id              // Obtener documento
-PUT    /api/documents/:id/move         // Mover documento (requiere targetFolderId)
-POST   /api/documents/:id/copy         // Copiar documento (requiere targetFolderId)
-DELETE /api/documents/:id              // Eliminar documento
-POST   /api/documents/:id/share        // Compartir documento (requiere targetUserId)
-GET    /api/documents/download/:id     // Descargar documento
-GET    /api/documents/recent           // Documentos recientes del usuario
-```
-
-### Auth (Actualizado)
-
-```typescript
-POST   /api/auth/register              // Registrar (requiere organizationId)
-POST   /api/auth/login                 // Login (retorna organizationId)
-POST   /api/auth/logout                // Logout
-GET    /api/auth/me                    // Información del usuario (incluye organization)
-```
-
----
-
-## ✅ Testing
-
-### Cobertura de Tests
-
-```bash
-npm test
-```
-
-**Resultados:**
-- **Total tests:** 198/198 ✅ (100%)
-- **Integration tests:** 198
-  - Legacy migrated: 54
-  - Controllers: 72
-  - Services: 72
+ Services: 72
 
 ### Ejecutar Tests Específicos
 
@@ -1196,25 +1337,92 @@ npm test tests/integration/url-path-security.test.ts
 
 ## 🤝 Contribuciones
 
-Para contribuir al proyecto:
+Para contribuir y Aislamiento
 
-1. Mantener cobertura de tests al 100%
-2. Seguir arquitectura multi-tenant
-3. Validar permisos en todos los endpoints
-4. Documentar cambios en este README
+### Aislamiento de Datos
 
----
+1. **Storage Físico:** `storage/{org-slug}/{userId}/`
+   - Cada organización tiene su carpeta
+   - Archivos completamente separados
+   
+2. **Queries Filtradas:**
+   - Todos los queries incluyen `organization: activeOrgId`
+   - Usuario solo ve datos de org activa
+   
+3. **Validación de Membership:**
+   - Cada request valida membership activa
+   - Middleware `validateOrganizationMembership`
 
-## 📞 Soporte
+### Validaciones de Plan
 
-Para preguntas sobre la arquitectura multi-tenant:
-
-- **Documentación técnica:** Este archivo
-- **Tests:** Ver `tests/integration/` para ejemplos de uso
-- **Modelos:** Ver `src/models/` para definiciones completas
-
----
-
+- Límites hardcoded en PLAN_LIMITS
+- Auto-validados en uploadDocument
+- Sincronización automática via middleware
 **Última actualización:** Enero 9, 2026  
 **Versión del sistema:** 2.0.0  
 **Estado:** ✅ Producción Ready (198/198 tests passing)
+3.0.0] - 2025-01-22 (Sistema Membership)
+
+#### Added - Nuevas Entidades
+- ✅ Membership model con relación N:N User ↔ Organization
+- ✅ MembershipRole enum (owner/admin/member/viewer)
+- ✅ MembershipStatus enum (active/pending/suspended)
+- ✅ SubscriptionPlan enum (FREE/BASIC/PREMIUM/ENTERPRISE)
+- ✅ PLAN_LIMITS object con límites hardcoded por plan
+
+#### Added - Nuevos Servicios
+- ✅ MembershipService con 10 funciones (createMembership, removeMembership, etc.)
+- ✅ getActiveOrganization() - obtiene org activa del usuario
+- ✅ switchActiveOrganization() - cambia contexto de org
+- ✅ hasActiveMembership() - valida membership activa
+
+#### Added - Nuevos Endpoints
+- ✅ GET /api/memberships/my-organizations - lista organizaciones del usuario
+- ✅ GET /api/memberships/active-organization - obtiene org activa
+- ✅ POST /api/memberships/switch/:orgId - cambia org activa
+- ✅ DELETE /api/memberships/:orgId/leave - abandona organización
+- ✅ GET /api/memberships/:orgId/members - lista miembros
+
+#### Changed - Arquitectura
+- ✅ User.organization ahora es OPCIONAL (puede estar sin org)
+- ✅ rootFolder movido de User a Membership (aislamiento por org)
+- ✅ Organization.plan con auto-sync de settings via middleware
+- ✅ Auth.registerUser NO crea organización ni rootFolder
+- ✅ Organization.createOrganization delega a createMembership
+
+#### Changed - Validaciones
+- ✅ Document.uploadDocument requiere organización activa
+- ✅ Validaciones de PLAN_LIMITS (file size, type, users, storage)
+- ✅ Document.getUserRecentDocuments filtra por org activa
+- ✅ Organization.addUserToOrganization valida maxUsers del plan
+
+#### Changed - Storage
+- ✅ Storage físico: storage/{org-slug}/{userId}/
+- ✅ Aislamiento completo por organización
+- ✅ createMembership crea carpetas físicas automáticamente
+- ✅ removeMembership limpia archivos del usuario en esa org
+
+#### Deprecated
+- ⚠️ Organization.members[] array (legacy - usar Membership)
+- ⚠️ Organization.createUserRootFolder() (usar createMembership)
+- ⚠️ User.rootFolder (usar Membership.rootFolder)
+
+#### Documentation
+- ✅ ENDPOINTS-TESTING-GUIDE.md con 15 casos de prueba
+- ✅ MIGRATION-COMPLETED.md con documentación completa
+- ✅ MULTITENANCY-MIGRATION.md actualizado (este archivo)📞 Referencias
+
+- **Guía de Testing:** [`ENDPOINTS-TESTING-GUIDE.md`](ENDPOINTS-TESTING-GUIDE.md)
+- **Resumen de Implementación:** [`MIGRATION-COMPLETED.md`](MIGRATION-COMPLETED.md)
+- **Código Fuente:**
+  - Membership: [`src/models/membership.model.ts`](src/models/membership.model.ts)
+  - Organization: [`src/models/organization.model.ts`](src/models/organization.model.ts)
+  - MembershipService: [`src/services/membership.service.ts`](src/services/membership.service.ts)
+
+---
+
+**Última actualización:** Enero 22, 2025  
+**Versión del sistema:** 3.0.0 (Membership System)  
+**Estado:** ✅ Completado - Producción Ready  
+**Branch:** `update_document_flow_add_membership_entity`  
+**Repository:** PALMIRARBT/Actividad-1_TFM-CloudDocsCopilot-backend-MVP

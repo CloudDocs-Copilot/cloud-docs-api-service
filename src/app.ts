@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
+import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
 import mongoSanitize from 'express-mongo-sanitize';
@@ -11,6 +12,7 @@ import documentRoutes from './routes/document.routes';
 import folderRoutes from './routes/folder.routes';
 import userRoutes from './routes/user.routes';
 import organizationRoutes from './routes/organization.routes';
+import membershipRoutes from './routes/membership.routes';
 import HttpError from './models/error.model';
 import { errorHandler } from './middlewares/error.middleware';
 import { generalRateLimiter } from './middlewares/rate-limit.middleware';
@@ -90,9 +92,14 @@ app.get('/api/csrf-token', (req: Request, res: Response) => {
   res.json({ token });
 });
 
+// Servir archivos estáticos (imágenes de perfil, documentos públicos)
+// Permite acceder a http://localhost:4000/uploads/archivo.jpg
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+
 // Rutas API
 app.use('/api/auth', authRoutes);
 app.use('/api/organizations', organizationRoutes);
+app.use('/api/memberships', membershipRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/folders', folderRoutes);
 app.use('/api/users', userRoutes);

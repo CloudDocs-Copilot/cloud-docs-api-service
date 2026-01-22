@@ -16,6 +16,21 @@ export async function list(_req: AuthRequest, res: Response, next: NextFunction)
 }
 
 /**
+ * Controlador para obtener el perfil del usuario autenticado
+ */
+export async function getProfile(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (!req.user || !req.user.id) {
+      return next(new HttpError(401, 'User not authenticated'));
+    }
+    const user = await userService.getUserById(req.user.id);
+    res.json(user);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
  * Controlador para activar un usuario
  */
 export async function activate(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
@@ -43,7 +58,7 @@ export async function deactivate(req: AuthRequest, res: Response, next: NextFunc
 }
 
 /**
- * Controlador para actualizar datos de usuario
+ * Controlador para actualizar datos de usuario (perfil y preferencias)
  */
 export async function update(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -51,12 +66,10 @@ export async function update(req: AuthRequest, res: Response, next: NextFunction
       return next(new HttpError(403, 'Forbidden'));
     }
     
-    const { name, email } = req.body;
-    if (!name || !email) {
-      return next(new HttpError(400, 'Missing required fields'));
-    }
+    // Permitir actualización parcial
+    const { name, email, preferences } = req.body;
     
-    const user = await userService.updateUser(req.params.id, req.body);
+    const user = await userService.updateUser(req.params.id, { name, email, preferences });
     res.json({ message: 'User updated successfully', user });
   } catch (err: any) {
     const status = err.message === 'User not found' ? 404 : 400;
@@ -107,8 +120,32 @@ export async function remove(req: AuthRequest, res: Response, next: NextFunction
 }
 
 /**
+ * Controlador para que un usuario elimine su propia cuenta
+ */
+export async function deleteSelf(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    // Verificar que el usuario autenticado es el mismo que solicita borrar
+    // Nota: La ruta debería ser /me o validar el ID
+    const userIdToDelete = req.params.id === 'me' ? req.user?.id : req.params.id;
+
+    if (!userIdToDelete) {
+       return next(new HttpError(401, 'Unauthorized'));
+    }
+
+    if (req.user?.id !== userIdToDelete) {
+      return next(new HttpError(403, 'You can only delete your own account'));
+    }
+
+    const user = await userService.deleteUser(userIdToDelete);
+    res.json({ message: 'Account deleted successfully', user });
+  } catch(err) {
+    next(err);
+  }
+}
+
+/**
  * Controlador para actualizar el avatar del usuario
- * Solo el propio usuario puede actualizar su avatar
+ * Soporta URL directa o archivo subido via Multer
  */
 export async function updateAvatar(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -116,12 +153,24 @@ export async function updateAvatar(req: AuthRequest, res: Response, next: NextFu
       return next(new HttpError(403, 'Forbidden'));
     }
     
-    const { avatar } = req.body;
-    if (avatar === undefined || avatar === null) {
-      return next(new HttpError(400, 'Avatar URL is required'));
+    let avatarPath: string | undefined;
+
+    // Caso 1: Archivo subido (multipart/form-data)
+    if (req.file) {
+      // Generar URL relativa accesible públicamente (asumiendo que se sirve 'uploads' o similar)
+      // Ojo: En un entorno real esto iría a S3/Cloudinary. Aqui guardamos el nombre del archivo.
+      avatarPath = `/uploads/${req.file.filename}`;
+    } 
+    // Caso 2: URL enviada en el cuerpo (json)
+    else if (req.body.avatar !== undefined) {
+      avatarPath = req.body.avatar;
+    }
+
+    if (avatarPath === undefined) {
+      return next(new HttpError(400, 'Avatar file or URL is required'));
     }
     
-    const user = await userService.updateAvatar(req.params.id, { avatar });
+    const user = await userService.updateAvatar(req.params.id, { avatar: avatarPath });
     res.json({ message: 'Avatar updated successfully', user });
   } catch (err: any) {
     const status = err.message === 'User not found' ? 404 : 400;
@@ -129,4 +178,4 @@ export async function updateAvatar(req: AuthRequest, res: Response, next: NextFu
   }
 }
 
-export default { list, activate, deactivate, update, changePassword, remove, updateAvatar };
+export default { list, getProfile, activate, deactivate, update, changePassword, remove, deleteSelf, updateAvatar };

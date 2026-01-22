@@ -3,23 +3,10 @@ import Organization from '../models/organization.model';
 import User from '../models/user.model';
 import Folder from '../models/folder.model';
 import Document from '../models/document.model';
-import { IOrganization } from '../models/types/organization.types';
+import { IOrganization, SubscriptionPlan, CreateOrganizationDto } from '../models/types/organization.types';
 import HttpError from '../models/error.model';
-import * as fs from 'fs';
-import * as path from 'path';
-
-/**
- * DTO para crear una organización
- */
-export interface CreateOrganizationDto {
-  name: string;
-  ownerId: string;
-  settings?: {
-    maxStoragePerUser?: number;
-    allowedFileTypes?: string[];
-    maxUsers?: number;
-  };
-}
+import { createMembership } from './membership.service';
+import { MembershipRole } from '../models/membership.model';
 
 /**
  * DTO para actualizar una organización
@@ -36,13 +23,14 @@ export interface UpdateOrganizationDto {
 
 /**
  * Crea una nueva organización con su estructura de directorios
+ * Usa Membership para crear la relación usuario-organización y el rootFolder
  * @param data - Datos de la organización a crear
  * @returns La organización creada
  */
 export async function createOrganization(
   data: CreateOrganizationDto
 ): Promise<IOrganization> {
-  const { name, ownerId, settings } = data;
+  const { name, ownerId, plan = SubscriptionPlan.FREE } = data;
 
   // Verificar que el usuario existe
   const owner = await User.findById(ownerId);
@@ -50,68 +38,42 @@ export async function createOrganization(
     throw new HttpError(404, 'Owner user not found');
   }
 
-  // Crear la organización
+  // Crear la organización (los settings se configuran automáticamente por el middleware pre-save)
   const organization = await Organization.create({
     name,
     owner: ownerId,
-    settings: {
-      maxStoragePerUser: settings?.maxStoragePerUser || 5368709120, // 5GB por defecto
-      allowedFileTypes: settings?.allowedFileTypes || ['*'],
-      maxUsers: settings?.maxUsers || 100,
-    },
-    members: [ownerId],
+    plan,
+    members: [ownerId], // Array legacy
   });
 
-  // Crear estructura de directorios en el filesystem
-  const storageRoot = path.join(process.cwd(), 'storage');
-  // Sanitizar slug para prevenir path traversal
-  const safeSlug = organization.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-  const orgDir = path.join(storageRoot, safeSlug);
   try {
-    if (!fs.existsSync(orgDir)) {
-      fs.mkdirSync(orgDir, { recursive: true });
-    }
-  } catch (error) {
-    // Si falla la creación del directorio, eliminar la organización de la BD
-    await Organization.findByIdAndDelete(organization._id);
-    throw new HttpError(500, 'Failed to create organization directory');
-  }
+    // Crear Membership como OWNER (esto crea automáticamente el rootFolder)
+    await createMembership({
+      userId: ownerId,
+      organizationId: organization._id.toString(),
+      role: MembershipRole.OWNER,
+    });
 
-  // Actualizar organización del usuario owner
-  owner.organization = organization._id;
-  await owner.save();
-
-  // Crear carpeta raíz para el usuario owner
-  try {
-    await createUserRootFolder(ownerId, organization._id.toString());
+    return organization;
   } catch (error) {
-    // Si falla, limpiar lo creado
+    // Si falla, limpiar organización creada
     await Organization.findByIdAndDelete(organization._id);
-    owner.organization = undefined;
-    await owner.save();
-    if (fs.existsSync(orgDir)) {
-      fs.rmSync(orgDir, { recursive: true, force: true });
-    }
     throw error;
   }
-
-  return organization;
 }
 
 /**
  * Agrega un usuario a una organización
+ * 🆕 Ahora usa Membership service
  * @param organizationId - ID de la organización
  * @param userId - ID del usuario a agregar
+ * @param invitedBy - ID del usuario que invita (opcional)
  */
 export async function addUserToOrganization(
   organizationId: string,
-  userId: string
+  userId: string,
+  invitedBy?: string
 ): Promise<void> {
-  const organization = await Organization.findById(organizationId);
-  if (!organization) {
-    throw new HttpError(404, 'Organization not found');
-  }
-
   // Validar que el userId tenga el formato esperado de un ObjectId de MongoDB
   if (typeof userId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(userId)) {
     throw new HttpError(400, 'Invalid user ID');
@@ -122,33 +84,18 @@ export async function addUserToOrganization(
     throw new HttpError(404, 'User not found');
   }
 
-  // Verificar límite de usuarios
-  if (
-    organization.settings.maxUsers &&
-    organization.members.length >= organization.settings.maxUsers
-  ) {
-    throw new HttpError(403, 'Organization has reached maximum number of users');
-  }
-
-  // Verificar si el usuario ya está en la organización
-  if (organization.members.some((m) => m.toString() === userId)) {
-    throw new HttpError(409, 'User is already a member of this organization');
-  }
-
-  // Agregar usuario a la organización
-  organization.addMember(userId);
-  await organization.save();
-
-  // Actualizar organización del usuario
-  user.organization = organization._id;
-  await user.save();
-
-  // Crear carpeta raíz para el usuario
-  await createUserRootFolder(userId, organizationId);
+  // 🆕 Usar createMembership que valida límites y crea rootFolder
+  await createMembership({
+    userId,
+    organizationId,
+    role: MembershipRole.MEMBER,
+    invitedBy,
+  });
 }
 
 /**
  * Remueve un usuario de una organización
+ * 🆕 Ahora usa removeMembership service
  * @param organizationId - ID de la organización
  * @param userId - ID del usuario a remover
  */
@@ -166,31 +113,26 @@ export async function removeUserFromOrganization(
     throw new HttpError(400, 'Cannot remove the owner from the organization');
   }
 
-  organization.removeMember(userId);
-  await organization.save();
-
-  // Actualizar usuario
-  const user = await User.findById(userId);
-  if (user) {
-    user.organization = undefined;
-    await user.save();
-  }
+  // 🆕 Usar removeMembership que limpia todo
+  const { removeMembership } = await import('./membership.service');
+  await removeMembership(userId, organizationId);
 }
 
 /**
  * Obtiene las organizaciones de un usuario
+ * 🆕 Ahora usa getUserMemberships para obtener todas las organizaciones
  * @param userId - ID del usuario
  * @returns Lista de organizaciones del usuario
  */
 export async function getUserOrganizations(
   userId: string
 ): Promise<IOrganization[]> {
-  const organizations = await Organization.find({
-    members: userId,
-    active: true,
-  }).populate('owner', 'name email');
-
-  return organizations;
+  // 🆕 Usar membership service
+  const { getUserMemberships } = await import('./membership.service');
+  const memberships = await getUserMemberships(userId);
+  
+  // Extraer organizaciones de las membresías
+  return memberships.map(m => m.organization) as any[];
 }
 
 /**
@@ -342,115 +284,8 @@ export async function getOrganizationStorageStats(organizationId: string): Promi
 }
 
 /**
- * Crea la carpeta raíz para un usuario en una organización
- * @param userId - ID del usuario
- * @param organizationId - ID de la organización
- * @returns La carpeta raíz creada
+ * 🗑️ DEPRECATED: Esta función ya no se usa
+ * El rootFolder ahora se crea automáticamente en createMembership
+ * @deprecated Use createMembership from membership.service instead
  */
-async function createUserRootFolder(
-  userId: string,
-  organizationId: string
-): Promise<typeof Folder.prototype> {
-  const organization = await Organization.findById(organizationId);
-  if (!organization) {
-    throw new HttpError(404, 'Organization not found');
-  }
-
-  // Buscar carpeta raíz del usuario (sin filtrar por organización)
-  const existingRoot = await Folder.findOne({
-    owner: userId,
-    isRoot: true,
-  });
-
-  if (existingRoot) {
-    // Si ya tiene una carpeta raíz con esta organización, retornarla
-    if (existingRoot.organization?.toString() === organizationId) {
-      return existingRoot;
-    }
-    
-    // Si tiene una carpeta raíz sin organización, actualizarla
-    if (!existingRoot.organization) {
-      existingRoot.organization = new mongoose.Types.ObjectId(organizationId);
-      
-      // Actualizar path con el slug de la organización
-      const safeSlug = organization.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-      existingRoot.path = `/${safeSlug}/${userId}`;
-      
-      await existingRoot.save();
-      
-      // Mover directorio físico de /users/{userId} a /{orgSlug}/{userId}
-      const storageRoot = path.join(process.cwd(), 'storage');
-      const safeUserId = userId.toString().replace(/[^a-z0-9]/gi, '');
-      const oldPath = path.join(storageRoot, 'users', safeUserId);
-      const newPath = path.join(storageRoot, safeSlug, safeUserId);
-      
-      try {
-        if (fs.existsSync(oldPath)) {
-          // Asegurar que el directorio de destino existe
-          const newDir = path.dirname(newPath);
-          if (!fs.existsSync(newDir)) {
-            fs.mkdirSync(newDir, { recursive: true });
-          }
-          // Mover el directorio
-          fs.renameSync(oldPath, newPath);
-        } else if (!fs.existsSync(newPath)) {
-          // Si no existe el directorio antiguo, crear el nuevo
-          fs.mkdirSync(newPath, { recursive: true });
-        }
-      } catch (error) {
-        console.error('Error moving user storage directory:', error);
-        // No lanzar error, solo registrar
-      }
-      
-      return existingRoot;
-    }
-    
-    // Si tiene una carpeta raíz con OTRA organización, error
-    throw new HttpError(409, 'User already has a root folder in another organization');
-  }
-
-  // Sanitizar slug para prevenir path traversal
-  const safeSlugForPath = organization.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-  
-  // Crear carpeta raíz
-  const rootFolder = await Folder.create({
-    name: `root_user_${userId}`,
-    type: 'root',
-    owner: userId,
-    organization: organizationId,
-    parent: null,
-    isRoot: true,
-    path: `/${safeSlugForPath}/${userId}`,
-    documents: [],
-    sharedWith: [],
-    permissions: [],
-  });
-
-  // Crear directorio físico
-  const storageRoot = path.join(process.cwd(), 'storage');
-  // Sanitizar slug y userId para prevenir path traversal
-  const safeSlug = organization.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-  const safeUserId = userId.toString().replace(/[^a-z0-9]/gi, '');
-  const folderPath = path.join(
-    storageRoot,
-    safeSlug,
-    safeUserId
-  );
-
-  try {
-    if (!fs.existsSync(folderPath)) {
-      fs.mkdirSync(folderPath, { recursive: true });
-    }
-  } catch (error) {
-    // Si falla, eliminar la carpeta de la BD
-    await Folder.findByIdAndDelete(rootFolder._id);
-    throw new HttpError(500, 'Failed to create user root folder directory');
-  }
-
-  // Actualizar referencia en el usuario
-  await User.findByIdAndUpdate(userId, {
-    rootFolder: rootFolder._id,
-  });
-
-  return rootFolder;
-}
+// async function createUserRootFolder(...) { ... }

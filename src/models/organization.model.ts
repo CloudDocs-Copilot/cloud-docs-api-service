@@ -1,5 +1,5 @@
 import { Schema, model, Model, Types } from 'mongoose';
-import { IOrganization } from './types/organization.types';
+import { IOrganization, SubscriptionPlan, PLAN_LIMITS } from './types/organization.types';
 
 /**
  * Interface para métodos estáticos del modelo Organization
@@ -47,6 +47,12 @@ const organizationSchema = new Schema<IOrganization>(
       trim: true,
       index: true,
     },
+    plan: {
+      type: String,
+      enum: Object.values(SubscriptionPlan),
+      default: SubscriptionPlan.FREE,
+      required: true,
+    },
     owner: {
       type: Schema.Types.ObjectId,
       ref: 'User',
@@ -63,17 +69,30 @@ const organizationSchema = new Schema<IOrganization>(
       maxStoragePerUser: {
         type: Number,
         required: true,
-        default: 5368709120, // 5GB en bytes
+        default: PLAN_LIMITS[SubscriptionPlan.FREE].maxStoragePerUser,
         min: [0, 'Storage limit cannot be negative'],
       },
       allowedFileTypes: {
         type: [String],
-        default: ['*'], // Por defecto permite todos los tipos
+        default: PLAN_LIMITS[SubscriptionPlan.FREE].allowedFileTypes,
       },
       maxUsers: {
         type: Number,
+        required: true,
+        default: PLAN_LIMITS[SubscriptionPlan.FREE].maxUsers,
         min: [1, 'Maximum users must be at least 1'],
-        default: 100,
+      },
+      maxStorageTotal: {
+        type: Number,
+        required: true,
+        default: PLAN_LIMITS[SubscriptionPlan.FREE].maxStorageTotal,
+        min: [0, 'Total storage limit cannot be negative'],
+      },
+      maxFileSize: {
+        type: Number,
+        required: true,
+        default: PLAN_LIMITS[SubscriptionPlan.FREE].maxFileSize,
+        min: [0, 'File size limit cannot be negative'],
       },
     },
     active: {
@@ -119,6 +138,16 @@ organizationSchema.pre('save', async function (next) {
         counter++;
       }
     }
+  }
+
+  // Sincronizar límites del plan cuando cambia el plan
+  if (this.isModified('plan') || this.isNew) {
+    const limits = PLAN_LIMITS[this.plan];
+    this.settings.maxUsers = limits.maxUsers;
+    this.settings.maxStoragePerUser = limits.maxStoragePerUser;
+    this.settings.maxStorageTotal = limits.maxStorageTotal;
+    this.settings.allowedFileTypes = limits.allowedFileTypes;
+    this.settings.maxFileSize = limits.maxFileSize;
   }
 
   // Asegurar que el owner esté en la lista de members

@@ -1,6 +1,15 @@
 import mongoose, { Document, Schema, Types } from 'mongoose';
 
 /**
+ * Interface para las preferencias de usuario
+ */
+export interface IUserPreferences {
+  emailNotifications: boolean;
+  documentUpdates: boolean;
+  aiAnalysis: boolean;
+}
+
+/**
  * Interfaz del modelo de Usuario
  * Define la estructura de datos para los usuarios del sistema
  */
@@ -20,6 +29,8 @@ export interface IUser extends Document {
   storageUsed: number;
   /** URL o path del avatar del usuario */
   avatar?: string;
+  /** Preferencias de usuario configurables */
+  preferences: IUserPreferences;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -91,6 +102,11 @@ const userSchema = new Schema<IUser>(
       trim: true,
       maxlength: [2048, 'Avatar URL cannot exceed 2048 characters'],
       default: null,
+    },
+    preferences: {
+      emailNotifications: { type: Boolean, default: true },
+      documentUpdates: { type: Boolean, default: true },
+      aiAnalysis: { type: Boolean, default: true }
     },
   },
   {

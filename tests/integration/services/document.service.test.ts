@@ -1,10 +1,12 @@
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import * as documentService from '../../../src/services/document.service';
+import * as membershipService from '../../../src/services/membership.service';
 import User from '../../../src/models/user.model';
 import Organization from '../../../src/models/organization.model';
 import Folder from '../../../src/models/folder.model';
 import Document from '../../../src/models/document.model';
+import Membership, { MembershipRole, MembershipStatus } from '../../../src/models/membership.model';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -29,7 +31,40 @@ describe('DocumentService Integration Tests', () => {
   });
 
   beforeEach(async () => {
-    // Crear usuarios
+    // 1. Crear organización owner
+    const owner = await User.create({
+      name: 'Org Owner',
+      email: 'owner@test.com',
+      password: 'hashedPassword123',
+      role: 'admin',
+      storageUsed: 0
+    });
+
+    // 2. Crear organización
+    const org = await Organization.create({
+      name: 'Test Organization',
+      slug: 'test-org',
+      owner: owner._id,
+      members: [owner._id],
+      // Let the pre-save hook set the FREE plan settings
+    });
+
+    // 3. Crear membresía para el owner
+    await Membership.create({
+      user: owner._id,
+      organization: org._id,
+      role: MembershipRole.OWNER,
+      status: MembershipStatus.ACTIVE,
+      joinedAt: new Date()
+    });
+
+    owner.organization = org._id as mongoose.Types.ObjectId;
+    await owner.save();
+
+    testOrgId = org._id as mongoose.Types.ObjectId;
+    testOrgSlug = org.slug;
+
+    // 4. Crear usuarios de test sin organización
     const user = await User.create({
       name: 'Test User',
       email: 'test@test.com',
@@ -49,44 +84,24 @@ describe('DocumentService Integration Tests', () => {
     testUserId = user._id as mongoose.Types.ObjectId;
     testUser2Id = user2._id as mongoose.Types.ObjectId;
 
-    // Crear organización
-    const org = await Organization.create({
-      name: 'Test Organization',
-      slug: 'test-org',
-      owner: testUserId,
-      members: [testUserId, testUser2Id],
-      settings: {
-        maxStoragePerUser: 1048576, // 1MB for testing
-        allowedFileTypes: ['*'],
-        maxUsers: 10,
-      }
+    // 5. Agregar usuarios a la organización usando membership service
+    await membershipService.createMembership({
+      userId: testUserId.toString(),
+      organizationId: testOrgId.toString(),
+      role: MembershipRole.MEMBER,
     });
 
-    testOrgId = org._id as mongoose.Types.ObjectId;
-    testOrgSlug = org.slug;
-
-    user.organization = testOrgId;
-    await user.save();
-    user2.organization = testOrgId;
-    await user2.save();
-
-    // Crear carpeta raíz
-    const rootFolder = await Folder.create({
-      name: `root_user_${testUserId}`,
-      displayName: 'Mi Unidad',
-      type: 'root',
-      organization: testOrgId,
-      owner: testUserId,
-      parent: null,
-      path: `/${testOrgSlug}/${testUserId}`,
-      permissions: [{ userId: testUserId, role: 'owner' }]
+    await membershipService.createMembership({
+      userId: testUser2Id.toString(),
+      organizationId: testOrgId.toString(),
+      role: MembershipRole.MEMBER,
     });
 
-    rootFolderId = rootFolder._id as mongoose.Types.ObjectId;
-    user.rootFolder = rootFolderId;
-    await user.save();
+    // 6. Obtener usuarios actualizados con rootFolders
+    const updatedUser = await User.findById(testUserId);
+    rootFolderId = updatedUser!.rootFolder as mongoose.Types.ObjectId;
 
-    // Crear carpeta de prueba
+    // 7. Crear carpeta de prueba
     const testFolder = await Folder.create({
       name: 'Documents',
       displayName: 'My Documents',
@@ -119,6 +134,7 @@ describe('DocumentService Integration Tests', () => {
     await Organization.deleteMany({});
     await Folder.deleteMany({});
     await Document.deleteMany({});
+    await Membership.deleteMany({});
 
     // Limpiar directorios
     const storageRoot = path.join(process.cwd(), 'storage');
@@ -152,7 +168,6 @@ describe('DocumentService Integration Tests', () => {
         file: mockFile,
         userId: testUserId.toString(),
         folderId: testFolderId.toString(),
-        organizationId: testOrgId.toString(),
       });
 
       expect(doc).toBeDefined();
@@ -172,7 +187,59 @@ describe('DocumentService Integration Tests', () => {
       expect(updatedUser!.storageUsed).toBe(12);
     });
 
-    it('should fail without folderId', async () => {
+    it('should upload to rootFolder when folderId not provided', async () => {
+      // Crear archivo temporal
+      const uploadsDir = path.join(process.cwd(), 'uploads');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      
+      const testFileName = `test-${Date.now()}.txt`;
+      const tempPath = path.join(uploadsDir, testFileName);
+      fs.writeFileSync(tempPath, 'Hello World!');
+
+      const mockFile: any = {
+        filename: testFileName,
+        originalname: 'test.txt',
+        mimetype: 'text/plain',
+        size: 12,
+      };
+
+      // No proporcionar folderId - debe usar rootFolder del usuario
+      const doc = await documentService.uploadDocument({
+        file: mockFile,
+        userId: testUserId.toString(),
+        folderId: undefined, // No se proporciona
+      });
+
+      expect(doc).toBeDefined();
+      expect(doc.filename).toBe(testFileName);
+      expect(doc.folder).toEqual(rootFolderId); // Debe estar en la carpeta raíz
+      expect(doc.organization).toEqual(testOrgId);
+    });
+
+    it('should fail without folderId when user has no rootFolder', async () => {
+      // Crear un usuario sin rootFolder
+      const userNoRoot = await User.create({
+        name: 'User No Root',
+        email: 'noroot@test.com',
+        password: 'hashedPassword123',
+        role: 'user',
+        storageUsed: 0,
+        organization: testOrgId,
+        // No asignar rootFolder
+      });
+
+      // Crear membership sin rootFolder (forzar el caso)
+      await Membership.create({
+        user: userNoRoot._id,
+        organization: testOrgId,
+        role: MembershipRole.MEMBER,
+        status: MembershipStatus.ACTIVE,
+        joinedAt: new Date(),
+        // Sin rootFolder
+      });
+
       const mockFile: any = {
         filename: 'test.txt',
         originalname: 'test.txt',
@@ -183,21 +250,21 @@ describe('DocumentService Integration Tests', () => {
       await expect(
         documentService.uploadDocument({
           file: mockFile,
-          userId: testUserId.toString(),
-          folderId: '',
-          organizationId: testOrgId.toString(),
+          userId: userNoRoot._id.toString(),
+          folderId: '', // String vacío, no se proporciona
         })
-      ).rejects.toThrow('Folder ID is required');
+      ).rejects.toThrow('Membership does not have a root folder. Please contact support.');
     });
 
     it('should fail if storage quota exceeded', async () => {
-      // Establecer storageUsed muy alto
-      await User.findByIdAndUpdate(testUserId, { storageUsed: 1048576 }); // 1MB (max quota)
+      // Establecer storageUsed muy cerca del límite del plan FREE (1GB = 1073741824 bytes)
+      const freeLimit = 1073741824; // 1GB
+      await User.findByIdAndUpdate(testUserId, { storageUsed: freeLimit - 500 }); // Solo 500 bytes disponibles
 
       const uploadsPath = path.join(process.cwd(), 'uploads');
       const testFileName = `test-large-${Date.now()}.txt`;
       const tempFilePath = path.join(uploadsPath, testFileName);
-      fs.writeFileSync(tempFilePath, 'x'.repeat(1000)); // 1000 bytes
+      fs.writeFileSync(tempFilePath, 'x'.repeat(1000)); // 1000 bytes - debería exceder límite
 
       const mockFile: any = {
         filename: testFileName,
@@ -211,7 +278,6 @@ describe('DocumentService Integration Tests', () => {
           file: mockFile,
           userId: testUserId.toString(),
           folderId: testFolderId.toString(),
-          organizationId: testOrgId.toString(),
         })
       ).rejects.toThrow('Storage quota exceeded');
     });
@@ -230,7 +296,6 @@ describe('DocumentService Integration Tests', () => {
           file: mockFile,
           userId: testUser2Id.toString(),
           folderId: testFolderId.toString(),
-          organizationId: testOrgId.toString(),
         })
       ).rejects.toThrow('User does not have editor access to this folder');
     });
@@ -257,7 +322,6 @@ describe('DocumentService Integration Tests', () => {
         file: mockFile,
         userId: testUserId.toString(),
         folderId: testFolderId.toString(),
-        organizationId: testOrgId.toString(),
       });
 
       const storageRoot = path.join(process.cwd(), 'storage');
@@ -333,7 +397,6 @@ describe('DocumentService Integration Tests', () => {
         file: mockFile,
         userId: testUserId.toString(),
         folderId: testFolderId.toString(),
-        organizationId: testOrgId.toString(),
       });
 
       const storageRoot = path.join(process.cwd(), 'storage');
@@ -410,7 +473,6 @@ describe('DocumentService Integration Tests', () => {
         file: mockFile,
         userId: testUserId.toString(),
         folderId: testFolderId.toString(),
-        organizationId: testOrgId.toString(),
       });
 
       const storageRoot = path.join(process.cwd(), 'storage');
@@ -439,19 +501,28 @@ describe('DocumentService Integration Tests', () => {
     });
 
     it('should fail if storage quota exceeded', async () => {
-      // Establecer storageUsed muy alto
-      await User.findByIdAndUpdate(testUserId, { storageUsed: 1048576 }); // Max quota
+      // Establecer storageUsed muy cerca del límite del plan FREE (1GB = 1073741824 bytes)
+      const freeLimit = 1073741824; // 1GB
+      await User.findByIdAndUpdate(testUserId, { storageUsed: freeLimit - 500 }); // Solo 500 bytes disponibles
 
       const doc = await Document.create({
         filename: 'test.txt',
         originalName: 'test.txt',
         mimeType: 'text/plain',
-        size: 1000,
+        size: 1000, // Archivo de 1000 bytes - debería exceder el límite disponible
         uploadedBy: testUserId,
         folder: testFolderId,
         organization: testOrgId,
         path: `/${testOrgSlug}/${testUserId}/Documents/test.txt`
       });
+
+      // Crear el archivo físico para que copy no falle por "file not found"
+      const storageRoot = path.join(process.cwd(), 'storage');
+      const physicalFilePath = path.join(storageRoot, testOrgSlug, testUserId.toString(), 'Documents', 'test.txt');
+      if (!fs.existsSync(path.dirname(physicalFilePath))) {
+        fs.mkdirSync(path.dirname(physicalFilePath), { recursive: true });
+      }
+      fs.writeFileSync(physicalFilePath, 'x'.repeat(1000)); // Crear archivo de 1000 bytes
 
       await expect(
         documentService.copyDocument({
@@ -492,7 +563,6 @@ describe('DocumentService Integration Tests', () => {
 
       const recent = await documentService.getUserRecentDocuments({
         userId: testUserId.toString(),
-        organizationId: testOrgId.toString(),
         limit: 10
       });
 
@@ -519,7 +589,6 @@ describe('DocumentService Integration Tests', () => {
 
       const recent = await documentService.getUserRecentDocuments({
         userId: testUserId.toString(),
-        organizationId: testOrgId.toString(),
         limit: 3
       });
 

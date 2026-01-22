@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import User, { IUser } from '../models/user.model';
+import User, { IUser, IUserPreferences } from '../models/user.model';
 import HttpError from '../models/error.model';
 import { validatePasswordOrThrow } from '../utils/password-validator';
 
@@ -9,6 +9,7 @@ import { validatePasswordOrThrow } from '../utils/password-validator';
 export interface UpdateUserDto {
   name?: string;
   email?: string;
+  preferences?: Partial<IUserPreferences>;
 }
 
 /**
@@ -37,6 +38,17 @@ export async function getAllUsers(): Promise<IUser[]> {
 }
 
 /**
+ * Obtiene un usuario por ID
+ * @param id ID del usuario
+ * @returns Usuario encontrado o error 404
+ */
+export async function getUserById(id: string): Promise<IUser> {
+  const user = await User.findById(id);
+  if (!user) throw new HttpError(404, 'User not found');
+  return user;
+}
+
+/**
  * Activa o desactiva un usuario
  * Al cambiar el estado, se actualiza updatedAt lo que invalida tokens activos
  * 
@@ -61,12 +73,15 @@ export async function setUserActive(id: string, active: boolean): Promise<IUser>
  * @param UpdateUserDto - Datos a actualizar
  * @returns Usuario actualizado
  */
-export async function updateUser(id: string, { name, email }: UpdateUserDto): Promise<IUser> {
+export async function updateUser(id: string, { name, email, preferences }: UpdateUserDto): Promise<IUser> {
   const user = await User.findById(id);
   if (!user) throw new HttpError(404, 'User not found');
   
   if (name !== undefined) user.name = name;
   if (email !== undefined) user.email = email;
+  if (preferences) {
+    user.preferences = { ...user.preferences, ...preferences };
+  }
   
   await user.save();
   return user;

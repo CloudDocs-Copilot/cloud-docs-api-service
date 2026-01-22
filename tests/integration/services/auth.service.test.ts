@@ -1,9 +1,11 @@
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import * as authService from '../../../src/services/auth.service';
+import * as membershipService from '../../../src/services/membership.service';
 import User from '../../../src/models/user.model';
 import Organization from '../../../src/models/organization.model';
 import Folder from '../../../src/models/folder.model';
+import Membership, { MembershipRole, MembershipStatus } from '../../../src/models/membership.model';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -38,14 +40,19 @@ describe('AuthService Integration Tests', () => {
       slug: 'test-org',
       owner: owner._id,
       members: [owner._id],
-      settings: {
-        maxStoragePerUser: 5368709120, // 5GB
-        allowedFileTypes: ['*'],
-        maxUsers: 10,
-      }
+      // Let the pre-save hook set the FREE plan settings
     });
 
-    // Asignar organización al owner
+    // Crear membresía para el owner
+    await Membership.create({
+      user: owner._id,
+      organization: org._id,
+      role: MembershipRole.OWNER,
+      status: MembershipStatus.ACTIVE,
+      joinedAt: new Date()
+    });
+
+    // Asignar organización activa al owner
     owner.organization = org._id as mongoose.Types.ObjectId;
     await owner.save();
 
@@ -64,6 +71,7 @@ describe('AuthService Integration Tests', () => {
     await User.deleteMany({});
     await Organization.deleteMany({});
     await Folder.deleteMany({});
+    await Membership.deleteMany({});
 
     // Limpiar directorios de prueba
     const storageRoot = path.join(process.cwd(), 'storage');
@@ -75,30 +83,50 @@ describe('AuthService Integration Tests', () => {
 
   describe('registerUser', () => {
     it('should register a new user with organization', async () => {
+      // 1. Registrar usuario sin organización
       const newUser = await authService.registerUser({
         name: 'John Doe',
         email: 'john@test.com',
         password: 'StrongP@ss123',
-        organizationId: testOrgId.toString(),
       });
 
       expect(newUser).toBeDefined();
       expect(newUser.name).toBe('John Doe');
       expect(newUser.email).toBe('john@test.com');
-      expect(newUser.organization).toEqual(testOrgId);
+      expect(newUser.organization).toBeUndefined(); // Usuario sin organización inicialmente
       expect(newUser.password).toBeUndefined(); // No debe exponer la contraseña
-      expect(newUser.rootFolder).toBeDefined();
+
+      // 2. Agregar usuario a la organización
+      await membershipService.createMembership({
+        userId: newUser._id!.toString(),
+        organizationId: testOrgId.toString(),
+        role: MembershipRole.MEMBER,
+      });
+
+      // 3. Verificar que el usuario ahora tiene organización y rootFolder
+      const updatedUser = await User.findById(newUser._id).populate('rootFolder');
+      expect(updatedUser!.organization).toEqual(testOrgId);
+      expect(updatedUser!.rootFolder).toBeDefined();
     });
 
     it('should create user root folder with correct structure', async () => {
+      // 1. Registrar usuario
       const newUser = await authService.registerUser({
         name: 'Jane Smith',
         email: 'jane@test.com',
         password: 'StrongP@ss456',
-        organizationId: testOrgId.toString(),
       });
 
-      const rootFolder = await Folder.findById(newUser.rootFolder);
+      // 2. Agregar a organización
+      await membershipService.createMembership({
+        userId: newUser._id!.toString(),
+        organizationId: testOrgId.toString(),
+        role: MembershipRole.MEMBER,
+      });
+
+      // 3. Verificar rootFolder
+      const updatedUser = await User.findById(newUser._id);
+      const rootFolder = await Folder.findById(updatedUser!.rootFolder);
       
       expect(rootFolder).toBeDefined();
       expect(rootFolder!.type).toBe('root');
@@ -110,13 +138,21 @@ describe('AuthService Integration Tests', () => {
     });
 
     it('should create physical filesystem directory', async () => {
+      // 1. Registrar usuario
       const newUser = await authService.registerUser({
         name: 'Test User',
         email: 'test@test.com',
         password: 'StrongP@ss789',
-        organizationId: testOrgId.toString(),
       });
 
+      // 2. Agregar a organización
+      await membershipService.createMembership({
+        userId: newUser._id!.toString(),
+        organizationId: testOrgId.toString(),
+        role: MembershipRole.MEMBER,
+      });
+
+      // 3. Verificar directorio físico
       const userStoragePath = path.join(
         process.cwd(),
         'storage',
@@ -129,47 +165,90 @@ describe('AuthService Integration Tests', () => {
     });
 
     it('should add user to organization members', async () => {
+      // 1. Registrar usuario
       const newUser = await authService.registerUser({
         name: 'Member User',
         email: 'member@test.com',
         password: 'StrongP@ss111',
-        organizationId: testOrgId.toString(),
       });
 
-      const org = await Organization.findById(testOrgId);
-      const memberIds = org!.members.map((m) => m.toString());
+      // 2. Agregar a organización
+      await membershipService.createMembership({
+        userId: newUser._id!.toString(),
+        organizationId: testOrgId.toString(),
+        role: MembershipRole.MEMBER,
+      });
+
+      // 3. Verificar membership en base de datos
+      const membership = await Membership.findOne({
+        user: newUser._id,
+        organization: testOrgId,
+        status: MembershipStatus.ACTIVE,
+      });
       
-      expect(memberIds).toContain(newUser._id!.toString());
+      expect(membership).toBeDefined();
+      expect(membership!.role).toBe(MembershipRole.MEMBER);
     });
 
     it('should fail if organization does not exist', async () => {
-      const fakeOrgId = new mongoose.Types.ObjectId();
+      // 1. Registrar usuario (esto debe pasar)
+      const newUser = await authService.registerUser({
+        name: 'Test User',
+        email: 'test@test.com',
+        password: 'StrongP@ss999',
+      });
 
+      // 2. Intentar agregar a organización inexistente (esto debe fallar)
       await expect(
-        authService.registerUser({
-          name: 'Test User',
-          email: 'test@test.com',
-          password: 'StrongP@ss999',
-          organizationId: fakeOrgId.toString(),
+        membershipService.createMembership({
+          userId: newUser._id!.toString(),
+          organizationId: new mongoose.Types.ObjectId().toString(),
+          role: MembershipRole.MEMBER,
         })
-      ).rejects.toThrow('Organization not found or inactive');
+      ).rejects.toThrow('Organization not found');
     });
 
     it('should fail if organization has reached max users', async () => {
-      // Actualizar organización para permitir solo 1 usuario (el owner ya cuenta como 1)
-      await Organization.findByIdAndUpdate(testOrgId, {
-        'settings.maxUsers': 1,
+      // FREE plan allows max 3 users, create 2 additional users to reach the limit
+      
+      // Create first additional user and add to org to use up slot 2
+      const user1 = await authService.registerUser({
+        name: 'User 1',
+        email: 'user1@test.com',
+        password: 'StrongP@ss111',
+      });
+      await membershipService.createMembership({
+        userId: user1._id!.toString(),
+        organizationId: testOrgId.toString(),
+        role: MembershipRole.MEMBER,
       });
 
-      // Intentar crear un usuario (debe fallar porque owner ya está activo y cuenta)
+      // Create second additional user and add to org to use up slot 3 (FREE plan limit)
+      const user2 = await authService.registerUser({
+        name: 'User 2', 
+        email: 'user2@test.com',
+        password: 'StrongP@ss222',
+      });
+      await membershipService.createMembership({
+        userId: user2._id!.toString(),
+        organizationId: testOrgId.toString(),
+        role: MembershipRole.MEMBER,
+      });
+
+      // Try to create third additional user and add to org - should fail (would exceed FREE plan limit of 3)
+      const user3 = await authService.registerUser({
+        name: 'User 3',
+        email: 'user3@test.com',
+        password: 'StrongP@ss333',
+      });
+
       await expect(
-        authService.registerUser({
-          name: 'User 1',
-          email: 'user1@test.com',
-          password: 'StrongP@ss111',
+        membershipService.createMembership({
+          userId: user3._id!.toString(),
           organizationId: testOrgId.toString(),
+          role: MembershipRole.MEMBER,
         })
-      ).rejects.toThrow('Organization has reached maximum users limit');
+      ).rejects.toThrow('Organization has reached maximum users limit (3) for free plan');
     });
 
     it('should fail with invalid password', async () => {
@@ -178,7 +257,6 @@ describe('AuthService Integration Tests', () => {
           name: 'Test User',
           email: 'test@test.com',
           password: 'weak',
-          organizationId: testOrgId.toString(),
         })
       ).rejects.toThrow();
     });
@@ -189,7 +267,6 @@ describe('AuthService Integration Tests', () => {
           name: 'Test User',
           email: 'invalid-email',
           password: 'StrongP@ss123',
-          organizationId: testOrgId.toString(),
         })
       ).rejects.toThrow('Invalid email format');
     });
@@ -200,20 +277,26 @@ describe('AuthService Integration Tests', () => {
           name: 'Test@User!',
           email: 'test@test.com',
           password: 'StrongP@ss123',
-          organizationId: testOrgId.toString(),
         })
       ).rejects.toThrow('Name must contain only alphanumeric characters');
     });
 
     it('should fail with invalid organization ID', async () => {
+      // 1. Registrar usuario (esto debe pasar)
+      const newUser = await authService.registerUser({
+        name: 'Test User',
+        email: 'test@test.com',
+        password: 'StrongP@ss123',
+      });
+
+      // 2. Intentar agregar a organización con ID inválido (esto debe fallar)
       await expect(
-        authService.registerUser({
-          name: 'Test User',
-          email: 'test@test.com',
-          password: 'StrongP@ss123',
+        membershipService.createMembership({
+          userId: newUser._id!.toString(),
           organizationId: 'invalid-id',
+          role: MembershipRole.MEMBER,
         })
-      ).rejects.toThrow('Invalid organization ID');
+      ).rejects.toThrow();
     });
   });
 
@@ -224,7 +307,6 @@ describe('AuthService Integration Tests', () => {
         name: 'Login Test User',
         email: 'login@test.com',
         password: 'StrongP@ss123',
-        organizationId: testOrgId.toString(),
       });
     });
 
