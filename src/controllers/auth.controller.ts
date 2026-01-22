@@ -1,10 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middlewares/auth.middleware';
-import { registerUser, loginUser } from '../services/auth.service';
+import { registerUser, loginUser, confirmUserAccount } from '../services/auth.service';
 import HttpError from '../models/error.model';
-import User from '../models/user.model';
-import Profile from '../models/profile.model';
-import jwt from 'jsonwebtoken';
 
 /**
  * Controlador de registro de usuario
@@ -102,31 +99,15 @@ export async function confirmAccount(req: any, res: Response, next: NextFunction
     if (!token) {
       return next(new HttpError(400, 'Token is required'));
     }
-    let payload: any;
+    let result;
     try {
-      payload = jwt.verify(token, process.env.JWT_SECRET || 'secret');
-    } catch (err) {
-      return next(new HttpError(400, 'Invalid or expired token'));
+      result = await confirmUserAccount(token);
+    } catch (err: any) {
+      return next(new HttpError(400, err.message || 'Invalid or expired token'));
     }
-    const user = await User.findById(payload.userId);
-    if (!user) {
-      return next(new HttpError(404, 'User not found'));
-    }
-    if (user.active) {
-      // Si el perfil no existe, crearlo
-      const existingProfile = await Profile.findOne({ user: user._id });
-      if (!existingProfile) {
-        await Profile.create({ user: user._id, name: user.name });
-      }
+    if (result.userAlreadyActive) {
       res.json({ success: true, message: 'Account already confirmed' });
       return;
-    }
-    user.active = true;
-    await user.save();
-    // Crear perfil si no existe
-    const existingProfile = await Profile.findOne({ user: user._id });
-    if (!existingProfile) {
-      await Profile.create({ user: user._id, name: user.name });
     }
     res.json({ success: true, message: 'Account confirmed successfully' });
   } catch (err) {
