@@ -72,24 +72,25 @@ describe('Document Model - Organization Structure', () => {
       expect(document.filename).toBe('test-file.pdf');
       expect(document.originalname).toBe('Test File.pdf');
       expect(document.uploadedBy.toString()).toBe(testUserId.toString());
-      expect(document.organization.toString()).toBe(testOrgId.toString());
+      expect(document.organization?.toString()).toBe(testOrgId.toString());
       expect(document.folder.toString()).toBe(testFolderId.toString());
       expect(document.path).toBe('/test-org/test-folder/test-file.pdf');
       expect(document.size).toBe(1024000);
       expect(document.mimeType).toBe('application/pdf');
     });
 
-    it('should require organization field', async () => {
-      await expect(
-        DocumentModel.create({
-          filename: 'test.pdf',
-          uploadedBy: testUserId,
-          folder: testFolderId,
-          path: '/path/test.pdf',
-          size: 1000,
-          mimeType: 'application/pdf',
-        })
-      ).rejects.toThrow();
+    it('should allow organization field to be optional', async () => {
+      const document = await DocumentModel.create({
+        filename: 'test.pdf',
+        uploadedBy: testUserId,
+        folder: testFolderId,
+        path: '/path/test.pdf',
+        size: 1000,
+        mimeType: 'application/pdf',
+      });
+
+      expect(document.organization).toBeNull();
+      expect(document.filename).toBe('test.pdf');
     });
 
     it('should require folder field', async () => {

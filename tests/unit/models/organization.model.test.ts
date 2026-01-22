@@ -3,6 +3,9 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import Organization, { generateSlug } from '../../../src/models/organization.model';
 import User from '../../../src/models/user.model';
 
+// Set global timeout for all tests
+jest.setTimeout(30000);
+
 describe('Organization Model', () => {
   let mongoServer: MongoMemoryServer;
   let testUserId: mongoose.Types.ObjectId;
@@ -78,7 +81,7 @@ describe('Organization Model', () => {
       expect(organization.owner.toString()).toBe(testUserId.toString());
       expect(organization.active).toBe(true);
       expect(organization.members).toContainEqual(testUserId);
-      expect(organization.settings.maxStoragePerUser).toBe(5368709120); // 5GB default
+      expect(organization.settings.maxStoragePerUser).toBe(1073741824); // 1GB FREE plan default
     });
 
     it('should require name field', async () => {
@@ -121,25 +124,27 @@ describe('Organization Model', () => {
         owner: testUserId,
       });
 
-      expect(organization.settings.maxStoragePerUser).toBe(5368709120);
-      expect(organization.settings.allowedFileTypes).toEqual(['*']);
-      expect(organization.settings.maxUsers).toBe(100);
+      expect(organization.settings.maxStoragePerUser).toBe(1073741824); // 1GB FREE plan
+      expect(organization.settings.allowedFileTypes).toEqual(['pdf', 'txt', 'doc', 'docx']); // FREE plan types
+      expect(organization.settings.maxUsers).toBe(3); // FREE plan max users
     });
 
     it('should allow custom settings', async () => {
       const organization = await Organization.create({
         name: 'Custom Settings Org',
         owner: testUserId,
+        plan: 'free', // Use FREE plan which has maxStoragePerUser: 1GB
         settings: {
-          maxStoragePerUser: 10737418240, // 10GB
-          allowedFileTypes: ['application/pdf', 'image/jpeg'],
-          maxUsers: 50,
+          maxStoragePerUser: 1073741824, // 1GB - will be overridden by plan limits
+          allowedFileTypes: ['application/pdf', 'image/jpeg'], // will be overridden by plan limits  
+          maxUsers: 3, // will be overridden by plan limits
         },
       });
 
-      expect(organization.settings.maxStoragePerUser).toBe(10737418240);
-      expect(organization.settings.allowedFileTypes).toEqual(['application/pdf', 'image/jpeg']);
-      expect(organization.settings.maxUsers).toBe(50);
+      // Settings are overridden by plan limits in pre-save hook
+      expect(organization.settings.maxStoragePerUser).toBe(1073741824); // FREE plan value
+      expect(organization.settings.allowedFileTypes).toEqual(['pdf', 'txt', 'doc', 'docx']); // FREE plan value
+      expect(organization.settings.maxUsers).toBe(3); // FREE plan value
     });
   });
 

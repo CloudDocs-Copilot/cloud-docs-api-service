@@ -15,19 +15,12 @@ export async function upload(req: AuthRequest, res: Response, next: NextFunction
       return next(new HttpError(400, 'File is required'));
     }
     
-    if (!req.body.folderId) {
-      return next(new HttpError(400, 'Folder ID is required'));
-    }
-    
-    if (!req.body.organizationId) {
-      return next(new HttpError(400, 'Organization ID is required'));
-    }
-    
+
+    // folderId es opcional - si no se proporciona, se usa el rootFolder del usuario
     const doc = await documentService.uploadDocument({
       file: req.file,
       userId: req.user!.id,
-      folderId: req.body.folderId,
-      organizationId: req.body.organizationId
+      folderId: req.body.folderId || undefined
     });
     
     res.status(201).json({
@@ -63,7 +56,7 @@ export async function list(req: AuthRequest, res: Response, next: NextFunction):
 export async function getRecent(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
-    const organizationId = req.query.organizationId as string;
+    const organizationId = req.params.organizationId;
     
     if (!organizationId) {
       return next(new HttpError(400, 'Organization ID is required'));
@@ -75,7 +68,6 @@ export async function getRecent(req: AuthRequest, res: Response, next: NextFunct
     
     const docs = await documentService.getUserRecentDocuments({
       userId: req.user!.id,
-      organizationId,
       limit
     });
     

@@ -12,6 +12,7 @@ import documentRoutes from './routes/document.routes';
 import folderRoutes from './routes/folder.routes';
 import userRoutes from './routes/user.routes';
 import organizationRoutes from './routes/organization.routes';
+import membershipRoutes from './routes/membership.routes';
 import HttpError from './models/error.model';
 import { errorHandler } from './middlewares/error.middleware';
 import { generalRateLimiter } from './middlewares/rate-limit.middleware';
@@ -68,6 +69,7 @@ app.use(express.json());
 // Ver documentación completa en: CSRF-PROTECTION-EXPLANATION.md
 // Protege POST/PUT/PATCH/DELETE con validación de tokens en cookies y headers
 // Configuración: __Host-psifi.x-csrf-token (sameSite=strict, httpOnly=true, secure en prod)
+
 app.use(csrfProtectionMiddleware);
 
 // Protección contra inyección NoSQL
@@ -96,6 +98,7 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 // Rutas API
 app.use('/api/auth', authRoutes);
 app.use('/api/organizations', organizationRoutes);
+app.use('/api/memberships', membershipRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/folders', folderRoutes);
 app.use('/api/users', userRoutes);

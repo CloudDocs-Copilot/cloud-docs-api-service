@@ -13,8 +13,8 @@ export interface IDocument extends MongooseDocument {
   url?: string;
   /** Usuario que subió el archivo */
   uploadedBy: Types.ObjectId;
-  /** Organización a la que pertenece el documento */
-  organization: Types.ObjectId;
+  /** Organización a la que pertenece el documento (opcional para usuarios sin organización) */
+  organization?: Types.ObjectId;
   /** Carpeta que contiene el documento (OBLIGATORIO) */
   folder: Types.ObjectId;
   /** Path completo del archivo en el filesystem */
@@ -29,6 +29,28 @@ export interface IDocument extends MongooseDocument {
   sharedWith: Types.ObjectId[];
   createdAt: Date;
   updatedAt: Date;
+  
+  // Métodos de instancia
+  /**
+   * Verifica si el documento es propiedad del usuario especificado
+   * @param userId - ID del usuario a verificar
+   * @returns true si el usuario es el propietario
+   */
+  isOwnedBy(userId: string | Types.ObjectId): boolean;
+  
+  /**
+   * Verifica si el documento está compartido con el usuario especificado
+   * @param userId - ID del usuario a verificar
+   * @returns true si el documento está compartido con el usuario
+   */
+  isSharedWith(userId: string | Types.ObjectId): boolean;
+  
+  /**
+   * Obtiene el tipo de acceso del usuario al documento
+   * @param userId - ID del usuario a verificar
+   * @returns 'owner' | 'shared' | 'none'
+   */
+  getAccessType(userId: string | Types.ObjectId): 'owner' | 'shared' | 'none';
 }
 
 /**
@@ -67,8 +89,9 @@ const documentSchema = new Schema<IDocument>(
     organization: {
       type: Schema.Types.ObjectId,
       ref: 'Organization',
-      required: [true, 'Organization is required'],
+      required: false,
       index: true,
+      default: null,
     },
     folder: {
       type: Schema.Types.ObjectId,
@@ -132,6 +155,38 @@ documentSchema.index({ organization: 1, folder: 1 });
 documentSchema.index({ organization: 1, uploadedBy: 1 });
 documentSchema.index({ uploadedBy: 1, createdAt: -1 }); // Para documentos recientes
 documentSchema.index({ sharedWith: 1 }); // Para documentos compartidos
+// Índice para documentos personales (sin organización)
+documentSchema.index({ uploadedBy: 1, folder: 1 }, { sparse: true, partialFilterExpression: { organization: null } });
+
+/**
+ * Método de instancia: Verifica si el documento es propiedad del usuario especificado
+ */
+documentSchema.methods.isOwnedBy = function(userId: string | Types.ObjectId): boolean {
+  return this.uploadedBy.toString() === userId.toString();
+};
+
+/**
+ * Método de instancia: Verifica si el documento está compartido con el usuario especificado
+ */
+documentSchema.methods.isSharedWith = function(userId: string | Types.ObjectId): boolean {
+  if (!this.sharedWith || this.sharedWith.length === 0) {
+    return false;
+  }
+  return this.sharedWith.some((id: Types.ObjectId) => id.toString() === userId.toString());
+};
+
+/**
+ * Método de instancia: Obtiene el tipo de acceso del usuario al documento
+ */
+documentSchema.methods.getAccessType = function(userId: string | Types.ObjectId): 'owner' | 'shared' | 'none' {
+  if (this.isOwnedBy(userId)) {
+    return 'owner';
+  }
+  if (this.isSharedWith(userId)) {
+    return 'shared';
+  }
+  return 'none';
+};
 
 const DocumentModel: Model<IDocument> = mongoose.model<IDocument>('Document', documentSchema);
 
