@@ -33,6 +33,23 @@ export interface AuthResponse {
 }
 
 /**
+ * Escapa caracteres especiales para uso seguro en HTML
+ */
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"'\/]/g, (s) => {
+    const entityMap: { [key: string]: string } = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+      '/': '&#x2F;',
+    };
+    return entityMap[s] || s;
+  });
+}
+
+/**
  * Registra un nuevo usuario en el sistema
  * El usuario se registra sin organización ni rootFolder
  * El rootFolder se crea cuando el usuario se une o crea una organización (en Membership)
@@ -98,7 +115,8 @@ export async function registerUser({
         // Leer y personalizar el template HTML
         const templatePath = path.default.join(process.cwd(), 'src', 'services', 'confirmationTemplate.html');
         let html = fs.default.readFileSync(templatePath, 'utf8');
-        html = html.replace('{{name}}', name).replace('{{confirmationUrl}}', confirmationUrl);
+        const safeName = escapeHtml(name);
+        html = html.replace('{{name}}', safeName).replace('{{confirmationUrl}}', confirmationUrl);
         console.log('Enviando email de confirmación...');
         await sendConfirmationEmail(email, 'Confirma tu cuenta en CloudDocs Copilot', html);
         console.log('Email de confirmación enviado');
