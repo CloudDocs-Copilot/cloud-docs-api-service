@@ -1,32 +1,42 @@
-import { Response, NextFunction } from 'express';
-import { AuthRequest } from '../middlewares/auth.middleware';
-import { registerUser, loginUser, confirmUserAccount } from '../services/auth.service';
-import { registerUser, loginUser, refreshSession, revokeRefresh } from '../services/auth.service';
-import HttpError from '../models/error.model';
+import { Response, NextFunction } from "express";
+import { AuthRequest } from "../middlewares/auth.middleware";
+import {
+  registerUser,
+  loginUser,
+  refreshSession,
+  revokeRefresh,
+  confirmUserAccount,
+} from "../services/auth.service";
+import HttpError from "../models/error.model";
 
 function cookieBaseOptions() {
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? ('strict' as const) : ('lax' as const),
-    path: '/',
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? ("strict" as const) : ("lax" as const),
+    path: "/",
   };
 }
 
+const ACCESS_COOKIE_MAX_AGE = 15 * 60 * 1000; // 15m
+const REFRESH_COOKIE_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30d
+
 export async function register(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { name, email, password, organizationId } = req.body;
+    const { name, email, password } = req.body;
 
-    if (!name || !email || !password || !organizationId) {
-      return next(new HttpError(400, 'Missing required fields (name, email, password, organizationId)'));
+    // ✅ Registro simple (sin organizationId)
+    if (!name || !email || !password) {
+      return next(new HttpError(400, "Missing required fields (name, email, password)"));
     }
 
-    const user = await registerUser(req.body);
-    res.status(201).json({ message: 'User registered successfully', user });
+    const user = await registerUser({ name, email, password });
+    res.status(201).json({ message: "User registered successfully", user });
   } catch (err: any) {
-    if (err.message && err.message.includes('duplicate key')) {
-      return next(new HttpError(409, 'Email already registered'));
-    } 
+    // Mongo duplicate key
+    if (err?.message && String(err.message).includes("duplicate key")) {
+      return next(new HttpError(409, "Email already registered"));
+    }
     next(err);
   }
 }
@@ -36,45 +46,44 @@ export async function login(req: AuthRequest, res: Response, next: NextFunction)
     const { email, password, rememberMe } = req.body;
 
     if (!email || !password) {
-      return next(new HttpError(400, 'Missing required fields'));
+      return next(new HttpError(400, "Missing required fields"));
     }
 
     const result = await loginUser({ email, password, rememberMe });
 
-    // Access cookie: 15 min (900000 ms)
-    res.cookie('token', result.accessToken, {
+    // Access cookie: 15 min
+    res.cookie("token", result.accessToken, {
       ...cookieBaseOptions(),
-      maxAge: 15 * 60 * 1000,
+      maxAge: ACCESS_COOKIE_MAX_AGE,
     });
 
     // Refresh cookie: 30 días SOLO si rememberMe
     if (rememberMe && result.refreshToken) {
-      res.cookie('refreshToken', result.refreshToken, {
+      res.cookie("refreshToken", result.refreshToken, {
         ...cookieBaseOptions(),
-        maxAge: 30 * 24 * 60 * 60 * 1000,
+        maxAge: REFRESH_COOKIE_MAX_AGE,
       });
     } else {
-      // si no pidió rememberMe, por seguridad limpia refresh anterior si existiera
-      res.clearCookie('refreshToken', { ...cookieBaseOptions() });
+      // si no pidió rememberMe, limpia refresh anterior si existiera
+      res.clearCookie("refreshToken", { ...cookieBaseOptions() });
     }
 
-    res.json({ message: 'Login successful', user: result.user });
-    } catch (err: any) {
-    // Si el service ya tiró HttpError, lo mandamos tal cual (mantiene status y mensaje)
+    res.json({ message: "Login successful", user: result.user });
+  } catch (err: any) {
     if (err instanceof HttpError) return next(err);
 
-    // Fallback defensivo por si llega otro tipo de error.
+    // fallback defensivo
     if (err?.message) {
-      if (err.message === 'User not found') return next(new HttpError(404, 'Usuario no existe'));
-      if (err.message === 'Invalid password') return next(new HttpError(401, 'Contraseña incorrecta'));
-      if (err.message === 'User account is not active') return next(new HttpError(403, 'Cuenta desactivada'));
+      if (err.message === "User not found") return next(new HttpError(404, "Usuario no existe"));
+      if (err.message === "Invalid password") return next(new HttpError(401, "Contraseña incorrecta"));
+      if (err.message === "User account is not active") return next(new HttpError(403, "Cuenta desactivada"));
 
-      if (typeof err.message === 'string' && err.message.startsWith('Account locked')) {
+      if (typeof err.message === "string" && err.message.startsWith("Account locked")) {
         return next(new HttpError(423, err.message));
       }
     }
 
-    return next(new HttpError(500, 'Internal server error'));
+    return next(new HttpError(500, "Internal server error"));
   }
 }
 
@@ -86,21 +95,26 @@ export async function login(req: AuthRequest, res: Response, next: NextFunction)
 export async function refresh(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const refreshToken = req.cookies?.refreshToken;
+
+    if (!refreshToken) {
+      return next(new HttpError(401, "Refresh token required"));
+    }
+
     const result = await refreshSession(refreshToken);
 
     // nuevo access 15m
-    res.cookie('token', result.accessToken, {
+    res.cookie("token", result.accessToken, {
       ...cookieBaseOptions(),
-      maxAge: 15 * 60 * 1000,
+      maxAge: ACCESS_COOKIE_MAX_AGE,
     });
 
     // refresh rotado 30d
-    res.cookie('refreshToken', result.refreshToken, {
+    res.cookie("refreshToken", result.refreshToken, {
       ...cookieBaseOptions(),
-      maxAge: 30 * 24 * 60 * 60 * 1000,
+      maxAge: REFRESH_COOKIE_MAX_AGE,
     });
 
-    res.json({ message: 'Session refreshed', user: result.user });
+    res.json({ message: "Session refreshed", user: result.user });
   } catch (err: any) {
     next(err);
   }
@@ -112,50 +126,44 @@ export async function refresh(req: AuthRequest, res: Response, next: NextFunctio
  */
 export async function logout(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    // Limpiar la cookie del token
-    res.clearCookie('token', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' as const : 'lax' as const,
-      path: '/'
-    });
     const refreshToken = req.cookies?.refreshToken;
+
+    // revoca refresh en DB si existe
     await revokeRefresh(refreshToken);
 
-    res.clearCookie('token', { ...cookieBaseOptions() });
-    res.clearCookie('refreshToken', { ...cookieBaseOptions() });
+    // limpia cookies
+    res.clearCookie("token", { ...cookieBaseOptions() });
+    res.clearCookie("refreshToken", { ...cookieBaseOptions() });
 
-    res.json({ message: 'Logout successful' });
+    res.json({ message: "Logout successful" });
   } catch (err: any) {
     next(err);
   }
 }
 
-
 /**
- * Controlador para confirmar cuenta de usuario mediante token JWT
- * Activa el usuario si el token es válido
+ * GET /api/auth/confirm/:token
+ * Confirma cuenta por token
  */
 export async function confirmAccount(req: any, res: Response, next: NextFunction) {
   try {
     const { token } = req.params;
-    if (!token) {
-      return next(new HttpError(400, 'Token is required'));
-    }
-    let result;
+    if (!token) return next(new HttpError(400, "Token is required"));
+
     try {
-      result = await confirmUserAccount(token);
+      const result = await confirmUserAccount(token);
+
+      if (result.userAlreadyActive) {
+        return res.json({ success: true, message: "Account already confirmed" });
+      }
+
+      return res.json({ success: true, message: "Account confirmed successfully" });
     } catch (err: any) {
-      return next(new HttpError(400, err.message || 'Invalid or expired token'));
+      return next(new HttpError(400, err?.message || "Invalid or expired token"));
     }
-    if (result.userAlreadyActive) {
-      res.json({ success: true, message: 'Account already confirmed' });
-      return;
-    }
-    res.json({ success: true, message: 'Account confirmed successfully' });
   } catch (err) {
     next(err);
   }
 }
 
-export default { register, login, refresh, logout };
+export default { register, login, refresh, logout, confirmAccount };
