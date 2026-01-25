@@ -3,7 +3,7 @@ import { signToken } from './jwt.service';
 import User, { IUser } from '../models/user.model';
 import { validatePasswordOrThrow } from '../utils/password-validator';
 import HttpError from '../models/error.model';
-import { sendConfirmationEmail } from './emailService';
+import { sendConfirmationEmail } from '../mail/emailService';
 const BCRYPT_SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS || '10', 10);
 
 /**
@@ -113,7 +113,7 @@ export async function registerUser({
         const baseUrl = process.env.CONFIRMATION_URL_BASE || `http://localhost:${process.env.PORT || 4000}`;
         const confirmationUrl = `${baseUrl}/api/auth/confirm/${token}`;
         // Leer y personalizar el template HTML
-        const templatePath = path.default.join(process.cwd(), 'src', 'services', 'confirmationTemplate.html');
+        const templatePath = path.default.join(process.cwd(), 'src', 'mail', 'confirmationTemplate.html');
         let html = fs.default.readFileSync(templatePath, 'utf8');
         const safeName = escapeHtml(name);
         html = html.replace('{{name}}', safeName).replace('{{confirmationUrl}}', confirmationUrl);

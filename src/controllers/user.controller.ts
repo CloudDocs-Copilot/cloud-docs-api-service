@@ -157,19 +157,20 @@ export async function updateAvatar(req: AuthRequest, res: Response, next: NextFu
 
     // Caso 1: Archivo subido (multipart/form-data)
     if (req.file) {
-      // Generar URL relativa accesible públicamente (asumiendo que se sirve 'uploads' o similar)
-      // Ojo: En un entorno real esto iría a S3/Cloudinary. Aqui guardamos el nombre del archivo.
       avatarPath = `/uploads/${req.file.filename}`;
     } 
     // Caso 2: URL enviada en el cuerpo (json)
     else if (req.body.avatar !== undefined) {
+      if (req.body.avatar === null) {
+        return next(new HttpError(400, 'Avatar URL is required'));
+      }
       avatarPath = req.body.avatar;
     }
 
     if (avatarPath === undefined) {
       return next(new HttpError(400, 'Avatar file or URL is required'));
     }
-    
+
     const user = await userService.updateAvatar(req.params.id, { avatar: avatarPath });
     res.json({ message: 'Avatar updated successfully', user });
   } catch (err: any) {

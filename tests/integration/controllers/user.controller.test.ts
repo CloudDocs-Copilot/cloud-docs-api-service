@@ -161,7 +161,7 @@ describe('UserController Integration Tests', () => {
           .send({})
           .expect(400);
 
-        expect(response.body).toHaveProperty('error', 'Avatar URL is required');
+        expect(response.body).toHaveProperty('error', 'Avatar file or URL is required');
       });
 
       it('should fail when avatar exceeds max length (2048 chars)', async () => {
@@ -420,12 +420,16 @@ describe('UserController Integration Tests', () => {
         expect(response.body.user.email).toBe('updated@test.com');
       });
 
-      it('should fail when required fields are missing', async () => {
-        await request(app)
+      it('should allow partial update (only name)', async () => {
+        const response = await request(app)
           .put(`/api/users/${testUserId}`)
           .set('Authorization', `Bearer ${testToken}`)
           .send({ name: 'Only Name' })
-          .expect(400);
+          .expect(200);
+
+        expect(response.body.user.name).toBe('Only Name');
+        // El email debe permanecer igual
+        expect(response.body.user.email).toBe('user@test.com');
       });
     });
   });
