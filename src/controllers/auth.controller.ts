@@ -105,11 +105,16 @@ export async function confirmAccount(req: any, res: Response, next: NextFunction
     } catch (err: any) {
       return next(new HttpError(400, err.message || 'Invalid or expired token'));
     }
+    const frontendBase = (process.env.CONFIRMATION_FRONTEND_URL ||  `http://localhost:5173}`).replace(/\/$/, '');
+    const redirectUrl = `${frontendBase}/auth/confirmed?userId=${encodeURIComponent(String(result.userId))}&status=${result.userAlreadyActive ? 'already_active' : 'confirmed'}`;
+
+    ;
     if (result.userAlreadyActive) {
-      res.json({ success: true, message: 'Account already confirmed' });
-      return;
+      // Redirigir al frontend (302)
+     return res.redirect(302, redirectUrl)
     }
-    res.json({ success: true, message: 'Account confirmed successfully' });
+    // Redirigir al frontend (302)
+     return res.redirect(302, redirectUrl)
   } catch (err) {
     next(err);
   }

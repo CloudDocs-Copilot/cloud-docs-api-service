@@ -96,7 +96,7 @@ export async function registerUser({
       organization: undefined,
       rootFolder: undefined,
       storageUsed: 0,
-      active: true
+      active: false // Inactivo hasta confirmar email
     });
     
     // --- Envío de email de confirmación ---
