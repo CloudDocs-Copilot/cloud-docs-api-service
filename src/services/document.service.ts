@@ -10,6 +10,7 @@ import { sanitizePathOrThrow, isPathWithinBase } from '../utils/path-sanitizer';
 import { validateFolderAccess } from './folder.service';
 import { getMembership, getActiveOrganization } from './membership.service';
 import { PLAN_LIMITS } from '../models/types/organization.types';
+import * as searchService from './search.service';
 
 /**
  * Valida si un string es un ObjectId válido de MongoDB
@@ -141,6 +142,17 @@ export async function deleteDocument({ id, userId }: DeleteDocumentDto): Promise
   }
 
   const deleted = await DocumentModel.findByIdAndDelete(id);
+  
+  // Eliminar documento del índice de Elasticsearch
+  if (deleted) {
+    try {
+      await searchService.removeDocumentFromIndex(id);
+    } catch (error: any) {
+      console.error('Failed to remove document from search index:', error.message);
+      // No lanzar error para no bloquear la eliminación
+    }
+  }
+  
   return deleted;
 }
 
@@ -573,6 +585,14 @@ export async function uploadDocument({
   // Actualizar almacenamiento usado del usuario
   user.storageUsed = currentUsage + fileSize;
   await user.save();
+
+  // Indexar documento en Elasticsearch
+  try {
+    await searchService.indexDocument(doc);
+  } catch (error: any) {
+    console.error('Failed to index document in search:', error.message);
+    // No lanzar error para no bloquear la creación del documento
+  }
 
   return doc;
 }
