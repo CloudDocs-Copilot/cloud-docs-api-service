@@ -22,6 +22,12 @@ API REST multi-tenant para la gestión de documentos en la nube con organizacion
 - **Aislamiento de Datos:** Storage físico separado por organización
 - **Organización Activa:** Contexto de trabajo por usuario
 
+### Búsqueda de Documentos (Elasticsearch)
+- **Indexación Automática:** Los documentos se indexan automáticamente al subir
+- **Búsqueda Multi-Campo:** Búsqueda fuzzy en nombre, tipo y descripción
+- **Autocompletado:** Sugerencias en tiempo real para búsqueda rápida
+- **Filtros Avanzados:** Por organización, usuario, tipo de archivo y fechas
+
 ### Planes de Suscripción
 - **FREE:** 3 usuarios, 1GB/usuario, 10MB/archivo, tipos limitados
 - **BASIC:** 10 usuarios, 5GB/usuario, 50MB/archivo
@@ -130,9 +136,37 @@ interface IUser {
 
 - **Node.js 18+** (recomendado v20)
 - **MongoDB 6.0+** en ejecución (local o remoto)
+- **Elasticsearch 8.11+** para búsqueda de documentos
+- **Docker** (opcional, para usar docker-compose)
 - **TypeScript 5.x**
 
 ## 🔧 Instalación
+
+### Opción 1: Con Docker Compose (Recomendado)
+
+```bash
+# Clonar repositorio
+git clone https://github.com/PALMIRARBT/Actividad-1_TFM-CloudDocsCopilot-backend-MVP.git
+cd Actividad-1_TFM-CloudDocsCopilot-backend-MVP
+
+# Levantar MongoDB y Elasticsearch
+docker-compose up -d
+
+# Verificar que los servicios estén corriendo
+docker-compose ps
+
+# Instalar dependencias de Node.js
+npm install
+
+# Configurar variables de entorno
+cp .env.example .env
+# Editar .env con tus valores
+
+# Iniciar en desarrollo
+npm run dev
+```
+
+### Opción 2: Instalación Manual
 
 ```bash
 # Clonar repositorio
@@ -145,6 +179,8 @@ npm install
 # Configurar variables de entorno
 cp .env.example .env
 # Editar .env con tus valores
+
+# Asegúrate de tener MongoDB y Elasticsearch corriendo manualmente
 
 # Iniciar en desarrollo
 npm run dev
@@ -165,7 +201,12 @@ JWT_SECRET=your-secret-key-here
 JWT_EXPIRES_IN=1h
 NODE_ENV=development
 ALLOWED_ORIGINS=http://localhost:4200
-BCRYPT_SALT_ROUNDS=10Document {
+BCRYPT_SALT_ROUNDS=10
+
+# Elasticsearch Configuration
+ELASTICSEARCH_NODE=http://localhost:9200
+ELASTICSEARCH_USERNAME=    # Opcional (dejar vacío para desarrollo)
+ELASTICSEARCH_PASSWORD=    # Opcional (dejar vacío para desarrollo)Document {
   name: string;
   originalName: string;
   size: number;
