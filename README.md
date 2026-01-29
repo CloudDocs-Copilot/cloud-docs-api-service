@@ -146,8 +146,8 @@ interface IUser {
 
 ```bash
 # Clonar repositorio
-git clone https://github.com/PALMIRARBT/Actividad-1_TFM-CloudDocsCopilot-backend-MVP.git
-cd Actividad-1_TFM-CloudDocsCopilot-backend-MVP
+git clone https://github.com/CloudDocs-Copilot/cloud-docs-api-service.git
+cd cloud-docs-api-service
 
 # Levantar MongoDB y Elasticsearch
 docker-compose up -d
@@ -170,8 +170,8 @@ npm run dev
 
 ```bash
 # Clonar repositorio
-git clone https://github.com/PALMIRARBT/Actividad-1_TFM-CloudDocsCopilot-backend-MVP.git
-cd Actividad-1_TFM-CloudDocsCopilot-backend-MVP
+git clone https://github.com/CloudDocs-Copilot/cloud-docs-api-service.git
+cd cloud-docs-api-service
 
 # Instalar dependencias
 npm install
