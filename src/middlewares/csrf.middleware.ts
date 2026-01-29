@@ -43,7 +43,9 @@ const CSRF_EXCLUDED_ROUTES = [
   '/api/auth/login',
   '/api/auth/register',
   '/api/csrf-token',
-  '/confirm/:token'
+  '/confirm/:token',
+  '/api/auth/forgot-password',
+  '/api/auth/reset-password',
 ];
 // Exportar el middleware de protección CSRF
 export const csrfProtectionMiddleware = (req: Request, res: Response, next: NextFunction) => {
