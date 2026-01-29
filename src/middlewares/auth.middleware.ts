@@ -45,14 +45,14 @@ export async function authenticateToken(req: AuthRequest, _res: Response, next: 
 
     // Validar que el token no haya sido invalidado por cambios en el usuario
     // Solo en producción - en tests se permite para facilitar testing
-    if (process.env.NODE_ENV !== 'test' && decoded.tokenCreatedAt) {
+   /*  if (process.env.NODE_ENV !== 'test' && decoded.tokenCreatedAt) {
       const tokenCreated = new Date(decoded.tokenCreatedAt);
       const userUpdated = new Date(user.updatedAt);
       if (userUpdated > tokenCreated) {
         return next(new HttpError(401, 'Token invalidated due to user changes'));
       }
     }
-
+ */
     if (decoded.email && decoded.email !== user.email) {
       return next(new HttpError(401, 'Token invalidated due to email change'));
     }
