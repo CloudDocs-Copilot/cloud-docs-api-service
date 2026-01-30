@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import cors from 'cors';
@@ -6,7 +5,7 @@ import helmet from 'helmet';
 import mongoSanitize from 'express-mongo-sanitize';
 import cookieParser from 'cookie-parser';
 import swaggerUi from 'swagger-ui-express';
-import openapiSpec from './docs/openapi.json';
+import openapiSpec from '../docs/openapi/openapi.json';
 import authRoutes from './routes/auth.routes';
 import documentRoutes from './routes/document.routes';
 import folderRoutes from './routes/folder.routes';
