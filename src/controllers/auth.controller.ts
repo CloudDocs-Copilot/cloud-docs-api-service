@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middlewares/auth.middleware';
-import { registerUser, loginUser, confirmUserAccount } from '../services/auth.service';
+import { registerUser, loginUser, confirmUserAccount, requestPasswordReset, resetPassword } from '../services/auth.service';
 import HttpError from '../models/error.model';
 
 /**
@@ -117,6 +117,49 @@ export async function confirmAccount(req: any, res: Response, next: NextFunction
      return res.redirect(302, redirectUrl)
   } catch (err) {
     next(err);
+  }
+}
+
+/* Controlador para solicitar reseteo de contraseña*/
+export async function forgotPassword(req: any, res: any, next: any) {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return next(new HttpError(400, 'Missing required fields'));
+    }
+
+    await requestPasswordReset(email);
+
+    // Anti-enumeración: mismo mensaje siempre
+    return res.json({ message: 'If the email exists, a reset link has been sent' });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+/* Controlador para resetear la contraseña usando token*/
+export async function resetPasswordController(req: any, res: any, next: any) {
+  try {
+    const { token, newPassword, confirmPassword } = req.body;
+
+    if (!token || !newPassword || !confirmPassword) {
+      return next(new HttpError(400, 'Missing required fields'));
+    }
+
+    await resetPassword({ token, newPassword, confirmPassword });
+
+    // opcional recomendado: limpiar cookie si existiera
+    res.clearCookie('token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      path: '/'
+    });
+
+    return res.json({ message: 'Password reset successful' });
+  } catch (err) {
+    return next(err);
   }
 }
 

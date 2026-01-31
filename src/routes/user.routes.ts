@@ -30,6 +30,8 @@ router.patch('/:id/deactivate', authenticateToken, requireAdmin, userController.
 router.put('/:id', authenticateToken, userController.update);
 router.patch('/:id/password', authenticateToken, userController.changePassword);
 
+
+
 // Subida de avatar: soporta multipart/form-data (archivo) o json (url)
 // Opción amigable: /profile/avatar (usa el ID del token)
 router.patch('/profile/avatar', authenticateToken, upload.single('avatar'), (req, res, next) => {

@@ -4,6 +4,7 @@ import User, { IUser } from '../models/user.model';
 import { validatePasswordOrThrow } from '../utils/password-validator';
 import HttpError from '../models/error.model';
 import { sendConfirmationEmail } from '../mail/emailService';
+import { randomBytes, createHash } from 'crypto';
 const BCRYPT_SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS || '10', 10);
 
 /**
@@ -48,6 +49,14 @@ function escapeHtml(value: string): string {
     return entityMap[s] || s;
   });
 }
+
+/** Constantes y funciones auxiliares para reseteo de contraseña */
+const PASSWORD_RESET_TOKEN_EXPIRY_MS = 60 * 60 * 1000; // 1 hora
+
+function hashResetToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
+
 
 /**
  * Registra un nuevo usuario en el sistema
@@ -197,6 +206,157 @@ export async function confirmUserAccount(token: string): Promise<{ userId: strin
   await user.save();
   // La activación se gestiona por cookies, no por localStorage
   return { userId: user._id, userName: user.name, userAlreadyActive: false };
+}
+
+
+/** Reseteo de contraseña */
+export async function requestPasswordReset(email: string): Promise<string | null> {
+  // Validar tipo para evitar inyección/valores raros
+  if (typeof email !== 'string' || !email) {
+    throw new HttpError(400, 'Missing required fields');
+  }
+
+  // Validar formato de email (mismo criterio que register)
+  const emailRegex = /^[^\s@]+@([^\s@.]+\.)+[^\s@.]{2,}$/;
+  const normalizedEmail = email.toLowerCase();
+  if (!emailRegex.test(normalizedEmail)) {
+    throw new HttpError(400, 'Invalid email format');
+  }
+
+  const user = await User.findOne({ email: { $eq: normalizedEmail } });
+
+  // Anti-enumeración: si no existe, no revelamos nada
+  if (!user) return null;
+
+  // Si la cuenta no está activa: reenviar confirmación (si está habilitado el envío)
+  if (!user.active) {
+    const sendEmail = String(process.env.SEND_CONFIRMATION_EMAIL).toLowerCase() === 'true';
+    if (sendEmail) {
+      try {
+        const fs = await import('fs');
+        const path = await import('path');
+        const jwt = await import('jsonwebtoken');
+
+        const token = jwt.default.sign(
+          { userId: user._id },
+          process.env.JWT_SECRET || 'secret',
+          { expiresIn: '1d' }
+        );
+
+        const baseUrl =
+          process.env.CONFIRMATION_URL_BASE || `http://localhost:${process.env.PORT || 4000}`;
+        const confirmationUrl = `${baseUrl}/api/auth/confirm/${token}`;
+
+        const templatePath = path.default.join(process.cwd(), 'src', 'mail', 'confirmationTemplate.html');
+        let html = fs.default.readFileSync(templatePath, 'utf8');
+        const safeName = escapeHtml(user.name);
+        html = html.replace('{{name}}', safeName).replace('{{confirmationUrl}}', confirmationUrl);
+
+        await sendConfirmationEmail(user.email, 'Confirma tu cuenta en CloudDocs Copilot', html);
+      } catch (emailErr) {
+        console.error('Error reenviando email de confirmación:', emailErr);
+      }
+    }
+    return null;
+  }
+
+  // Generar token raw (solo se manda por email), guardar solo hash
+  const rawToken = randomBytes(32).toString('hex');
+  const tokenHash = hashResetToken(rawToken);
+
+  user.passwordResetTokenHash = tokenHash;
+  user.passwordResetExpires = new Date(Date.now() + PASSWORD_RESET_TOKEN_EXPIRY_MS);
+  user.passwordResetRequestedAt = new Date();
+  await user.save();
+
+  // Enviar email (si está habilitado)
+  const sendEmail = String(process.env.SEND_CONFIRMATION_EMAIL).toLowerCase() === 'true';
+  if (sendEmail) {
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+
+      const frontendBase = (process.env.CONFIRMATION_FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+      const resetUrl = `${frontendBase}/auth/reset-password?token=${encodeURIComponent(rawToken)}`;
+
+      const templatePath = path.default.join(process.cwd(), 'src', 'mail', 'passwordResetTemplate.html');
+      let html = fs.default.readFileSync(templatePath, 'utf8');
+      const safeName = escapeHtml(user.name);
+      html = html.replace('{{name}}', safeName).replace('{{resetUrl}}', resetUrl);
+
+      await sendConfirmationEmail(user.email, 'Restablece tu contraseña en CloudDocs Copilot', html);
+    } catch (emailErr) {
+      console.error('Error enviando email de reset:', emailErr);
+    }
+  }
+
+  return rawToken;
+}
+
+export interface ResetPasswordDto {
+  token: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
+export async function resetPassword({ token, newPassword, confirmPassword }: ResetPasswordDto): Promise<void> {
+  if (typeof token !== 'string' || typeof newPassword !== 'string' || typeof confirmPassword !== 'string') {
+    throw new HttpError(400, 'Missing required fields');
+  }
+  if (!token || !newPassword || !confirmPassword) {
+    throw new HttpError(400, 'Missing required fields');
+  }
+
+  if (newPassword !== confirmPassword) {
+    throw new HttpError(400, 'Passwords do not match');
+  }
+
+  // Política de contraseñas (reutiliza lo existente)
+  validatePasswordOrThrow(newPassword);
+
+  const tokenHash = hashResetToken(token);
+
+  const user = await User.findOne({
+    passwordResetTokenHash: { $eq: tokenHash },
+    passwordResetExpires: { $gt: new Date() }
+  });
+
+  if (!user) {
+    // Reutilizable por front como alerta estándar
+    throw new HttpError(400, 'Invalid or expired token');
+  }
+
+  const hashed = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS);
+  user.password = hashed;
+
+  // Invalidar sesiones existentes
+  user.tokenVersion = (user.tokenVersion || 0) + 1;
+  user.lastPasswordChange = new Date();
+
+  // Limpiar token para impedir reutilización
+  user.passwordResetTokenHash = null;
+  user.passwordResetExpires = null;
+  user.passwordResetRequestedAt = null;
+
+  await user.save();
+
+  // Email de confirmación (si está habilitado)
+  const sendEmail = String(process.env.SEND_CONFIRMATION_EMAIL).toLowerCase() === 'true';
+  if (sendEmail) {
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+
+      const templatePath = path.default.join(process.cwd(), 'src', 'mail', 'passwordChangedTemplate.html');
+      let html = fs.default.readFileSync(templatePath, 'utf8');
+      const safeName = escapeHtml(user.name);
+      html = html.replace('{{name}}', safeName);
+
+      await sendConfirmationEmail(user.email, 'Tu contraseña ha sido cambiada en CloudDocs Copilot', html);
+    } catch (emailErr) {
+      console.error('Error enviando email de confirmación de cambio:', emailErr);
+    }
+  }
 }
 
 export default {
