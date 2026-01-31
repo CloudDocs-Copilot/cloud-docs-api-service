@@ -284,12 +284,15 @@ export async function switchActiveOrganization(
  * Obtiene miembros de una organización con sus roles
  */
 export async function getOrganizationMembers(organizationId: string): Promise<IMembership[]> {
-  return Membership.find({
+  const memberships = await Membership.find({
     organization: { $eq: organizationId },
     status: MembershipStatus.ACTIVE,
   })
     .populate('user', 'name email avatar')
     .populate('invitedBy', 'name email');
+
+ 
+  return memberships;
 }
 
 /**

@@ -77,6 +77,22 @@ export async function authenticateToken(req: AuthRequest, _res: Response, next: 
       role: user.role
     };
     
+    // Sliding session: refresh the auth cookie expiration on each valid request
+    try {
+      const cookieOptions = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'strict' as const : 'lax' as const,
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        path: '/'
+      };
+      if (token && _res && typeof _res.cookie === 'function') {
+        _res.cookie('token', token, cookieOptions);
+      }
+    } catch (e) {
+      // Don't block request flow if cookie refresh fails
+    }
+
     next();
   } catch (error: any) {
     if (error.name === 'TokenExpiredError') {

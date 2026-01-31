@@ -35,6 +35,10 @@ function mapMongooseError(err: MongooseError): { status: number; message: string
     if (err.keyPattern && err.keyPattern.owner === 1 && err.keyPattern.name === 1) {
       return { status: 409, message: 'Folder name already exists for this user' };
     }
+    // Caso específico: duplicado en campo `name` (por ejemplo Organization.name)
+    if (err.keyValue && err.keyValue.name) {
+      return { status: 409, message: 'Name already exists' };
+    }
     const fields = Object.keys(err.keyValue || {});
     return { status: 409, message: `Duplicate value for field(s): ${fields.join(', ')}` };
   }

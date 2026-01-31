@@ -109,6 +109,8 @@ const organizationSchema = new Schema<IOrganization>(
 
 // Índices compuestos para optimizar consultas
 organizationSchema.index({ slug: 1 }, { unique: true });
+// Índice único para nombre (case-insensitive) - usa collation para ignorar mayúsculas
+organizationSchema.index({ name: 1 }, { unique: true, collation: { locale: 'en', strength: 2 } });
 organizationSchema.index({ owner: 1, active: 1 });
 organizationSchema.index({ members: 1 });
 

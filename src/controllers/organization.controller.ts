@@ -69,12 +69,12 @@ export async function getOrganization(req: AuthRequest, res: Response, next: Nex
  */
 export async function listUserOrganizations(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const organizations = await organizationService.getUserOrganizations(req.user!.id);
-    
+    const memberships = await organizationService.getUserOrganizations(req.user!.id);
+
     res.json({
       success: true,
-      count: organizations.length,
-      organizations
+      count: memberships.length,
+      memberships
     });
   } catch (err) {
     next(err);
@@ -227,11 +227,14 @@ export async function listMembers(req: AuthRequest, res: Response, next: NextFun
     if (!isMember) {
       return next(new HttpError(403, 'Access denied to this organization'));
     }
-    
+    // Obtener members desde el membership service para asegurar formato consistente
+    const { getOrganizationMembers } = await import('../services/membership.service');
+    const members = await getOrganizationMembers(req.params.id);
+
     res.json({
       success: true,
-      count: organization.members.length,
-      members: organization.members
+      count: members.length,
+      members
     });
   } catch (err) {
     next(err);

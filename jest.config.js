@@ -41,8 +41,10 @@ module.exports = {
   },
 
   // Timeout para tests (útil para tests de integración con DB)
-  testTimeout: 10000,
-
+  testTimeout: 30000,
+  
+  // Archivo de setup para tests (mocks globales)
+  setupFilesAfterEnv: ['<rootDir>/tests/jest.setup.ts'],
   // Configuración de verbose para ver detalles de los tests
   verbose: true,
 

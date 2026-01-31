@@ -150,14 +150,15 @@ describe('Organization Model', () => {
 
   describe('Unique Slug Constraint', () => {
     it('should prevent duplicate slugs', async () => {
+      // Usar nombres distintos que normalicen al mismo slug
       await Organization.create({
         name: 'Unique Org',
         owner: testUserId,
       });
 
-      // Intentar crear otra organización que generaría el mismo slug
+      // 'Unique-Org' normaliza a 'unique-org' también, lo que causa colisión de slug
       const secondOrg = await Organization.create({
-        name: 'Unique Org',
+        name: 'Unique-Org',
         owner: testUserId,
       });
 
@@ -166,9 +167,10 @@ describe('Organization Model', () => {
     });
 
     it('should handle multiple organizations with similar names', async () => {
+      // Crear nombres diferentes que normalicen al mismo slug
       const org1 = await Organization.create({ name: 'Test Org', owner: testUserId });
-      const org2 = await Organization.create({ name: 'Test Org', owner: testUserId });
-      const org3 = await Organization.create({ name: 'Test Org', owner: testUserId });
+      const org2 = await Organization.create({ name: 'Test-Org', owner: testUserId });
+      const org3 = await Organization.create({ name: 'Test! Org', owner: testUserId });
 
       expect(org1.slug).toBe('test-org');
       expect(org2.slug).toBe('test-org-1');

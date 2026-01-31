@@ -8,6 +8,11 @@ import HttpError from '../models/error.model';
 import { createMembership } from './membership.service';
 import { MembershipRole } from '../models/membership.model';
 
+// Helper: escape text for use in RegExp
+function escapeForRegex(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /**
  * DTO para actualizar una organización
  */
@@ -39,6 +44,15 @@ export async function createOrganization(
   }
 
   // Crear la organización (los settings se configuran automáticamente por el middleware pre-save)
+  // Validar nombre único (case-insensitive)
+  const normalizedName = name.trim();
+  const existingByName = await Organization.findOne({
+    name: { $regex: `^${escapeForRegex(normalizedName)}$`, $options: 'i' }
+  });
+  if (existingByName) {
+    throw new HttpError(409, 'Organization name already exists');
+  }
+
   const organization = await Organization.create({
     name,
     owner: ownerId,
@@ -126,13 +140,12 @@ export async function removeUserFromOrganization(
  */
 export async function getUserOrganizations(
   userId: string
-): Promise<IOrganization[]> {
-  // 🆕 Usar membership service
+): Promise<any[]> {
+  // 🆕 Usar membership service y devolver las membresías completas
   const { getUserMemberships } = await import('./membership.service');
   const memberships = await getUserMemberships(userId);
-  
-  // Extraer organizaciones de las membresías
-  return memberships.map(m => m.organization) as any[];
+  // Devolver las memberships con la organización poblada (consistencia con getOrganizationMembers)
+  return memberships as any[];
 }
 
 /**
@@ -178,7 +191,17 @@ export async function updateOrganization(
 
   // Actualizar campos
   if (data.name !== undefined) {
-    organization.name = data.name;
+    const newName = data.name.trim();
+    // Verificar que no exista otra organización con el mismo nombre (case-insensitive)
+    const existing = await Organization.findOne({
+      name: { $regex: `^${escapeForRegex(newName)}$`, $options: 'i' },
+      _id: { $ne: organization._id }
+    });
+    if (existing) {
+      throw new HttpError(409, 'Organization name already exists');
+    }
+
+    organization.name = newName;
   }
 
   if (data.settings) {
