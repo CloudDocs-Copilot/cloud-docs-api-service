@@ -170,9 +170,6 @@ const productionCorsOptions: CorsOptions = {
     'Content-Type',
     'Authorization',
     'X-Requested-With',
-    'X-CSRF-Token',
-    'x-csrf-token',
-    'X-Csrf-Token',
   ],
 
   // Headers expuestos mínimos por seguridad
