@@ -97,9 +97,6 @@ const developmentCorsOptions: CorsOptions = {
     'X-Requested-With',
     'Accept',
     'Origin',
-    'X-CSRF-Token',
-    'x-csrf-token',
-    'X-Csrf-Token',
   ],
 
   // Headers expuestos al cliente
