@@ -28,6 +28,12 @@ dist/
 build/
 .tmp/
 .temp/
+
+# -----------------------------------------------------------------------------
+# Test & Development Scripts (Temporary)
+# -----------------------------------------------------------------------------
+test-deletion-manual.ts
+TESTING-*.md
 .cache/
 *.tsbuildinfo
 

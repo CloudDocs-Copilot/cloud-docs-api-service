@@ -163,14 +163,19 @@ const deletionAuditSchema = new Schema<IDeletionAudit>(
     },
     overwriteMethod: {
       type: String,
-      enum: ['DoD 5220.22-M', 'Gutmann', 'simple'],
-      default: null,
+      enum: {
+        values: ['DoD 5220.22-M', 'Gutmann', 'simple'],
+        message: '{VALUE} is not a valid overwrite method'
+      },
+      required: false,
+      default: undefined,
     },
     overwritePasses: {
       type: Number,
       min: [0, 'Overwrite passes cannot be negative'],
       max: [35, 'Maximum 35 passes (Gutmann method)'],
-      default: null,
+      required: false,
+      default: undefined,
     },
   },
   {

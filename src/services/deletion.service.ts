@@ -70,7 +70,7 @@ class DeletionService {
     await document.save();
 
     // Crear registro de auditoría
-    await DeletionAuditModel.create({
+    const auditData: any = {
       document: document._id,
       documentSnapshot: {
         filename: document.filename,
@@ -88,7 +88,9 @@ class DeletionService {
       ipAddress: context.ipAddress,
       userAgent: context.userAgent,
       completedAt: now,
-    });
+    };
+
+    await DeletionAuditModel.create(auditData);
 
     // Remover de Elasticsearch
     try {
@@ -130,7 +132,7 @@ class DeletionService {
     await document.save();
 
     // Crear registro de auditoría
-    await DeletionAuditModel.create({
+    const auditData: any = {
       document: document._id,
       documentSnapshot: {
         filename: document.filename,
@@ -148,7 +150,9 @@ class DeletionService {
       ipAddress: context.ipAddress,
       userAgent: context.userAgent,
       completedAt: new Date(),
-    });
+    };
+
+    await DeletionAuditModel.create(auditData);
 
     // Re-indexar en Elasticsearch
     try {
