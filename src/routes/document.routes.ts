@@ -55,6 +55,13 @@ router.get('/:id', documentController.getById);
 router.get('/download/:id', documentController.download);
 
 /**
+ * @route   GET /api/documents/preview/:id
+ * @desc    Previsualiza un documento (sirve inline en navegador)
+ * @access  Document owner or shared users
+ */
+router.get('/preview/:id', documentController.preview);
+
+/**
  * @route   POST /api/documents/:id/share
  * @desc    Comparte un documento con otros usuarios
  * @access  Document owner
