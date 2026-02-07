@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import mongoose from 'mongoose';
 import User, { IUser, IUserPreferences } from '../models/user.model';
 import HttpError from '../models/error.model';
 import { validatePasswordOrThrow } from '../utils/password-validator';
@@ -161,17 +162,28 @@ export async function findUsersByEmail(email: string, options: FindUsersOptions 
 
   const filter: any = { email: normalized };
 
+  // Validar y sanitizar excludeUserId para prevenir NoSQL injection
   if (options.excludeUserId) {
-    filter._id = { $ne: options.excludeUserId };
+    if (!mongoose.Types.ObjectId.isValid(options.excludeUserId)) {
+      throw new HttpError(400, 'Invalid user ID');
+    }
+    filter._id = { $ne: new mongoose.Types.ObjectId(options.excludeUserId) };
   }
 
+  // Validar y sanitizar organizationId para prevenir NoSQL injection
   if (options.organizationId) {
+    if (!mongoose.Types.ObjectId.isValid(options.organizationId)) {
+      throw new HttpError(400, 'Invalid organization ID');
+    }
+    
+    const orgId = new mongoose.Types.ObjectId(options.organizationId);
+    
     if (options.excludeOrganizationMembers) {
       // Excluir usuarios que ya pertenecen a la organización
-      filter.organization = { $ne: options.organizationId };
+      filter.organization = { $ne: orgId };
     } else {
       // Filtrar sólo usuarios de la organización
-      filter.organization = options.organizationId;
+      filter.organization = orgId;
     }
   }
 

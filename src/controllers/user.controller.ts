@@ -190,7 +190,14 @@ export async function search(req: AuthRequest, res: Response, next: NextFunction
       return next(new HttpError(400, 'Query parameter "email" is required'));
     }
 
-    const organizationId = req.query.organizationId as string | undefined;
+    // Validar que organizationId sea un string, no un objeto (prevenir NoSQL injection)
+    let organizationId: string | undefined;
+    if (req.query.organizationId) {
+      if (typeof req.query.organizationId !== 'string') {
+        return next(new HttpError(400, 'Invalid organizationId parameter'));
+      }
+      organizationId = req.query.organizationId;
+    }
 
     const users = await userService.findUsersByEmail(email, {
       organizationId,
