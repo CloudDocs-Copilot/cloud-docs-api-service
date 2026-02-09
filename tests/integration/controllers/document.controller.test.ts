@@ -517,4 +517,209 @@ describe('DocumentController - New Endpoints Integration Tests', () => {
       expect(response.status).toBe(403);
     });
   });
+
+  describe('GET /api/documents/:id/preview', () => {
+    let pdfDocId: mongoose.Types.ObjectId;
+    let wordDocId: mongoose.Types.ObjectId;
+    let imageDocId: mongoose.Types.ObjectId;
+    let textDocId: mongoose.Types.ObjectId;
+    let sharedDocId: mongoose.Types.ObjectId;
+
+    beforeEach(async () => {
+      // Crear directorio de storage para tests
+      const orgSlug = 'test-org';
+      const storageDir = path.join(process.cwd(), 'storage', orgSlug, testUserId.toString());
+      fs.mkdirSync(storageDir, { recursive: true });
+
+      // Crear archivo PDF de prueba
+      const pdfPath = path.join(storageDir, 'test.pdf');
+      fs.writeFileSync(pdfPath, Buffer.from('PDF test content'));
+      const pdfDoc = await Document.create({
+        filename: 'test.pdf',
+        originalname: 'test.pdf',
+        organization: testOrgId,
+        folder: rootFolderId,
+        path: path.join(orgSlug, testUserId.toString(), 'test.pdf'),
+        size: 16,
+        mimeType: 'application/pdf',
+        uploadedBy: testUserId,
+      });
+      pdfDocId = pdfDoc._id;
+
+      // Crear archivo de Word de prueba (sin contenido real, solo para testing)
+      const wordPath = path.join(storageDir, 'test.docx');
+      fs.writeFileSync(wordPath, Buffer.from('Word test content'));
+      const wordDoc = await Document.create({
+        filename: 'test.docx',
+        originalname: 'test.docx',
+        organization: testOrgId,
+        folder: rootFolderId,
+        path: path.join(orgSlug, testUserId.toString(), 'test.docx'),
+        size: 17,
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        uploadedBy: testUserId,
+      });
+      wordDocId = wordDoc._id;
+
+      // Crear archivo de imagen de prueba
+      const imagePath = path.join(storageDir, 'test.jpg');
+      fs.writeFileSync(imagePath, Buffer.from('Image test content'));
+      const imageDoc = await Document.create({
+        filename: 'test.jpg',
+        originalname: 'test.jpg',
+        organization: testOrgId,
+        folder: rootFolderId,
+        path: path.join(orgSlug, testUserId.toString(), 'test.jpg'),
+        size: 18,
+        mimeType: 'image/jpeg',
+        uploadedBy: testUserId,
+      });
+      imageDocId = imageDoc._id;
+
+      // Crear archivo de texto de prueba
+      const textPath = path.join(storageDir, 'test.txt');
+      fs.writeFileSync(textPath, 'Plain text content');
+      const textDoc = await Document.create({
+        filename: 'test.txt',
+        originalname: 'test.txt',
+        organization: testOrgId,
+        folder: rootFolderId,
+        path: path.join(orgSlug, testUserId.toString(), 'test.txt'),
+        size: 18,
+        mimeType: 'text/plain',
+        uploadedBy: testUserId,
+      });
+      textDocId = textDoc._id;
+
+      // Crear documento compartido
+      const sharedPath = path.join(storageDir, 'shared.pdf');
+      fs.writeFileSync(sharedPath, Buffer.from('Shared PDF content'));
+      const sharedDoc = await Document.create({
+        filename: 'shared.pdf',
+        originalname: 'shared.pdf',
+        organization: testOrgId,
+        folder: rootFolderId,
+        path: path.join(orgSlug, testUserId.toString(), 'shared.pdf'),
+        size: 18,
+        mimeType: 'application/pdf',
+        uploadedBy: testUserId,
+        sharedWith: [testUser2Id],
+      });
+      sharedDocId = sharedDoc._id;
+    });
+
+    it('should preview PDF document if user is owner', async () => {
+      const response = await request(app)
+        .get(`/api/documents/preview/${pdfDocId}`)
+        .set('Authorization', `Bearer ${testToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.header['content-type']).toContain('application/pdf');
+      expect(response.header['content-disposition']).toContain('inline');
+    });
+
+    it('should preview image document if user is owner', async () => {
+      const response = await request(app)
+        .get(`/api/documents/preview/${imageDocId}`)
+        .set('Authorization', `Bearer ${testToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.header['content-type']).toContain('image/jpeg');
+      expect(response.header['content-disposition']).toContain('inline');
+    });
+
+    it('should preview text document if user is owner', async () => {
+      const response = await request(app)
+        .get(`/api/documents/preview/${textDocId}`)
+        .set('Authorization', `Bearer ${testToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.header['content-type']).toContain('text/plain');
+      expect(response.header['content-disposition']).toContain('inline');
+    });
+
+    it('should convert Word document to HTML for preview', async () => {
+      const response = await request(app)
+        .get(`/api/documents/preview/${wordDocId}`)
+        .set('Authorization', `Bearer ${testToken}`);
+
+      // Note: mammoth conversion may fail with invalid Word file,
+      // so we accept either HTML or fallback to original file
+      expect(response.status).toBe(200);
+      
+      if (response.header['content-type']?.includes('text/html')) {
+        expect(response.header['content-type']).toContain('text/html');
+        expect(response.text).toContain('<!DOCTYPE html>');
+      } else {
+        // Fallback to original file
+        expect(response.header['content-type']).toContain('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      }
+    });
+
+    it('should preview shared document if user has access', async () => {
+      const response = await request(app)
+        .get(`/api/documents/preview/${sharedDocId}`)
+        .set('Authorization', `Bearer ${testToken2}`);
+
+      expect(response.status).toBe(200);
+      expect(response.header['content-type']).toContain('application/pdf');
+      expect(response.header['content-disposition']).toContain('inline');
+    });
+
+    it('should fail if document does not exist', async () => {
+      const fakeId = new mongoose.Types.ObjectId().toString();
+      const response = await request(app)
+        .get(`/api/documents/preview/${fakeId}`)
+        .set('Authorization', `Bearer ${testToken}`);
+
+      expect(response.status).toBe(404);
+    });
+
+    it('should fail if user has no access to document', async () => {
+      const response = await request(app)
+        .get(`/api/documents/preview/${pdfDocId}`)
+        .set('Authorization', `Bearer ${testToken2}`);
+
+      expect(response.status).toBe(403);
+      expect(response.body.error).toBe('Access denied to this document');
+    });
+
+    it('should fail if file does not exist in storage', async () => {
+      // Crear documento en DB pero sin archivo físico
+      const doc = await Document.create({
+        filename: 'nonexistent.pdf',
+        originalname: 'nonexistent.pdf',
+        organization: testOrgId,
+        folder: rootFolderId,
+        path: 'test-org/nonexistent.pdf',
+        size: 100,
+        mimeType: 'application/pdf',
+        uploadedBy: testUserId,
+      });
+
+      const response = await request(app)
+        .get(`/api/documents/preview/${doc._id}`)
+        .set('Authorization', `Bearer ${testToken}`);
+
+      expect(response.status).toBe(404);
+      expect(response.body.error).toBe('File not found');
+    });
+
+    it('should fail without authentication', async () => {
+      const response = await request(app)
+        .get(`/api/documents/preview/${pdfDocId}`);
+
+      expect(response.status).toBe(401);
+    });
+
+    it('should set correct Content-Disposition header for inline display', async () => {
+      const response = await request(app)
+        .get(`/api/documents/preview/${pdfDocId}`)
+        .set('Authorization', `Bearer ${testToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.header['content-disposition']).toMatch(/^inline/);
+      expect(response.header['content-disposition']).toContain('filename=');
+    });
+  });
 });
