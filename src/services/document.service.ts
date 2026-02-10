@@ -102,21 +102,13 @@ export async function deleteDocument({ id, userId }: DeleteDocumentDto): Promise
 
   // Elimina el archivo físico
   try {
-    if (doc.filename && doc.organization) {
-      const org = await Organization.findById(doc.organization);
-      if (org && doc.path) {
-        const storageRoot = path.join(process.cwd(), 'storage');
-        // Sanitizar org.slug para prevenir path traversal
-        const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-        // Sanitizar componentes del path
-        const pathComponents = doc.path.split('/').filter(p => p).map(component => 
-          component.replace(/[^a-z0-9_.-]/gi, '-')
-        );
-        const filePath = path.join(storageRoot, safeSlug, ...pathComponents);
-        
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-        }
+    if (doc.path) {
+      const storageRoot = path.join(process.cwd(), 'storage');
+      const relativePath = doc.path.startsWith('/') ? doc.path.substring(1) : doc.path;
+      const filePath = path.join(storageRoot, relativePath);
+
+      if (isPathWithinBase(filePath, storageRoot) && fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
       }
     }
     
@@ -206,24 +198,19 @@ export async function moveDocument({
   const storageRoot = path.join(process.cwd(), 'storage');
   const safeFilename = sanitizePathOrThrow(doc.filename || '', storageRoot);
   const newDocPath = `${targetFolder.path}/${safeFilename}`;
-  
-  // Sanitizar paths para prevenir path traversal
-  // Si no hay organización, usar 'users' como slug
-  const safeSlug = org 
-    ? org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '')
-    : 'users';
-  const oldPathComponents = (doc.path || '').split('/').filter(p => p).map(component => 
-    component.replace(/[^a-z0-9_.-]/gi, '-')
-  );
-  const newPathComponents = newDocPath.split('/').filter(p => p).map(component => 
-    component.replace(/[^a-z0-9_.-]/gi, '-')
-  );
-  
-  const oldPhysicalPath = path.join(storageRoot, safeSlug, ...oldPathComponents);
-  const newPhysicalPath = path.join(storageRoot, safeSlug, ...newPathComponents);
+
+  const oldRelativePath = (doc.path || '').startsWith('/') ? (doc.path || '').substring(1) : (doc.path || '');
+  const newRelativePath = newDocPath.startsWith('/') ? newDocPath.substring(1) : newDocPath;
+
+  const oldPhysicalPath = path.join(storageRoot, oldRelativePath);
+  const newPhysicalPath = path.join(storageRoot, newRelativePath);
 
   // Mover archivo físico
   try {
+    if (!isPathWithinBase(oldPhysicalPath, storageRoot) || !isPathWithinBase(newPhysicalPath, storageRoot)) {
+      throw new HttpError(400, 'Ubicación de archivo inválida');
+    }
+
     if (fs.existsSync(oldPhysicalPath)) {
       // Asegurar que el directorio destino existe
       const newDir = path.dirname(newPhysicalPath);
@@ -241,7 +228,7 @@ export async function moveDocument({
   // Actualizar documento en BD
   doc.folder = targetFolder._id as mongoose.Types.ObjectId;
   doc.path = newDocPath;
-  doc.url = `/storage/${safeSlug}${newDocPath}`;
+  doc.url = `/storage${newDocPath}`;
   await doc.save();
 
   return doc;
@@ -314,24 +301,19 @@ export async function copyDocument({
   const safeNewFilename = sanitizePathOrThrow(newFilename, process.cwd());
   const newDocPath = `${targetFolder.path}/${safeNewFilename}`;
   const storageRoot = path.join(process.cwd(), 'storage');
-  
-  // Sanitizar paths para prevenir path traversal
-  // Si no hay organización, usar 'users' como slug
-  const safeSlug = org 
-    ? org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '')
-    : 'users';
-  const sourcePathComponents = (doc.path || '').split('/').filter(p => p).map(component => 
-    component.replace(/[^a-z0-9_.-]/gi, '-')
-  );
-  const targetPathComponents = newDocPath.split('/').filter(p => p).map(component => 
-    component.replace(/[^a-z0-9_.-]/gi, '-')
-  );
-  
-  const sourcePhysicalPath = path.join(storageRoot, safeSlug, ...sourcePathComponents);
-  const targetPhysicalPath = path.join(storageRoot, safeSlug, ...targetPathComponents);
+
+  const sourceRelativePath = (doc.path || '').startsWith('/') ? (doc.path || '').substring(1) : (doc.path || '');
+  const targetRelativePath = newDocPath.startsWith('/') ? newDocPath.substring(1) : newDocPath;
+
+  const sourcePhysicalPath = path.join(storageRoot, sourceRelativePath);
+  const targetPhysicalPath = path.join(storageRoot, targetRelativePath);
 
   // Copiar archivo físico
   try {
+    if (!isPathWithinBase(sourcePhysicalPath, storageRoot) || !isPathWithinBase(targetPhysicalPath, storageRoot)) {
+      throw new HttpError(400, 'Invalid destination path');
+    }
+
     if (fs.existsSync(sourcePhysicalPath)) {
       // Asegurar que el directorio destino existe
       const targetDir = path.dirname(targetPhysicalPath);
@@ -358,7 +340,7 @@ export async function copyDocument({
     folder: targetFolderId,
     organization: doc.organization,
     path: newDocPath,
-    url: `/storage/${safeSlug}${newDocPath}`
+    url: `/storage${newDocPath}`
   });
 
   // Actualizar almacenamiento del usuario
@@ -529,19 +511,9 @@ export async function uploadDocument({
   // Construir paths de destino
   const documentPath = `${folder.path}/${sanitizedFilename}`;
   const storageRoot = path.join(process.cwd(), 'storage');
-  
-  // Sanitizar org.slug y folder.path para prevenir path traversal
-  const safeSlug = organization.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-  const folderPathComponents = folder.path.split('/').filter(p => p).map(component => 
-    component.replace(/[^a-z0-9_.-]/gi, '-')
-  );
-  
-  const physicalPath = path.join(
-    storageRoot, 
-    safeSlug,
-    ...folderPathComponents,
-    sanitizedFilename
-  );
+
+  const relativeStoragePath = documentPath.startsWith('/') ? documentPath.substring(1) : documentPath;
+  const physicalPath = path.join(storageRoot, relativeStoragePath);
 
   // Validar que el path de destino está dentro del directorio storage
   // (validación final por defensa en profundidad)
@@ -577,7 +549,7 @@ export async function uploadDocument({
     folder: effectiveFolderId,
     organization: activeOrgId,
     path: documentPath,
-    url: `/storage/${safeSlug}${documentPath}`
+    url: `/storage${documentPath}`
   };
 
   const doc = await DocumentModel.create(docData);

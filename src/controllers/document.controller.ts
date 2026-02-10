@@ -221,12 +221,13 @@ export async function download(req: AuthRequest, res: Response, next: NextFuncti
     
     let filePath: string;
     try {
-      // Intentar primero en uploads
+      // Intentar primero en uploads (legacy / temp)
       filePath = await validateDownloadPath(doc.filename || '', uploadsBase);
     } catch (error) {
-      // Si no está en uploads, intentar en storage
+      // Si no está en uploads, intentar en storage usando doc.path (ruta real dentro de storage)
       try {
-        filePath = await validateDownloadPath(doc.filename || '', storageBase);
+        const relativePath = doc.path?.startsWith('/') ? doc.path.substring(1) : (doc.path || '');
+        filePath = await validateDownloadPath(relativePath, storageBase);
       } catch (error2) {
         return next(new HttpError(404, 'File not found'));
       }
