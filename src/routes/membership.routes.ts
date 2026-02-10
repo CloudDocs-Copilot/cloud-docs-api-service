@@ -9,6 +9,24 @@ const router = Router();
 router.use(authenticate);
 
 /**
+ * GET /api/memberships/pending-invitations
+ * Obtiene las invitaciones pendientes del usuario autenticado
+ */
+router.get('/pending-invitations', membershipController.getPendingInvitations);
+
+/**
+ * POST /api/memberships/invitations/:membershipId/accept
+ * Acepta una invitación pendiente
+ */
+router.post('/invitations/:membershipId/accept', membershipController.acceptInvitation);
+
+/**
+ * POST /api/memberships/invitations/:membershipId/reject
+ * Rechaza una invitación pendiente
+ */
+router.post('/invitations/:membershipId/reject', membershipController.rejectInvitation);
+
+/**
  * GET /api/memberships/my-organizations
  * Obtiene todas las organizaciones del usuario
  */

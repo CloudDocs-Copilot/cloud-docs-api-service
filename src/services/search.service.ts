@@ -176,11 +176,23 @@ export async function getAutocompleteSuggestions(query: string, userId: string, 
       _source: ['filename', 'originalname']
     });
 
-    const suggestions = result.hits.hits.map((hit: any) => 
-      hit._source.originalname || hit._source.filename
+    const suggestions = result.hits.hits.map((hit: any) =>
+      (hit._source.originalname || hit._source.filename || '').toString()
     );
 
-    return [...new Set(suggestions)]; // Eliminar duplicados
+    // Eliminar duplicados manteniendo el orden y respetar el límite
+    const unique: string[] = [];
+    const seen = new Set<string>();
+    for (const s of suggestions) {
+      if (!s) continue;
+      if (!seen.has(s)) {
+        seen.add(s);
+        unique.push(s);
+        if (unique.length >= limit) break;
+      }
+    }
+
+    return unique;
   } catch (error: any) {
     console.error('❌ Error getting autocomplete suggestions:', error.message);
     return [];

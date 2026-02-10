@@ -123,6 +123,21 @@ describe('OrganizationService Integration Tests', () => {
         owner._id.toString()
       );
     });
+
+    it('should fail when creating organization with duplicate name (case-insensitive)', async () => {
+      // Create initial org
+      await createCompleteOrganization({ orgName: 'Dup Org', ownerEmail: 'dup1@test.com' });
+
+      const owner = await createUserWithoutOrganization({ name: 'Other Owner', email: 'dup2@test.com' });
+      const orgData = anOrganization()
+        .withName('dup org') // different case
+        .withOwner(owner._id.toString())
+        .buildForService();
+
+      await expect(
+        organizationService.createOrganization(orgData)
+      ).rejects.toThrow('Organization name already exists');
+    });
   });
 
   describe('addUserToOrganization', () => {
@@ -181,6 +196,22 @@ describe('OrganizationService Integration Tests', () => {
       await expect(
         organizationService.addUserToOrganization(fakeOrgId, testUser._id.toString())
       ).rejects.toThrow('Organization not found');
+    });
+
+    it('should fail when updating organization to a name that already exists', async () => {
+      // Create two organizations
+      await createCompleteOrganization({ orgName: 'First Org', ownerEmail: 'first@test.com' });
+      const second = await createCompleteOrganization({ orgName: 'Second Org', ownerEmail: 'second@test.com' });
+
+      const { organization: orgToUpdate, owner } = second;
+
+      await expect(
+        organizationService.updateOrganization(
+          orgToUpdate._id.toString(),
+          owner._id.toString(),
+          { name: 'first org' } // different case
+        )
+      ).rejects.toThrow('Organization name already exists');
     });
 
     it('should fail if user does not exist', async () => {
@@ -306,7 +337,8 @@ describe('OrganizationService Integration Tests', () => {
 
       // Debe devolver 1 organización (la que creó como owner)
       expect(organizations).toHaveLength(1);
-      expect(organizations[0].slug).toBe('test-org');
+      // El servicio devuelve membresías con la organización poblada
+      expect(organizations[0].organization.slug).toBe('test-org');
     });
 
     it('should not return inactive organizations', async () => {

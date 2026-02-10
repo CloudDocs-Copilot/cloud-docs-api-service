@@ -175,7 +175,8 @@ describe('OrganizationController Integration Tests', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
-      expect(response.body.organizations).toHaveLength(2);
+      expect(response.body.count).toBe(2);
+      expect(response.body.memberships).toHaveLength(2);
     });
 
     it('should not list inactive organizations', async () => {
@@ -191,8 +192,11 @@ describe('OrganizationController Integration Tests', () => {
         .set('Authorization', `Bearer ${testToken}`);
 
       expect(response.status).toBe(200);
-      expect(response.body.organizations).toHaveLength(1);
-      expect(response.body.organizations[0].id).toBe(testOrgId);
+      expect(response.body.count).toBe(1);
+      expect(response.body.memberships).toHaveLength(1);
+      const orgField = response.body.memberships[0].organization;
+      const orgId = orgField?._id || orgField?.id || orgField;
+      expect(orgId.toString()).toBe(testOrgId);
     });
 
     it('should fail without authentication', async () => {
@@ -383,9 +387,12 @@ describe('OrganizationController Integration Tests', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
+      expect(response.body.count).toBe(2);
       expect(response.body.members).toHaveLength(2);
-      expect(response.body.members[0]).toHaveProperty('name');
-      expect(response.body.members[0]).toHaveProperty('email');
+      // Membership objects include populated `user` — check nested user fields
+      expect(response.body.members[0]).toHaveProperty('user');
+      expect(response.body.members[0].user).toHaveProperty('name');
+      expect(response.body.members[0].user).toHaveProperty('email');
     });
 
     it('should fail if user is not a member', async () => {

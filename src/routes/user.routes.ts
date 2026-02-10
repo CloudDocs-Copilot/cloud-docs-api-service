@@ -9,6 +9,9 @@ const router = express.Router();
 // CSRF protection is applied globally in app.ts
 router.get('/', authenticateToken, requireAdmin, userController.list);
 
+// Buscar usuarios por email: /api/users/search?email=xxx
+router.get('/search', authenticateToken,  userController.search);
+
 // Acciones sobre el propio usuario
 router.delete('/me', authenticateToken, (req, res, next) => {
     req.params.id = 'me';
@@ -29,6 +32,8 @@ router.patch('/:id/activate', authenticateToken, requireAdmin, userController.ac
 router.patch('/:id/deactivate', authenticateToken, requireAdmin, userController.deactivate);
 router.put('/:id', authenticateToken, userController.update);
 router.patch('/:id/password', authenticateToken, userController.changePassword);
+
+
 
 // Subida de avatar: soporta multipart/form-data (archivo) o json (url)
 // Opción amigable: /profile/avatar (usa el ID del token)

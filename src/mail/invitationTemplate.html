@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invitación a CloudDocs</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 40px auto;
+      background-color: #ffffff;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 40px 20px;
+      text-align: center;
+      color: #ffffff;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 600;
+    }
+    .content {
+      padding: 40px 30px;
+      color: #333333;
+      line-height: 1.6;
+    }
+    .content h2 {
+      color: #667eea;
+      margin-top: 0;
+      font-size: 22px;
+    }
+    .content p {
+      margin: 15px 0;
+      font-size: 16px;
+    }
+    .invitation-details {
+      background-color: #f8f9fa;
+      border-left: 4px solid #667eea;
+      padding: 20px;
+      margin: 25px 0;
+      border-radius: 4px;
+    }
+    .invitation-details p {
+      margin: 8px 0;
+      font-size: 15px;
+    }
+    .invitation-details strong {
+      color: #667eea;
+    }
+    .button-container {
+      text-align: center;
+      margin: 35px 0;
+    }
+    .button {
+      display: inline-block;
+      padding: 14px 35px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #ffffff;
+      text-decoration: none;
+      border-radius: 5px;
+      font-weight: 600;
+      font-size: 16px;
+      transition: transform 0.2s;
+    }
+    .button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    .footer {
+      background-color: #f8f9fa;
+      padding: 25px 30px;
+      text-align: center;
+      color: #666666;
+      font-size: 13px;
+      border-top: 1px solid #e9ecef;
+    }
+    .footer p {
+      margin: 8px 0;
+    }
+    .footer a {
+      color: #667eea;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📨 Invitación a CloudDocs</h1>
+    </div>
+    <div class="content">
+      <h2>¡Hola {{userName}}!</h2>
+      <p>Has sido invitado a unirte a una organización en <strong>CloudDocs</strong>.</p>
+      
+      <div class="invitation-details">
+        <p><strong>Organización:</strong> {{organizationName}}</p>
+        <p><strong>Rol asignado:</strong> {{role}}</p>
+        <p><strong>Invitado por:</strong> {{inviterName}} ({{inviterEmail}})</p>
+      </div>
+
+      <p>Al aceptar esta invitación, podrás:</p>
+      <ul>
+        <li>Acceder a documentos compartidos de la organización</li>
+        <li>Colaborar con otros miembros del equipo</li>
+        <li>Gestionar archivos según tu rol asignado</li>
+      </ul>
+
+      <div class="button-container">
+        <a href="{{acceptUrl}}" class="button">Aceptar Invitación</a>
+      </div>
+
+      <p style="text-align: center; color: #666; font-size: 14px;">
+        o copia este enlace en tu navegador:<br>
+        <a href="{{acceptUrl}}" style="color: #667eea; word-break: break-all;">{{acceptUrl}}</a>
+      </p>
+
+      <p style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9ecef; color: #666; font-size: 14px;">
+        Si no deseas unirte a esta organización, puedes ignorar este mensaje.
+        La invitación expirará automáticamente en 7 días.
+      </p>
+    </div>
+    <div class="footer">
+      <p>Este es un correo automático, por favor no respondas a este mensaje.</p>
+      <p>&copy; 2026 CloudDocs. Todos los derechos reservados.</p>
+      <p>
+        <a href="{{appUrl}}">Ir a CloudDocs</a> |
+        <a href="{{appUrl}}/privacy">Política de Privacidad</a> |
+        <a href="{{appUrl}}/terms">Términos de Servicio</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>

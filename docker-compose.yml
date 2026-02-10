@@ -6,7 +6,7 @@ services:
     container_name: clouddocs-mongodb
     restart: unless-stopped
     ports:
-      - "27017:27017"
+      - "27018:27017" #Deivis lo cambio al puerto 27018 para evitar conflicto con instancia local de MongoDB
     environment:
       MONGO_INITDB_DATABASE: clouddocs
     volumes:

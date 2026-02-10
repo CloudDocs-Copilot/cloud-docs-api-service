@@ -46,6 +46,7 @@ const getAllowedOrigins = (): string[] => {
   return [
     'http://localhost:3000',      // React por defecto
     'http://localhost:3001',      // Puerto alternativo React
+    'http://locahost:4000',
     'http://localhost:4200',      // Angular por defecto
     'http://localhost:5173',      // Vite por defecto
     'http://localhost:8080',      // Vue por defecto
@@ -53,6 +54,7 @@ const getAllowedOrigins = (): string[] => {
     'http://127.0.0.1:4200',
     'http://127.0.0.1:5173',
     'http://127.0.0.1:8080',
+
   ];
 };
 
@@ -97,6 +99,7 @@ const developmentCorsOptions: CorsOptions = {
     'X-Requested-With',
     'Accept',
     'Origin',
+    'X-CSRF-TOKEN',
   ],
 
   // Headers expuestos al cliente
@@ -170,6 +173,9 @@ const productionCorsOptions: CorsOptions = {
     'Content-Type',
     'Authorization',
     'X-Requested-With',
+    'X-CSRF-TOKEN',
+    'Accept',
+    'Origin'
   ],
 
   // Headers expuestos mínimos por seguridad

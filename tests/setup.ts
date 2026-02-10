@@ -3,6 +3,15 @@ import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import app from '../src/app';
 
+// Mock the search service during tests to avoid external Elasticsearch calls
+// and to keep tests fast and deterministic.
+jest.mock('../src/services/search.service', () => ({
+  indexDocument: jest.fn().mockResolvedValue(undefined),
+  removeDocumentFromIndex: jest.fn().mockResolvedValue(undefined),
+  searchDocuments: jest.fn().mockResolvedValue({ documents: [], total: 0, took: 0 }),
+  getAutocompleteSuggestions: jest.fn().mockResolvedValue([]),
+}));
+
 /**
  * Configuración global para tests de integración
  * 

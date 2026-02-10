@@ -76,7 +76,7 @@ export const generalRateLimiter = rateLimit({
  */
 export const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // Only 5 authentication attempts per window
+  max: 100, // Only 5 authentication attempts per window. hay que cambiarlo cuando terminemos el proyecto, a 5 intentos de login.
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true, // Does not count successful requests (valid authentications)

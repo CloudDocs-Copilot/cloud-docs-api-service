@@ -173,7 +173,7 @@ export async function inviteUserToOrganization(
       return next(new HttpError(400, 'Invalid userId format'));
     }
     
-    const membership = await membershipService.createMembership({
+    const invitation = await membershipService.createInvitation({
       userId,
       organizationId,
       role,
@@ -182,8 +182,8 @@ export async function inviteUserToOrganization(
     
     res.status(201).json({
       success: true,
-      message: 'User invited successfully',
-      membership,
+      message: 'Invitation sent successfully',
+      invitation,
     });
   } catch (err) {
     next(err);
@@ -250,6 +250,81 @@ export async function removeMember(
   }
 }
 
+/**
+ * Obtiene las invitaciones pendientes del usuario autenticado
+ * GET /api/memberships/pending-invitations
+ */
+export async function getPendingInvitations(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const invitations = await membershipService.getPendingInvitations(req.user!.id);
+    
+    res.json({
+      success: true,
+      count: invitations.length,
+      data: invitations,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Acepta una invitación pendiente
+ * POST /api/memberships/invitations/:membershipId/accept
+ */
+export async function acceptInvitation(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { membershipId } = req.params;
+    
+    const membership = await membershipService.acceptInvitation(
+      membershipId,
+      req.user!.id
+    );
+    
+    res.json({
+      success: true,
+      message: 'Invitation accepted successfully',
+      membership,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Rechaza una invitación pendiente
+ * POST /api/memberships/invitations/:membershipId/reject
+ */
+export async function rejectInvitation(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { membershipId } = req.params;
+    
+    await membershipService.rejectInvitation(
+      membershipId,
+      req.user!.id
+    );
+    
+    res.json({
+      success: true,
+      message: 'Invitation rejected successfully',
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export default {
   getMyOrganizations,
   getOrganizationMembers,
@@ -260,4 +335,7 @@ export default {
   inviteUserToOrganization,
   updateMemberRole,
   removeMember,
+  getPendingInvitations,
+  acceptInvitation,
+  rejectInvitation,
 };

@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import mongoose from 'mongoose';
 import User, { IUser, IUserPreferences } from '../models/user.model';
 import HttpError from '../models/error.model';
 import { validatePasswordOrThrow } from '../utils/password-validator';
@@ -144,6 +145,55 @@ export async function updateAvatar(id: string, { avatar }: UpdateAvatarDto): Pro
   return user;
 }
 
+/**
+ * Busca usuarios por email (coincidencia parcial, case-insensitive).
+ * Opcionalmente filtra por organización.
+ */
+export interface FindUsersOptions {
+  organizationId?: string;
+  excludeOrganizationMembers?: boolean; // if true, exclude users already in organizationId
+  excludeUserId?: string; // exclude this user id (e.g., the inviter)
+}
+
+export async function findUsersByEmail(email: string, options: FindUsersOptions = {}): Promise<IUser[]> {
+  if (!email || !email.trim()) return [];
+
+  const normalized = email.trim().toLowerCase();
+
+  const filter: any = { email: normalized };
+
+  // Validar y sanitizar excludeUserId para prevenir NoSQL injection
+  if (options.excludeUserId) {
+    if (!mongoose.Types.ObjectId.isValid(options.excludeUserId)) {
+      throw new HttpError(400, 'Invalid user ID');
+    }
+    filter._id = { $ne: new mongoose.Types.ObjectId(options.excludeUserId) };
+  }
+
+  // Validar y sanitizar organizationId para prevenir NoSQL injection
+  if (options.organizationId) {
+    if (!mongoose.Types.ObjectId.isValid(options.organizationId)) {
+      throw new HttpError(400, 'Invalid organization ID');
+    }
+    
+    const orgId = new mongoose.Types.ObjectId(options.organizationId);
+    
+    if (options.excludeOrganizationMembers) {
+      // Excluir usuarios que ya pertenecen a la organización
+      filter.organization = { $ne: orgId };
+    } else {
+      // Filtrar sólo usuarios de la organización
+      filter.organization = orgId;
+    }
+  }
+
+  // Limitar resultados por seguridad (por defecto 20)
+  return User.find(filter)
+    .limit(20)
+    .select('-password -passwordResetTokenHash -passwordResetExpires -passwordResetRequestedAt')
+    .exec();
+}
+
 export default {
   getAllUsers,
   setUserActive,
@@ -151,4 +201,5 @@ export default {
   changePassword,
   deleteUser,
   updateAvatar
+  ,findUsersByEmail
 };

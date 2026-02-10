@@ -21,6 +21,12 @@ export interface IUser extends Document {
   active: boolean;
   tokenVersion: number;
   lastPasswordChange?: Date;
+
+  /** Reset password fields */
+  passwordResetTokenHash?: string | null;
+  passwordResetExpires?: Date | null;
+  passwordResetRequestedAt?: Date | null;
+
   /** Referencia a la organización a la que pertenece el usuario */
   organization?: Types.ObjectId;
   /** Referencia a la carpeta raíz personal del usuario */
@@ -83,6 +89,12 @@ const userSchema = new Schema<IUser>(
     active: { type: Boolean, default: false },
     tokenVersion: { type: Number, default: 0 },
     lastPasswordChange: { type: Date },
+
+    // Campos para el reseteo de contraseña
+    passwordResetTokenHash: { type: String, default: null, index: true },
+    passwordResetExpires: { type: Date, default: null, index: true },
+    passwordResetRequestedAt: { type: Date, default: null },
+
     organization: {
       type: Schema.Types.ObjectId,
       ref: 'Organization',
@@ -117,6 +129,9 @@ const userSchema = new Schema<IUser>(
       transform: (_doc, ret) => {
         delete ret._id;
         delete ret.password;
+        delete ret.passwordResetTokenHash;
+        delete ret.passwordResetExpires;
+        delete ret.passwordResetRequestedAt;
         return ret;
       }
     },
@@ -126,6 +141,9 @@ const userSchema = new Schema<IUser>(
       transform: (_doc, ret) => {
         delete ret._id;
         delete ret.password;
+        delete ret.passwordResetTokenHash;
+        delete ret.passwordResetExpires;
+        delete ret.passwordResetRequestedAt;
         return ret;
       }
     }

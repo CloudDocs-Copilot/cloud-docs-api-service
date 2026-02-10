@@ -1,4 +1,6 @@
-import 'dotenv/config';
+// Load environment variables first (handles .env, .env.local, .env.{NODE_ENV})
+import './configurations/env-config';
+
 import app from './app';
 import { connectMongo } from './configurations/database-config/mongoDB';
 import ElasticsearchClient from './configurations/elasticsearch-config';
@@ -10,6 +12,14 @@ import ElasticsearchClient from './configurations/elasticsearch-config';
 const PORT = process.env.PORT || 4000;
 
 /**
+ * Verifica si Elasticsearch está habilitado
+ */
+const isElasticsearchEnabled = (): boolean => {
+  const enabled = process.env.ELASTICSEARCH_ENABLED;
+  return enabled === 'true' || enabled === '1';
+};
+
+/**
  * Función de inicio del servidor
  * Conecta a la base de datos y levanta el servidor Express
  */
@@ -17,13 +27,17 @@ async function start(): Promise<void> {
   try {
     await connectMongo();
     
-    // Verificar conexión con Elasticsearch
-    const esConnected = await ElasticsearchClient.checkConnection();
-    if (esConnected) {
-      // Crear índice de documentos si no existe
-      await ElasticsearchClient.createDocumentIndex();
+    // Verificar conexión con Elasticsearch solo si está habilitado
+    if (isElasticsearchEnabled()) {
+      const esConnected = await ElasticsearchClient.checkConnection();
+      if (esConnected) {
+        // Crear índice de documentos si no existe
+        await ElasticsearchClient.createDocumentIndex();
+      } else {
+        console.warn('⚠️  Elasticsearch enabled but not available. Search functionality will be limited.');
+      }
     } else {
-      console.warn('⚠️  Elasticsearch not available. Search functionality will be limited.');
+      console.log('ℹ️  Elasticsearch disabled. Search functionality will be limited.');
     }
     
     app.listen(PORT, () => console.log(`Backend server listening on port ${PORT}`));
