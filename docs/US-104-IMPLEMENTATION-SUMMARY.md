@@ -1,74 +1,74 @@
-# US-104 Implementation Summary
+# Resumen de Implementación US-104
 
-## User Story
+## Historia de Usuario
 
-**US-104:** As a user, I want to search for documents by filename, content, and metadata so that I can quickly find the files I need.
+**US-104:** Como usuario, quiero buscar documentos por nombre de archivo, contenido y metadatos para poder encontrar rápidamente los archivos que necesito.
 
 **GitHub Issue:** #49  
 **Branch:** US-104  
-**Status:** ✅ Implementation Complete (Pending Final Testing)
+**Estado:** ✅ Implementación Completa (Pendiente Pruebas Finales)
 
-## Acceptance Criteria Status
+## Estado de los Criterios de Aceptación
 
-### ✅ Criterion #1: Search by Filename
+### ✅ Criterio #1: Búsqueda por Nombre de Archivo
 
-**Implementation:**
-- Elasticsearch 7.x integrated with custom analyzer
-- Search strategy: `query_string` with wildcard support
-- Case-insensitive search using `lowercase` filter
-- Accent-insensitive using `asciifolding` filter
-- Searches across `filename` and `originalname` fields
+**Implementación:**
+- Elasticsearch 7.x integrado con analizador personalizado
+- Estrategia de búsqueda: `query_string` con soporte de wildcards
+- Búsqueda insensible a mayúsculas usando filtro `lowercase`
+- Insensible a acentos usando filtro `asciifolding`
+- Búsqueda en campos `filename` y `originalname`
 
-**Files Modified:**
-- `src/configurations/elasticsearch-config.ts` - Custom analyzer configuration
-- `src/services/search.service.ts` - Search implementation
-- `src/controllers/search.controller.ts` - HTTP endpoint
-- `src/routes/search.routes.ts` - Route definition
+**Archivos Modificados:**
+- `src/configurations/elasticsearch-config.ts` - Configuración de analizador personalizado
+- `src/services/search.service.ts` - Implementación de búsqueda
+- `src/controllers/search.controller.ts` - Endpoint HTTP
+- `src/routes/search.routes.ts` - Definición de rutas
 
-**Testing:**
-- ✅ Manual testing via backend
-- ✅ E2E tests: 11/11 passing
-- ✅ Integration tests created
-
----
-
-### ✅ Criterion #2: Search by Content (PDF)
-
-**Implementation:**
-- PDF text extraction using `pdf-parse` library
-- Automatic extraction on document upload
-- Content stored in `extractedContent` field (max 1MB)
-- Elasticsearch indexes and searches content
-- Node.js upgraded to v20 for compatibility
-
-**Files Created:**
-- `src/utils/pdf-extractor.ts` - PDF extraction utility
-- `scripts/extract-pdf-content.ts` - Backfill script
-- `docs/PDF-CONTENT-EXTRACTION.md` - Documentation
-- `test-pdf-upload.ts` - Manual test script
-
-**Files Modified:**
-- `src/models/document.model.ts` - Added `extractedContent` field
-- `src/services/document.service.ts` - Extract on upload
-- `src/services/search.service.ts` - Index and search content
-
-**Testing:**
-- ✅ Extraction utility created
-- ✅ Integration with upload service
-- ✅ Elasticsearch indexing verified
-- ⚠️  Manual upload test pending (requires real PDF)
+**Pruebas:**
+- ✅ Pruebas manuales vía backend
+- ✅ Pruebas E2E: 11/11 pasando
+- ✅ Pruebas de integración creadas
 
 ---
 
-### ✅ Criterion #3: Search by Metadata (MIME Type, Date)
+### ✅ Criterio #2: Búsqueda por Contenido (PDF)
 
-**Implementation:**
-- Filter by MIME type using Elasticsearch `term` query
-- Date range filters using `range` query
-- Multi-filter support (combine filename + MIME + date)
-- Validation of date formats and MIME types
+**Implementación:**
+- Extracción de texto PDF usando librería `pdf-parse`
+- Extracción automática al subir documento
+- Contenido almacenado en campo `extractedContent` (máx 1MB)
+- Elasticsearch indexa y busca contenido
+- Node.js actualizado a v20 por compatibilidad
 
-**Search Filters:**
+**Archivos Creados:**
+- `src/utils/pdf-extractor.ts` - Utilidad de extracción PDF
+- `scripts/extract-pdf-content.ts` - Script de relleno retroactivo
+- `docs/PDF-CONTENT-EXTRACTION.md` - Documentación
+- `test-pdf-upload.ts` - Script de prueba manual
+
+**Archivos Modificados:**
+- `src/models/document.model.ts` - Campo `extractedContent` añadido
+- `src/services/document.service.ts` - Extracción en subida
+- `src/services/search.service.ts` - Indexación y búsqueda de contenido
+
+**Pruebas:**
+- ✅ Utilidad de extracción creada
+- ✅ Integración con servicio de subida
+- ✅ Indexación Elasticsearch verificada
+- ⚠️  Prueba de subida manual pendiente (requiere PDF real)
+
+---
+
+### ✅ Criterio #3: Búsqueda por Metadatos (Tipo MIME, Fecha)
+
+**Implementación:**
+- Filtro por tipo MIME usando query `term` de Elasticsearch
+- Filtros de rango de fechas usando query `range`
+- Soporte multi-filtro (combinar nombre + MIME + fecha)
+- Validación de formatos de fecha y tipos MIME
+
+**Filtros de Búsqueda:**
 ```typescript
 {
   mimeType?: string;        // Exact match: "application/pdf"
@@ -77,22 +77,22 @@
 }
 ```
 
-**Testing:**
-- ✅ E2E tests for MIME type filtering
-- ✅ E2E tests for date range filtering
-- ✅ E2E tests for combined filters
+**Pruebas:**
+- ✅ Pruebas E2E para filtrado por tipo MIME
+- ✅ Pruebas E2E para filtrado por rango de fechas
+- ✅ Pruebas E2E para filtros combinados
 
 ---
 
-### ✅ Criterion #4: Pagination
+### ✅ Criterio #4: Paginación
 
-**Implementation:**
-- Query parameters: `page` (default 1), `limit` (default 20, max 100)
-- Response includes metadata: `total`, `page`, `limit`, `totalPages`
-- Elasticsearch `from` and `size` parameters
-- Input validation for pagination parameters
+**Implementación:**
+- Parámetros de consulta: `page` (por defecto 1), `limit` (por defecto 20, máx 100)
+- Respuesta incluye metadatos: `total`, `page`, `limit`, `totalPages`
+- Parámetros `from` y `size` de Elasticsearch
+- Validación de entrada para parámetros de paginación
 
-**Response Format:**
+**Formato de Respuesta:**
 ```json
 {
   "success": true,
@@ -106,35 +106,35 @@
 }
 ```
 
-**Testing:**
-- ✅ E2E test for pagination metadata
-- ✅ Validation tests for invalid parameters
+**Pruebas:**
+- ✅ Prueba E2E para metadatos de paginación
+- ✅ Pruebas de validación para parámetros inválidos
 
 ---
 
-### ✅ Criterion #5: Performance (< 500ms)
+### ✅ Criterio #5: Rendimiento (< 500ms)
 
-**Implementation:**
-- Elasticsearch indexes for fast queries
-- Connection pooling for database
-- Rate limiting to prevent abuse (100 requests/15min)
-- Query timeout configuration (5 seconds)
+**Implementación:**
+- Índices Elasticsearch para consultas rápidas
+- Connection pooling para base de datos
+- Rate limiting para prevenir abuso (100 requests/15min)
+- Configuración de timeout de consulta (5 segundos)
 
-**Optimizations:**
-- Compound indexes on frequently queried fields
-- Elasticsearch bulk indexing for initial data
-- Caching of Elasticsearch client connection
-- Limited result set (max 100 per page)
+**Optimizaciones:**
+- Índices compuestos en campos consultados frecuentemente
+- Indexación bulk de Elasticsearch para datos iniciales
+- Caché de conexión cliente Elasticsearch
+- Conjunto de resultados limitado (máx 100 por página)
 
-**Testing:**
-- ✅ E2E performance test verifies < 500ms response time
-- ✅ Rate limiting test verifies 429 after 100 requests
+**Pruebas:**
+- ✅ Prueba E2E de rendimiento verifica tiempo de respuesta < 500ms
+- ✅ Prueba de rate limiting verifica 429 después de 100 requests
 
 ---
 
-## Technical Implementation Details
+## Detalles Técnicos de Implementación
 
-### Architecture
+### Arquitectura
 
 ```
 ┌─────────────┐
@@ -150,28 +150,28 @@
        │
        v
 ┌─────────────────────┐
-│ Search Controller   │  - Validate input
-│                     │  - Parse query params
+│ Search Controller   │  - Validar entrada
+│                     │  - Parsear parámetros query
 └──────┬──────────────┘
        │
        v
 ┌─────────────────────┐
-│  Search Service     │  - Build Elasticsearch query
-│                     │  - Execute search
-│                     │  - Apply filters
+│  Search Service     │  - Construir query Elasticsearch
+│                     │  - Ejecutar búsqueda
+│                     │  - Aplicar filtros
 └──────┬──────────────┘
        │
        v
 ┌─────────────────────┐
-│   Elasticsearch     │  - Full-text search
-│     (index)         │  - Filtering
+│   Elasticsearch     │  - Búsqueda full-text
+│     (index)         │  - Filtrado
 │                     │  - Ranking
 └─────────────────────┘
 ```
 
-### Elasticsearch Configuration
+### Configuración Elasticsearch
 
-**Index:** `documents`
+**Índice:** `documents`
 
 **Mapping:**
 ```json
@@ -187,7 +187,7 @@
 }
 ```
 
-**Custom Analyzer:**
+**Analizador Personalizado:**
 ```json
 {
   "custom_analyzer": {
@@ -197,18 +197,18 @@
 }
 ```
 
-### Search Query Strategy
+### Estrategia de Query de Búsqueda
 
-**Type:** `query_string` with wildcards
+**Tipo:** `query_string` con wildcards
 
-**Why?**
-- Supports partial matching: `*contract*`
-- Case-insensitive via analyzer
-- Accent-insensitive via asciifolding
-- Multi-field search without complex syntax
-- Better than `multi_match` for user-friendly search
+**¿Por qué?**
+- Soporta coincidencia parcial: `*contract*`
+- Insensible a mayúsculas vía analizador
+- Insensible a acentos vía asciifolding
+- Búsqueda multi-campo sin sintaxis compleja
+- Mejor que `multi_match` para búsqueda amigable al usuario
 
-**Query Structure:**
+**Estructura de Query:**
 ```json
 {
   "query": {
@@ -235,68 +235,68 @@
 
 ---
 
-## Testing Summary
+## Resumen de Pruebas
 
-### E2E Tests (11/11 Passing ✅)
+### Pruebas E2E (11/11 Pasando ✅)
 
-**File:** `tests/e2e/run-search-e2e.ts`
+**Archivo:** `tests/e2e/run-search-e2e.ts`
 
-1. ✅ Partial search: "factu" finds "Factura-2024.pdf"
-2. ✅ Case insensitive: "FACTURA" finds "factura"
-3. ✅ Accent insensitive: "factura" finds "Factúra"
-4. ✅ Multi-word search: "informe enero"
-5. ✅ MIME type filter: `mimeType=application/pdf`
-6. ✅ Date range filter: `uploadedAfter`, `uploadedBefore`
-7. ✅ Combined filters: query + MIME + date
-8. ✅ Pagination metadata: total, page, limit
-9. ✅ Validation: empty query returns 400
-10. ✅ Security: requires authentication
-11. ✅ Performance: response < 500ms
+1. ✅ Búsqueda parcial: "factu" encuentra "Factura-2024.pdf"
+2. ✅ Insensible a mayúsculas: "FACTURA" encuentra "factura"
+3. ✅ Insensible a acentos: "factura" encuentra "Factúra"
+4. ✅ Búsqueda multi-palabra: "informe enero"
+5. ✅ Filtro tipo MIME: `mimeType=application/pdf`
+6. ✅ Filtro rango de fechas: `uploadedAfter`, `uploadedBefore`
+7. ✅ Filtros combinados: query + MIME + fecha
+8. ✅ Metadatos paginación: total, page, limit
+9. ✅ Validación: query vacío retorna 400
+10. ✅ Seguridad: requiere autenticación
+11. ✅ Rendimiento: respuesta < 500ms
 
-**Test Authentication:**
-- Uses cookie-based JWT authentication
-- CookieJar to persist session cookies
-- Test user: test@example.com
+**Autenticación de Pruebas:**
+- Usa autenticación JWT basada en cookies
+- CookieJar para persistir cookies de sesión
+- Usuario de prueba: test@example.com
 
-### Unit Tests
+### Pruebas Unitarias
 
-**Coverage:**
-- `src/utils/pdf-extractor.ts` - PDF extraction logic
-- `src/services/search.service.ts` - Search query building
-- Input validation for search parameters
+**Cobertura:**
+- `src/utils/pdf-extractor.ts` - Lógica de extracción PDF
+- `src/services/search.service.ts` - Construcción de query de búsqueda
+- Validación de entrada para parámetros de búsqueda
 
-### Integration Tests
+### Pruebas de Integración
 
-**Planned:**
-- Full document lifecycle: upload → index → search → delete
-- Elasticsearch connection failure handling
-- MongoDB document creation and search integration
+**Planificadas:**
+- Ciclo de vida completo del documento: subida → índice → búsqueda → borrado
+- Manejo de fallo de conexión Elasticsearch
+- Integración de creación de documento MongoDB y búsqueda
 
 ---
 
-## Dependencies
+## Dependencias
 
-### New Packages
+### Paquetes Nuevos
 
-| Package | Version | Purpose |
+| Paquete | Versión | Propósito |
 |---------|---------|---------|
-| `pdf-parse` | ^1.1.1 | Extract text from PDFs |
-| `@types/pdf-parse` | ^1.1.4 | TypeScript types for pdf-parse |
+| `pdf-parse` | ^1.1.1 | Extraer texto de PDFs |
+| `@types/pdf-parse` | ^1.1.4 | Tipos TypeScript para pdf-parse |
 
-### Version Upgrades
+### Actualizaciones de Versión
 
-| Component | From | To | Reason |
+| Componente | Desde | Hasta | Razón |
 |-----------|------|----|----|
-| Node.js | v18.20.8 | v20.20.0 | pdf-parse compatibility |
-| npm | v10.7.0 | v10.8.2 | Came with Node v20 |
+| Node.js | v18.20.8 | v20.20.0 | Compatibilidad pdf-parse |
+| npm | v10.7.0 | v10.8.2 | Viene con Node v20 |
 
-**Migration Tool:** NVM for Windows (Node Version Manager)
+**Herramienta de Migración:** NVM para Windows (Node Version Manager)
 
 ---
 
-## Configuration
+## Configuración
 
-### Environment Variables
+### Variables de Entorno
 
 ```bash
 # Elasticsearch
@@ -310,15 +310,15 @@ PORT=4000
 NODE_ENV=development
 ```
 
-### .env Updates
+### Actualizaciones .env
 
-No new environment variables required. Uses existing `ELASTICSEARCH_NODE`.
+No se requieren nuevas variables de entorno. Usa la existente `ELASTICSEARCH_NODE`.
 
 ---
 
-## API Documentation
+## Documentación API
 
-### Search Endpoint
+### Endpoint de Búsqueda
 
 **Endpoint:** `GET /api/search`
 
@@ -328,18 +328,18 @@ Authorization: Bearer <token>
 X-Organization-Id: <organization-id>
 ```
 
-**Query Parameters:**
+**Parámetros Query:**
 
-| Parameter | Type | Required | Default | Description |
+| Parámetro | Tipo | Requerido | Por Defecto | Descripción |
 |-----------|------|----------|---------|-------------|
-| `q` | string | Yes | - | Search query (filename or content) |
-| `mimeType` | string | No | - | Filter by MIME type (exact match) |
-| `uploadedAfter` | string | No | - | Filter documents after date (ISO) |
-| `uploadedBefore` | string | No | - | Filter documents before date (ISO) |
-| `page` | number | No | 1 | Page number (min 1) |
-| `limit` | number | No | 20 | Results per page (max 100) |
+| `q` | string | Sí | - | Query de búsqueda (nombre o contenido) |
+| `mimeType` | string | No | - | Filtrar por tipo MIME (coincidencia exacta) |
+| `uploadedAfter` | string | No | - | Filtrar documentos después de fecha (ISO) |
+| `uploadedBefore` | string | No | - | Filtrar documentos antes de fecha (ISO) |
+| `page` | number | No | 1 | Número de página (mín 1) |
+| `limit` | number | No | 20 | Resultados por página (máx 100) |
 
-**Response:**
+**Respuesta:**
 ```json
 {
   "success": true,
@@ -363,197 +363,197 @@ X-Organization-Id: <organization-id>
 }
 ```
 
-**Error Responses:**
+**Respuestas de Error:**
 
-| Status | Reason |
+| Estado | Razón |
 |--------|--------|
-| 400 | Invalid query parameters |
-| 401 | Missing or invalid token |
-| 403 | No organization context |
-| 429 | Rate limit exceeded |
-| 500 | Internal server error |
+| 400 | Parámetros de query inválidos |
+| 401 | Token faltante o inválido |
+| 403 | Sin contexto de organización |
+| 429 | Límite de tasa excedido |
+| 500 | Error interno del servidor |
 
 ---
 
-## Known Issues and Limitations
+## Problemas Conocidos y Limitaciones
 
-### 1. Seed Data PDFs
+### 1. PDFs de Datos Seed
 
-**Issue:** 56 PDFs in MongoDB seed data do not have physical files.
+**Problema:** 56 PDFs en datos seed de MongoDB no tienen archivos físicos.
 
-**Impact:** Cannot extract content from these documents.
+**Impacto:** No se puede extraer contenido de estos documentos.
 
-**Solution:** Content extraction only works for new uploads. Seed data is for development/testing only.
+**Solución:** Extracción de contenido solo funciona para nuevas subidas. Datos seed son solo para desarrollo/pruebas.
 
-### 2. Scanned PDFs (OCR)
+### 2. PDFs Escaneados (OCR)
 
-**Issue:** Scanned PDFs (images) do not contain extractable text.
+**Problema:** PDFs escaneados (imágenes) no contienen texto extraíble.
 
-**Impact:** Search will not find content in scanned documents.
+**Impacto:** La búsqueda no encontrará contenido en documentos escaneados.
 
-**Solution:** Future enhancement - add OCR support using Tesseract.js.
+**Solución:** Mejora futura - añadir soporte OCR usando Tesseract.js.
 
-### 3. Large PDFs
+### 3. PDFs Grandes
 
-**Issue:** PDFs > 1MB of text will have content truncated.
+**Problema:** PDFs > 1MB de texto tendrán contenido truncado.
 
-**Impact:** Very large documents may not be fully searchable.
+**Impacto:** Documentos muy grandes pueden no ser totalmente buscables.
 
-**Solution:** Limit is intentional to prevent memory issues. Adequate for most use cases.
+**Solución:** Límite es intencional para prevenir problemas de memoria. Adecuado para la mayoría de casos de uso.
 
-### 4. Password-Protected PDFs
+### 4. PDFs Protegidos con Contraseña
 
-**Issue:** Encrypted PDFs cannot be parsed by pdf-parse.
+**Problema:** PDFs encriptados no pueden ser parseados por pdf-parse.
 
-**Impact:** No content extraction for encrypted files.
+**Impacto:** Sin extracción de contenido para archivos encriptados.
 
-**Solution:** Log error and proceed with upload. User can still search by filename.
+**Solución:** Registrar error y proceder con subida. Usuario aún puede buscar por nombre de archivo.
 
 ---
 
-## Performance Metrics
+## Métricas de Rendimiento
 
-### Search Response Times
+### Tiempos de Respuesta de Búsqueda
 
-| Scenario | Expected | Measured | Status |
+| Escenario | Esperado | Medido | Estado |
 |----------|----------|----------|--------|
-| Simple query (< 10 results) | < 200ms | ~150ms | ✅ |
-| Complex query (filters) | < 300ms | ~250ms | ✅ |
-| Large result set (100 items) | < 500ms | ~400ms | ✅ |
-| PDF upload with extraction | < 5s | ~2-3s | ✅ |
+| Query simple (< 10 resultados) | < 200ms | ~150ms | ✅ |
+| Query compleja (filtros) | < 300ms | ~250ms | ✅ |
+| Conjunto grande de resultados (100 items) | < 500ms | ~400ms | ✅ |
+| Subida PDF con extracción | < 5s | ~2-3s | ✅ |
 
-### Resource Usage
+### Uso de Recursos
 
-- **Elasticsearch Memory:** ~512MB allocated
-- **Node.js Memory:** ~200MB baseline, +50MB per concurrent request
-- **Database Connections:** Pooled (max 10)
+- **Memoria Elasticsearch:** ~512MB asignados
+- **Memoria Node.js:** ~200MB base, +50MB por request concurrente
+- **Conexiones Base de Datos:** Pooled (máx 10)
 
 ---
 
-## Deployment Checklist
+## Checklist de Despliegue
 
-### Pre-Deployment
+### Pre-Despliegue
 
-- [x] All E2E tests passing (11/11)
-- [x] Unit tests created
-- [x] Integration tests created
-- [x] Code review completed
-- [x] Documentation updated
-- [x] Node.js v20 requirement documented
-- [x] API documentation updated
+- [x] Todas las pruebas E2E pasando (11/11)
+- [x] Pruebas unitarias creadas
+- [x] Pruebas de integración creadas
+- [x] Revisión de código completada
+- [x] Documentación actualizada
+- [x] Requisito Node.js v20 documentado
+- [x] Documentación API actualizada
 
-### Deployment Steps
+### Pasos de Despliegue
 
-1. **Upgrade Node.js:**
+1. **Actualizar Node.js:**
    ```bash
    nvm install 20
    nvm use 20
    ```
 
-2. **Install Dependencies:**
+2. **Instalar Dependencias:**
    ```bash
    npm install
    ```
 
-3. **Environment Configuration:**
-   - Verify `ELASTICSEARCH_NODE` is set
-   - Verify `MONGO_URI` is set
+3. **Configuración de Entorno:**
+   - Verificar que `ELASTICSEARCH_NODE` esté configurado
+   - Verificar que `MONGO_URI` esté configurado
 
-4. **Database Migration:**
+4. **Migración de Base de Datos:**
    ```bash
-   # Add extractedContent field to existing documents (optional)
+   # Añadir campo extractedContent a documentos existentes (opcional)
    npx ts-node scripts/extract-pdf-content.ts
    ```
 
-5. **Rebuild Elasticsearch Index:**
+5. **Reconstruir Índice Elasticsearch:**
    ```bash
    npx ts-node reindex-documents.ts
    ```
 
-6. **Start Application:**
+6. **Iniciar Aplicación:**
    ```bash
    npm run build
    npm start
    ```
 
-7. **Verify:**
-   - Check Elasticsearch health: `curl http://localhost:9200/_cluster/health`
-   - Run E2E tests: `npx ts-node tests/e2e/run-search-e2e.ts`
-   - Test search endpoint: `curl -H "Authorization: Bearer <token>" http://localhost:4000/api/search?q=test`
+7. **Verificar:**
+   - Comprobar salud Elasticsearch: `curl http://localhost:9200/_cluster/health`
+   - Ejecutar pruebas E2E: `npx ts-node tests/e2e/run-search-e2e.ts`
+   - Probar endpoint búsqueda: `curl -H "Authorization: Bearer <token>" http://localhost:4000/api/search?q=test`
 
-### Post-Deployment
+### Post-Despliegue
 
-- [ ] Monitor search performance (response times)
-- [ ] Monitor Elasticsearch indexing errors
-- [ ] Monitor PDF extraction errors
-- [ ] Check disk usage for extracted content
-- [ ] Verify rate limiting is working
-- [ ] Update user documentation
+- [ ] Monitorear rendimiento de búsqueda (tiempos de respuesta)
+- [ ] Monitorear errores de indexación Elasticsearch
+- [ ] Monitorear errores de extracción PDF
+- [ ] Verificar uso de disco para contenido extraído
+- [ ] Verificar que rate limiting funcione
+- [ ] Actualizar documentación de usuario
 
 ---
 
-## Future Enhancements
+## Mejoras Futuras
 
-### Phase 2 Features
+### Características Fase 2
 
-1. **Advanced Search Operators:**
-   - Boolean operators: `AND`, `OR`, `NOT`
-   - Exact phrase search: `"exact phrase"`
-   - Field-specific search: `filename:invoice`
+1. **Operadores de Búsqueda Avanzados:**
+   - Operadores booleanos: `AND`, `OR`, `NOT`
+   - Búsqueda de frase exacta: `"exact phrase"`
+   - Búsqueda específica de campo: `filename:invoice`
 
-2. **Search Suggestions:**
-   - Autocomplete based on document names
-   - "Did you mean?" for typos
-   - Recent searches history
+2. **Sugerencias de Búsqueda:**
+   - Autocompletar basado en nombres de documentos
+   - "¿Quisiste decir?" para errores tipográficos
+   - Historial de búsquedas recientes
 
-3. **Faceted Search:**
-   - Filter by organization
-   - Filter by folder
-   - Filter by uploader
-   - Filter by file size range
+3. **Búsqueda por Facetas:**
+   - Filtrar por organización
+   - Filtrar por carpeta
+   - Filtrar por quien subió
+   - Filtrar por rango de tamaño de archivo
 
-4. **Saved Searches:**
-   - Save frequently used queries
-   - Email notifications for new matches
-   - Scheduled search reports
+4. **Búsquedas Guardadas:**
+   - Guardar queries usadas frecuentemente
+   - Notificaciones email para nuevas coincidencias
+   - Reportes de búsqueda programados
 
-5. **OCR Support:**
-   - Extract text from scanned PDFs
-   - Support image files (PNG, JPG)
-   - Async job queue for processing
+5. **Soporte OCR:**
+   - Extraer texto de PDFs escaneados
+   - Soportar archivos de imagen (PNG, JPG)
+   - Cola de trabajos asíncrona para procesamiento
 
-6. **More File Types:**
+6. **Más Tipos de Archivo:**
    - Microsoft Office (.docx, .xlsx, .pptx)
-   - Text files (.txt, .md, .csv)
-   - HTML files
+   - Archivos de texto (.txt, .md, .csv)
+   - Archivos HTML
 
 ---
 
-## Conclusion
+## Conclusión
 
-US-104 Elasticsearch search implementation is **COMPLETE** with all 5 acceptance criteria fulfilled:
+La implementación de búsqueda Elasticsearch US-104 está **COMPLETA** con los 5 criterios de aceptación cumplidos:
 
-1. ✅ Search by filename
-2. ✅ Search by PDF content
-3. ✅ Search by metadata (MIME type, date)
-4. ✅ Pagination
-5. ✅ Performance < 500ms
+1. ✅ Búsqueda por nombre de archivo
+2. ✅ Búsqueda por contenido PDF
+3. ✅ Búsqueda por metadatos (tipo MIME, fecha)
+4. ✅ Paginación
+5. ✅ Rendimiento < 500ms
 
-**Test Results:**
-- E2E Tests: 11/11 passing ✅
-- Manual Tests: Passed ✅
-- Integration: Working ✅
+**Resultados de Pruebas:**
+- Pruebas E2E: 11/11 pasando ✅
+- Pruebas Manuales: Pasadas ✅
+- Integración: Funcionando ✅
 
-**Ready for:**
-- ✅ Code review
-- ✅ Merge to main
-- ✅ Deployment to staging
-- ⚠️  Final manual testing with real PDF uploads
+**Listo para:**
+- ✅ Revisión de código
+- ✅ Merge a main
+- ✅ Despliegue a staging
+- ⚠️  Pruebas manuales finales con subidas de PDF reales
 
-**Next Steps:**
-1. Manual test: Upload a real PDF with text content
-2. Verify content extraction works end-to-end
-3. Test search finds documents by content
-4. Update CHANGELOG.md
-5. Create pull request for code review
+**Próximos Pasos:**
+1. Prueba manual: Subir un PDF real con contenido de texto
+2. Verificar que extracción de contenido funciona end-to-end
+3. Probar que búsqueda encuentra documentos por contenido
+4. Actualizar CHANGELOG.md
+5. Crear pull request para revisión de código
 
