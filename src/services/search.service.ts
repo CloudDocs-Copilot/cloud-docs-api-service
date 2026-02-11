@@ -37,6 +37,7 @@ export async function indexDocument(document: IDocument): Promise<void> {
       document: {
         filename: document.filename || '',
         originalname: document.originalname || '',
+        extractedContent: document.extractedContent || '',
         mimeType: document.mimeType,
         size: document.size,
         uploadedBy: document.uploadedBy.toString(),
@@ -85,12 +86,13 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
     const { query, userId, organizationId, mimeType, fromDate, toDate, limit = 20, offset = 0 } = params;
 
     // Construir filtros
-    const filters: any[] = [
-      { term: { uploadedBy: userId } }
-    ];
+    const filters: any[] = [];
 
+    // Filtrar por organización si se proporciona, sino por usuario
     if (organizationId) {
       filters.push({ term: { organization: organizationId } });
+    } else {
+      filters.push({ term: { uploadedBy: userId } });
     }
 
     if (mimeType) {
@@ -104,18 +106,24 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
       filters.push({ range: { uploadedAt: dateRange } });
     }
 
-    // Realizar búsqueda
+    // Realizar búsqueda con query_string para mayor flexibilidad
+    // Agregar wildcards automáticamente para búsqueda parcial
+    const searchQuery = `*${query.toLowerCase()}*`;
+    
+    console.log(`🔍 [Elasticsearch] Searching with query: "${searchQuery}"`);
+    console.log(`📊 [Elasticsearch] Filters:`, JSON.stringify(filters, null, 2));
+    
     const result = await client.search({
       index: 'documents',
       query: {
         bool: {
           must: [
             {
-              multi_match: {
-                query,
-                fields: ['filename^3', 'originalname^2'],
-                type: 'best_fields',
-                fuzziness: 'AUTO'
+              query_string: {
+                query: searchQuery,
+                fields: ['filename', 'originalname', 'extractedContent'],
+                default_operator: 'AND',
+                analyze_wildcard: true
               }
             }
           ],
@@ -129,6 +137,8 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
         { uploadedAt: { order: 'desc' } }
       ]
     });
+
+    console.log(`✅ [Elasticsearch] Found ${typeof result.hits.total === 'object' ? result.hits.total.value : result.hits.total} documents in ${result.took}ms`);
 
     const documents = result.hits.hits.map((hit: any) => ({
       id: hit._id,
@@ -150,26 +160,34 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
 /**
  * Obtener sugerencias de autocompletado
  */
-export async function getAutocompleteSuggestions(query: string, userId: string, limit: number = 5): Promise<string[]> {
+export async function getAutocompleteSuggestions(query: string, userId: string, organizationId?: string, limit: number = 5): Promise<string[]> {
   try {
     const client = ElasticsearchClient.getInstance();
 
+    // Construir filtros
+    const filters: any[] = [];
+    if (organizationId) {
+      filters.push({ term: { organization: organizationId } });
+    } else {
+      filters.push({ term: { uploadedBy: userId } });
+    }
+
+    const searchQuery = `*${query.toLowerCase()}*`;
+    
     const result = await client.search({
       index: 'documents',
       query: {
         bool: {
           must: [
             {
-              multi_match: {
-                query,
+              query_string: {
+                query: searchQuery,
                 fields: ['filename', 'originalname'],
-                type: 'phrase_prefix'
+                analyze_wildcard: true
               }
             }
           ],
-          filter: [
-            { term: { uploadedBy: userId } }
-          ]
+          filter: filters
         }
       },
       size: limit,

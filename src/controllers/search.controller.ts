@@ -46,7 +46,7 @@ export async function search(req: AuthRequest, res: Response, next: NextFunction
  */
 export async function autocomplete(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { q, limit } = req.query;
+    const { q, limit, organizationId } = req.query;
 
     if (!q || typeof q !== 'string') {
       return next(new HttpError(400, 'Query parameter "q" is required'));
@@ -55,6 +55,7 @@ export async function autocomplete(req: AuthRequest, res: Response, next: NextFu
     const suggestions = await searchService.getAutocompleteSuggestions(
       q,
       req.user!.id,
+      organizationId as string | undefined,
       limit ? parseInt(limit as string, 10) : 5
     );
 
