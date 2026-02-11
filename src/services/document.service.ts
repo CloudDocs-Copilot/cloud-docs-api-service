@@ -11,6 +11,7 @@ import { validateFolderAccess } from './folder.service';
 import { getMembership, getActiveOrganization } from './membership.service';
 import { PLAN_LIMITS } from '../models/types/organization.types';
 import * as searchService from './search.service';
+import { extractContentFromDocument } from '../utils/pdf-extractor';
 
 /**
  * Valida si un string es un ObjectId válido de MongoDB
@@ -530,15 +531,14 @@ export async function uploadDocument({
   const documentPath = `${folder.path}/${sanitizedFilename}`;
   const storageRoot = path.join(process.cwd(), 'storage');
   
-  // Sanitizar org.slug y folder.path para prevenir path traversal
-  const safeSlug = organization.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+  // Sanitizar folder.path para prevenir path traversal
+  // folder.path ya incluye el slug de la organización, no agregar safeSlug adicional
   const folderPathComponents = folder.path.split('/').filter(p => p).map(component => 
     component.replace(/[^a-z0-9_.-]/gi, '-')
   );
   
   const physicalPath = path.join(
-    storageRoot, 
-    safeSlug,
+    storageRoot,
     ...folderPathComponents,
     sanitizedFilename
   );
@@ -577,10 +577,23 @@ export async function uploadDocument({
     folder: effectiveFolderId,
     organization: activeOrgId,
     path: documentPath,
-    url: `/storage/${safeSlug}${documentPath}`
+    url: `/storage${documentPath}`
   };
 
   const doc = await DocumentModel.create(docData);
+
+  // Extraer contenido del documento (si es PDF)
+  try {
+    const extractedContent = await extractContentFromDocument(physicalPath, docData.mimeType);
+    if (extractedContent) {
+      doc.extractedContent = extractedContent;
+      await doc.save();
+      console.log(`✅ Content extracted for document: ${doc.filename}`);
+    }
+  } catch (error: any) {
+    console.error(`⚠️  Failed to extract content from ${doc.filename}:`, error.message);
+    // No lanzar error, la extracción de contenido no es crítica
+  }
 
   // Actualizar almacenamiento usado del usuario
   user.storageUsed = currentUsage + fileSize;
