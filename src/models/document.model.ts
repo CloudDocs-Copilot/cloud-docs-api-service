@@ -23,6 +23,8 @@ export interface IDocument extends MongooseDocument {
   size: number;
   /** Tipo MIME del archivo */
   mimeType: string;
+  /** Contenido de texto extraído del documento (para búsqueda) */
+  extractedContent?: string;
   /** Fecha de subida (deprecated, usar createdAt) */
   uploadedAt: Date;
   /** Usuarios con quienes se comparte el documento */
@@ -148,6 +150,11 @@ const documentSchema = new Schema<IDocument>(
       trim: true,
       maxlength: [127, 'MIME type cannot exceed 127 characters'],
       match: [/^[a-z]+\/[a-z0-9][a-z0-9!#$&^_.+-]{0,126}$/i, 'Invalid MIME type format']
+    },
+    extractedContent: {
+      type: String,
+      required: false,
+      maxlength: [1000000, 'Extracted content cannot exceed 1MB'],
     },
     uploadedAt: {
       type: Date,
