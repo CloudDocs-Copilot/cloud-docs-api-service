@@ -176,21 +176,21 @@ The application supports multiple organizations with the following structure:
 
 ### Roles
 
-| Role    | Permissions                                    |
-|---------|------------------------------------------------|
-| owner   | Full access, can delete organization           |
-| admin   | Manage members, documents, folders             |
-| member  | Create/edit own documents and folders          |
-| viewer  | Read-only access to shared documents           |
+| Role   | Permissions                           |
+| ------ | ------------------------------------- |
+| owner  | Full access, can delete organization  |
+| admin  | Manage members, documents, folders    |
+| member | Create/edit own documents and folders |
+| viewer | Read-only access to shared documents  |
 
 ### Subscription Plans
 
-| Plan       | Users | Storage/User | Max File | File Types       |
-|------------|-------|--------------|----------|------------------|
-| FREE       | 3     | 1 GB         | 10 MB    | Limited          |
-| BASIC      | 10    | 5 GB         | 50 MB    | Common           |
-| PREMIUM    | 50    | 10 GB        | 100 MB   | Extended         |
-| ENTERPRISE | ∞     | 50 GB        | 500 MB   | All              |
+| Plan       | Users | Storage/User | Max File | File Types |
+| ---------- | ----- | ------------ | -------- | ---------- |
+| FREE       | 3     | 1 GB         | 10 MB    | Limited    |
+| BASIC      | 10    | 5 GB         | 50 MB    | Common     |
+| PREMIUM    | 50    | 10 GB        | 100 MB   | Extended   |
+| ENTERPRISE | ∞     | 50 GB        | 500 MB   | All        |
 
 ## Security
 
@@ -204,6 +204,7 @@ The application supports multiple organizations with the following structure:
 ### CSRF Protection
 
 Using Double Submit Cookie pattern with `csrf-csrf` package:
+
 - Token generated via `/api/csrf-token`
 - Frontend sends token in `x-csrf-token` header
 - Cookie validated against header on state-changing requests
@@ -220,6 +221,7 @@ See [CSRF-PROTECTION.md](./CSRF-PROTECTION.md) for details.
 ## API Documentation
 
 OpenAPI/Swagger documentation available at:
+
 - **Swagger UI:** `http://localhost:4000/api/docs`
 - **OpenAPI JSON:** `http://localhost:4000/api/docs.json`
 
@@ -235,6 +237,7 @@ tests/
 ```
 
 Run tests:
+
 ```bash
 npm test                 # Run all tests
 npm run test:watch       # Watch mode
@@ -254,6 +257,7 @@ The application uses a cascading environment configuration that loads files in o
 See [.env.example](../.env.example) for all configuration options.
 
 Key variables:
+
 - `PORT` - Server port (default: 4000)
 - `MONGO_URI` - MongoDB connection string
 - `JWT_SECRET` - Token signing key

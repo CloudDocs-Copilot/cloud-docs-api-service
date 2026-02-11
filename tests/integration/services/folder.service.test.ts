@@ -107,7 +107,15 @@ describe('FolderService Integration Tests', () => {
     // Limpiar directorios de prueba
     const storageRoot = path.join(process.cwd(), 'storage');
     if (fs.existsSync(storageRoot)) {
-      fs.rmSync(storageRoot, { recursive: true, force: true });
+      try {
+        fs.rmSync(storageRoot, { recursive: true, force: true });
+      } catch (err: any) {
+        if (err && (err.code === 'ENOTEMPTY' || err.code === 'EBUSY' || err.code === 'EPERM')) {
+          console.warn('Warning: could not fully remove storageRoot during cleanup:', err.code);
+        } else {
+          throw err;
+        }
+      }
     }
   });
 

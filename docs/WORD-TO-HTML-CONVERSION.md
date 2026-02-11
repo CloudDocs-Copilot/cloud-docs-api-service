@@ -15,10 +15,12 @@ CloudDocs convierte automáticamente documentos de Microsoft Word (.docx y .doc)
    - `application/msword` (.doc)
 
 4. **Proceso**:
+
    ```typescript
-   const isWordDocument = doc.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-                          doc.mimeType === 'application/msword';
-   
+   const isWordDocument =
+     doc.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+     doc.mimeType === 'application/msword';
+
    if (isWordDocument) {
      const result = await mammoth.convertToHtml({ path: fullPath });
      // Envía HTML con estilos embebidos
@@ -31,12 +33,12 @@ CloudDocs convierte automáticamente documentos de Microsoft Word (.docx y .doc)
 
 1. **Componente**: `OfficeViewer.tsx`
 2. **Tipo de preview**: `DocumentPreviewType.OFFICE`
-3. **Renderizado**: 
+3. **Renderizado**:
    - Hace fetch del HTML convertido desde el backend
    - Renderiza el HTML de forma segura usando `dangerouslySetInnerHTML`
    - Incluye loading states y manejo de errores
 4. **Autenticación**: Usa `credentials: 'include'` para enviar cookies
-5. **Seguridad**: 
+5. **Seguridad**:
    - ✅ Mantiene `X-Frame-Options: DENY` en el backend
    - ✅ No usa iframes (evita problemas de CSP)
    - ✅ Renderizado controlado del HTML
@@ -46,6 +48,7 @@ CloudDocs convierte automáticamente documentos de Microsoft Word (.docx y .doc)
 ### Estilos Aplicados
 
 El HTML generado incluye estilos CSS embebidos para:
+
 - Fuentes legibles (Segoe UI, Tahoma, etc.)
 - Máximo ancho de 800px para lectura óptima
 - Fondo gris (#f5f5f5) con contenedor blanco
@@ -56,6 +59,7 @@ El HTML generado incluye estilos CSS embebidos para:
 ### Elementos Soportados
 
 Mammoth convierte:
+
 - ✅ Párrafos y texto formateado (negrita, cursiva)
 - ✅ Encabezados (h1-h6)
 - ✅ Listas (ordenadas y no ordenadas)
@@ -109,7 +113,7 @@ export const OfficeViewer: React.FC<OfficeViewerProps> = ({ url, filename }) => 
         <span><i className="bi bi-file-earmark-word"></i> {filename}</span>
         <a href={url} download>Download</a>
       </div>
-      <div 
+      <div
         className={styles.contentContainer}
         dangerouslySetInnerHTML={{ __html: htmlContent }}
       />
@@ -138,21 +142,23 @@ case DocumentPreviewType.OFFICE:
 
 ```typescript
 // src/app.ts
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https:"],
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:', 'https:']
+      }
     },
-  },
-  frameguard: { action: 'deny' }, // ✅ Mantiene protección contra clickjacking
-  noSniff: true,
-  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
-  xssFilter: true,
-  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
-}));
+    frameguard: { action: 'deny' }, // ✅ Mantiene protección contra clickjacking
+    noSniff: true,
+    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+    xssFilter: true,
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
+  })
+);
 ```
 
 ### Ventajas de Seguridad
@@ -166,6 +172,7 @@ app.use(helmet({
 ## Dependencias
 
 ### Backend
+
 ```bash
 npm install mammoth
 ```
@@ -179,6 +186,7 @@ npm install mammoth
 ```
 
 ### Frontend
+
 No requiere dependencias adicionales - usa fetch API nativo y React built-ins.
 
 ## Flujo Completo
@@ -212,22 +220,26 @@ No requiere dependencias adicionales - usa fetch API nativo y React built-ins.
 ## Alternativas Consideradas
 
 ### 1. Office Online Viewer (❌ Descartada)
+
 - **Problema**: Requiere URLs públicas, incompatible con autenticación por cookies
 - **URL**: `https://view.officeapps.live.com/op/embed.aspx?src=...`
 - **Por qué no**: Nuestros archivos requieren autenticación privada
 
 ### 2. Iframe Directo (❌ Descartada)
+
 - **Problema**: Viola Content Security Policy con `X-Frame-Options: DENY`
 - **Riesgo de seguridad**: Deshabilitar frameguard expone a ataques de clickjacking
 - **Por qué no**: Compromete la seguridad sin beneficio real
 
 ### 3. Conversión a PDF (⏸️ No implementada)
+
 - **Ventaja**: Mantiene formato exacto del documento original
 - **Desventaja**: Requiere LibreOffice instalado en el servidor
 - **Librerías**: `libreoffice-convert`, `unoconv`
 - **Uso**: Podría considerarse para producción si se necesita mayor fidelidad
 
 ### 4. Mammoth.js + Fetch HTML (✅ Implementada)
+
 - **✅ Sin dependencias del sistema operativo**
 - **✅ Rápido y ligero**
 - **✅ Compatible con autenticación por cookies**
@@ -246,28 +258,33 @@ Para probar la funcionalidad:
 ## Troubleshooting
 
 ### El contenido no se muestra
+
 - **Verificar**: Cookies habilitadas en el navegador
 - **Verificar**: CORS configurado con `credentials: true`
 - **Revisar**: Console del navegador para errores de fetch
 - **Logs**: Backend muestra `[preview] Converting Word document to HTML`
 
 ### Formato incorrecto o faltante
+
 - **Causa**: Mammoth tiene limitaciones con formatos complejos de Word
 - **Solución**: Descargar archivo original para ver formato exacto
 - **Alternativa**: Considerar conversión a PDF para mayor fidelidad
 
 ### Error 404 al cargar documento
+
 - **Verificar**: Archivo existe en storage
 - **Revisar**: Logs del backend para path duplication bug
 - **Verificar**: Ruta almacenada en MongoDB vs ubicación real del archivo
 
 ### Spinner de loading infinito
+
 - **Causa**: Error en fetch que no se capturó
 - **Revisar**: Network tab en DevTools
 - **Verificar**: Backend responde correctamente al endpoint de preview
 - **Logs**: Verificar errores en consola del frontend
 
 ### Errores de CSP (Content Security Policy)
+
 - **Verificado**: Ya no debería ocurrir con la solución actual
 - **Si ocurre**: Verificar que no se esté usando iframe
 - **Confirmar**: OfficeViewer usa fetch + dangerouslySetInnerHTML
@@ -275,17 +292,20 @@ Para probar la funcionalidad:
 ## Performance
 
 ### Tiempo de Carga Promedio
+
 - Documentos pequeños (<1MB): **< 500ms**
 - Documentos medianos (1-5MB): **1-2 segundos**
 - Documentos grandes (5-10MB): **2-4 segundos**
 
 ### Optimizaciones Aplicadas
+
 1. **Conversión on-the-fly** - No se guarda HTML en disco
 2. **Streaming response** - Backend envía HTML directamente
 3. **Browser caching** - Headers apropiados para cachear HTML
 4. **React memoization** - Evita re-renders innecesarios
 
 ### Limitaciones de Tamaño
+
 - **Máximo recomendado**: 10MB por documento
 - **Razón**: Conversión HTML puede ser grande para documentos complejos
 - **Configuración**: `MAX_UPLOAD_SIZE=104857600` (100MB en .env)

@@ -2,10 +2,10 @@
  * Development Seed Script
  * =======================
  * Populates the local MongoDB with test data for development.
- * 
+ *
  * Usage:
  *   npx ts-node scripts/seed-dev.ts
- *   
+ *
  * Or via npm script:
  *   npm run seed:dev
  */
@@ -48,29 +48,29 @@ const TEST_USERS = [
     email: 'admin@clouddocs.local',
     password: 'Test@1234',
     role: 'admin' as const,
-    active: true,
+    active: true
   },
   {
     name: 'John Developer',
     email: 'john@clouddocs.local',
     password: 'Test@1234',
     role: 'user' as const,
-    active: true,
+    active: true
   },
   {
     name: 'Jane Designer',
     email: 'jane@clouddocs.local',
     password: 'Test@1234',
     role: 'user' as const,
-    active: true,
+    active: true
   },
   {
     name: 'Inactive User',
     email: 'inactive@clouddocs.local',
     password: 'Test@1234',
     role: 'user' as const,
-    active: false,
-  },
+    active: false
+  }
 ];
 
 /**
@@ -81,20 +81,20 @@ const TEST_ORGANIZATIONS = [
     name: 'Acme Corporation',
     plan: 'premium' as const,
     maxStorage: 10 * 1024 * 1024 * 1024, // 10GB
-    maxMembers: 50,
+    maxMembers: 50
   },
   {
     name: 'Startup Inc',
     plan: 'basic' as const,
     maxStorage: 1 * 1024 * 1024 * 1024, // 1GB
-    maxMembers: 10,
+    maxMembers: 10
   },
   {
     name: 'Free Tier Org',
     plan: 'free' as const,
     maxStorage: 100 * 1024 * 1024, // 100MB
-    maxMembers: 3,
-  },
+    maxMembers: 3
+  }
 ];
 
 /**
@@ -103,7 +103,7 @@ const TEST_ORGANIZATIONS = [
 const FOLDER_STRUCTURE = [
   { name: 'Documents', children: ['Reports', 'Contracts', 'Templates'] },
   { name: 'Images', children: ['Logos', 'Screenshots'] },
-  { name: 'Projects', children: ['2024', '2025'] },
+  { name: 'Projects', children: ['2024', '2025'] }
 ];
 
 // =============================================================================
@@ -117,7 +117,7 @@ async function clearDatabase(): Promise<void> {
     Organization.deleteMany({}),
     Folder.deleteMany({}),
     Document.deleteMany({}),
-    Membership.deleteMany({}),
+    Membership.deleteMany({})
   ]);
   console.log('✅ Database cleared');
 }
@@ -134,8 +134,8 @@ async function createUsers(): Promise<Map<string, mongoose.Types.ObjectId>> {
       preferences: {
         theme: 'light',
         language: 'es',
-        notifications: true,
-      },
+        notifications: true
+      }
     });
     userMap.set(userData.email, user._id as mongoose.Types.ObjectId);
     console.log(`   ✓ Created user: ${userData.email}`);
@@ -160,7 +160,7 @@ async function createOrganizations(
       ...orgData,
       owner: ownerId,
       members: [ownerId],
-      storageUsed: 0,
+      storageUsed: 0
     });
 
     orgMap.set(orgData.name, org._id as mongoose.Types.ObjectId);
@@ -185,17 +185,17 @@ async function createMemberships(
     { user: 'john@clouddocs.local', org: 'Startup Inc', role: 'owner' },
     { user: 'jane@clouddocs.local', org: 'Startup Inc', role: 'member' },
     // Free Tier Org memberships
-    { user: 'john@clouddocs.local', org: 'Free Tier Org', role: 'owner' },
+    { user: 'john@clouddocs.local', org: 'Free Tier Org', role: 'owner' }
   ];
 
   for (const m of memberships) {
     const userId = userMap.get(m.user);
     const orgId = orgMap.get(m.org);
-    
+
     if (userId && orgId) {
       const org = await Organization.findById(orgId);
       const user = await User.findById(userId);
-      
+
       // Create root folder for this membership
       const rootFolder = await Folder.create({
         name: `root_${user?.email?.split('@')[0]}_${org?.name?.toLowerCase().replace(/\s+/g, '_')}`,
@@ -206,7 +206,7 @@ async function createMemberships(
         owner: userId,
         parent: null,
         path: `/${org?.name?.toLowerCase().replace(/\s+/g, '-')}/${userId}`,
-        permissions: [{ userId: userId, role: 'owner' }],
+        permissions: [{ userId: userId, role: 'owner' }]
       });
 
       await Membership.create({
@@ -214,7 +214,7 @@ async function createMemberships(
         organization: orgId,
         role: m.role,
         joinedAt: new Date(),
-        rootFolder: rootFolder._id,
+        rootFolder: rootFolder._id
       });
       console.log(`   ✓ ${m.user} → ${m.org} (${m.role}) with root folder`);
     }
@@ -226,7 +226,7 @@ async function createFolders(
   orgMap: Map<string, mongoose.Types.ObjectId>
 ): Promise<void> {
   console.log('📁 Creating folder structure...');
-  
+
   const adminId = userMap.get('admin@clouddocs.local')!;
   const acmeId = orgMap.get('Acme Corporation')!;
 
@@ -238,7 +238,7 @@ async function createFolders(
       owner: adminId,
       organization: acmeId,
       path: `/${folderDef.name}`,
-      parent: null,
+      parent: null
     });
     console.log(`   ✓ Created folder: /${folderDef.name}`);
 
@@ -249,7 +249,7 @@ async function createFolders(
         owner: adminId,
         organization: acmeId,
         path: `/${folderDef.name}/${childName}`,
-        parent: parentFolder._id,
+        parent: parentFolder._id
       });
       console.log(`   ✓ Created folder: /${folderDef.name}/${childName}`);
     }
@@ -261,15 +261,15 @@ async function createSampleDocuments(
   orgMap: Map<string, mongoose.Types.ObjectId>
 ): Promise<void> {
   console.log('📄 Creating sample documents...');
-  
+
   const adminId = userMap.get('admin@clouddocs.local')!;
   const johnId = userMap.get('john@clouddocs.local')!;
   const acmeId = orgMap.get('Acme Corporation')!;
 
   // Find Documents folder
-  const docsFolder = await Folder.findOne({ 
-    name: 'Documents', 
-    organization: acmeId 
+  const docsFolder = await Folder.findOne({
+    name: 'Documents',
+    organization: acmeId
   });
 
   const sampleDocs = [
@@ -278,22 +278,22 @@ async function createSampleDocuments(
       filename: 'handbook.pdf',
       mimeType: 'application/pdf',
       size: 1024 * 500, // 500KB
-      uploadedBy: adminId,
+      uploadedBy: adminId
     },
     {
       title: 'Project Roadmap 2025',
       filename: 'roadmap-2025.pdf',
       mimeType: 'application/pdf',
       size: 1024 * 200, // 200KB
-      uploadedBy: johnId,
+      uploadedBy: johnId
     },
     {
       title: 'Meeting Notes',
       filename: 'meeting-notes.txt',
       mimeType: 'text/plain',
       size: 1024 * 10, // 10KB
-      uploadedBy: adminId,
-    },
+      uploadedBy: adminId
+    }
   ];
 
   for (const doc of sampleDocs) {
@@ -303,7 +303,7 @@ async function createSampleDocuments(
       folder: docsFolder?._id || null,
       path: `/storage/${acmeId}/${doc.filename}`,
       sharedWith: [],
-      isPublic: false,
+      isPublic: false
     });
     console.log(`   ✓ Created document: ${doc.title}`);
   }
@@ -315,7 +315,7 @@ async function createSampleDocuments(
 
 async function main(): Promise<void> {
   const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/clouddocs';
-  
+
   console.log('\n🚀 CloudDocs Development Seed Script');
   console.log('=====================================\n');
   console.log(`📡 Connecting to: ${mongoUri}\n`);
@@ -343,7 +343,6 @@ async function main(): Promise<void> {
     console.log('   - Acme Corporation (PREMIUM)');
     console.log('   - Startup Inc (BASIC)');
     console.log('   - Free Tier Org (FREE)\n');
-
   } catch (error) {
     console.error('❌ Seed failed:', error);
     process.exit(1);

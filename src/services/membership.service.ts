@@ -4,7 +4,7 @@ import User from '../models/user.model';
 import Folder from '../models/folder.model';
 import DocumentModel from '../models/document.model';
 import HttpError from '../models/error.model';
-import { sendConfirmationEmail } from '../mail/emailService';
+// email sending is required dynamically to make it easier to mock in tests
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -145,7 +145,10 @@ export async function createInvitation({
       .replace(/{{acceptUrl}}/g, acceptUrl)
       .replace(/{{appUrl}}/g, appUrl);
 
-    await sendConfirmationEmail(
+    // require mailer at runtime so unit tests can mock the module easily
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const mail = require('../mail/emailService');
+    await mail.sendConfirmationEmail(
       user.email,
       `Invitación a ${organization.name} en CloudDocs`,
       emailHtml

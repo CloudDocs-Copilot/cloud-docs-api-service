@@ -36,6 +36,7 @@ CodeQL detectó múltiples vulnerabilidades de **Path Traversal** donde datos no
 ### Riesgo
 
 Un atacante podría manipular estos valores en la base de datos para:
+
 - Acceder a archivos fuera del directorio permitido (`../../etc/passwd`)
 - Eliminar archivos del sistema
 - Leer archivos sensibles
@@ -48,12 +49,14 @@ Un atacante podría manipular estos valores en la base de datos para:
 ### 1. Sanitización de `org.slug`
 
 **Problema:**
+
 ```typescript
 // ❌ ANTES - Sin sanitización
 const filePath = path.join(storageRoot, org.slug, ...doc.path.split('/'));
 ```
 
 **Solución:**
+
 ```typescript
 // ✅ DESPUÉS - Con sanitización
 const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
@@ -67,21 +70,25 @@ const filePath = path.join(storageRoot, safeSlug, ...pathComponents);
 ### 2. Sanitización de Path Components
 
 **Problema:**
+
 ```typescript
 // ❌ ANTES - Path directo desde BD
 const filePath = path.join(storageRoot, org.slug, ...doc.path.split('/').filter(p => p));
 ```
 
 **Solución:**
+
 ```typescript
 // ✅ DESPUÉS - Sanitizar cada componente
-const pathComponents = doc.path.split('/').filter(p => p).map(component => 
-  component.replace(/[^a-z0-9_.-]/gi, '-')
-);
+const pathComponents = doc.path
+  .split('/')
+  .filter(p => p)
+  .map(component => component.replace(/[^a-z0-9_.-]/gi, '-'));
 const filePath = path.join(storageRoot, safeSlug, ...pathComponents);
 ```
 
 **Razón:** Cada componente del path es sanitizado individualmente para eliminar:
+
 - `..` (path traversal)
 - `/` y `\` (separadores de directorios)
 - Caracteres especiales peligrosos
@@ -91,12 +98,14 @@ const filePath = path.join(storageRoot, safeSlug, ...pathComponents);
 ### 3. Sanitización de Nombres de Archivo
 
 **Problema:**
+
 ```typescript
 // ❌ ANTES - Filename directo desde BD
 const uploadsPath = path.join(uploadsBase, doc.filename);
 ```
 
 **Solución:**
+
 ```typescript
 // ✅ DESPUÉS - Usar sanitizePathOrThrow
 const safeFilename = sanitizePathOrThrow(doc.filename, uploadsBase);
@@ -104,6 +113,7 @@ const uploadsPath = path.join(uploadsBase, safeFilename);
 ```
 
 **Razón:** `sanitizePathOrThrow` (de `utils/path-sanitizer.ts`) valida:
+
 - No hay intentos de path traversal
 - El path está dentro del directorio base permitido
 - Extensión de archivo permitida
@@ -114,12 +124,14 @@ const uploadsPath = path.join(uploadsBase, safeFilename);
 ### 4. Sanitización de User ID
 
 **Problema:**
+
 ```typescript
 // ❌ ANTES - userId directo desde BD
 const folderPath = path.join(storageRoot, organization.slug, userId.toString());
 ```
 
 **Solución:**
+
 ```typescript
 // ✅ DESPUÉS - Sanitizar userId
 const safeUserId = userId.toString().replace(/[^a-z0-9]/gi, '');
@@ -137,25 +149,30 @@ const folderPath = path.join(storageRoot, safeSlug, safeUserId);
 **Funciones Corregidas:**
 
 #### `deleteDocument()`
+
 ```typescript
 // ✅ Sanitización aplicada
 const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-const pathComponents = doc.path.split('/').filter(p => p).map(component => 
-  component.replace(/[^a-z0-9_.-]/gi, '-')
-);
+const pathComponents = doc.path
+  .split('/')
+  .filter(p => p)
+  .map(component => component.replace(/[^a-z0-9_.-]/gi, '-'));
 const filePath = path.join(storageRoot, safeSlug, ...pathComponents);
 ```
 
 #### `moveDocument()`
+
 ```typescript
 // ✅ Sanitización de paths antiguo y nuevo
 const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-const oldPathComponents = (doc.path || '').split('/').filter(p => p).map(component => 
-  component.replace(/[^a-z0-9_.-]/gi, '-')
-);
-const newPathComponents = newDocPath.split('/').filter(p => p).map(component => 
-  component.replace(/[^a-z0-9_.-]/gi, '-')
-);
+const oldPathComponents = (doc.path || '')
+  .split('/')
+  .filter(p => p)
+  .map(component => component.replace(/[^a-z0-9_.-]/gi, '-'));
+const newPathComponents = newDocPath
+  .split('/')
+  .filter(p => p)
+  .map(component => component.replace(/[^a-z0-9_.-]/gi, '-'));
 
 const oldPhysicalPath = path.join(storageRoot, safeSlug, ...oldPathComponents);
 const newPhysicalPath = path.join(storageRoot, safeSlug, ...newPathComponents);
@@ -165,36 +182,41 @@ doc.url = `/storage/${safeSlug}${newDocPath}`;
 ```
 
 #### `copyDocument()`
+
 ```typescript
 // ✅ Sanitización en copia de archivos
 const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-const sourcePathComponents = (doc.path || '').split('/').filter(p => p).map(component => 
-  component.replace(/[^a-z0-9_.-]/gi, '-')
-);
-const targetPathComponents = newDocPath.split('/').filter(p => p).map(component => 
-  component.replace(/[^a-z0-9_.-]/gi, '-')
-);
+const sourcePathComponents = (doc.path || '')
+  .split('/')
+  .filter(p => p)
+  .map(component => component.replace(/[^a-z0-9_.-]/gi, '-'));
+const targetPathComponents = newDocPath
+  .split('/')
+  .filter(p => p)
+  .map(component => component.replace(/[^a-z0-9_.-]/gi, '-'));
 
 // ✅ URL sanitizada
-url: `/storage/${safeSlug}${newDocPath}`
+url: `/storage/${safeSlug}${newDocPath}`;
 ```
 
 #### `uploadDocument()`
+
 ```typescript
 // ✅ Sanitización completa en upload con baseDir para validación adicional
 const uploadsRoot = path.join(process.cwd(), 'uploads');
 const sanitizedFilename = sanitizePathOrThrow(file.filename, uploadsRoot);
 
 const safeSlug = organization.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-const folderPathComponents = folder.path.split('/').filter(p => p).map(component => 
-  component.replace(/[^a-z0-9_.-]/gi, '-')
-);
+const folderPathComponents = folder.path
+  .split('/')
+  .filter(p => p)
+  .map(component => component.replace(/[^a-z0-9_.-]/gi, '-'));
 
 const physicalPath = path.join(
-  storageRoot, 
+  storageRoot,
   safeSlug,
   ...folderPathComponents,
-  sanitizedFilename  // Usa sanitizedFilename en lugar de file.filename
+  sanitizedFilename // Usa sanitizedFilename en lugar de file.filename
 );
 
 // ✅ tempPath usa sanitizedFilename (no file.filename directo)
@@ -209,12 +231,13 @@ if (!isPathWithinBase(tempPath, uploadsRoot)) {
 **Importante:** La función `sanitizePathOrThrow` ahora recibe `uploadsRoot` como segundo parámetro para realizar validación de que el path está dentro del directorio permitido, cumpliendo con la recomendación de Copilot Autofix.
 
 if (!isPathWithinBase(tempPath, uploadsRoot)) {
-  throw new HttpError(400, 'Invalid temporary upload path');
+throw new HttpError(400, 'Invalid temporary upload path');
 }
 
 // ✅ URL sanitizada
 url: `/storage/${safeSlug}${documentPath}`
-```
+
+````
 
 ---
 
@@ -228,9 +251,10 @@ url: `/storage/${safeSlug}${documentPath}`
 const storageRoot = path.join(process.cwd(), 'storage');
 const safeSlug = organization.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
 const orgDir = path.join(storageRoot, safeSlug);
-```
+````
 
 #### `createUserRootFolder()`
+
 ```typescript
 // ✅ Sanitización de slug y userId en filesystem
 const safeSlug = organization.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
@@ -239,7 +263,7 @@ const folderPath = path.join(storageRoot, safeSlug, safeUserId);
 
 // ✅ Sanitización de slug en path de BD
 const safeSlugForPath = organization.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-path: `/${safeSlugForPath}/${userId}`
+path: `/${safeSlugForPath}/${userId}`;
 ```
 
 ---
@@ -249,35 +273,42 @@ path: `/${safeSlugForPath}/${userId}`
 **Funciones Corregidas:**
 
 #### `createFolder()`
+
 ```typescript
 // ✅ Sanitización al crear carpeta
 const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-const pathComponents = newPath.split('/').filter(p => p).map(component => 
-  component.replace(/[^a-z0-9_.-]/gi, '-')
-);
+const pathComponents = newPath
+  .split('/')
+  .filter(p => p)
+  .map(component => component.replace(/[^a-z0-9_.-]/gi, '-'));
 const folderPath = path.join(storageRoot, safeSlug, ...pathComponents);
 ```
 
 #### `deleteFolder()`
+
 ```typescript
 // ✅ Sanitización al eliminar carpeta
 const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-const pathComponents = folder.path.split('/').filter(p => p).map(component => 
-  component.replace(/[^a-z0-9_.-]/gi, '-')
-);
+const pathComponents = folder.path
+  .split('/')
+  .filter(p => p)
+  .map(component => component.replace(/[^a-z0-9_.-]/gi, '-'));
 const folderPath = path.join(storageRoot, safeSlug, ...pathComponents);
 ```
 
 #### `renameFolder()`
+
 ```typescript
 // ✅ Sanitización de paths antiguo y nuevo
 const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-const oldPathComponents = oldPath.split('/').filter(p => p).map(component => 
-  component.replace(/[^a-z0-9_.-]/gi, '-')
-);
-const newPathComponents = newPath.split('/').filter(p => p).map(component => 
-  component.replace(/[^a-z0-9_.-]/gi, '-')
-);
+const oldPathComponents = oldPath
+  .split('/')
+  .filter(p => p)
+  .map(component => component.replace(/[^a-z0-9_.-]/gi, '-'));
+const newPathComponents = newPath
+  .split('/')
+  .filter(p => p)
+  .map(component => component.replace(/[^a-z0-9_.-]/gi, '-'));
 const oldFolderPath = path.join(storageRoot, safeSlug, ...oldPathComponents);
 const newFolderPath = path.join(storageRoot, safeSlug, ...newPathComponents);
 ```
@@ -289,6 +320,7 @@ const newFolderPath = path.join(storageRoot, safeSlug, ...newPathComponents);
 **Funciones Corregidas:**
 
 #### `register()` - Creación de carpeta raíz de usuario
+
 ```typescript
 // ✅ Sanitización completa en registro
 const safeSlug = organization.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
@@ -304,27 +336,34 @@ const userStoragePath = path.join(storageRoot, safeSlug, safeUserId);
 ## 🔒 Capas de Seguridad Implementadas
 
 ### Capa 1: Sanitización de Slug
+
 ```typescript
 const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
 ```
+
 - **Permite:** Letras minúsculas (a-z), números (0-9), guiones (-)
 - **Bloquea:** `..`, `/`, `\`, espacios, caracteres especiales
 - **Resultado:** Slug siempre seguro para filesystem
 
 ### Capa 2: Sanitización de Componentes de Path
+
 ```typescript
-const pathComponents = path.split('/').filter(p => p).map(component => 
-  component.replace(/[^a-z0-9_.-]/gi, '-')
-);
+const pathComponents = path
+  .split('/')
+  .filter(p => p)
+  .map(component => component.replace(/[^a-z0-9_.-]/gi, '-'));
 ```
-- **Permite:** Letras (a-z, A-Z), números (0-9), guiones (-), puntos (.), guiones bajos (_)
+
+- **Permite:** Letras (a-z, A-Z), números (0-9), guiones (-), puntos (.), guiones bajos (\_)
 - **Bloquea:** `..`, `/`, `\`, espacios, caracteres especiales
 - **Resultado:** Cada componente es seguro individualmente
 
 ### Capa 3: Validación de Path con `sanitizePathOrThrow()`
+
 ```typescript
 const safeFilename = sanitizePathOrThrow(filename, baseDir);
 ```
+
 - **Valida:**
   - No hay path traversal (`..`, `../`, etc.)
   - Path está dentro del directorio base
@@ -333,9 +372,11 @@ const safeFilename = sanitizePathOrThrow(filename, baseDir);
 - **Lanza Error:** Si cualquier validación falla
 
 ### Capa 4: Path Normalization con `path.join()`
+
 ```typescript
 const filePath = path.join(storageRoot, safeSlug, ...pathComponents);
 ```
+
 - **Normaliza:** Resuelve paths relativos y absolutos
 - **Elimina:** Dobles barras, paths redundantes
 - **Asegura:** Path compatible con el sistema operativo
@@ -375,10 +416,11 @@ npm test
 ## 🎯 Escenarios de Ataque Mitigados
 
 ### 1. Path Traversal en Upload
+
 ```typescript
 // ❌ Ataque Intentado
-POST /api/documents/upload
-filename: "../../etc/passwd"
+POST / api / documents / upload;
+filename: '../../etc/passwd';
 
 // ✅ Mitigado
 // filename sanitizado → "passwd" (sin ../)
@@ -386,6 +428,7 @@ filename: "../../etc/passwd"
 ```
 
 ### 2. Path Traversal en Download
+
 ```typescript
 // ❌ Ataque Intentado
 GET /api/documents/download/../../etc/passwd
@@ -396,9 +439,10 @@ GET /api/documents/download/../../etc/passwd
 ```
 
 ### 3. Slug Malicioso
+
 ```typescript
 // ❌ Ataque (si se modifica BD directamente)
-org.slug = "../../../etc"
+org.slug = '../../../etc';
 
 // ✅ Mitigado
 // safeSlug = "etc" (sin ../)
@@ -406,9 +450,10 @@ org.slug = "../../../etc"
 ```
 
 ### 4. Path Malicioso en Carpeta
+
 ```typescript
 // ❌ Ataque (si se modifica BD)
-folder.path = "/org/../../../etc/passwd"
+folder.path = '/org/../../../etc/passwd';
 
 // ✅ Mitigado
 // pathComponents = ["org", "etc", "passwd"] (sin ../)
@@ -420,17 +465,21 @@ folder.path = "/org/../../../etc/passwd"
 ## 📚 Referencias de Seguridad
 
 ### OWASP Top 10
+
 - **A01:2021 – Broken Access Control**
 - **A05:2021 – Security Misconfiguration**
 
 ### CWE (Common Weakness Enumeration)
+
 - **CWE-22:** Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')
 - **CWE-73:** External Control of File Name or Path
 
 ### Utilidad de Path Sanitizer
+
 **Ubicación:** [`src/utils/path-sanitizer.ts`](src/utils/path-sanitizer.ts)
 
 **Funciones Disponibles:**
+
 - `sanitizePath()` - Valida y sanitiza paths
 - `sanitizePathOrThrow()` - Lanza error si inválido
 - `isPathWithinBase()` - Verifica que path esté dentro del directorio base
@@ -441,19 +490,23 @@ folder.path = "/org/../../../etc/passwd"
 ## 🔄 Mejores Prácticas Implementadas
 
 ### 1. Defense in Depth (Defensa en Profundidad)
+
 - **Múltiples capas:** Sanitización de slug + componentes + validación + normalización
 - **Redundancia:** Aunque uno falle, otros protegen
 
 ### 2. Whitelist Over Blacklist
+
 - **Enfoque:** Permitir solo caracteres seguros en lugar de bloquear peligrosos
 - **Ejemplo:** `/[^a-z0-9-]/g` permite solo lo seguro
 
 ### 3. Input Validation at Every Layer
+
 - **Controladores:** Validación de entrada
 - **Servicios:** Sanitización antes de filesystem
 - **Utilidades:** Validación final con `sanitizePathOrThrow()`
 
 ### 4. Fail-Safe Defaults
+
 - **Error por defecto:** Si validación falla, lanza error (no continúa)
 - **Logs:** Errores de filesystem logueados para auditoría
 
@@ -506,21 +559,23 @@ CodeQL detectó vulnerabilidades de **NoSQL Injection** donde datos controlados 
 ### Riesgo
 
 Un atacante podría:
+
 - Pasar objetos en lugar de strings (`{ $ne: null }`) para bypassear queries
 - Inyectar operadores MongoDB (`$gt`, `$lt`, `$regex`, etc.)
 - Acceder a documentos no autorizados
 - Manipular queries para revelar información sensible
 
 **Ejemplo de Ataque:**
+
 ```javascript
 // Llamada normal
-getUserRecentDocuments({ userId: "507f1f77bcf86cd799439011", organizationId: "..." })
+getUserRecentDocuments({ userId: '507f1f77bcf86cd799439011', organizationId: '...' });
 
 // Ataque de inyección NoSQL
-getUserRecentDocuments({ 
-  userId: { $ne: null },  // ❌ Retornaría documentos de TODOS los usuarios
-  organizationId: "..." 
-})
+getUserRecentDocuments({
+  userId: { $ne: null }, // ❌ Retornaría documentos de TODOS los usuarios
+  organizationId: '...'
+});
 ```
 
 ### Soluciones Aplicadas
@@ -528,18 +583,20 @@ getUserRecentDocuments({
 #### 1. Validación + Conversión a ObjectId
 
 **Problema:**
+
 ```typescript
 // ❌ ANTES - Sin validación de tipos
 const documents = await DocumentModel.find({
-  organization: { $eq: organizationId },  // organizationId podría ser objeto malicioso
+  organization: { $eq: organizationId }, // organizationId podría ser objeto malicioso
   $or: [
-    { uploadedBy: userId },  // userId podría ser { $ne: null }
+    { uploadedBy: userId }, // userId podría ser { $ne: null }
     { sharedWith: userId }
   ]
 });
 ```
 
 **Solución:**
+
 ```typescript
 // ✅ DESPUÉS - Validación + conversión segura
 if (!isValidObjectId(userId)) {
@@ -553,15 +610,13 @@ const userObjectId = new mongoose.Types.ObjectId(userId);
 const orgObjectId = new mongoose.Types.ObjectId(organizationId);
 
 const documents = await DocumentModel.find({
-  organization: orgObjectId,  // Tipo seguro: ObjectId
-  $or: [
-    { uploadedBy: userObjectId },
-    { sharedWith: userObjectId }
-  ]
+  organization: orgObjectId, // Tipo seguro: ObjectId
+  $or: [{ uploadedBy: userObjectId }, { sharedWith: userObjectId }]
 });
 ```
 
-**Razón:** 
+**Razón:**
+
 - `isValidObjectId()` valida que sea un string hexadecimal válido
 - `mongoose.Types.ObjectId()` convierte a tipo ObjectId nativo
 - Impide que objetos maliciosos lleguen a la query
@@ -571,20 +626,22 @@ const documents = await DocumentModel.find({
 #### 2. Conversión de Arrays a ObjectIds
 
 **Problema:**
+
 ```typescript
 // ❌ ANTES - Array sin validación
-const existingUsers = await User.find({ 
-  _id: { $in: filteredIds }  // filteredIds podría contener objetos maliciosos
+const existingUsers = await User.find({
+  _id: { $in: filteredIds } // filteredIds podría contener objetos maliciosos
 });
 ```
 
 **Solución:**
+
 ```typescript
 // ✅ DESPUÉS - Convertir cada elemento
 const filteredObjectIds = filteredIds.map(id => new mongoose.Types.ObjectId(id));
 
-const existingUsers = await User.find({ 
-  _id: { $in: filteredObjectIds }  // Array de ObjectIds seguros
+const existingUsers = await User.find({
+  _id: { $in: filteredObjectIds } // Array de ObjectIds seguros
 });
 ```
 
@@ -593,19 +650,19 @@ const existingUsers = await User.find({
 #### 3. Conversión de Referencias desde Base de Datos
 
 **Problema:**
+
 ```typescript
 // ❌ ANTES - Usar directamente datos de BD
 const users = await User.find({
-  _id: { $in: organization.members }  // organization.members podría estar corrompido
+  _id: { $in: organization.members } // organization.members podría estar corrompido
 });
 ```
 
 **Solución:**
+
 ```typescript
 // ✅ DESPUÉS - Convertir a ObjectIds
-const memberObjectIds = organization.members.map((id: any) => 
-  new mongoose.Types.ObjectId(id)
-);
+const memberObjectIds = organization.members.map((id: any) => new mongoose.Types.ObjectId(id));
 
 const users = await User.find({
   _id: { $in: memberObjectIds }
@@ -621,6 +678,7 @@ const users = await User.find({
 #### `src/services/document.service.ts`
 
 **1. `getUserRecentDocuments()`**
+
 ```typescript
 // ✅ Validación + conversión de IDs
 if (!isValidObjectId(userId)) {
@@ -634,24 +692,25 @@ const userObjectId = new mongoose.Types.ObjectId(userId);
 const orgObjectId = new mongoose.Types.ObjectId(organizationId);
 
 const documents = await DocumentModel.find({
-  organization: orgObjectId,  // ObjectId seguro
-  $or: [
-    { uploadedBy: userObjectId },
-    { sharedWith: userObjectId }
-  ]
+  organization: orgObjectId, // ObjectId seguro
+  $or: [{ uploadedBy: userObjectId }, { sharedWith: userObjectId }]
 });
 ```
 
 **2. `shareDocument()`**
+
 ```typescript
 // ✅ Conversión de array de IDs
 const filteredObjectIds = filteredIds.map(id => new mongoose.Types.ObjectId(id));
 
-const existingUsers = await User.find({ 
-  _id: { $in: filteredObjectIds }  // Array seguro
-}, { _id: 1 }).lean();
+const existingUsers = await User.find(
+  {
+    _id: { $in: filteredObjectIds } // Array seguro
+  },
+  { _id: 1 }
+).lean();
 
-const existingIds = existingUsers.map(u => u._id);  // Ya son ObjectIds
+const existingIds = existingUsers.map(u => u._id); // Ya son ObjectIds
 
 const updated = await DocumentModel.findByIdAndUpdate(
   id,
@@ -665,17 +724,16 @@ const updated = await DocumentModel.findByIdAndUpdate(
 #### `src/services/organization.service.ts`
 
 **`getOrganizationStats()`**
+
 ```typescript
 // ✅ Import de mongoose añadido
 import mongoose from 'mongoose';
 
 // ✅ Conversión de members array
-const memberObjectIds = organization.members.map((id: any) => 
-  new mongoose.Types.ObjectId(id)
-);
+const memberObjectIds = organization.members.map((id: any) => new mongoose.Types.ObjectId(id));
 
 const users = await User.find({
-  _id: { $in: memberObjectIds }  // Array de ObjectIds seguros
+  _id: { $in: memberObjectIds } // Array de ObjectIds seguros
 }).select('name email storageUsed');
 ```
 
@@ -684,6 +742,7 @@ const users = await User.find({
 #### `src/services/folder.service.ts`
 
 **1. `getFolderContents()`**
+
 ```typescript
 // ✅ Conversión de IDs de parámetros
 const folderObjectId = new mongoose.Types.ObjectId(folderId);
@@ -691,35 +750,27 @@ const userObjectId = new mongoose.Types.ObjectId(userId);
 
 // Subcarpetas
 const subfolders = await Folder.find({
-  parent: folderObjectId,  // ObjectId seguro
-  $or: [
-    { owner: userObjectId },
-    { 'permissions.userId': userObjectId }
-  ]
+  parent: folderObjectId, // ObjectId seguro
+  $or: [{ owner: userObjectId }, { 'permissions.userId': userObjectId }]
 });
 
 // Documentos
 const documents = await DocumentModel.find({
   folder: folderObjectId,
-  $or: [
-    { uploadedBy: userObjectId },
-    { sharedWith: userObjectId }
-  ]
+  $or: [{ uploadedBy: userObjectId }, { sharedWith: userObjectId }]
 });
 ```
 
 **2. `getUserFolderTree()`**
+
 ```typescript
 // ✅ Conversión de IDs
 const userObjectId = new mongoose.Types.ObjectId(userId);
 const orgObjectId = new mongoose.Types.ObjectId(organizationId);
 
 const folders = await Folder.find({
-  organization: orgObjectId,  // ObjectId seguro
-  $or: [
-    { owner: userObjectId },
-    { 'permissions.userId': userObjectId }
-  ]
+  organization: orgObjectId, // ObjectId seguro
+  $or: [{ owner: userObjectId }, { 'permissions.userId': userObjectId }]
 });
 ```
 
@@ -735,6 +786,7 @@ const folders = await Folder.find({
 4. **Sanitización de Strings** - No permitir operadores como strings
 
 **Funciones Afectadas:**
+
 - `getUserRecentDocuments()` - document.service.ts
 - `shareDocument()` - document.service.ts
 - `getOrganizationStats()` - organization.service.ts
@@ -752,6 +804,7 @@ npm test
 ```
 
 **Resultado:**
+
 ```
 Test Suites: 17 passed, 17 total
 Tests:       295 passed, 295 total
@@ -761,14 +814,15 @@ Time:        50.126 s
 
 ### Vulnerabilidades Mitigadas
 
-| Vulnerabilidad | Severidad | Estado | Archivos |
-|---------------|-----------|--------|----------|
-| Path Traversal (CWE-22) | Alta | ✅ Corregido | 4 archivos, 10 funciones |
-| NoSQL Injection (CWE-943) | Alta | ✅ Corregido | 3 archivos, 5 funciones |
+| Vulnerabilidad            | Severidad | Estado       | Archivos                 |
+| ------------------------- | --------- | ------------ | ------------------------ |
+| Path Traversal (CWE-22)   | Alta      | ✅ Corregido | 4 archivos, 10 funciones |
+| NoSQL Injection (CWE-943) | Alta      | ✅ Corregido | 3 archivos, 5 funciones  |
 
 ### Cobertura de Seguridad
 
 ✅ **Path Traversal:**
+
 - Sanitización de `org.slug` (16 ocurrencias)
 - Sanitización de `folder.path` (16 ocurrencias)
 - Sanitización de operaciones filesystem (20+ ocurrencias)
@@ -776,6 +830,7 @@ Time:        50.126 s
 - Database paths sanitizados
 
 ✅ **NoSQL Injection:**
+
 - Validación de todos los IDs antes de queries
 - Conversión a ObjectId de todos los parámetros
 - Arrays de IDs convertidos a ObjectIds
@@ -786,12 +841,14 @@ Time:        50.126 s
 ## 🎯 Impacto Final
 
 **Antes:**
+
 - ❌ 2 vulnerabilidades High severity
 - ❌ 15+ funciones vulnerables
 - ❌ Path traversal posible
 - ❌ NoSQL injection posible
 
 **Después:**
+
 - ✅ 0 vulnerabilidades conocidas
 - ✅ 15+ funciones protegidas
 - ✅ Defense-in-depth implementado
@@ -799,6 +856,7 @@ Time:        50.126 s
 - ✅ Sin regresiones funcionales
 
 **Compliance:**
+
 - ✅ OWASP A01:2021 - Broken Access Control (Mitigado)
 - ✅ OWASP A03:2021 - Injection (Mitigado)
 - ✅ CWE-22 - Path Traversal (Corregido)

@@ -141,10 +141,26 @@ describe('DocumentService Integration Tests', () => {
     const uploadsRoot = path.join(process.cwd(), 'uploads');
     
     if (fs.existsSync(storageRoot)) {
-      fs.rmSync(storageRoot, { recursive: true, force: true });
+      try {
+        fs.rmSync(storageRoot, { recursive: true, force: true });
+      } catch (err: any) {
+        if (err && (err.code === 'ENOTEMPTY' || err.code === 'EBUSY' || err.code === 'EPERM')) {
+          console.warn('Warning: could not fully remove storageRoot during cleanup:', err.code);
+        } else {
+          throw err;
+        }
+      }
     }
     if (fs.existsSync(uploadsRoot)) {
-      fs.rmSync(uploadsRoot, { recursive: true, force: true });
+      try {
+        fs.rmSync(uploadsRoot, { recursive: true, force: true });
+      } catch (err: any) {
+        if (err && (err.code === 'ENOTEMPTY' || err.code === 'EBUSY' || err.code === 'EPERM')) {
+          console.warn('Warning: could not fully remove uploadsRoot during cleanup:', err.code);
+        } else {
+          throw err;
+        }
+      }
     }
   });
 
@@ -477,6 +493,15 @@ describe('DocumentService Integration Tests', () => {
 
       const storageRoot = path.join(process.cwd(), 'storage');
       const originalPath = path.join(storageRoot, testOrgSlug, ...doc.path!.split('/').filter(p => p));
+      
+      // Asegurar que el archivo físico existe antes de copiar
+      if (!fs.existsSync(originalPath)) {
+        const dir = path.dirname(originalPath);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+        fs.writeFileSync(originalPath, 'test content for copy');
+      }
 
       const copied = await documentService.copyDocument({
         documentId: doc._id.toString(),

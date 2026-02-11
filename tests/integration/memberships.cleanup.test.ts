@@ -308,8 +308,13 @@ describe('Membership Removal - Data Cleanup', () => {
       // Crear documento en subfolder2
       const storageRoot = path.resolve(process.cwd(), 'storage');
       const userPath = path.resolve(storageRoot, orgSlug, memberId);
-      const testFilePath = path.join(userPath, 'nested-doc.txt');
       
+      // Asegurar que el directorio existe antes de escribir
+      if (!fs.existsSync(userPath)) {
+        fs.mkdirSync(userPath, { recursive: true });
+      }
+      
+      const testFilePath = path.join(userPath, 'nested-doc.txt');
       fs.writeFileSync(testFilePath, 'Nested content');
 
       const doc = await DocumentModel.create({

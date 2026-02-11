@@ -363,3 +363,5 @@ export default {
   registerUser,
   loginUser
 };
+
+export { escapeHtml, hashResetToken };

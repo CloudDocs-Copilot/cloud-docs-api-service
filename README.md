@@ -54,11 +54,11 @@ npm run seed:dev
 
 ### Test Accounts (after seeding)
 
-| Email | Password | Role |
-|-------|----------|------|
+| Email                 | Password  | Role  |
+| --------------------- | --------- | ----- |
 | admin@clouddocs.local | Test@1234 | Admin |
-| john@clouddocs.local | Test@1234 | User |
-| jane@clouddocs.local | Test@1234 | User |
+| john@clouddocs.local  | Test@1234 | User  |
+| jane@clouddocs.local  | Test@1234 | User  |
 
 See [docs/MOCK-DATA.md](docs/MOCK-DATA.md) for complete test data documentation.
 
@@ -75,34 +75,34 @@ docker-compose up -d
 
 ## 📚 Documentation
 
-| Document | Description |
-|----------|-------------|
-| [Architecture](docs/ARCHITECTURE.md) | System design and code organization |
-| [OpenAPI Spec](docs/openapi/openapi.json) | API specification (Swagger/OpenAPI 3.0) |
-| [Mock Data](docs/MOCK-DATA.md) | Test data for local development |
-| [Testing Guide](docs/ENDPOINTS-TESTING-GUIDE.md) | How to test API endpoints |
-| [Contributing](CONTRIBUTING.md) | Development setup and guidelines |
+| Document                                         | Description                             |
+| ------------------------------------------------ | --------------------------------------- |
+| [Architecture](docs/ARCHITECTURE.md)             | System design and code organization     |
+| [OpenAPI Spec](docs/openapi/openapi.json)        | API specification (Swagger/OpenAPI 3.0) |
+| [Mock Data](docs/MOCK-DATA.md)                   | Test data for local development         |
+| [Testing Guide](docs/ENDPOINTS-TESTING-GUIDE.md) | How to test API endpoints               |
+| [Contributing](CONTRIBUTING.md)                  | Development setup and guidelines        |
 
 ### RFCs (Technical Design Documents)
 
-| Document | Description |
-|----------|-------------|
-| [CSRF Protection](docs/rfc/CSRF-PROTECTION.md) | Security implementation details |
-| [Multi-tenancy](docs/rfc/MULTITENANCY-MIGRATION.md) | Organization model explanation |
-| [Password Validation](docs/rfc/PASSWORD-VALIDATION.md) | Password strength requirements |
-| [Security Fixes](docs/rfc/SECURITY-FIXES.md) | Security improvements documentation |
+| Document                                               | Description                         |
+| ------------------------------------------------------ | ----------------------------------- |
+| [CSRF Protection](docs/rfc/CSRF-PROTECTION.md)         | Security implementation details     |
+| [Multi-tenancy](docs/rfc/MULTITENANCY-MIGRATION.md)    | Organization model explanation      |
+| [Password Validation](docs/rfc/PASSWORD-VALIDATION.md) | Password strength requirements      |
+| [Security Fixes](docs/rfc/SECURITY-FIXES.md)           | Security improvements documentation |
 
 ## 🛠️ Scripts
 
-| Script | Description |
-|--------|-------------|
-| `npm run dev` | Start development server with hot reload |
-| `npm run build` | Compile TypeScript to JavaScript |
-| `npm start` | Run production server |
-| `npm test` | Run test suite |
-| `npm run test:coverage` | Run tests with coverage report |
-| `npm run seed:dev` | Load test data into database |
-| `npm run format` | Format code with Prettier |
+| Script                  | Description                              |
+| ----------------------- | ---------------------------------------- |
+| `npm run dev`           | Start development server with hot reload |
+| `npm run build`         | Compile TypeScript to JavaScript         |
+| `npm start`             | Run production server                    |
+| `npm test`              | Run test suite                           |
+| `npm run test:coverage` | Run tests with coverage report           |
+| `npm run seed:dev`      | Load test data into database             |
+| `npm run format`        | Format code with Prettier                |
 
 ## 📁 Project Structure
 
@@ -141,13 +141,13 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed documentation.
 
 Key variables (see [.env.example](.env.example) for full list):
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PORT` | Server port | `4000` |
-| `MONGO_URI` | MongoDB connection string | `mongodb://localhost:27017/clouddocs` |
-| `JWT_SECRET` | Token signing key | - |
-| `ELASTICSEARCH_ENABLED` | Enable search | `false` |
-| `ALLOWED_ORIGINS` | CORS allowed origins | `http://localhost:5173` |
+| Variable                | Description               | Default                               |
+| ----------------------- | ------------------------- | ------------------------------------- |
+| `PORT`                  | Server port               | `4000`                                |
+| `MONGO_URI`             | MongoDB connection string | `mongodb://localhost:27017/clouddocs` |
+| `JWT_SECRET`            | Token signing key         | -                                     |
+| `ELASTICSEARCH_ENABLED` | Enable search             | `false`                               |
+| `ALLOWED_ORIGINS`       | CORS allowed origins      | `http://localhost:5173`               |
 
 ## 🧪 Testing
 

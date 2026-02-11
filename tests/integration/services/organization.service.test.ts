@@ -33,7 +33,15 @@ describe('OrganizationService Integration Tests', () => {
     // Limpiar directorios de prueba
     const storageDir = path.join(process.cwd(), 'storage');
     if (fs.existsSync(storageDir)) {
-      fs.rmSync(storageDir, { recursive: true, force: true });
+      try {
+        fs.rmSync(storageDir, { recursive: true, force: true });
+      } catch (err: any) {
+        if (err && (err.code === 'ENOTEMPTY' || err.code === 'EBUSY' || err.code === 'EPERM')) {
+          console.warn('Warning: could not fully remove storageDir during cleanup:', err.code);
+        } else {
+          throw err;
+        }
+      }
     }
   });
 

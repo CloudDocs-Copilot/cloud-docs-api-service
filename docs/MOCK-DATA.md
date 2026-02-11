@@ -16,28 +16,28 @@ npm run seed:dev
 
 All test accounts use the same password: `Test@1234`
 
-| Email | Name | Role | Status |
-|-------|------|------|--------|
-| `admin@clouddocs.local` | Admin User | admin | Active |
-| `john@clouddocs.local` | John Developer | user | Active |
-| `jane@clouddocs.local` | Jane Designer | user | Active |
-| `inactive@clouddocs.local` | Inactive User | user | Inactive |
+| Email                      | Name           | Role  | Status   |
+| -------------------------- | -------------- | ----- | -------- |
+| `admin@clouddocs.local`    | Admin User     | admin | Active   |
+| `john@clouddocs.local`     | John Developer | user  | Active   |
+| `jane@clouddocs.local`     | Jane Designer  | user  | Active   |
+| `inactive@clouddocs.local` | Inactive User  | user  | Inactive |
 
 ## Organizations
 
-| Name | Plan | Storage Limit | Max Members |
-|------|------|---------------|-------------|
-| Acme Corporation | premium | 10 GB | 50 |
-| Startup Inc | basic | 1 GB | 10 |
-| Free Tier Org | free | 100 MB | 3 |
+| Name             | Plan    | Storage Limit | Max Members |
+| ---------------- | ------- | ------------- | ----------- |
+| Acme Corporation | premium | 10 GB         | 50          |
+| Startup Inc      | basic   | 1 GB          | 10          |
+| Free Tier Org    | free    | 100 MB        | 3           |
 
 ## Membership Matrix
 
-| User | Acme Corporation | Startup Inc | Free Tier Org |
-|------|------------------|-------------|---------------|
-| admin@clouddocs.local | Owner | - | - |
-| john@clouddocs.local | Admin | Owner | Owner |
-| jane@clouddocs.local | Member | Member | - |
+| User                  | Acme Corporation | Startup Inc | Free Tier Org |
+| --------------------- | ---------------- | ----------- | ------------- |
+| admin@clouddocs.local | Owner            | -           | -             |
+| john@clouddocs.local  | Admin            | Owner       | Owner         |
+| jane@clouddocs.local  | Member           | Member      | -             |
 
 ## Folder Structure (Acme Corporation)
 
@@ -57,11 +57,11 @@ All test accounts use the same password: `Test@1234`
 
 ## Sample Documents
 
-| Title | Filename | Type | Size | Owner |
-|-------|----------|------|------|-------|
-| Company Handbook | handbook.pdf | PDF | 500 KB | admin@clouddocs.local |
-| Project Roadmap 2025 | roadmap-2025.pdf | PDF | 200 KB | john@clouddocs.local |
-| Meeting Notes | meeting-notes.txt | Text | 10 KB | admin@clouddocs.local |
+| Title                | Filename          | Type | Size   | Owner                 |
+| -------------------- | ----------------- | ---- | ------ | --------------------- |
+| Company Handbook     | handbook.pdf      | PDF  | 500 KB | admin@clouddocs.local |
+| Project Roadmap 2025 | roadmap-2025.pdf  | PDF  | 200 KB | john@clouddocs.local  |
+| Meeting Notes        | meeting-notes.txt | Text | 10 KB  | admin@clouddocs.local |
 
 ## Testing Scenarios
 

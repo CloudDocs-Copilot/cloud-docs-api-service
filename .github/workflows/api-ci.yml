@@ -2,9 +2,9 @@ name: API CI
 
 on:
   push:
-    branches: ['**']  # Ejecutar en push a cualquier rama
+    branches: ['**'] # Ejecutar en push a cualquier rama
   pull_request:
-    branches: ['**']  # También en pull requests
+    branches: ['**'] # También en pull requests
 
 jobs:
   test:
@@ -35,9 +35,9 @@ jobs:
       - name: Build project
         run: npm run build
 
-      # 5. Ejecutar tests con cobertura
+      # 5. Ejecutar tests con cobertura (secuencial para evitar race conditions)
       - name: Run tests with coverage
-        run: npm run test:coverage
+        run: npm run test:ci
         env:
           NODE_ENV: test
 
@@ -90,7 +90,7 @@ jobs:
     needs: [test, lint]
     runs-on: ubuntu-latest
     if: always()
-    
+
     steps:
       - name: Check CI Status
         run: |

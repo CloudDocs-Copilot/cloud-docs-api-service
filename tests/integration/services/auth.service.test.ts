@@ -77,7 +77,15 @@ describe('AuthService Integration Tests', () => {
     const storageRoot = path.join(process.cwd(), 'storage');
     const orgStoragePath = path.join(storageRoot, testOrgSlug);
     if (fs.existsSync(orgStoragePath)) {
-      fs.rmSync(orgStoragePath, { recursive: true, force: true });
+      try {
+        fs.rmSync(orgStoragePath, { recursive: true, force: true });
+      } catch (err: any) {
+        if (err && (err.code === 'ENOTEMPTY' || err.code === 'EBUSY' || err.code === 'EPERM')) {
+          console.warn('Warning: could not fully remove orgStoragePath during cleanup:', err.code);
+        } else {
+          throw err;
+        }
+      }
     }
   });
 

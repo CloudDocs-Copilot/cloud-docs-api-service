@@ -11,6 +11,7 @@
     "test": "cross-env NODE_ENV=test jest --detectOpenHandles",
     "test:watch": "cross-env NODE_ENV=test jest --watch",
     "test:coverage": "cross-env NODE_ENV=test jest --coverage",
+    "test:ci": "cross-env NODE_ENV=test jest --coverage --runInBand --ci",
     "seed:dev": "ts-node scripts/seed-dev.ts"
   },
   "dependencies": {

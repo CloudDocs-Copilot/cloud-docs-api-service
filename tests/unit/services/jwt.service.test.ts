@@ -1,4 +1,4 @@
-import * as jwtService from '../../src/services/jwt.service';
+import * as jwtService from '../../../src/services/jwt.service';
 
 /**
  * Tests unitarios para el servicio JWT

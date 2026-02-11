@@ -1,4 +1,14 @@
-import ElasticsearchClient from '../configurations/elasticsearch-config';
+// Resolve Elasticsearch client at runtime to make the module easier to mock in tests
+function getEsModule() {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const esMod = require('../configurations/elasticsearch-config');
+  return (esMod && esMod.getInstance) ? esMod : (esMod && esMod.default ? esMod.default : esMod);
+}
+
+export let getEsClient = () => {
+  const mod = getEsModule();
+  return mod.getInstance();
+};
 import { IDocument } from '../models/document.model';
 
 /**
@@ -29,7 +39,7 @@ export interface SearchResult {
  */
 export async function indexDocument(document: IDocument): Promise<void> {
   try {
-    const client = ElasticsearchClient.getInstance();
+    const client = getEsModule().getInstance();
     
     await client.index({
       index: 'documents',
@@ -58,7 +68,7 @@ export async function indexDocument(document: IDocument): Promise<void> {
  */
 export async function removeDocumentFromIndex(documentId: string): Promise<void> {
   try {
-    const client = ElasticsearchClient.getInstance();
+    const client = getEsModule().getInstance();
     
     await client.delete({
       index: 'documents',
@@ -81,7 +91,7 @@ export async function removeDocumentFromIndex(documentId: string): Promise<void>
  */
 export async function searchDocuments(params: SearchParams): Promise<SearchResult> {
   try {
-    const client = ElasticsearchClient.getInstance();
+    const client = getEsModule().getInstance();
     const { query, userId, organizationId, mimeType, fromDate, toDate, limit = 20, offset = 0 } = params;
 
     // Construir filtros
@@ -152,7 +162,7 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
  */
 export async function getAutocompleteSuggestions(query: string, userId: string, limit: number = 5): Promise<string[]> {
   try {
-    const client = ElasticsearchClient.getInstance();
+    const client = getEsModule().getInstance();
 
     const result = await client.search({
       index: 'documents',

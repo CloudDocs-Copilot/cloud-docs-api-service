@@ -1,6 +1,12 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middlewares/auth.middleware';
-import { registerUser, loginUser, confirmUserAccount, requestPasswordReset, resetPassword } from '../services/auth.service';
+import {
+  registerUser,
+  loginUser,
+  confirmUserAccount,
+  requestPasswordReset,
+  resetPassword
+} from '../services/auth.service';
 import HttpError from '../models/error.model';
 
 /**
@@ -9,12 +15,12 @@ import HttpError from '../models/error.model';
  */
 export async function register(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { name, email, password} = req.body;
-    
+    const { name, email, password } = req.body;
+
     if (!name || !email || !password) {
       return next(new HttpError(400, 'Missing required fields (name, email, password)'));
     }
-    
+
     const user = await registerUser(req.body);
     res.status(201).json({ message: 'User registered successfully', user });
   } catch (err: any) {
@@ -24,7 +30,10 @@ export async function register(req: AuthRequest, res: Response, next: NextFuncti
     if (err.message && err.message.includes('Invalid email format')) {
       return next(new HttpError(400, 'Invalid email format'));
     }
-    if (err.message && err.message.includes('Name must contain only alphanumeric characters and spaces')) {
+    if (
+      err.message &&
+      err.message.includes('Name must contain only alphanumeric characters and spaces')
+    ) {
       return next(new HttpError(400, 'Invalid name format'));
     }
     if (err.message && err.message.includes('Password validation failed')) {
@@ -41,30 +50,31 @@ export async function register(req: AuthRequest, res: Response, next: NextFuncti
 export async function login(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const { email, password } = req.body;
-    
-    if ( !email || !password) {
+
+    if (!email || !password) {
       return next(new HttpError(400, 'Missing required fields'));
     }
     const result = await loginUser(req.body);
-    
+
     // Configuración de la cookie
     const cookieOptions = {
       httpOnly: true, // La cookie no es accesible desde JavaScript del cliente
       secure: process.env.NODE_ENV === 'production', // Solo HTTPS en producción
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' as const : 'lax' as const, // Protección CSRF
+      sameSite: process.env.NODE_ENV === 'production' ? ('strict' as const) : ('lax' as const), // Protección CSRF
       maxAge: 24 * 60 * 60 * 1000, // 24 horas en milisegundos
       path: '/' // Cookie disponible en toda la aplicación
     };
-    
+
     // Enviar token en cookie HttpOnly
     res.cookie('token', result.token, cookieOptions);
-    
+
     // Devolver solo los datos del usuario, no el token
     res.json({ message: 'Login successful', user: result.user });
   } catch (err: any) {
     if (err.message === 'User not found') return next(new HttpError(404, 'Invalid credentials'));
     if (err.message === 'Invalid password') return next(new HttpError(401, 'Invalid credentials'));
-    if (err.message === 'User account is not active') return next(new HttpError(403, 'Account is not active'));
+    if (err.message === 'User account is not active')
+      return next(new HttpError(403, 'Account is not active'));
     next(err);
   }
 }
@@ -79,7 +89,7 @@ export async function logout(_req: AuthRequest, res: Response, next: NextFunctio
     res.clearCookie('token', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' as const : 'lax' as const,
+      sameSite: process.env.NODE_ENV === 'production' ? ('strict' as const) : ('lax' as const),
       path: '/'
     });
     res.json({ message: 'Logout successful' });
@@ -87,7 +97,6 @@ export async function logout(_req: AuthRequest, res: Response, next: NextFunctio
     next(err);
   }
 }
-
 
 /**
  * Controlador para confirmar cuenta de usuario mediante token JWT
@@ -105,16 +114,17 @@ export async function confirmAccount(req: any, res: Response, next: NextFunction
     } catch (err: any) {
       return next(new HttpError(400, err.message || 'Invalid or expired token'));
     }
-    const frontendBase = (process.env.CONFIRMATION_FRONTEND_URL ||  `http://localhost:5173}`).replace(/\/$/, '');
+    const frontendBase = (
+      process.env.CONFIRMATION_FRONTEND_URL || `http://localhost:5173}`
+    ).replace(/\/$/, '');
     const redirectUrl = `${frontendBase}/auth/confirmed?userId=${encodeURIComponent(String(result.userId))}&status=${result.userAlreadyActive ? 'already_active' : 'confirmed'}`;
 
-    ;
     if (result.userAlreadyActive) {
       // Redirigir al frontend (302)
-     return res.redirect(302, redirectUrl)
+      return res.redirect(302, redirectUrl);
     }
     // Redirigir al frontend (302)
-     return res.redirect(302, redirectUrl)
+    return res.redirect(302, redirectUrl);
   } catch (err) {
     next(err);
   }

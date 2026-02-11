@@ -556,10 +556,33 @@ export async function uploadDocument({
     if (!fs.existsSync(destDir)) {
       fs.mkdirSync(destDir, { recursive: true });
     }
-    
-    if (fs.existsSync(tempPath)) {
-      fs.renameSync(tempPath, physicalPath);
-    } else {
+    // Multer may store the uploaded file in different places depending on configuration
+    // Try a few candidate locations before failing. Also support memory buffer uploads.
+    const candidatePaths: string[] = [];
+    candidatePaths.push(tempPath);
+    // file.path is set by some Multer storages
+    if ((file as any).path) candidatePaths.push((file as any).path.toString());
+    // destination + filename is another possible combination
+    if ((file as any).destination && (file as any).filename) {
+      candidatePaths.push(path.join((file as any).destination, (file as any).filename));
+    }
+
+    let moved = false;
+    for (const candidate of candidatePaths) {
+      if (candidate && fs.existsSync(candidate)) {
+        fs.renameSync(candidate, physicalPath);
+        moved = true;
+        break;
+      }
+    }
+
+    // If not moved and buffer is present (memory storage), write buffer to destination
+    if (!moved && (file as any).buffer) {
+      fs.writeFileSync(physicalPath, (file as any).buffer as Buffer);
+      moved = true;
+    }
+
+    if (!moved) {
       throw new HttpError(500, 'Uploaded file not found in temp directory');
     }
   } catch (error: any) {

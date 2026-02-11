@@ -36,9 +36,9 @@ export const createDocument = async (req: Request, res: Response, next: NextFunc
   try {
     const { filename, folderId } = req.body;
     const userId = req.user.id;
-    
+
     const document = await documentService.create({ filename, folderId, userId });
-    
+
     res.status(201).json({ success: true, data: document });
   } catch (error) {
     next(error);
@@ -66,16 +66,16 @@ export const documentService = {
     if (!folder) {
       throw new HttpError(404, 'Folder not found');
     }
-    
+
     // Check quota
     const usage = await this.getStorageUsage(data.userId);
     if (usage >= MAX_STORAGE) {
       throw new HttpError(400, 'Storage quota exceeded');
     }
-    
+
     // Create document
     return Document.create(data);
-  },
+  }
 };
 ```
 
@@ -96,11 +96,14 @@ export interface IDocument extends mongoose.Document {
   updatedAt: Date;
 }
 
-const documentSchema = new mongoose.Schema<IDocument>({
-  filename: { type: String, required: true },
-  mimeType: { type: String, required: true },
-  // ...
-}, { timestamps: true });
+const documentSchema = new mongoose.Schema<IDocument>(
+  {
+    filename: { type: String, required: true },
+    mimeType: { type: String, required: true }
+    // ...
+  },
+  { timestamps: true }
+);
 
 export const Document = mongoose.model<IDocument>('Document', documentSchema);
 ```
@@ -128,25 +131,25 @@ Chain middlewares in routes:
 // routes/document.routes.ts
 router.post(
   '/',
-  authenticate,           // Verify JWT
-  requireOrganization,    // Ensure org context
-  requireRole(['member', 'admin', 'owner']),  // Check permissions
-  uploadMiddleware.single('file'),  // Handle file upload
-  validateRequest(createDocumentSchema),  // Validate body
+  authenticate, // Verify JWT
+  requireOrganization, // Ensure org context
+  requireRole(['member', 'admin', 'owner']), // Check permissions
+  uploadMiddleware.single('file'), // Handle file upload
+  validateRequest(createDocumentSchema), // Validate body
   documentController.create
 );
 ```
 
 ## Naming Conventions
 
-| Type | Convention | Example |
-|------|------------|---------|
-| Files | kebab-case | `user.service.ts`, `auth.middleware.ts` |
-| Classes | PascalCase | `UserService`, `HttpError` |
-| Interfaces | PascalCase + I prefix | `IUser`, `IDocument` |
-| Functions | camelCase | `getUserById`, `validatePassword` |
-| Constants | SCREAMING_SNAKE_CASE | `MAX_FILE_SIZE`, `JWT_EXPIRES_IN` |
-| Environment vars | SCREAMING_SNAKE_CASE | `MONGO_URI`, `JWT_SECRET` |
+| Type             | Convention            | Example                                 |
+| ---------------- | --------------------- | --------------------------------------- |
+| Files            | kebab-case            | `user.service.ts`, `auth.middleware.ts` |
+| Classes          | PascalCase            | `UserService`, `HttpError`              |
+| Interfaces       | PascalCase + I prefix | `IUser`, `IDocument`                    |
+| Functions        | camelCase             | `getUserById`, `validatePassword`       |
+| Constants        | SCREAMING_SNAKE_CASE  | `MAX_FILE_SIZE`, `JWT_EXPIRES_IN`       |
+| Environment vars | SCREAMING_SNAKE_CASE  | `MONGO_URI`, `JWT_SECRET`               |
 
 ## Testing
 
@@ -178,10 +181,10 @@ describe('DocumentService', () => {
     it('should create document when folder exists and quota not exceeded', async () => {
       // Arrange
       const folder = await FolderBuilder.create();
-      
+
       // Act
       const doc = await documentService.create({ folderId: folder._id, ... });
-      
+
       // Assert
       expect(doc).toBeDefined();
       expect(doc.folder).toEqual(folder._id);
@@ -243,6 +246,7 @@ describe('DocumentService', () => {
 ### Mandatory Testing Rules
 
 1. **All tests must pass before any code change is merged**
+
    ```bash
    npm test  # Must exit with code 0
    ```
@@ -260,6 +264,7 @@ describe('DocumentService', () => {
    ```bash
    npm run test:coverage
    ```
+
    - Minimum overall coverage: 70%
    - New code should have >80% coverage
    - Critical paths (auth, payments) require >90% coverage

@@ -6,7 +6,7 @@ services:
     container_name: clouddocs-mongodb
     restart: unless-stopped
     ports:
-      - "27018:27017" #Deivis lo cambio al puerto 27018 para evitar conflicto con instancia local de MongoDB
+      - '27018:27017' #Deivis lo cambio al puerto 27018 para evitar conflicto con instancia local de MongoDB
     environment:
       MONGO_INITDB_DATABASE: clouddocs
     volumes:
@@ -19,18 +19,18 @@ services:
     container_name: clouddocs-elasticsearch
     restart: unless-stopped
     ports:
-      - "9200:9200"
-      - "9300:9300"
+      - '9200:9200'
+      - '9300:9300'
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - 'ES_JAVA_OPTS=-Xms512m -Xmx512m'
     volumes:
       - elasticsearch_data:/usr/share/elasticsearch/data
     networks:
       - clouddocs-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      test: ['CMD-SHELL', 'curl -f http://localhost:9200/_cluster/health || exit 1']
       interval: 30s
       timeout: 10s
       retries: 5

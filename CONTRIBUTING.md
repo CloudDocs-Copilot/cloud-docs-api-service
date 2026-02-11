@@ -43,23 +43,27 @@ docker-compose up -d
 #### Option 2: Local Development
 
 1. **Clone and install dependencies:**
+
    ```bash
    cd cloud-docs-api-service
    npm install
    ```
 
 2. **Set up environment:**
+
    ```bash
    cp .env.example .env
    # Edit .env with your local settings
    ```
 
 3. **Start MongoDB (Docker):**
+
    ```bash
    docker run -d --name mongodb -p 27017:27017 mongo:6.0
    ```
 
 4. **Start the development server:**
+
    ```bash
    npm run dev
    ```
@@ -97,14 +101,14 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed documentation.
 
 ### Naming Conventions
 
-| Type | Convention | Example |
-|------|------------|---------|
-| Files | kebab-case | `user.service.ts` |
-| Classes | PascalCase | `UserService` |
-| Interfaces | PascalCase + `I` prefix | `IUser` |
-| Functions | camelCase | `getUserById` |
-| Constants | SCREAMING_SNAKE_CASE | `MAX_FILE_SIZE` |
-| Variables | camelCase | `userData` |
+| Type       | Convention              | Example           |
+| ---------- | ----------------------- | ----------------- |
+| Files      | kebab-case              | `user.service.ts` |
+| Classes    | PascalCase              | `UserService`     |
+| Interfaces | PascalCase + `I` prefix | `IUser`           |
+| Functions  | camelCase               | `getUserById`     |
+| Constants  | SCREAMING_SNAKE_CASE    | `MAX_FILE_SIZE`   |
+| Variables  | camelCase               | `userData`        |
 
 ### File Organization
 
@@ -177,6 +181,7 @@ test(users): add unit tests for user service
 ## Pull Request Process
 
 1. **Create a branch:**
+
    ```bash
    git checkout -b feat/your-feature-name
    ```
@@ -186,6 +191,7 @@ test(users): add unit tests for user service
 3. **Write tests** for new functionality
 
 4. **Run checks locally:**
+
    ```bash
    npm run format      # Format code
    npm test            # Run tests
@@ -193,6 +199,7 @@ test(users): add unit tests for user service
    ```
 
 5. **Push and create PR:**
+
    ```bash
    git push origin feat/your-feature-name
    ```
@@ -240,10 +247,10 @@ describe('UserService', () => {
     it('should return user when found', async () => {
       // Arrange
       const user = new UserBuilder().build();
-      
+
       // Act
       const result = await UserService.getUserById(user._id);
-      
+
       // Assert
       expect(result).toBeDefined();
       expect(result.email).toBe(user.email);
@@ -251,8 +258,7 @@ describe('UserService', () => {
 
     it('should throw error when user not found', async () => {
       // Act & Assert
-      await expect(UserService.getUserById('invalid-id'))
-        .rejects.toThrow('User not found');
+      await expect(UserService.getUserById('invalid-id')).rejects.toThrow('User not found');
     });
   });
 });
@@ -265,14 +271,9 @@ Use builders from `tests/builders/` for test data:
 ```typescript
 import { UserBuilder, OrganizationBuilder } from '../builders';
 
-const user = new UserBuilder()
-  .withEmail('test@example.com')
-  .withRole('admin')
-  .build();
+const user = new UserBuilder().withEmail('test@example.com').withRole('admin').build();
 
-const org = new OrganizationBuilder()
-  .withPlan('PREMIUM')
-  .build();
+const org = new OrganizationBuilder().withPlan('PREMIUM').build();
 ```
 
 ## Questions?

@@ -1,6 +1,6 @@
 # CodeQL Configuration for Custom Suppressions
 
-name: "CodeQL Custom Configuration"
+name: 'CodeQL Custom Configuration'
 
 # Disable the built-in queries and use only custom queries
 # to suppress false positives for CSRF protection

@@ -1,6 +1,6 @@
 /**
  * Script de migración: Actualizar organización a plan Enterprise
- * 
+ *
  * Actualiza la organización de desarrollo a plan Enterprise para permitir
  * todos los tipos de archivo necesarios para preview (US #43).
  */
@@ -19,7 +19,7 @@ async function upgradeToEnterprise() {
 
     // Buscar la primera organización (o por slug específico)
     const org = await Organization.findOne({}).sort({ createdAt: 1 });
-    
+
     if (!org) {
       console.log('⚠️  No se encontró ninguna organización');
       return;
@@ -38,9 +38,12 @@ async function upgradeToEnterprise() {
     console.log(`   ${previousPlan} → ${org.plan}`);
     console.log(`   Tipos permitidos: ${org.settings.allowedFileTypes.join(', ')}`);
     console.log(`   Max file size: ${(org.settings.maxFileSize / 1048576).toFixed(0)}MB`);
-    console.log(`   Max users: ${org.settings.maxUsers === -1 ? 'ilimitado' : org.settings.maxUsers}`);
-    console.log(`   Storage total: ${org.settings.maxStorageTotal === -1 ? 'ilimitado' : (org.settings.maxStorageTotal / 1073741824).toFixed(0) + 'GB'}`);
-
+    console.log(
+      `   Max users: ${org.settings.maxUsers === -1 ? 'ilimitado' : org.settings.maxUsers}`
+    );
+    console.log(
+      `   Storage total: ${org.settings.maxStorageTotal === -1 ? 'ilimitado' : (org.settings.maxStorageTotal / 1073741824).toFixed(0) + 'GB'}`
+    );
   } catch (error) {
     console.error('❌ Error en migración:', error);
     throw error;
@@ -56,7 +59,7 @@ upgradeToEnterprise()
     console.log('\n🎉 Script completado exitosamente');
     process.exit(0);
   })
-  .catch((error) => {
+  .catch(error => {
     console.error('\n💥 Script falló:', error);
     process.exit(1);
   });

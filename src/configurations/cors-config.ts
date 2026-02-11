@@ -2,11 +2,11 @@ import { CorsOptions } from 'cors';
 
 /**
  * Configuración CORS (Cross-Origin Resource Sharing)
- * 
+ *
  * CORS es una característica de seguridad que restringe qué dominios pueden acceder a la API.
  * Esta configuración separa los entornos de desarrollo y producción para asegurar medidas
  * de seguridad apropiadas.
- * 
+ *
  * Beneficios de Seguridad:
  * - Previene que dominios no autorizados accedan a la API
  * - Protege contra ataques CSRF
@@ -17,10 +17,10 @@ import { CorsOptions } from 'cors';
 
 /**
  * Obtiene los orígenes permitidos según el entorno
- * 
+ *
  * Desarrollo: Permite localhost y puertos comunes de desarrollo
  * Producción: Solo permite dominios explícitamente autorizados desde variables de entorno
- * 
+ *
  * @returns Array de URLs de orígenes permitidos
  */
 const getAllowedOrigins = (): string[] => {
@@ -30,11 +30,11 @@ const getAllowedOrigins = (): string[] => {
     // En producción, solo permite orígenes explícitamente definidos
     // Múltiples orígenes pueden separarse con comas en la variable de entorno
     const origins = process.env.ALLOWED_ORIGINS || '';
-    
+
     if (!origins) {
       console.warn(
         '⚠️  WARNING: No ALLOWED_ORIGINS defined in production environment. ' +
-        'API will reject all cross-origin requests!'
+          'API will reject all cross-origin requests!'
       );
       return [];
     }
@@ -44,23 +44,22 @@ const getAllowedOrigins = (): string[] => {
 
   // Entorno de desarrollo - permite URLs locales comunes de desarrollo
   return [
-    'http://localhost:3000',      // React por defecto
-    'http://localhost:3001',      // Puerto alternativo React
+    'http://localhost:3000', // React por defecto
+    'http://localhost:3001', // Puerto alternativo React
     'http://locahost:4000',
-    'http://localhost:4200',      // Angular por defecto
-    'http://localhost:5173',      // Vite por defecto
-    'http://localhost:8080',      // Vue por defecto
-    'http://127.0.0.1:3000',      // Variante con IP localhost
+    'http://localhost:4200', // Angular por defecto
+    'http://localhost:5173', // Vite por defecto
+    'http://localhost:8080', // Vue por defecto
+    'http://127.0.0.1:3000', // Variante con IP localhost
     'http://127.0.0.1:4200',
     'http://127.0.0.1:5173',
-    'http://127.0.0.1:8080',
-
+    'http://127.0.0.1:8080'
   ];
 };
 
 /**
  * Configuración CORS para Entorno de Desarrollo
- * 
+ *
  * Configuración relajada para facilitar el desarrollo:
  * - Permite múltiples orígenes localhost
  * - Habilita credenciales
@@ -99,15 +98,11 @@ const developmentCorsOptions: CorsOptions = {
     'X-Requested-With',
     'Accept',
     'Origin',
-    'X-CSRF-TOKEN',
+    'X-CSRF-TOKEN'
   ],
 
   // Headers expuestos al cliente
-  exposedHeaders: [
-    'Content-Length',
-    'Content-Type',
-    'X-Request-Id',
-  ],
+  exposedHeaders: ['Content-Length', 'Content-Type', 'X-Request-Id'],
 
   // Duración del caché preflight (en segundos)
   // Más corto en desarrollo para iteración rápida
@@ -117,12 +112,12 @@ const developmentCorsOptions: CorsOptions = {
   preflightContinue: false,
 
   // Código de estado para petición OPTIONS exitosa
-  optionsSuccessStatus: 204,
+  optionsSuccessStatus: 204
 };
 
 /**
  * Configuración CORS para Entorno de Producción
- * 
+ *
  * Configuración estricta para seguridad:
  * - Solo permite orígenes explícitamente autorizados
  * - Valida el origen estrictamente
@@ -155,7 +150,7 @@ const productionCorsOptions: CorsOptions = {
         {
           timestamp: new Date().toISOString(),
           origin,
-          allowedOrigins,
+          allowedOrigins
         }
       );
       callback(new Error('Not allowed by CORS policy'));
@@ -179,21 +174,18 @@ const productionCorsOptions: CorsOptions = {
   ],
 
   // Headers expuestos mínimos por seguridad
-  exposedHeaders: [
-    'Content-Length',
-    'X-Request-Id',
-  ],
+  exposedHeaders: ['Content-Length', 'X-Request-Id'],
 
   // Tiempo de caché más largo en producción para reducir peticiones preflight
   maxAge: 86400, // 24 horas
 
   preflightContinue: false,
-  optionsSuccessStatus: 204,
+  optionsSuccessStatus: 204
 };
 
 /**
  * Obtiene la configuración CORS basada en el entorno actual
- * 
+ *
  * @returns CorsOptions configurado para el entorno actual
  */
 export const getCorsOptions = (): CorsOptions => {
@@ -214,25 +206,25 @@ export const getCorsOptions = (): CorsOptions => {
 
 /**
  * Variables de Entorno Requeridas:
- * 
+ *
  * Requeridas en Producción:
  * - ALLOWED_ORIGINS: Lista separada por comas de URLs de orígenes permitidos
  *   Ejemplo: https://example.com,https://www.example.com,https://app.example.com
- * 
+ *
  * Opcionales:
  * - NODE_ENV: Nombre del entorno (development/production/test)
  * - ALLOW_NO_ORIGIN: Establecer en 'true' para permitir peticiones sin header de origen en producción
- * 
+ *
  * Uso en app.ts:
  * ```typescript
  * import cors from 'cors';
  * import { getCorsOptions } from './configurations/cors-config';
- * 
+ *
  * app.use(cors(getCorsOptions()));
  * ```
- * 
+ *
  * Mejores Prácticas de Seguridad:
- * 
+ *
  * 1. Siempre define ALLOWED_ORIGINS en producción
  * 2. Usa URLs HTTPS en orígenes de producción
  * 3. No uses comodines (*) en producción
@@ -241,7 +233,7 @@ export const getCorsOptions = (): CorsOptions => {
  * 6. Prueba la configuración CORS antes de desplegar
  * 7. Usa credentials: true solo si necesitas cookies/headers de autenticación
  * 8. Revisa y actualiza regularmente los orígenes permitidos
- * 
+ *
  * Pruebas CORS:
  * ```bash
  * # Probar desde origen permitido
@@ -250,7 +242,7 @@ export const getCorsOptions = (): CorsOptions => {
  *      -H "Access-Control-Request-Headers: Content-Type" \
  *      -X OPTIONS \
  *      http://localhost:4000/api/auth/login
- * 
+ *
  * # Debería recibir el header Access-Control-Allow-Origin en la respuesta
  * ```
  */
