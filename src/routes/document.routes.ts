@@ -27,6 +27,18 @@ router.post(
 );
 
 /**
+ * @route   POST /api/documents/:id/replace
+ * @desc    Reemplaza (sobrescribe) el archivo de un documento existente
+ * @access  Document editor (owner/admin or document owner)
+ */
+router.post(
+  '/:id/replace',
+  uploadRateLimiter,
+  upload.single('file'),
+  documentController.replaceFile
+);
+
+/**
  * @route   GET /api/documents
  * @desc    Lista todos los documentos del usuario
  * @access  Authenticated users

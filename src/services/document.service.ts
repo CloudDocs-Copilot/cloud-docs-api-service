@@ -40,6 +40,12 @@ export interface UploadDocumentDto {
   folderId?: string; // Opcional - usa rootFolder de la membresía activa si no se especifica
 }
 
+export interface ReplaceDocumentFileDto {
+  documentId: string;
+  userId: string;
+  file: Express.Multer.File;
+}
+
 export interface MoveDocumentDto {
   documentId: string;
   userId: string;
@@ -96,6 +102,151 @@ export async function shareDocument({ id, userId, userIds }: ShareDocumentDto): 
     { new: true }
   );
   return updated;
+}
+
+/**
+ * Reemplazar (sobrescribir) el archivo físico y metadatos de un documento existente
+ * Mantiene el mismo doc.path y doc.filename para que el URL quede estable.
+ */
+export async function replaceDocumentFile({ documentId, userId, file }: ReplaceDocumentFileDto): Promise<IDocument> {
+  if (!isValidObjectId(documentId)) throw new HttpError(400, 'Invalid document ID');
+  if (!file || !file.filename) throw new HttpError(400, 'File is required');
+
+  const doc = await DocumentModel.findById(documentId);
+  if (!doc) throw new Error('Document not found');
+
+  // Permisos:
+  // - Si es de organización: permitir a OWNER/ADMIN, o al uploadedBy (propietario del documento).
+  // - Si es personal: solo uploadedBy.
+  if (doc.organization) {
+    const orgId = doc.organization.toString();
+
+    const isOrgAdmin = await hasAnyRole(userId, orgId, [
+      MembershipRole.OWNER,
+      MembershipRole.ADMIN,
+    ]);
+
+    const isDocOwner = String(doc.uploadedBy) === String(userId);
+
+    if (!isOrgAdmin && !isDocOwner) {
+      throw new HttpError(403, 'No tienes permisos para editar este documento');
+    }
+  } else {
+    if (String(doc.uploadedBy) !== String(userId)) {
+      throw new HttpError(403, 'Forbidden');
+    }
+  }
+
+  const user = await User.findById(userId);
+  if (!user) throw new HttpError(404, 'User not found');
+
+  const orgIdForLimits = doc.organization?.toString() || (await getActiveOrganization(userId));
+  if (!orgIdForLimits) {
+    throw new HttpError(403, 'No active organization. Please create or join an organization first.');
+  }
+
+  const organization = await Organization.findById(orgIdForLimits);
+  if (!organization) throw new HttpError(404, 'Organization not found');
+
+  const newFileSize = file.size || 0;
+
+  // Validar tamaño máximo de archivo según el plan
+  const planLimits = PLAN_LIMITS[organization.plan];
+  if (newFileSize > planLimits.maxFileSize) {
+    throw new HttpError(
+      400,
+      `File size exceeds maximum allowed (${planLimits.maxFileSize} bytes) for ${organization.plan} plan`
+    );
+  }
+
+  // Validar tipo de archivo permitido según el plan
+  const fileExt = path.extname(file.originalname).slice(1).toLowerCase();
+  const allowedTypes = organization.settings.allowedFileTypes;
+
+  if (!allowedTypes.includes('*') && !allowedTypes.includes(fileExt)) {
+    throw new HttpError(
+      400,
+      `File type '${fileExt}' not allowed for ${organization.plan} plan. Allowed types: ${allowedTypes.join(', ')}`
+    );
+  }
+
+  // Ajustar cuota de almacenamiento del usuario con delta
+  const oldSize = doc.size || 0;
+  const delta = newFileSize - oldSize;
+
+  const maxStoragePerUser = organization.settings.maxStoragePerUser;
+  const currentUsage = user.storageUsed || 0;
+
+  if (delta > 0 && (currentUsage + delta) > maxStoragePerUser) {
+    throw new HttpError(
+      403,
+      `Storage quota exceeded. Used: ${currentUsage}, Limit: ${maxStoragePerUser} (${organization.plan} plan)`
+    );
+  }
+
+  // Path temp (uploads) del nuevo archivo subido
+  const uploadsRoot = path.join(process.cwd(), 'uploads');
+  const rawFilename = path.basename(file.filename);
+  const sanitizedTempFilename = sanitizePathOrThrow(rawFilename, uploadsRoot);
+  const tempPath = path.join(uploadsRoot, sanitizedTempFilename);
+
+  // Path destino: el mismo archivo del documento (doc.path/doc.filename)
+  const storageRoot = path.join(process.cwd(), 'storage');
+  const relativeStoragePath = (doc.path || '').startsWith('/') ? (doc.path || '').substring(1) : (doc.path || '');
+  const physicalPath = path.join(storageRoot, relativeStoragePath);
+
+  if (!relativeStoragePath) {
+    throw new HttpError(400, 'Document storage path is missing');
+  }
+
+  // Validación defensa en profundidad
+  if (!isPathWithinBase(physicalPath, storageRoot)) {
+    throw new HttpError(400, 'Invalid destination path');
+  }
+
+  // Overwrite físico
+  try {
+    const destDir = path.dirname(physicalPath);
+    if (!fs.existsSync(destDir)) {
+      fs.mkdirSync(destDir, { recursive: true });
+    }
+
+    if (!fs.existsSync(tempPath)) {
+      throw new HttpError(500, 'Uploaded file not found in temp directory');
+    }
+
+    if (fs.existsSync(physicalPath)) {
+      fs.unlinkSync(physicalPath);
+    }
+
+    fs.renameSync(tempPath, physicalPath);
+  } catch (error: any) {
+    console.error('File replace error:', error.message);
+    try {
+      if (fs.existsSync(tempPath)) {
+        fs.unlinkSync(tempPath);
+      }
+    } catch (e: any) {
+      console.error('Temp file cleanup error:', e.message);
+    }
+    throw new HttpError(500, 'Failed to replace file in storage');
+  }
+
+  doc.originalname = file.originalname;
+  doc.mimeType = file.mimetype || 'application/octet-stream';
+  doc.size = newFileSize;
+  await doc.save();
+
+  user.storageUsed = Math.max(0, currentUsage + delta);
+  await user.save();
+
+  try {
+    await searchService.indexDocument(doc);
+  } catch (error: any) {
+    console.error('Failed to index document in search:', error.message);
+  }
+
+  return doc;
 }
 
 /**
@@ -621,6 +772,7 @@ export async function findDocumentById(id: string): Promise<IDocument | null> {
 export default {
   shareDocument,
   deleteDocument,
+  replaceDocumentFile,
   uploadDocument,
   listDocuments,
   findDocumentById,

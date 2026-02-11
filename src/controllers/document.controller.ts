@@ -36,6 +36,34 @@ export async function upload(req: AuthRequest, res: Response, next: NextFunction
 }
 
 /**
+ * Controlador para reemplazar (sobrescribir) el archivo de un documento existente
+ */
+export async function replaceFile(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (!req.file) {
+      return next(new HttpError(400, 'File is required'));
+    }
+
+    const doc = await documentService.replaceDocumentFile({
+      documentId: req.params.id,
+      userId: req.user!.id,
+      file: req.file,
+    });
+
+    res.json({
+      success: true,
+      message: 'Document file replaced successfully',
+      document: doc,
+    });
+  } catch (err: any) {
+    if (err.message === 'Document not found') {
+      return next(new HttpError(404, 'Document not found'));
+    }
+    next(err);
+  }
+}
+
+/**
  * Controlador para listar documentos del usuario
  */
 export async function list(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
@@ -435,4 +463,4 @@ export async function remove(req: AuthRequest, res: Response, next: NextFunction
   }
 }
 
-export default { upload, list, getRecent, getById, share, move, copy, download, preview, remove };
+export default { upload, replaceFile, list, getRecent, getById, share, move, copy, download, preview, remove };
