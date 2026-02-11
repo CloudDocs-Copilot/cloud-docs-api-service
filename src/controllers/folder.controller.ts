@@ -82,7 +82,7 @@ export async function getUserTree(req: AuthRequest, res: Response, next: NextFun
 export async function getContents(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const contents = await folderService.getFolderContents({
-      folderId: req.params.id,
+      folderId: req.params.id as string,
       userId: req.user!.id
     });
     
@@ -134,7 +134,7 @@ export async function share(req: AuthRequest, res: Response, next: NextFunction)
     }
     
     const folder = await folderService.shareFolder({
-      folderId: req.params.id,
+      folderId: String(req.params.id),
       userId: req.user!.id,
       targetUserId: normalizedTargetUserId,
       role: roleString as 'viewer' | 'editor'
@@ -179,7 +179,7 @@ export async function rename(req: AuthRequest, res: Response, next: NextFunction
     }
     
     const folder = await folderService.renameFolder({
-      id: req.params.id,
+      id: String(req.params.id),
       userId: req.user!.id,
       name,
       displayName
@@ -204,7 +204,7 @@ export async function remove(req: AuthRequest, res: Response, next: NextFunction
     const force = String(forceParam).toLowerCase() === 'true' || String(forceParam) === '1';
     
     const result = await folderService.deleteFolder({
-      id: req.params.id,
+      id: String(req.params.id),
       userId: req.user!.id,
       force
     });

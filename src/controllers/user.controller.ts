@@ -35,7 +35,7 @@ export async function getProfile(req: AuthRequest, res: Response, next: NextFunc
  */
 export async function activate(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const user = await userService.setUserActive(req.params.id, true);
+    const user = await userService.setUserActive(String(req.params.id), true);
     res.json({ message: 'User activated', user });
   } catch (err) {
     next(err);
@@ -50,7 +50,7 @@ export async function deactivate(req: AuthRequest, res: Response, next: NextFunc
     if (req.user?.id === req.params.id) {
       return next(new HttpError(400, 'Cannot deactivate self'));
     }
-    const user = await userService.setUserActive(req.params.id, false);
+    const user = await userService.setUserActive(String(req.params.id), false);
     res.json({ message: 'User deactivated', user });
   } catch (err) {
     next(err);
@@ -69,7 +69,7 @@ export async function update(req: AuthRequest, res: Response, next: NextFunction
     // Permitir actualización parcial
     const { name, email, preferences } = req.body;
     
-    const user = await userService.updateUser(req.params.id, { name, email, preferences });
+    const user = await userService.updateUser(String(req.params.id), { name, email, preferences });
     res.json({ message: 'User updated successfully', user });
   } catch (err: any) {
     const status = err.message === 'User not found' ? 404 : 400;
@@ -87,7 +87,7 @@ export async function changePassword(req: AuthRequest, res: Response, next: Next
       return next(new HttpError(403, 'Forbidden'));
     }
     
-    const result = await userService.changePassword(req.params.id, req.body);
+    const result = await userService.changePassword(String(req.params.id), req.body);
     res.json(result);
   } catch (err: any) {
     if (err.message === 'User not found') {
@@ -112,7 +112,7 @@ export async function remove(req: AuthRequest, res: Response, next: NextFunction
       return next(new HttpError(400, 'Cannot delete self'));
     }
     
-    const user = await userService.deleteUser(req.params.id);
+    const user = await userService.deleteUser(String(req.params.id));
     res.json({ message: 'User deleted', user });
   } catch (err) {
     next(err);
@@ -171,7 +171,7 @@ export async function updateAvatar(req: AuthRequest, res: Response, next: NextFu
       return next(new HttpError(400, 'Avatar file or URL is required'));
     }
 
-    const user = await userService.updateAvatar(req.params.id, { avatar: avatarPath });
+    const user = await userService.updateAvatar(String(req.params.id), { avatar: avatarPath });
     res.json({ message: 'Avatar updated successfully', user });
   } catch (err: any) {
     const status = err.message === 'User not found' ? 404 : 400;

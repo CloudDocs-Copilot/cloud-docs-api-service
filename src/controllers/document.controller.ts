@@ -123,7 +123,7 @@ export async function share(req: AuthRequest, res: Response, next: NextFunction)
     }
     
     const doc = await documentService.shareDocument({
-      id: req.params.id,
+      id: req.params.id as string,
       userId: req.user!.id,
       userIds
     });
@@ -153,7 +153,7 @@ export async function move(req: AuthRequest, res: Response, next: NextFunction):
     }
     
     const doc = await documentService.moveDocument({
-      documentId: req.params.id,
+      documentId: req.params.id as string,
       userId: req.user!.id,
       targetFolderId
     });
@@ -180,7 +180,7 @@ export async function copy(req: AuthRequest, res: Response, next: NextFunction):
     }
     
     const newDoc = await documentService.copyDocument({
-      documentId: req.params.id,
+      documentId: req.params.id as string,
       userId: req.user!.id,
       targetFolderId
     });
@@ -200,7 +200,7 @@ export async function copy(req: AuthRequest, res: Response, next: NextFunction):
  */
 export async function download(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const doc = await documentService.findDocumentById(req.params.id);
+    const doc = await documentService.findDocumentById(req.params.id as string);
     
     if (!doc) {
       return next(new HttpError(404, 'Document not found'));
@@ -245,7 +245,7 @@ export async function download(req: AuthRequest, res: Response, next: NextFuncti
  */
 export async function preview(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const doc = await documentService.findDocumentById(req.params.id);
+    const doc = await documentService.findDocumentById(req.params.id as string);
     
     if (!doc) {
       return next(new HttpError(404, 'Document not found'));
@@ -268,29 +268,38 @@ export async function preview(req: AuthRequest, res: Response, next: NextFunctio
       mimeType: doc.mimeType
     });
     
+    const uploadsBase = path.join(process.cwd(), 'uploads');
     const storageBase = path.join(process.cwd(), 'storage');
     const relativePath = doc.path.startsWith('/') ? doc.path.substring(1) : doc.path;
     
+    console.log('[preview] Uploads base:', uploadsBase);
     console.log('[preview] Storage base:', storageBase);
     console.log('[preview] Relative path:', relativePath);
     
     // Intentar validar el path
     let fullPath: string | null = null;
     
+    // Intentar primero en uploads
     try {
-      fullPath = await validateDownloadPath(relativePath, storageBase);
-      console.log('[preview] Validated full path:', fullPath);
+      fullPath = await validateDownloadPath(relativePath, uploadsBase);
+      console.log('[preview] Found in uploads:', fullPath);
     } catch (error) {
-      // Si falla, intentar con /obs adicional (bug conocido de duplicación)
-      const alternativePath = path.join('obs', relativePath);
-      console.log('[preview] Trying alternative path:', alternativePath);
-      
+      // Si falla, intentar en storage
       try {
-        fullPath = await validateDownloadPath(alternativePath, storageBase);
-        console.log('[preview] Alternative path worked:', fullPath);
+        fullPath = await validateDownloadPath(relativePath, storageBase);
+        console.log('[preview] Found in storage:', fullPath);
       } catch (error2) {
-        console.error('[preview] Both paths failed');
-        return next(new HttpError(404, 'File not found'));
+        // Si falla, intentar con /obs adicional (bug conocido de duplicación)
+        const alternativePath = path.join('obs', relativePath);
+        console.log('[preview] Trying alternative path in uploads:', alternativePath);
+        
+        try {
+          fullPath = await validateDownloadPath(alternativePath, uploadsBase);
+          console.log('[preview] Alternative path worked in uploads:', fullPath);
+        } catch (error3) {
+          console.error('[preview] All paths failed');
+          return next(new HttpError(404, 'File not found'));
+        }
       }
     }
     
@@ -393,7 +402,7 @@ export async function preview(req: AuthRequest, res: Response, next: NextFunctio
 export async function remove(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     await documentService.deleteDocument({
-      id: req.params.id,
+      id: req.params.id as string,
       userId: req.user!.id
     });
     

@@ -37,7 +37,7 @@ export async function getOrganizationMembers(
   try {
     const { organizationId } = req.params;
     
-    const members = await membershipService.getOrganizationMembers(organizationId);
+    const members = await membershipService.getOrganizationMembers(String(organizationId));
     
     res.json({
       success: true,
@@ -61,7 +61,7 @@ export async function switchOrganization(
   try {
     const { organizationId } = req.params;
     
-    await membershipService.switchActiveOrganization(req.user!.id, organizationId);
+    await membershipService.switchActiveOrganization(req.user!.id, String(organizationId));
     
     res.json({
       success: true,
@@ -85,7 +85,7 @@ export async function leaveOrganization(
   try {
     const { organizationId } = req.params;
     
-    await membershipService.removeMembership(req.user!.id, organizationId);
+    await membershipService.removeMembership(req.user!.id, String(organizationId));
     
     res.json({
       success: true,
@@ -175,7 +175,7 @@ export async function inviteUserToOrganization(
     
     const invitation = await membershipService.createInvitation({
       userId,
-      organizationId,
+      organizationId: String(organizationId),
       role,
       invitedBy: req.user!.id,
     });
@@ -209,7 +209,7 @@ export async function updateMemberRole(
     }
     
     const membership = await membershipService.updateMembershipRole(
-      membershipId,
+      String(membershipId),
       role,
       req.user!.id
     );
@@ -236,8 +236,8 @@ export async function removeMember(
     const { organizationId, membershipId } = req.params;
     
     await membershipService.removeMembershipById(
-      membershipId,
-      organizationId,
+      String(membershipId),
+      String(organizationId),
       req.user!.id
     );
     
@@ -285,7 +285,7 @@ export async function acceptInvitation(
     const { membershipId } = req.params;
     
     const membership = await membershipService.acceptInvitation(
-      membershipId,
+      String(membershipId),
       req.user!.id
     );
     
@@ -312,7 +312,7 @@ export async function rejectInvitation(
     const { membershipId } = req.params;
     
     await membershipService.rejectInvitation(
-      membershipId,
+      String(membershipId),
       req.user!.id
     );
     

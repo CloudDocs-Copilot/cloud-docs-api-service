@@ -38,7 +38,7 @@ export async function createOrganization(req: AuthRequest, res: Response, next: 
  */
 export async function getOrganization(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const organization = await organizationService.getOrganizationById(req.params.id);
+    const organization = await organizationService.getOrganizationById(String(req.params.id));
     
     if (!organization) {
       return next(new HttpError(404, 'Organization not found'));
@@ -90,7 +90,7 @@ export async function updateOrganization(req: AuthRequest, res: Response, next: 
     const { name, settings } = req.body;
     
     const organization = await organizationService.updateOrganization(
-      req.params.id,
+      String(req.params.id),
       req.user!.id,
       { name, settings }
     );
@@ -112,7 +112,7 @@ export async function updateOrganization(req: AuthRequest, res: Response, next: 
 export async function deleteOrganization(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     await organizationService.deleteOrganization(
-      req.params.id,
+      String(req.params.id),
       req.user!.id
     );
     
@@ -138,7 +138,7 @@ export async function addMember(req: AuthRequest, res: Response, next: NextFunct
     }
     
     const organization = await organizationService.addUserToOrganization(
-      req.params.id,
+      String(req.params.id),
       userId
     );
     
@@ -159,8 +159,8 @@ export async function addMember(req: AuthRequest, res: Response, next: NextFunct
 export async function removeMember(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const organization = await organizationService.removeUserFromOrganization(
-      req.params.id,
-      req.params.userId
+      String(req.params.id),
+      String(req.params.userId)
     );
     
     res.json({
@@ -180,7 +180,7 @@ export async function removeMember(req: AuthRequest, res: Response, next: NextFu
 export async function getStorageStats(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     // Primero verificar que el usuario es member de la organización
-    const organization = await organizationService.getOrganizationById(req.params.id);
+    const organization = await organizationService.getOrganizationById(String(req.params.id));
     
     if (!organization) {
       return next(new HttpError(404, 'Organization not found'));
@@ -195,7 +195,7 @@ export async function getStorageStats(req: AuthRequest, res: Response, next: Nex
       return next(new HttpError(403, 'Access denied to this organization'));
     }
     
-    const stats = await organizationService.getOrganizationStorageStats(req.params.id);
+    const stats = await organizationService.getOrganizationStorageStats(String(req.params.id));
     
     res.json({
       success: true,
@@ -212,7 +212,7 @@ export async function getStorageStats(req: AuthRequest, res: Response, next: Nex
  */
 export async function listMembers(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const organization = await organizationService.getOrganizationById(req.params.id);
+    const organization = await organizationService.getOrganizationById(String(req.params.id));
     
     if (!organization) {
       return next(new HttpError(404, 'Organization not found'));
@@ -229,7 +229,7 @@ export async function listMembers(req: AuthRequest, res: Response, next: NextFun
     }
     // Obtener members desde el membership service para asegurar formato consistente
     const { getOrganizationMembers } = await import('../services/membership.service');
-    const members = await getOrganizationMembers(req.params.id);
+    const members = await getOrganizationMembers(String(req.params.id));
 
     res.json({
       success: true,
