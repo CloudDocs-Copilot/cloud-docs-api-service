@@ -14,9 +14,9 @@ El proyecto tiene 3 niveles de testing:
 
 Los tests E2E prueban el flujo completo (Frontend → Backend → MongoDB → Elasticsearch) sin mocks.
 
-### Prerequisitos
+### Prerrequisitos
 
-Antes de correr tests E2E, asegurar que estén corriendo:
+Antes de ejecutar tests E2E, asegurar que estén corriendo:
 
 1. **MongoDB** en `localhost:27017`
    ```bash
@@ -41,7 +41,7 @@ Antes de correr tests E2E, asegurar que estén corriendo:
 Una vez el servidor esté corriendo en otra terminal:
 
 ```bash
-# Terminal 2: Correr tests E2E
+# Terminal 2: Ejecutar tests E2E
 npm run test:e2e
 ```
 
@@ -54,13 +54,13 @@ npm run test:e2e
 ### Flujo Completo para Pre-Commit
 
 ```bash
-# 1. Correr tests unitarios e integración (sin servidor)
+# 1. Ejecutar tests unitarios e integración (sin servidor)
 npm test
 
 # 2. Si pasan, levantar servidor en Terminal 1
 npm run dev
 
-# 3. En Terminal 2: Correr tests E2E
+# 3. En Terminal 2: Ejecutar tests E2E
 npm run test:e2e
 
 # 4. Si todos pasan → hacer commit
@@ -99,11 +99,11 @@ Los siguientes tests E2E están implementados:
 - ✅ Seguridad (solo documentos de la organización)
 - ✅ Rendimiento (<1 segundo)
 
-**Prerequisitos adicionales:**
+**Prerrequisitos adicionales:**
 - Usuario de fixture debe existir en MongoDB
 - Documentos de prueba indexados en Elasticsearch
 
-## 🐛 Troubleshooting
+## 🐛 Solución de Problemas
 
 ### Error: `AggregateError` al hacer login
 
@@ -148,13 +148,13 @@ curl http://localhost:9200
 ### Tests E2E fallan pero servidor funciona manualmente
 
 **Posibles causas:**
-1. **Fixtures no existen:** Correr `npm run seed:dev` para crear datos de prueba
+1. **Fixtures no existen:** Ejecutar `npm run seed:dev` para crear datos de prueba
 2. **Puerto incorrecto:** Verificar que `API_BASE_URL` en tests coincida con servidor
 3. **Credenciales:** Verificar `tests/fixtures/user.fixtures.ts` tiene usuario correcto
 
 ## 🔄 Integración Continua (CI/CD)
 
-Para correr tests E2E en CI/CD (GitHub Actions, GitLab CI, etc.):
+Para ejecutar tests E2E en CI/CD (GitHub Actions, GitLab CI, etc.):
 
 ```yaml
 # .github/workflows/test.yml (ejemplo)
@@ -211,14 +211,14 @@ jobs:
 
 ## 📝 Buenas Prácticas
 
-### ✅ DO
-- Correr `npm test` (sin E2E) antes de cada commit
+### ✅ HACER
+- Ejecutar `npm test` (sin E2E) antes de cada commit
 - Levantar servidor manualmente para tests E2E locales
 - Usar fixtures para datos de prueba consistentes
 - Limpiar datos de prueba después de E2E (en `afterAll`)
 
-### ❌ DON'T
-- No correr `npm run test:all` en pre-commit (requiere servidor)
+### ❌ NO HACER
+- No ejecutar `npm run test:all` en pre-commit (requiere servidor)
 - No modificar fixtures sin actualizar tests dependientes
 - No usar datos hardcodeados en tests E2E (usar fixtures)
 - No hacer commits si tests E2E fallan
