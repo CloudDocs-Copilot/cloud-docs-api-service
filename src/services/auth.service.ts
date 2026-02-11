@@ -147,6 +147,8 @@ export async function registerUser({
   }
 }
 
+
+
 /**
  * Autentica un usuario y genera un token JWT
  * Valida las credenciales y retorna el token de acceso
