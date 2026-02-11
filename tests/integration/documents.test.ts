@@ -51,6 +51,21 @@ describe('Document Endpoints', () => {
       expect(response.body).toHaveProperty('error');
       expect(response.body.error).toContain('File');
     });
+
+    it('should reject invalid folderId format', async () => {
+      const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
+      
+      const response = await request(app)
+        .post('/api/documents/upload')
+        .set('Cookie', tokenCookie?.split(';')[0] || '')
+        .field('organizationId', organizationId)
+        .field('folderId', '../../../etc/passwd')
+        .attach('file', Buffer.from('test content'), 'testfile.txt')
+        .expect(400);
+
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toContain('Invalid folderId format');
+    });
   });
 
   describe('GET /api/documents', () => {

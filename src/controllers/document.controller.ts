@@ -16,12 +16,21 @@ export async function upload(req: AuthRequest, res: Response, next: NextFunction
       return next(new HttpError(400, 'File is required'));
     }
     
+    // Validar folderId si se proporciona (prevención de inyección)
+    let validatedFolderId: string | undefined;
+    if (req.body.folderId) {
+      // Validar que sea un ObjectId válido de MongoDB
+      if (!/^[a-f\d]{24}$/i.test(req.body.folderId)) {
+        return next(new HttpError(400, 'Invalid folderId format'));
+      }
+      validatedFolderId = req.body.folderId;
+    }
 
     // folderId es opcional - si no se proporciona, se usa el rootFolder del usuario
     const doc = await documentService.uploadDocument({
       file: req.file,
       userId: req.user!.id,
-      folderId: req.body.folderId || undefined
+      folderId: validatedFolderId
     });
     
     res.status(201).json({

@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import DocumentModel, { IDocument } from '../models/document.model';
 import Folder from '../models/folder.model';
 import User from '../models/user.model';
@@ -559,18 +560,54 @@ export async function uploadDocument({
     // Multer may store the uploaded file in different places depending on configuration
     // Try a few candidate locations before failing. Also support memory buffer uploads.
     const candidatePaths: string[] = [];
+    const uploadsDir = path.join(process.cwd(), 'uploads');
+    
     candidatePaths.push(tempPath);
-    // file.path is set by some Multer storages
-    if ((file as any).path) candidatePaths.push((file as any).path.toString());
-    // destination + filename is another possible combination
+    
+    // Sanitizar y validar file.path si existe
+    if ((file as any).path) {
+      const filePath = (file as any).path.toString();
+      const resolvedPath = path.resolve(filePath);
+      // Validar que está dentro de uploads o temp
+      if (resolvedPath.startsWith(path.resolve(uploadsDir)) || 
+          resolvedPath.startsWith(path.resolve(os.tmpdir()))) {
+        candidatePaths.push(resolvedPath);
+      }
+    }
+    
+    // Sanitizar destination + filename si existen
     if ((file as any).destination && (file as any).filename) {
-      candidatePaths.push(path.join((file as any).destination, (file as any).filename));
+      const destination = (file as any).destination.toString();
+      const filename = (file as any).filename.toString();
+      const combined = path.join(destination, filename);
+      const resolvedCombined = path.resolve(combined);
+      // Validar que está dentro de uploads
+      if (resolvedCombined.startsWith(path.resolve(uploadsDir))) {
+        candidatePaths.push(resolvedCombined);
+      }
     }
 
     let moved = false;
+    const storageDir = path.join(process.cwd(), 'storage');
+    
     for (const candidate of candidatePaths) {
-      if (candidate && fs.existsSync(candidate)) {
-        fs.renameSync(candidate, physicalPath);
+      if (!candidate) continue;
+      
+      // Sanitizar y resolver el path del candidato
+      const resolvedCandidate = path.resolve(candidate);
+      
+      // Validar que el candidato está en un directorio permitido (uploads, temp, o storage)
+      const isInUploads = resolvedCandidate.startsWith(path.resolve(uploadsDir));
+      const isInTemp = resolvedCandidate.startsWith(path.resolve(os.tmpdir()));
+      const isInStorage = resolvedCandidate.startsWith(path.resolve(storageDir));
+      
+      if (!isInUploads && !isInTemp && !isInStorage) {
+        continue; // Skip paths fuera de directorios permitidos
+      }
+      
+      // Validar que existe y mover
+      if (fs.existsSync(resolvedCandidate)) {
+        fs.renameSync(resolvedCandidate, physicalPath);
         moved = true;
         break;
       }
