@@ -19,6 +19,7 @@ import { errorHandler } from './middlewares/error.middleware';
 import { generalRateLimiter } from './middlewares/rate-limit.middleware';
 import { getCorsOptions } from './configurations/cors-config';
 import { csrfProtectionMiddleware, generateCsrfToken } from './middlewares/csrf.middleware';
+import notificationRoutes from './routes/notification.routes';
 
 const app = express();
 
@@ -108,6 +109,7 @@ app.use('/api/folders', folderRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/comments', commentRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Documentación Swagger/OpenAPI
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec, { explorer: true }));

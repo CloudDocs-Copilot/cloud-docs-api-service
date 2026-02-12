@@ -12,10 +12,11 @@ import { getMembership, getActiveOrganization, hasAnyRole } from './membership.s
 import { MembershipRole } from '../models/membership.model';
 import { PLAN_LIMITS } from '../models/types/organization.types';
 import * as searchService from './search.service';
+import * as notificationService from './notification.service';
 
 /**
  * Valida si un string es un ObjectId válido de MongoDB
- * 
+ *
  * @param id - String a validar
  * @returns true si es un ObjectId válido
  */
@@ -273,6 +274,24 @@ export async function replaceDocumentFile({ documentId, userId, file }: ReplaceD
     await searchService.indexDocument(doc);
   } catch (error: any) {
     console.error('Failed to index document in search:', error.message);
+  }
+
+  // Notificación (persistida) a miembros de la organización (excluye al actor)
+  if (doc.organization) {
+    try {
+      await notificationService.notifyOrganizationMembers({
+        actorUserId: userId,
+        type: 'DOC_EDITED',
+        documentId: doc._id.toString(),
+        message: 'Se actualizó un documento',
+        metadata: {
+          originalname: doc.originalname,
+          folderId: doc.folder?.toString?.(),
+        },
+      });
+    } catch (e: any) {
+      console.error('Failed to create notification (DOC_EDITED):', e.message);
+    }
   }
 
   return doc;
@@ -769,6 +788,24 @@ export async function uploadDocument({
   } catch (error: any) {
     console.error('Failed to index document in search:', error.message);
     // No lanzar error para no bloquear la creación del documento
+  }
+
+  // Notificación (persistida) a miembros de la organización (excluye al actor)
+  if (doc.organization) {
+    try {
+      await notificationService.notifyOrganizationMembers({
+        actorUserId: userId,
+        type: 'DOC_UPLOADED',
+        documentId: doc._id.toString(),
+        message: 'Se subió un documento',
+        metadata: {
+          originalname: doc.originalname,
+          folderId: doc.folder?.toString?.(),
+        },
+      });
+    } catch (e: any) {
+      console.error('Failed to create notification (DOC_UPLOADED):', e.message);
+    }
   }
 
   return doc;
