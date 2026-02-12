@@ -16,6 +16,7 @@
   "dependencies": {
     "@elastic/elasticsearch": "^8.10.0",
     "bcryptjs": "^2.4.3",
+    "cookie": "^1.1.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "csrf-csrf": "^4.0.3",
@@ -29,10 +30,12 @@
     "mongoose": "^7.8.8",
     "multer": "^2.0.2",
     "nodemailer": "^7.0.12",
+    "socket.io": "^4.8.3",
     "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
+    "@types/cookie": "^0.6.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
