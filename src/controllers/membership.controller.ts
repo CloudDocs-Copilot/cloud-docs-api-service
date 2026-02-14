@@ -2,7 +2,6 @@ import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import * as membershipService from '../services/membership.service';
 import HttpError from '../models/error.model';
-import { MembershipRole } from '../models/membership.model';
 
 /**
  * Obtiene todas las organizaciones del usuario autenticado
@@ -38,7 +37,7 @@ export async function getOrganizationMembers(
   try {
     const { organizationId } = req.params;
     
-    const members = await membershipService.getOrganizationMembers(organizationId);
+    const members = await membershipService.getOrganizationMembers(String(organizationId));
     
     res.json({
       success: true,
@@ -62,7 +61,7 @@ export async function switchOrganization(
   try {
     const { organizationId } = req.params;
     
-    await membershipService.switchActiveOrganization(req.user!.id, organizationId);
+    await membershipService.switchActiveOrganization(req.user!.id, String(organizationId));
     
     res.json({
       success: true,
@@ -86,7 +85,7 @@ export async function leaveOrganization(
   try {
     const { organizationId } = req.params;
     
-    await membershipService.removeMembership(req.user!.id, organizationId);
+    await membershipService.removeMembership(req.user!.id, String(organizationId));
     
     res.json({
       success: true,
@@ -173,16 +172,10 @@ export async function inviteUserToOrganization(
     if (typeof userId !== 'string' || !/^[a-fA-F0-9]{24}$/.test(userId)) {
       return next(new HttpError(400, 'Invalid userId format'));
     }
-
-    // Validate role against allowed membership roles to prevent HTML injection in emails
-    const allowedRoles = Object.values(MembershipRole);
-    if (role && !allowedRoles.includes(role as MembershipRole)) {
-      return next(new HttpError(400, 'Invalid role value'));
-    }
     
     const invitation = await membershipService.createInvitation({
       userId,
-      organizationId,
+      organizationId: String(organizationId),
       role,
       invitedBy: req.user!.id,
     });
@@ -216,7 +209,7 @@ export async function updateMemberRole(
     }
     
     const membership = await membershipService.updateMembershipRole(
-      membershipId,
+      String(membershipId),
       role,
       req.user!.id
     );
@@ -243,8 +236,8 @@ export async function removeMember(
     const { organizationId, membershipId } = req.params;
     
     await membershipService.removeMembershipById(
-      membershipId,
-      organizationId,
+      String(membershipId),
+      String(organizationId),
       req.user!.id
     );
     
@@ -292,7 +285,7 @@ export async function acceptInvitation(
     const { membershipId } = req.params;
     
     const membership = await membershipService.acceptInvitation(
-      membershipId,
+      String(membershipId),
       req.user!.id
     );
     
@@ -319,7 +312,7 @@ export async function rejectInvitation(
     const { membershipId } = req.params;
     
     await membershipService.rejectInvitation(
-      membershipId,
+      String(membershipId),
       req.user!.id
     );
     

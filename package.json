@@ -8,9 +8,9 @@
     "dev": "nodemon --exec ts-node src/index.ts",
     "dev:watch": "ts-node src/index.ts",
     "format": "npx prettier --write .",
-    "test": "cross-env NODE_ENV=test jest --detectOpenHandles",
-    "test:watch": "cross-env NODE_ENV=test jest --watch",
-    "test:coverage": "cross-env NODE_ENV=test jest --coverage",
+    "test": "cross-env NODE_ENV=test jest --detectOpenHandles --runInBand",
+    "test:watch": "cross-env NODE_ENV=test jest --watch --runInBand",
+    "test:coverage": "cross-env NODE_ENV=test jest --coverage --runInBand",
     "test:ci": "cross-env NODE_ENV=test jest --coverage --runInBand --ci",
     "seed:dev": "ts-node scripts/seed-dev.ts"
   },

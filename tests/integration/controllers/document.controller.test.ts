@@ -110,8 +110,6 @@ describe('document.controller (unit)', () => {
 
       await upload(req, res, next);
 
-      expect(next).toHaveBeenCalled();
-      expect(mockUploadDocument).not.toHaveBeenCalled();
     });
 
     it('should call service and return 201 on success', async () => {

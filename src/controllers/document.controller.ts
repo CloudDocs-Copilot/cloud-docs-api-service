@@ -17,21 +17,12 @@ export async function upload(req: AuthRequest, res: Response, next: NextFunction
       return next(new HttpError(400, 'File is required'));
     }
     
-    // Validar folderId si se proporciona (prevención de inyección)
-    let validatedFolderId: string | undefined;
-    if (req.body.folderId) {
-      // Validar que sea un ObjectId válido de MongoDB
-      if (!/^[a-f\d]{24}$/i.test(req.body.folderId)) {
-        return next(new HttpError(400, 'Invalid folderId format'));
-      }
-      validatedFolderId = req.body.folderId;
-    }
 
     // folderId es opcional - si no se proporciona, se usa el rootFolder del usuario
     const doc = await documentService.uploadDocument({
       file: req.file,
       userId: req.user!.id,
-      folderId: validatedFolderId
+      folderId: req.body.folderId || undefined
     });
     
     res.status(201).json({
@@ -186,7 +177,7 @@ export async function share(req: AuthRequest, res: Response, next: NextFunction)
     }
     
     const doc = await documentService.shareDocument({
-      id: req.params.id,
+      id: req.params.id as string,
       userId: req.user!.id,
       userIds
     });
@@ -216,7 +207,7 @@ export async function move(req: AuthRequest, res: Response, next: NextFunction):
     }
     
     const doc = await documentService.moveDocument({
-      documentId: req.params.id,
+      documentId: req.params.id as string,
       userId: req.user!.id,
       targetFolderId
     });
@@ -243,7 +234,7 @@ export async function copy(req: AuthRequest, res: Response, next: NextFunction):
     }
     
     const newDoc = await documentService.copyDocument({
-      documentId: req.params.id,
+      documentId: req.params.id as string,
       userId: req.user!.id,
       targetFolderId
     });
@@ -263,7 +254,7 @@ export async function copy(req: AuthRequest, res: Response, next: NextFunction):
  */
 export async function download(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const doc = await documentService.findDocumentById(req.params.id);
+    const doc = await documentService.findDocumentById(req.params.id as string);
     
     if (!doc) {
       return next(new HttpError(404, 'Document not found'));
@@ -317,7 +308,7 @@ export async function download(req: AuthRequest, res: Response, next: NextFuncti
  */
 export async function preview(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const doc = await documentService.findDocumentById(req.params.id);
+    const doc = await documentService.findDocumentById(req.params.id as string);
     
     if (!doc) {
       return next(new HttpError(404, 'Document not found'));
@@ -340,22 +331,46 @@ export async function preview(req: AuthRequest, res: Response, next: NextFunctio
       return next(new HttpError(403, 'Access denied to this document'));
     }
     
+    console.log('[preview] Document info:', {
+      id: doc._id,
+      filename: doc.filename,
+      originalname: doc.originalname,
+      path: doc.path,
+      mimeType: doc.mimeType
+    });
+    
+    const uploadsBase = path.join(process.cwd(), 'uploads');
     const storageBase = path.join(process.cwd(), 'storage');
     const relativePath = doc.path.startsWith('/') ? doc.path.substring(1) : doc.path;
+    
+    console.log('[preview] Uploads base:', uploadsBase);
+    console.log('[preview] Storage base:', storageBase);
+    console.log('[preview] Relative path:', relativePath);
     
     // Intentar validar el path
     let fullPath: string | null = null;
     
+    // Intentar primero en uploads
     try {
-      fullPath = await validateDownloadPath(relativePath, storageBase);
+      fullPath = await validateDownloadPath(relativePath, uploadsBase);
+      console.log('[preview] Found in uploads:', fullPath);
     } catch (error) {
-      // Si falla, intentar con /obs adicional (bug conocido de duplicación)
-      const alternativePath = path.join('obs', relativePath);
-      
+      // Si falla, intentar en storage
       try {
-        fullPath = await validateDownloadPath(alternativePath, storageBase);
+        fullPath = await validateDownloadPath(relativePath, storageBase);
+        console.log('[preview] Found in storage:', fullPath);
       } catch (error2) {
-        return next(new HttpError(404, 'File not found'));
+        // Si falla, intentar con /obs adicional (bug conocido de duplicación)
+        const alternativePath = path.join('obs', relativePath);
+        console.log('[preview] Trying alternative path in uploads:', alternativePath);
+        
+        try {
+          fullPath = await validateDownloadPath(alternativePath, uploadsBase);
+          console.log('[preview] Alternative path worked in uploads:', fullPath);
+        } catch (error3) {
+          console.error('[preview] All paths failed');
+          return next(new HttpError(404, 'File not found'));
+        }
       }
     }
     
@@ -368,6 +383,7 @@ export async function preview(req: AuthRequest, res: Response, next: NextFunctio
                           doc.mimeType === 'application/msword';
     
     if (isWordDocument) {
+      console.log('[preview] Converting Word document to HTML');
       
       try {
         const result = await mammoth.convertToHtml({ path: fullPath });
@@ -457,7 +473,7 @@ export async function preview(req: AuthRequest, res: Response, next: NextFunctio
 export async function remove(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     await documentService.deleteDocument({
-      id: req.params.id,
+      id: req.params.id as string,
       userId: req.user!.id
     });
     

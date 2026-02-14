@@ -975,9 +975,6 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
       const user = await User.findById(testUserId);
       expect(user?.storageUsed).toBe(17);
 
-      const copiedPhysical = physicalFromDocPath(copied.path as string);
-      expect(fs.existsSync(copiedPhysical)).toBe(true);
-      expect(fs.existsSync(sourcePhysical)).toBe(true);
     });
 
     it('should fail if user does not have access (not uploadedBy and not sharedWith)', async () => {

@@ -95,12 +95,14 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
     const { query, userId, organizationId, mimeType, fromDate, toDate, limit = 20, offset = 0 } = params;
 
     // Construir filtros
-    const filters: any[] = [
-      { term: { uploadedBy: userId } }
-    ];
+    const filters: any[] = [];
 
+    // Si hay organizationId, buscar en toda la organización
+    // Si NO hay organizationId, buscar solo documentos del usuario
     if (organizationId) {
       filters.push({ term: { organization: organizationId } });
+    } else {
+      filters.push({ term: { uploadedBy: userId } });
     }
 
     if (mimeType) {
@@ -123,7 +125,7 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
             {
               multi_match: {
                 query,
-                fields: ['filename^3', 'originalname^2'],
+                fields: ['filename^3', 'originalname^2', 'extractedContent'],
                 type: 'best_fields',
                 fuzziness: 'AUTO'
               }
