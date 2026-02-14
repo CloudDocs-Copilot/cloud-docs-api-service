@@ -6,6 +6,7 @@ import { AuthRequest } from '../middlewares/auth.middleware';
 import * as documentService from '../services/document.service';
 import HttpError from '../models/error.model';
 import { validateDownloadPath } from '../utils/path-sanitizer';
+import { hasActiveMembership } from '../services/membership.service';
 
 /**
  * Controlador para subir un nuevo documento
@@ -35,12 +36,57 @@ export async function upload(req: AuthRequest, res: Response, next: NextFunction
 }
 
 /**
+ * Controlador para reemplazar (sobrescribir) el archivo de un documento existente
+ */
+export async function replaceFile(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (!req.file) {
+      return next(new HttpError(400, 'File is required'));
+    }
+
+    const doc = await documentService.replaceDocumentFile({
+      documentId: req.params.id,
+      userId: req.user!.id,
+      file: req.file,
+    });
+
+    res.json({
+      success: true,
+      message: 'Document file replaced successfully',
+      document: doc,
+    });
+  } catch (err: any) {
+    if (err.message === 'Document not found') {
+      return next(new HttpError(404, 'Document not found'));
+    }
+    next(err);
+  }
+}
+
+/**
  * Controlador para listar documentos del usuario
  */
 export async function list(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const docs = await documentService.listDocuments(req.user!.id);
     
+    res.json({
+      success: true,
+      count: docs.length,
+      documents: docs
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Controlador para listar documentos compartidos al usuario (por otros usuarios)
+ */
+export async function listSharedToMe(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const docs = await documentService.listSharedDocumentsToUser(req.user!.id);
+
     res.json({
       success: true,
       count: docs.length,
@@ -93,10 +139,18 @@ export async function getById(req: AuthRequest, res: Response, next: NextFunctio
       return next(new HttpError(404, 'Document not found'));
     }
     
-    // Verificar acceso (owner o compartido)
-    const hasAccess = 
-      doc.uploadedBy.toString() === req.user!.id ||
-      doc.sharedWith?.some((userId: any) => userId.toString() === req.user!.id);
+    // Verificar acceso:
+    // - Si pertenece a una organización: cualquier miembro ACTIVO de esa organización puede acceder.
+    // - Si es personal (sin organización): solo owner o sharedWith.
+    let hasAccess = false;
+
+    if (doc.organization) {
+      hasAccess = await hasActiveMembership(req.user!.id, doc.organization.toString());
+    } else {
+      hasAccess =
+        doc.uploadedBy.toString() === req.user!.id ||
+        doc.sharedWith?.some((userId: any) => userId.toString() === req.user!.id);
+    }
     
     if (!hasAccess) {
       return next(new HttpError(403, 'Access denied to this document'));
@@ -206,10 +260,18 @@ export async function download(req: AuthRequest, res: Response, next: NextFuncti
       return next(new HttpError(404, 'Document not found'));
     }
     
-    // Verificar acceso (owner o compartido)
-    const hasAccess = 
-      doc.uploadedBy.toString() === req.user!.id ||
-      doc.sharedWith?.some((userId: any) => userId.toString() === req.user!.id);
+    // Verificar acceso:
+    // - Si pertenece a una organización: cualquier miembro ACTIVO de esa organización puede acceder.
+    // - Si es personal (sin organización): solo owner o sharedWith.
+    let hasAccess = false;
+
+    if (doc.organization) {
+      hasAccess = await hasActiveMembership(req.user!.id, doc.organization.toString());
+    } else {
+      hasAccess =
+        doc.uploadedBy.toString() === req.user!.id ||
+        doc.sharedWith?.some((userId: any) => userId.toString() === req.user!.id);
+    }
     
     if (!hasAccess) {
       return next(new HttpError(403, 'Access denied to this document'));
@@ -224,9 +286,10 @@ export async function download(req: AuthRequest, res: Response, next: NextFuncti
       // Intentar primero en uploads
       filePath = await validateDownloadPath(doc.filename || '', uploadsBase);
     } catch (error) {
-      // Si no está en uploads, intentar en storage
+      // Si no está en uploads, intentar en storage usando doc.path (ruta real dentro de storage)
       try {
-        filePath = await validateDownloadPath(doc.filename || '', storageBase);
+        const relativePath = doc.path?.startsWith('/') ? doc.path.substring(1) : (doc.path || '');
+        filePath = await validateDownloadPath(relativePath, storageBase);
       } catch (error2) {
         return next(new HttpError(404, 'File not found'));
       }
@@ -251,10 +314,18 @@ export async function preview(req: AuthRequest, res: Response, next: NextFunctio
       return next(new HttpError(404, 'Document not found'));
     }
     
-    // Verificar acceso (owner o compartido)
-    const hasAccess = 
-      doc.uploadedBy.toString() === req.user!.id ||
-      doc.sharedWith?.some((userId: any) => userId.toString() === req.user!.id);
+    // Verificar acceso:
+    // - Si pertenece a una organización: cualquier miembro ACTIVO de esa organización puede acceder.
+    // - Si es personal (sin organización): solo owner o sharedWith.
+    let hasAccess = false;
+
+    if (doc.organization) {
+      hasAccess = await hasActiveMembership(req.user!.id, doc.organization.toString());
+    } else {
+      hasAccess =
+        doc.uploadedBy.toString() === req.user!.id ||
+        doc.sharedWith?.some((userId: any) => userId.toString() === req.user!.id);
+    }
     
     if (!hasAccess) {
       return next(new HttpError(403, 'Access denied to this document'));
@@ -418,4 +489,4 @@ export async function remove(req: AuthRequest, res: Response, next: NextFunction
   }
 }
 
-export default { upload, list, getRecent, getById, share, move, copy, download, preview, remove };
+export default { upload, replaceFile, list, listSharedToMe, getRecent, getById, share, move, copy, download, preview, remove };

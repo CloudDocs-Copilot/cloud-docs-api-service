@@ -526,6 +526,40 @@ export async function getMembership(
 }
 
 /**
+ * NUEVO: Obtiene el rol de membresía ACTIVA del usuario en la organización.
+ * Retorna null si no hay membresía activa.
+ */
+export async function getMembershipRole(
+  userId: string,
+  organizationId: string
+): Promise<MembershipRole | null> {
+  if (typeof userId !== 'string' || !/^[a-fA-F0-9]{24}$/.test(userId)) {
+    return null;
+  }
+
+  const membership = await Membership.findOne({
+    user: { $eq: userId },
+    organization: { $eq: organizationId },
+    status: MembershipStatus.ACTIVE,
+  }).select('role');
+
+  return membership?.role ?? null;
+}
+
+/**
+ * NUEVO: Verifica si el usuario tiene uno de los roles permitidos (en membresía ACTIVA).
+ */
+export async function hasAnyRole(
+  userId: string,
+  organizationId: string,
+  allowedRoles: MembershipRole[]
+): Promise<boolean> {
+  const role = await getMembershipRole(userId, organizationId);
+  if (!role) return false;
+  return allowedRoles.includes(role);
+}
+
+/**
  * Obtiene todas las membresías activas de un usuario con organizaciones activas
  */
 export async function getUserMemberships(userId: string): Promise<IMembership[]> {
@@ -540,7 +574,7 @@ export async function getUserMemberships(userId: string): Promise<IMembership[]>
     path: 'organization',
     select: 'name slug plan settings active',
     match: { active: true }
-  }).then(memberships => 
+  }).then(memberships =>
     // Filtrar membresías donde la organización no fue filtrada (organization null)
     memberships.filter(membership => membership.organization !== null)
   );
@@ -938,6 +972,8 @@ export default {
   getPendingInvitations,
   hasActiveMembership,
   getMembership,
+  getMembershipRole,
+  hasAnyRole,
   getUserMemberships,
   getActiveOrganization,
   switchActiveOrganization,

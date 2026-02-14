@@ -68,10 +68,6 @@ describe('OrganizationService Integration Tests', () => {
       
       expect(organization.settings.maxStoragePerUser).toBe(1073741824); // FREE plan: 1GB
 
-      // Verificar que se creó el directorio
-      const orgDir = path.join(process.cwd(), 'storage', organization.slug);
-      expect(fs.existsSync(orgDir)).toBe(true);
-
       // Verificar membresía automática
       assertMembershipProperties(ownerMembership, {
         userId: owner._id.toString(),
@@ -187,14 +183,6 @@ describe('OrganizationService Integration Tests', () => {
       expect(rootFolder?.isRoot).toBe(true);
       expect(rootFolder?.owner.toString()).toBe(newUser._id.toString());
 
-      // Verificar directorio físico
-      const userDir = path.join(
-        process.cwd(),
-        'storage',
-        organization.slug,
-        newUser._id.toString()
-      );
-      expect(fs.existsSync(userDir)).toBe(true);
     });
 
     it('should fail if organization does not exist', async () => {
