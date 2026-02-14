@@ -1,24 +1,77 @@
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
+import * as fs from 'fs';
+import * as path from 'path';
+
 import * as documentService from '../../../src/services/document.service';
-import * as membershipService from '../../../src/services/membership.service';
 import User from '../../../src/models/user.model';
 import Organization from '../../../src/models/organization.model';
 import Folder from '../../../src/models/folder.model';
 import Document from '../../../src/models/document.model';
-import Membership, { MembershipRole, MembershipStatus } from '../../../src/models/membership.model';
-import * as fs from 'fs';
-import * as path from 'path';
+
+// ---- mocks (external collaborators / cross-service concerns) ----
+jest.mock('../../../src/services/membership.service', () => ({
+  getActiveOrganization: jest.fn(),
+  getMembership: jest.fn(),
+  hasAnyRole: jest.fn()
+}));
+
+jest.mock('../../../src/services/folder.service', () => ({
+  validateFolderAccess: jest.fn()
+}));
+
+jest.mock('../../../src/services/search.service', () => ({
+  indexDocument: jest.fn(),
+  removeDocumentFromIndex: jest.fn()
+}));
+
+jest.mock('../../../src/services/notification.service', () => ({
+  notifyOrganizationMembers: jest.fn()
+}));
+
+jest.mock('../../../src/socket/socket', () => ({
+  emitToUser: jest.fn()
+}));
+
+import * as membershipService from '../../../src/services/membership.service';
+import * as folderService from '../../../src/services/folder.service';
+import * as searchService from '../../../src/services/search.service';
+import * as notificationService from '../../../src/services/notification.service';
 
 let mongoServer: MongoMemoryServer;
 
-describe('DocumentService Integration Tests', () => {
+describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborators)', () => {
   let testUserId: mongoose.Types.ObjectId;
   let testUser2Id: mongoose.Types.ObjectId;
   let testOrgId: mongoose.Types.ObjectId;
   let testOrgSlug: string;
   let rootFolderId: mongoose.Types.ObjectId;
-  let testFolderId: mongoose.Types.ObjectId;
+  let docsFolderId: mongoose.Types.ObjectId;
+
+  const uploadsRoot = path.join(process.cwd(), 'uploads');
+  const storageRoot = path.join(process.cwd(), 'storage');
+
+  function ensureDir(p: string): void {
+    if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
+  }
+
+  function safeRmDir(p: string): void {
+    if (!fs.existsSync(p)) return;
+    try {
+      fs.rmSync(p, { recursive: true, force: true });
+    } catch (err: any) {
+      if (err && (err.code === 'ENOTEMPTY' || err.code === 'EBUSY' || err.code === 'EPERM')) {
+        // ignore in tests
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  function physicalFromDocPath(docPath: string): string {
+    const rel = docPath.startsWith('/') ? docPath.substring(1) : docPath;
+    return path.join(storageRoot, rel);
+  }
 
   beforeAll(async () => {
     mongoServer = await MongoMemoryServer.create();
@@ -31,558 +84,432 @@ describe('DocumentService Integration Tests', () => {
   });
 
   beforeEach(async () => {
-    // 1. Crear organización owner
+    jest.clearAllMocks();
+
+    // clean DB
+    await User.deleteMany({});
+    await Organization.deleteMany({});
+    await Folder.deleteMany({});
+    await Document.deleteMany({});
+
+    // clean FS
+    safeRmDir(uploadsRoot);
+    safeRmDir(storageRoot);
+    ensureDir(uploadsRoot);
+    ensureDir(storageRoot);
+
+    // Create org + users
     const owner = await User.create({
       name: 'Org Owner',
       email: 'owner@test.com',
       password: 'hashedPassword123',
       role: 'admin',
-      storageUsed: 0
+      storageUsed: 0,
+      active: true
     });
 
-    // 2. Crear organización
-    const org = await Organization.create({
-      name: 'Test Organization',
-      slug: 'test-org',
-      owner: owner._id,
-      members: [owner._id],
-      // Let the pre-save hook set the FREE plan settings
-    });
-
-    // 3. Crear membresía para el owner
-    await Membership.create({
-      user: owner._id,
-      organization: org._id,
-      role: MembershipRole.OWNER,
-      status: MembershipStatus.ACTIVE,
-      joinedAt: new Date()
-    });
-
-    owner.organization = org._id as mongoose.Types.ObjectId;
-    await owner.save();
-
-    testOrgId = org._id as mongoose.Types.ObjectId;
-    testOrgSlug = org.slug;
-
-    // 4. Crear usuarios de test sin organización
     const user = await User.create({
       name: 'Test User',
-      email: 'test@test.com',
+      email: 'user@test.com',
       password: 'hashedPassword123',
       role: 'user',
-      storageUsed: 0
+      storageUsed: 0,
+      active: true
     });
 
     const user2 = await User.create({
       name: 'Test User 2',
-      email: 'test2@test.com',
+      email: 'user2@test.com',
       password: 'hashedPassword123',
       role: 'user',
-      storageUsed: 0
+      storageUsed: 0,
+      active: true
     });
+
+    // IMPORTANT: do NOT trust slug input — model may overwrite it
+    const org = await Organization.create({
+      name: 'Test Organization',
+      owner: owner._id,
+      members: [owner._id, user._id, user2._id]
+    });
+
+    testOrgId = org._id as mongoose.Types.ObjectId;
+
+    // read the real slug produced by the model
+    const orgReloaded = await Organization.findById(testOrgId);
+    testOrgSlug = orgReloaded?.slug || 'test-organization';
 
     testUserId = user._id as mongoose.Types.ObjectId;
     testUser2Id = user2._id as mongoose.Types.ObjectId;
 
-    // 5. Agregar usuarios a la organización usando membership service
-    await membershipService.createMembership({
-      userId: testUserId.toString(),
-      organizationId: testOrgId.toString(),
-      role: MembershipRole.MEMBER,
+    // IMPORTANT: uploadDocument aggregates by User.organization, so set it.
+    await User.findByIdAndUpdate(testUserId, { organization: testOrgId });
+    await User.findByIdAndUpdate(testUser2Id, { organization: testOrgId });
+
+    // Root folder + Docs folder in org
+    const rootFolder = await Folder.create({
+      name: `root_${testOrgSlug}_${testUserId}`,
+      displayName: 'My Files',
+      type: 'root',
+      organization: testOrgId,
+      owner: testUserId,
+      path: `/${testOrgSlug}/${testUserId.toString()}`,
+      isRoot: true,
+      permissions: [{ userId: testUserId, role: 'owner' }]
     });
+    rootFolderId = rootFolder._id as mongoose.Types.ObjectId;
 
-    await membershipService.createMembership({
-      userId: testUser2Id.toString(),
-      organizationId: testOrgId.toString(),
-      role: MembershipRole.MEMBER,
-    });
-
-    // 6. Obtener usuarios actualizados con rootFolders
-    const updatedUser = await User.findById(testUserId);
-    rootFolderId = updatedUser!.rootFolder as mongoose.Types.ObjectId;
-
-    // 7. Crear carpeta de prueba
-    const testFolder = await Folder.create({
+    const docsFolder = await Folder.create({
       name: 'Documents',
       displayName: 'My Documents',
       type: 'folder',
       organization: testOrgId,
       owner: testUserId,
       parent: rootFolderId,
-      path: `/${testOrgSlug}/${testUserId}/Documents`,
+      path: `/${testOrgSlug}/${testUserId.toString()}/Documents`,
+      isRoot: false,
       permissions: [{ userId: testUserId, role: 'owner' }]
     });
+    docsFolderId = docsFolder._id as mongoose.Types.ObjectId;
 
-    testFolderId = testFolder._id as mongoose.Types.ObjectId;
+    // Ensure physical folder exists for storage writes (real slug)
+    ensureDir(path.join(storageRoot, testOrgSlug, testUserId.toString(), 'Documents'));
 
-    // Crear directorios físicos
-    const storageRoot = path.join(process.cwd(), 'storage');
-    const uploadsRoot = path.join(process.cwd(), 'uploads');
-    const orgPath = path.join(storageRoot, testOrgSlug, testUserId.toString());
-    const docsPath = path.join(orgPath, 'Documents');
+    // Default membership mocks for "active org"
+    (membershipService.getActiveOrganization as jest.Mock).mockImplementation(
+      async (uid: string) => {
+        if (uid === testUserId.toString() || uid === testUser2Id.toString())
+          return testOrgId.toString();
+        return null;
+      }
+    );
 
-    if (!fs.existsSync(uploadsRoot)) {
-      fs.mkdirSync(uploadsRoot, { recursive: true });
-    }
-    if (!fs.existsSync(docsPath)) {
-      fs.mkdirSync(docsPath, { recursive: true });
-    }
+    (membershipService.getMembership as jest.Mock).mockImplementation(
+      async (uid: string, orgId: string) => {
+        if (orgId !== testOrgId.toString()) return null;
+        if (uid === testUserId.toString()) return { rootFolder: rootFolderId };
+        if (uid === testUser2Id.toString()) return { rootFolder: rootFolderId };
+        return null;
+      }
+    );
+
+    (folderService.validateFolderAccess as jest.Mock).mockResolvedValue(undefined);
+    (membershipService.hasAnyRole as jest.Mock).mockResolvedValue(false);
+
+    (searchService.indexDocument as jest.Mock).mockResolvedValue(undefined);
+    (searchService.removeDocumentFromIndex as jest.Mock).mockResolvedValue(undefined);
+    (notificationService.notifyOrganizationMembers as jest.Mock).mockResolvedValue(undefined);
   });
 
-  afterEach(async () => {
-    await User.deleteMany({});
-    await Organization.deleteMany({});
-    await Folder.deleteMany({});
-    await Document.deleteMany({});
-    await Membership.deleteMany({});
-
-    // Limpiar directorios
-    const storageRoot = path.join(process.cwd(), 'storage');
-    const uploadsRoot = path.join(process.cwd(), 'uploads');
-    
-    if (fs.existsSync(storageRoot)) {
-      try {
-        fs.rmSync(storageRoot, { recursive: true, force: true });
-      } catch (err: any) {
-        if (err && (err.code === 'ENOTEMPTY' || err.code === 'EBUSY' || err.code === 'EPERM')) {
-          console.warn('Warning: could not fully remove storageRoot during cleanup:', err.code);
-        } else {
-          throw err;
-        }
-      }
-    }
-    if (fs.existsSync(uploadsRoot)) {
-      try {
-        fs.rmSync(uploadsRoot, { recursive: true, force: true });
-      } catch (err: any) {
-        if (err && (err.code === 'ENOTEMPTY' || err.code === 'EBUSY' || err.code === 'EPERM')) {
-          console.warn('Warning: could not fully remove uploadsRoot during cleanup:', err.code);
-        } else {
-          throw err;
-        }
-      }
-    }
+  afterEach(() => {
+    safeRmDir(uploadsRoot);
+    safeRmDir(storageRoot);
   });
 
   describe('uploadDocument', () => {
-    it('should upload document with required folderId', async () => {
-      // Crear archivo temporal en uploads
-      const uploadsPath = path.join(process.cwd(), 'uploads');
+    it('should upload document into storage + create DB record + update user.storageUsed', async () => {
       const testFileName = `test-${Date.now()}.txt`;
-      const tempFilePath = path.join(uploadsPath, testFileName);
-      
+      const tempFilePath = path.join(uploadsRoot, testFileName);
       fs.writeFileSync(tempFilePath, 'Test content');
 
       const mockFile: any = {
         filename: testFileName,
         originalname: 'test.txt',
         mimetype: 'text/plain',
-        size: 12,
+        size: 12
       };
 
       const doc = await documentService.uploadDocument({
         file: mockFile,
         userId: testUserId.toString(),
-        folderId: testFolderId.toString(),
+        folderId: docsFolderId.toString()
       });
 
       expect(doc).toBeDefined();
       expect(doc.filename).toBe(testFileName);
       expect(doc.originalname).toBe('test.txt');
-      expect(doc.folder).toEqual(testFolderId);
-      expect(doc.organization).toEqual(testOrgId);
+      expect(doc.organization?.toString()).toBe(testOrgId.toString());
+      expect(doc.folder?.toString()).toBe(docsFolderId.toString());
       expect(doc.size).toBe(12);
 
-      // Verificar que el archivo existe en el path del documento
-      const storageRoot = path.join(process.cwd(), 'storage');
-      const filePath = path.join(storageRoot, testOrgSlug, ...doc.path!.split('/').filter(p => p));
-      expect(fs.existsSync(filePath)).toBe(true);
+      // derive physical path from doc.path (don’t hardcode slug)
+      const expectedPhysical = physicalFromDocPath(doc.path as string);
 
-      // Verificar que el usuario's storageUsed se actualizó
+      expect(fs.existsSync(expectedPhysical)).toBe(true);
+      expect(fs.existsSync(tempFilePath)).toBe(false);
+
       const updatedUser = await User.findById(testUserId);
-      expect(updatedUser!.storageUsed).toBe(12);
+      expect(updatedUser?.storageUsed).toBe(12);
+
+      expect(searchService.indexDocument).toHaveBeenCalled();
+      expect(notificationService.notifyOrganizationMembers).toHaveBeenCalled();
     });
 
-    it('should upload to rootFolder when folderId not provided', async () => {
-      // Crear archivo temporal
-      const uploadsDir = path.join(process.cwd(), 'uploads');
-      if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true });
-      }
-      
-      const testFileName = `test-${Date.now()}.txt`;
-      const tempPath = path.join(uploadsDir, testFileName);
-      fs.writeFileSync(tempPath, 'Hello World!');
+    it('should use membership.rootFolder when folderId is not provided', async () => {
+      const testFileName = `root-${Date.now()}.txt`;
+      const tempFilePath = path.join(uploadsRoot, testFileName);
+      fs.writeFileSync(tempFilePath, 'Hello root');
 
       const mockFile: any = {
         filename: testFileName,
-        originalname: 'test.txt',
+        originalname: 'root.txt',
         mimetype: 'text/plain',
-        size: 12,
+        size: 10
       };
 
-      // No proporcionar folderId - debe usar rootFolder del usuario
+      // ensure root physical dir exists
+      ensureDir(path.join(storageRoot, testOrgSlug, testUserId.toString()));
+
       const doc = await documentService.uploadDocument({
         file: mockFile,
         userId: testUserId.toString(),
-        folderId: undefined, // No se proporciona
+        folderId: undefined
       });
 
-      expect(doc).toBeDefined();
-      expect(doc.filename).toBe(testFileName);
-      expect(doc.folder).toEqual(rootFolderId); // Debe estar en la carpeta raíz
-      expect(doc.organization).toEqual(testOrgId);
+      expect(doc.folder?.toString()).toBe(rootFolderId.toString());
+      expect(doc.organization?.toString()).toBe(testOrgId.toString());
     });
 
-    it('should fail without folderId when user has no rootFolder', async () => {
-      // Crear un usuario sin rootFolder
-      const userNoRoot = await User.create({
-        name: 'User No Root',
-        email: 'noroot@test.com',
-        password: 'hashedPassword123',
-        role: 'user',
-        storageUsed: 0,
-        organization: testOrgId,
-        // No asignar rootFolder
-      });
-
-      // Crear membership sin rootFolder (forzar el caso)
-      await Membership.create({
-        user: userNoRoot._id,
-        organization: testOrgId,
-        role: MembershipRole.MEMBER,
-        status: MembershipStatus.ACTIVE,
-        joinedAt: new Date(),
-        // Sin rootFolder
+    it('should fail when membership has no rootFolder and folderId is not provided/empty', async () => {
+      (membershipService.getMembership as jest.Mock).mockResolvedValueOnce({
+        rootFolder: undefined
       });
 
       const mockFile: any = {
-        filename: 'test.txt',
-        originalname: 'test.txt',
+        filename: 'no-root.txt',
+        originalname: 'no-root.txt',
         mimetype: 'text/plain',
-        size: 100,
-      };
-
-      await expect(
-        documentService.uploadDocument({
-          file: mockFile,
-          userId: userNoRoot._id.toString(),
-          folderId: '', // String vacío, no se proporciona
-        })
-      ).rejects.toThrow('Membership does not have a root folder. Please contact support.');
-    });
-
-    it('should fail if storage quota exceeded', async () => {
-      // Establecer storageUsed muy cerca del límite del plan FREE (1GB = 1073741824 bytes)
-      const freeLimit = 1073741824; // 1GB
-      await User.findByIdAndUpdate(testUserId, { storageUsed: freeLimit - 500 }); // Solo 500 bytes disponibles
-
-      const uploadsPath = path.join(process.cwd(), 'uploads');
-      const testFileName = `test-large-${Date.now()}.txt`;
-      const tempFilePath = path.join(uploadsPath, testFileName);
-      fs.writeFileSync(tempFilePath, 'x'.repeat(1000)); // 1000 bytes - debería exceder límite
-
-      const mockFile: any = {
-        filename: testFileName,
-        originalname: 'large.txt',
-        mimetype: 'text/plain',
-        size: 1000,
+        size: 1
       };
 
       await expect(
         documentService.uploadDocument({
           file: mockFile,
           userId: testUserId.toString(),
-          folderId: testFolderId.toString(),
+          folderId: ''
         })
-      ).rejects.toThrow('Storage quota exceeded');
+      ).rejects.toThrow('Membership does not have a root folder. Please contact support.');
     });
 
-    it('should fail if user does not have editor access to folder', async () => {
+    it('should fail if folder does not belong to active organization', async () => {
+      const otherOrg = await Organization.create({
+        name: 'Other Org',
+        owner: testUserId,
+        members: [testUserId]
+      });
+
+      const otherOrgReloaded = await Organization.findById(otherOrg._id);
+      const otherSlug = otherOrgReloaded?.slug || 'other-org';
+
+      const otherFolder = await Folder.create({
+        name: 'OtherDocs',
+        displayName: 'Other Docs',
+        type: 'folder',
+        organization: otherOrg._id,
+        owner: testUserId,
+        parent: rootFolderId,
+        path: `/${otherSlug}/${testUserId.toString()}/OtherDocs`,
+        isRoot: false,
+        permissions: [{ userId: testUserId, role: 'owner' }]
+      });
+
+      const testFileName = `x-${Date.now()}.txt`;
+      fs.writeFileSync(path.join(uploadsRoot, testFileName), 'x');
+
       const mockFile: any = {
-        filename: 'unauthorized.txt',
-        originalname: 'unauthorized.txt',
+        filename: testFileName,
+        originalname: 'x.txt',
         mimetype: 'text/plain',
-        size: 100,
+        size: 1
       };
 
-      // User2 no tiene acceso a testFolder de User1
       await expect(
         documentService.uploadDocument({
           file: mockFile,
-          userId: testUser2Id.toString(),
-          folderId: testFolderId.toString(),
+          userId: testUserId.toString(),
+          folderId: otherFolder._id.toString()
+        })
+      ).rejects.toThrow('Folder does not belong to your active organization');
+    });
+
+    it('should fail if user storage quota is exceeded', async () => {
+      const org = await Organization.findById(testOrgId);
+      org!.settings.maxStoragePerUser = 10;
+      await org!.save();
+
+      await User.findByIdAndUpdate(testUserId, { storageUsed: 9 });
+
+      const testFileName = `big-${Date.now()}.txt`;
+      fs.writeFileSync(path.join(uploadsRoot, testFileName), '12345');
+
+      const mockFile: any = {
+        filename: testFileName,
+        originalname: 'big.txt',
+        mimetype: 'text/plain',
+        size: 5
+      };
+
+      await expect(
+        documentService.uploadDocument({
+          file: mockFile,
+          userId: testUserId.toString(),
+          folderId: docsFolderId.toString()
+        })
+      ).rejects.toThrow(/Storage quota exceeded/i);
+    });
+
+    it('should fail if organization total storage quota is exceeded (maxStorageTotal != -1)', async () => {
+      const org = await Organization.findById(testOrgId);
+      org!.settings.maxStorageTotal = 10;
+      await org!.save();
+
+      // ensure aggregate matches by organization field
+      await User.updateMany({ organization: testOrgId }, { $set: { storageUsed: 0 } });
+      await User.findByIdAndUpdate(testUserId, { storageUsed: 9 });
+
+      const testFileName = `org-total-${Date.now()}.txt`;
+      fs.writeFileSync(path.join(uploadsRoot, testFileName), 'xx');
+
+      const mockFile: any = {
+        filename: testFileName,
+        originalname: 'org-total.txt',
+        mimetype: 'text/plain',
+        size: 2
+      };
+
+      await expect(
+        documentService.uploadDocument({
+          file: mockFile,
+          userId: testUserId.toString(),
+          folderId: docsFolderId.toString()
+        })
+      ).rejects.toThrow(/Organization storage quota exceeded/i);
+    });
+
+    it('should fail if file type is not allowed by organization settings', async () => {
+      const org = await Organization.findById(testOrgId);
+      org!.settings.allowedFileTypes = ['pdf'];
+      await org!.save();
+
+      const testFileName = `badext-${Date.now()}.txt`;
+      fs.writeFileSync(path.join(uploadsRoot, testFileName), 'x');
+
+      const mockFile: any = {
+        filename: testFileName,
+        originalname: 'bad.txt',
+        mimetype: 'text/plain',
+        size: 1
+      };
+
+      await expect(
+        documentService.uploadDocument({
+          file: mockFile,
+          userId: testUserId.toString(),
+          folderId: docsFolderId.toString()
+        })
+      ).rejects.toThrow(/File type 'txt' not allowed/i);
+    });
+
+    it('should fail if validateFolderAccess rejects (no editor access)', async () => {
+      (folderService.validateFolderAccess as jest.Mock).mockRejectedValueOnce(
+        new Error('User does not have editor access to this folder')
+      );
+
+      const testFileName = `noaccess-${Date.now()}.txt`;
+      fs.writeFileSync(path.join(uploadsRoot, testFileName), 'x');
+
+      const mockFile: any = {
+        filename: testFileName,
+        originalname: 'noaccess.txt',
+        mimetype: 'text/plain',
+        size: 1
+      };
+
+      await expect(
+        documentService.uploadDocument({
+          file: mockFile,
+          userId: testUserId.toString(),
+          folderId: docsFolderId.toString()
         })
       ).rejects.toThrow('User does not have editor access to this folder');
     });
   });
 
-  describe('deleteDocument', () => {
-    it('should delete document and update storage usage', async () => {
-      // Crear archivo usando el servicio de upload primero
-      const uploadsPath = path.join(process.cwd(), 'uploads');
-      const testFileName = `delete-test-${Date.now()}.txt`;
-      const tempFilePath = path.join(uploadsPath, testFileName);
-      
-      fs.writeFileSync(tempFilePath, 'Content to delete');
-
-      const mockFile: any = {
-        filename: testFileName,
-        originalname: 'delete.txt',
-        mimetype: 'text/plain',
-        size: 17,
-      };
-
-      // Upload documento
-      const doc = await documentService.uploadDocument({
-        file: mockFile,
-        userId: testUserId.toString(),
-        folderId: testFolderId.toString(),
+  describe('listDocuments', () => {
+    it('should list documents from active organization', async () => {
+      await Document.create({
+        filename: 'a.txt',
+        originalname: 'a.txt',
+        mimeType: 'text/plain',
+        size: 1,
+        uploadedBy: testUserId,
+        folder: docsFolderId,
+        organization: testOrgId,
+        path: `/${testOrgSlug}/${testUserId.toString()}/Documents/a.txt`,
+        url: `/storage/${testOrgSlug}/${testUserId.toString()}/Documents/a.txt`
       });
 
-      const storageRoot = path.join(process.cwd(), 'storage');
-      const docPath = path.join(storageRoot, testOrgSlug, ...doc.path!.split('/').filter(p => p));
-
-      // Verificar que el archivo existe
-      expect(fs.existsSync(docPath)).toBe(true);
-
-      const deleted = await documentService.deleteDocument({
-        id: doc._id.toString(),
-        userId: testUserId.toString(),
-      });
-
-      expect(deleted).toBeDefined();
-
-      // Verificar que el archivo se eliminó
-      expect(fs.existsSync(docPath)).toBe(false);
-
-      // Verificar que el storageUsed se actualizó
-      const updatedUser = await User.findById(testUserId);
-      expect(updatedUser!.storageUsed).toBe(0);
+      const docs = await documentService.listDocuments(testUserId.toString());
+      expect(docs).toHaveLength(1);
+      expect(docs[0].organization?.toString()).toBe(testOrgId.toString());
     });
 
-    it('should fail if user is not owner', async () => {
-      const doc = await Document.create({
-        filename: 'test.txt',
-        originalName: 'test.txt',
-        mimeType: 'text/plain',
-        size: 100,
-        uploadedBy: testUserId,
-        folder: testFolderId,
-        organization: testOrgId,
-        path: `/${testOrgSlug}/${testUserId}/Documents/test.txt`
-      });
+    it('should fail if no active organization', async () => {
+      (membershipService.getActiveOrganization as jest.Mock).mockResolvedValueOnce(null);
 
-      await expect(
-        documentService.deleteDocument({
-          id: doc._id.toString(),
-          userId: testUser2Id.toString(),
-        })
-      ).rejects.toThrow('Forbidden');
+      await expect(documentService.listDocuments(testUserId.toString())).rejects.toThrow(
+        'No existe una organización activa. Por favor, crea o únete a una organización primero.'
+      );
     });
   });
 
-  describe('moveDocument', () => {
-    it('should move document to different folder', async () => {
-      // Crear carpeta destino
-      const targetFolder = await Folder.create({
-        name: 'Archive',
-        type: 'folder',
-        organization: testOrgId,
-        owner: testUserId,
-        parent: rootFolderId,
-        path: `/${testOrgSlug}/${testUserId}/Archive`,
-        permissions: [{ userId: testUserId, role: 'owner' }]
-      });
-
-      // Crear documento primero con upload
-      const uploadsPath = path.join(process.cwd(), 'uploads');
-      const testFileName = `move-test-${Date.now()}.txt`;
-      const tempFilePath = path.join(uploadsPath, testFileName);
-      
-      fs.writeFileSync(tempFilePath, 'Content to move');
-
-      const mockFile: any = {
-        filename: testFileName,
-        originalname: 'move.txt',
-        mimetype: 'text/plain',
-        size: 15,
-      };
-
-      const doc = await documentService.uploadDocument({
-        file: mockFile,
-        userId: testUserId.toString(),
-        folderId: testFolderId.toString(),
-      });
-
-      const storageRoot = path.join(process.cwd(), 'storage');
-      const originalPath = path.join(storageRoot, testOrgSlug, ...doc.path!.split('/').filter(p => p));
-      
-      // Verificar que existe antes de mover
-      expect(fs.existsSync(originalPath)).toBe(true);
-
-      const moved = await documentService.moveDocument({
-        documentId: doc._id.toString(),
-        userId: testUserId.toString(),
-        targetFolderId: targetFolder._id.toString(),
-      });
-
-      expect(moved.folder).toEqual(targetFolder._id);
-      expect(moved.path).toContain('/Archive/');
-
-      // Verificar que el archivo se movió físicamente
-      const newPath = path.join(storageRoot, testOrgSlug, ...moved.path!.split('/').filter(p => p));
-      expect(fs.existsSync(newPath)).toBe(true);
-      expect(fs.existsSync(originalPath)).toBe(false);
+  describe('findDocumentById', () => {
+    it('should fail for invalid id', async () => {
+      await expect(documentService.findDocumentById('not-an-id')).rejects.toThrow(
+        'Invalid document ID'
+      );
     });
 
-    it('should fail if user is not owner', async () => {
-      const doc = await Document.create({
-        filename: 'test.txt',
-        originalName: 'test.txt',
+    it('should find by id for valid id', async () => {
+      const created = await Document.create({
+        filename: 'a.txt',
+        originalname: 'a.txt',
         mimeType: 'text/plain',
-        size: 100,
+        size: 1,
         uploadedBy: testUserId,
-        folder: testFolderId,
+        folder: docsFolderId,
         organization: testOrgId,
-        path: `/${testOrgSlug}/${testUserId}/Documents/test.txt`
+        path: `/${testOrgSlug}/${testUserId.toString()}/Documents/a.txt`
       });
 
-      await expect(
-        documentService.moveDocument({
-          documentId: doc._id.toString(),
-          userId: testUser2Id.toString(),
-          targetFolderId: rootFolderId.toString(),
-        })
-      ).rejects.toThrow('Only document owner can move it');
-    });
-  });
-
-  describe('copyDocument', () => {
-    it('should copy document to different folder', async () => {
-      // Crear carpeta destino
-      const targetFolder = await Folder.create({
-        name: 'Backup',
-        type: 'folder',
-        organization: testOrgId,
-        owner: testUserId,
-        parent: rootFolderId,
-        path: `/${testOrgSlug}/${testUserId}/Backup`,
-        permissions: [{ userId: testUserId, role: 'owner' }]
-      });
-
-      // Crear documento original con upload
-      const uploadsPath = path.join(process.cwd(), 'uploads');
-      const testFileName = `copy-test-${Date.now()}.txt`;
-      const tempFilePath = path.join(uploadsPath, testFileName);
-      
-      fs.writeFileSync(tempFilePath, 'Content to copy');
-
-      const mockFile: any = {
-        filename: testFileName,
-        originalname: 'original.txt',
-        mimetype: 'text/plain',
-        size: 15,
-      };
-
-      const doc = await documentService.uploadDocument({
-        file: mockFile,
-        userId: testUserId.toString(),
-        folderId: testFolderId.toString(),
-      });
-
-      const storageRoot = path.join(process.cwd(), 'storage');
-      const originalPath = path.join(storageRoot, testOrgSlug, ...doc.path!.split('/').filter(p => p));
-      
-      // Asegurar que el archivo físico existe antes de copiar
-      if (!fs.existsSync(originalPath)) {
-        const dir = path.dirname(originalPath);
-        if (!fs.existsSync(dir)) {
-          fs.mkdirSync(dir, { recursive: true });
-        }
-        fs.writeFileSync(originalPath, 'test content for copy');
-      }
-
-      const copied = await documentService.copyDocument({
-        documentId: doc._id.toString(),
-        userId: testUserId.toString(),
-        targetFolderId: targetFolder._id.toString(),
-      });
-
-      expect(copied._id).not.toEqual(doc._id);
-      expect(copied.folder).toEqual(targetFolder._id);
-      expect(copied.originalname).toContain('Copy of');
-      expect(copied.uploadedBy).toEqual(testUserId);
-
-      // Verificar que ambos archivos existen
-      expect(fs.existsSync(originalPath)).toBe(true);
-      
-      const copiedPath = path.join(storageRoot, testOrgSlug, ...copied.path!.split('/').filter(p => p));
-      expect(fs.existsSync(copiedPath)).toBe(true);
-
-      // Verificar que se actualizó el storageUsed (15 original + 15 copia = 30)
-      const updatedUser = await User.findById(testUserId);
-      expect(updatedUser!.storageUsed).toBe(30);
-    });
-
-    it('should fail if storage quota exceeded', async () => {
-      // Establecer storageUsed muy cerca del límite del plan FREE (1GB = 1073741824 bytes)
-      const freeLimit = 1073741824; // 1GB
-      await User.findByIdAndUpdate(testUserId, { storageUsed: freeLimit - 500 }); // Solo 500 bytes disponibles
-
-      const doc = await Document.create({
-        filename: 'test.txt',
-        originalName: 'test.txt',
-        mimeType: 'text/plain',
-        size: 1000, // Archivo de 1000 bytes - debería exceder el límite disponible
-        uploadedBy: testUserId,
-        folder: testFolderId,
-        organization: testOrgId,
-        path: `/${testOrgSlug}/${testUserId}/Documents/test.txt`
-      });
-
-      // Crear el archivo físico para que copy no falle por "file not found"
-      const storageRoot = path.join(process.cwd(), 'storage');
-      const physicalFilePath = path.join(storageRoot, testOrgSlug, testUserId.toString(), 'Documents', 'test.txt');
-      if (!fs.existsSync(path.dirname(physicalFilePath))) {
-        fs.mkdirSync(path.dirname(physicalFilePath), { recursive: true });
-      }
-      fs.writeFileSync(physicalFilePath, 'x'.repeat(1000)); // Crear archivo de 1000 bytes
-
-      await expect(
-        documentService.copyDocument({
-          documentId: doc._id.toString(),
-          userId: testUserId.toString(),
-          targetFolderId: rootFolderId.toString(),
-        })
-      ).rejects.toThrow('Storage quota exceeded');
+      const found = await documentService.findDocumentById(created._id.toString());
+      expect(found?._id.toString()).toBe(created._id.toString());
     });
   });
 
   describe('getUserRecentDocuments', () => {
-    it('should return recent documents', async () => {
-      // Crear varios documentos
+    it('should return recent documents sorted desc and include accessType/isOwned', async () => {
       await Document.create({
-        filename: 'doc1.txt',
-        originalname: 'doc1.txt',
+        filename: 'old.txt',
+        originalname: 'old.txt',
         mimeType: 'text/plain',
-        size: 100,
+        size: 1,
         uploadedBy: testUserId,
-        folder: testFolderId,
+        folder: docsFolderId,
         organization: testOrgId,
-        path: `/${testOrgSlug}/${testUserId}/Documents/doc1.txt`,
+        path: `/${testOrgSlug}/${testUserId.toString()}/Documents/old.txt`,
         createdAt: new Date('2024-01-01')
       });
 
       await Document.create({
-        filename: 'doc2.txt',
-        originalname: 'doc2.txt',
+        filename: 'new.txt',
+        originalname: 'new.txt',
         mimeType: 'text/plain',
-        size: 100,
-        uploadedBy: testUserId,
-        folder: testFolderId,
+        size: 1,
+        uploadedBy: testUser2Id,
+        folder: docsFolderId,
         organization: testOrgId,
-        path: `/${testOrgSlug}/${testUserId}/Documents/doc2.txt`,
+        path: `/${testOrgSlug}/${testUser2Id.toString()}/Documents/new.txt`,
         createdAt: new Date('2024-01-02')
       });
 
@@ -592,23 +519,28 @@ describe('DocumentService Integration Tests', () => {
       });
 
       expect(recent).toHaveLength(2);
-      // Los documentos deben estar ordenados por fecha descendente
-      expect(recent[0].originalname).toBe('doc2.txt');
-      expect(recent[1].originalname).toBe('doc1.txt');
+      expect((recent as any)[0].originalname).toBe('new.txt');
+      expect((recent as any)[1].originalname).toBe('old.txt');
+
+      expect((recent as any)[0].accessType).toBe('org');
+      expect((recent as any)[0].isOwned).toBe(false);
+
+      expect((recent as any)[1].accessType).toBe('owner');
+      expect((recent as any)[1].isOwned).toBe(true);
     });
 
-    it('should respect limit parameter', async () => {
-      // Crear 5 documentos
+    it('should respect limit', async () => {
       for (let i = 0; i < 5; i++) {
         await Document.create({
           filename: `doc${i}.txt`,
-          originalName: `doc${i}.txt`,
+          originalname: `doc${i}.txt`,
           mimeType: 'text/plain',
-          size: 100,
+          size: 1,
           uploadedBy: testUserId,
-          folder: testFolderId,
+          folder: docsFolderId,
           organization: testOrgId,
-          path: `/${testOrgSlug}/${testUserId}/Documents/doc${i}.txt`
+          path: `/${testOrgSlug}/${testUserId.toString()}/Documents/doc${i}.txt`,
+          createdAt: new Date(Date.now() + i)
         });
       }
 
@@ -618,6 +550,488 @@ describe('DocumentService Integration Tests', () => {
       });
 
       expect(recent).toHaveLength(3);
+    });
+  });
+
+  describe('listSharedDocumentsToUser', () => {
+    it('should list org documents excluding those uploadedBy the user', async () => {
+      await Document.create({
+        filename: 'mine.txt',
+        originalname: 'mine.txt',
+        mimeType: 'text/plain',
+        size: 1,
+        uploadedBy: testUserId,
+        folder: docsFolderId,
+        organization: testOrgId,
+        path: `/${testOrgSlug}/${testUserId.toString()}/Documents/mine.txt`
+      });
+
+      await Document.create({
+        filename: 'theirs.txt',
+        originalname: 'theirs.txt',
+        mimeType: 'text/plain',
+        size: 1,
+        uploadedBy: testUser2Id,
+        folder: docsFolderId,
+        organization: testOrgId,
+        path: `/${testOrgSlug}/${testUser2Id.toString()}/Documents/theirs.txt`
+      });
+
+      const shared = await documentService.listSharedDocumentsToUser(testUserId.toString());
+      expect(shared).toHaveLength(1);
+      expect((shared as any)[0].originalname).toBe('theirs.txt');
+    });
+
+    it('should fail if invalid userId', async () => {
+      await expect(documentService.listSharedDocumentsToUser('bad')).rejects.toThrow(
+        'Invalid user ID'
+      );
+    });
+  });
+
+  describe('shareDocument', () => {
+    it('should no-op return doc when document belongs to organization', async () => {
+      const doc = await Document.create({
+        filename: 'orgdoc.txt',
+        originalname: 'orgdoc.txt',
+        mimeType: 'text/plain',
+        size: 1,
+        uploadedBy: testUserId,
+        folder: docsFolderId,
+        organization: testOrgId,
+        path: `/${testOrgSlug}/${testUserId.toString()}/Documents/orgdoc.txt`
+      });
+
+      const updated = await documentService.shareDocument({
+        id: doc._id.toString(),
+        userId: testUserId.toString(),
+        userIds: [testUser2Id.toString()]
+      });
+
+      expect(updated?._id.toString()).toBe(doc._id.toString());
+    });
+
+    it('should share personal document with existing users (excluding owner)', async () => {
+      const doc = await Document.create({
+        filename: 'personal.txt',
+        originalname: 'personal.txt',
+        mimeType: 'text/plain',
+        size: 1,
+        uploadedBy: testUserId,
+        folder: docsFolderId,
+        organization: undefined,
+        path: `/personal/${testUserId.toString()}/personal.txt`
+      });
+
+      const updated = await documentService.shareDocument({
+        id: doc._id.toString(),
+        userId: testUserId.toString(),
+        userIds: [testUser2Id.toString(), testUserId.toString()]
+      });
+
+      expect(updated).toBeDefined();
+      const reloaded = await Document.findById(doc._id);
+      expect(reloaded?.sharedWith?.map(x => x.toString())).toContain(testUser2Id.toString());
+      expect(reloaded?.sharedWith?.map(x => x.toString())).not.toContain(testUserId.toString());
+    });
+
+    it('should fail if trying to share only with self (owner)', async () => {
+      const doc = await Document.create({
+        filename: 'personal2.txt',
+        originalname: 'personal2.txt',
+        mimeType: 'text/plain',
+        size: 1,
+        uploadedBy: testUserId,
+        organization: undefined,
+        folder: docsFolderId,
+        path: `/personal/${testUserId.toString()}/personal2.txt`
+      });
+
+      await expect(
+        documentService.shareDocument({
+          id: doc._id.toString(),
+          userId: testUserId.toString(),
+          userIds: [testUserId.toString()]
+        })
+      ).rejects.toThrow('Cannot share document with yourself as the owner');
+    });
+  });
+
+  describe('replaceDocumentFile', () => {
+    it('should allow uploadedBy to replace file in org doc and adjust storage delta', async () => {
+      const org = await Organization.findById(testOrgId);
+      org!.settings.allowedFileTypes = ['txt'];
+      org!.settings.maxStoragePerUser = 1000;
+      await org!.save();
+
+      const filename = `replace-${Date.now()}.txt`;
+      const docPath = `/${testOrgSlug}/${testUserId.toString()}/Documents/${filename}`;
+      const physical = physicalFromDocPath(docPath);
+      ensureDir(path.dirname(physical));
+      fs.writeFileSync(physical, 'old'); // 3 bytes
+
+      const doc = await Document.create({
+        filename,
+        originalname: 'old.txt',
+        mimeType: 'text/plain',
+        size: 3,
+        uploadedBy: testUserId,
+        folder: docsFolderId,
+        organization: testOrgId,
+        path: docPath,
+        url: `/storage${docPath}`
+      });
+
+      await User.findByIdAndUpdate(testUserId, { storageUsed: 10 });
+
+      const tempName = `temp-${Date.now()}.txt`;
+      const tempPath = path.join(uploadsRoot, tempName);
+      fs.writeFileSync(tempPath, 'new-content'); // 11 bytes
+
+      const mockFile: any = {
+        filename: tempName,
+        originalname: 'new.txt',
+        mimetype: 'text/plain',
+        size: 11
+      };
+
+      const updated = await documentService.replaceDocumentFile({
+        documentId: doc._id.toString(),
+        userId: testUserId.toString(),
+        file: mockFile
+      });
+
+      expect(updated.originalname).toBe('new.txt');
+      expect(updated.size).toBe(11);
+
+      expect(fs.existsSync(physical)).toBe(true);
+      expect(fs.existsSync(tempPath)).toBe(false);
+
+      const user = await User.findById(testUserId);
+      expect(user?.storageUsed).toBe(18); // 10 + (11-3)
+
+      expect(searchService.indexDocument).toHaveBeenCalled();
+      expect(notificationService.notifyOrganizationMembers).toHaveBeenCalled();
+    });
+
+    it('should allow org admin/owner (hasAnyRole=true) to replace even if not uploadedBy', async () => {
+      (membershipService.hasAnyRole as jest.Mock).mockResolvedValueOnce(true);
+
+      const org = await Organization.findById(testOrgId);
+      org!.settings.allowedFileTypes = ['txt'];
+      org!.settings.maxStoragePerUser = 1000;
+      await org!.save();
+
+      const filename = `admin-replace-${Date.now()}.txt`;
+      const docPath = `/${testOrgSlug}/${testUserId.toString()}/Documents/${filename}`;
+      const physical = physicalFromDocPath(docPath);
+      ensureDir(path.dirname(physical));
+      fs.writeFileSync(physical, 'old');
+
+      const doc = await Document.create({
+        filename,
+        originalname: 'old.txt',
+        mimeType: 'text/plain',
+        size: 3,
+        uploadedBy: testUserId,
+        folder: docsFolderId,
+        organization: testOrgId,
+        path: docPath
+      });
+
+      const tempName = `temp-admin-${Date.now()}.txt`;
+      const tempPath = path.join(uploadsRoot, tempName);
+      fs.writeFileSync(tempPath, 'new');
+
+      const mockFile: any = {
+        filename: tempName,
+        originalname: 'new.txt',
+        mimetype: 'text/plain',
+        size: 3
+      };
+
+      await expect(
+        documentService.replaceDocumentFile({
+          documentId: doc._id.toString(),
+          userId: testUser2Id.toString(),
+          file: mockFile
+        })
+      ).resolves.toBeDefined();
+    });
+
+    it('should fail if neither org admin nor doc owner', async () => {
+      (membershipService.hasAnyRole as jest.Mock).mockResolvedValueOnce(false);
+
+      const doc = await Document.create({
+        filename: 'x.txt',
+        originalname: 'x.txt',
+        mimeType: 'text/plain',
+        size: 1,
+        uploadedBy: testUserId,
+        folder: docsFolderId,
+        organization: testOrgId,
+        path: `/${testOrgSlug}/${testUserId.toString()}/Documents/x.txt`
+      });
+
+      const mockFile: any = {
+        filename: 'temp.txt',
+        originalname: 'temp.txt',
+        mimetype: 'text/plain',
+        size: 1
+      };
+
+      await expect(
+        documentService.replaceDocumentFile({
+          documentId: doc._id.toString(),
+          userId: testUser2Id.toString(),
+          file: mockFile
+        })
+      ).rejects.toThrow('No tienes permisos para editar este documento');
+    });
+  });
+
+  describe('deleteDocument', () => {
+    it('should delete org document only if org OWNER/ADMIN', async () => {
+      const filename = `del-${Date.now()}.txt`;
+      const docPath = `/${testOrgSlug}/${testUserId.toString()}/Documents/${filename}`;
+      const physical = physicalFromDocPath(docPath);
+      ensureDir(path.dirname(physical));
+      fs.writeFileSync(physical, 'delete-me');
+
+      const doc = await Document.create({
+        filename,
+        originalname: 'del.txt',
+        mimeType: 'text/plain',
+        size: 9,
+        uploadedBy: testUserId,
+        folder: docsFolderId,
+        organization: testOrgId,
+        path: docPath,
+        url: `/storage${docPath}`
+      });
+
+      await expect(
+        documentService.deleteDocument({ id: doc._id.toString(), userId: testUserId.toString() })
+      ).rejects.toThrow(
+        'Solo el propietario o administradores de la organización pueden eliminar este documento'
+      );
+
+      (membershipService.hasAnyRole as jest.Mock).mockResolvedValueOnce(true);
+
+      await User.findByIdAndUpdate(testUser2Id, { storageUsed: 20 });
+
+      const deleted = await documentService.deleteDocument({
+        id: doc._id.toString(),
+        userId: testUser2Id.toString()
+      });
+
+      expect(deleted?._id.toString()).toBe(doc._id.toString());
+      expect(fs.existsSync(physical)).toBe(false);
+      expect(searchService.removeDocumentFromIndex).toHaveBeenCalledWith(doc._id.toString());
+    });
+
+    it('should delete personal document only if uploadedBy', async () => {
+      const filename = `personal-del-${Date.now()}.txt`;
+      const docPath = `/personal/${testUserId.toString()}/${filename}`;
+      const physical = physicalFromDocPath(docPath);
+      ensureDir(path.dirname(physical));
+      fs.writeFileSync(physical, 'x');
+
+      const doc = await Document.create({
+        filename,
+        originalname: 'p.txt',
+        mimeType: 'text/plain',
+        size: 1,
+        uploadedBy: testUserId,
+        folder: docsFolderId,
+        organization: undefined,
+        path: docPath
+      });
+
+      await expect(
+        documentService.deleteDocument({ id: doc._id.toString(), userId: testUser2Id.toString() })
+      ).rejects.toThrow('Forbidden');
+
+      await expect(
+        documentService.deleteDocument({ id: doc._id.toString(), userId: testUserId.toString() })
+      ).resolves.toBeDefined();
+    });
+  });
+
+  describe('moveDocument', () => {
+    it('should move document for owner and move physical file', async () => {
+      const targetFolder = await Folder.create({
+        name: 'Archive',
+        displayName: 'Archive',
+        type: 'folder',
+        organization: testOrgId,
+        owner: testUserId,
+        parent: rootFolderId,
+        path: `/${testOrgSlug}/${testUserId.toString()}/Archive`,
+        permissions: [{ userId: testUserId, role: 'owner' }]
+      });
+
+      ensureDir(path.join(storageRoot, testOrgSlug, testUserId.toString(), 'Archive'));
+
+      const filename = `move-${Date.now()}.txt`;
+      const docPath = `/${testOrgSlug}/${testUserId.toString()}/Documents/${filename}`;
+      const oldPhysical = physicalFromDocPath(docPath);
+      ensureDir(path.dirname(oldPhysical));
+      fs.writeFileSync(oldPhysical, 'to-move');
+
+      const doc = await Document.create({
+        filename,
+        originalname: 'move.txt',
+        mimeType: 'text/plain',
+        size: 7,
+        uploadedBy: testUserId,
+        folder: docsFolderId,
+        organization: testOrgId,
+        path: docPath,
+        url: `/storage${docPath}`
+      });
+
+      const moved = await documentService.moveDocument({
+        documentId: doc._id.toString(),
+        userId: testUserId.toString(),
+        targetFolderId: targetFolder._id.toString()
+      });
+
+      expect(moved.folder?.toString()).toBe(targetFolder._id.toString());
+      expect(moved.path).toContain('/Archive/');
+
+      const newPhysical = physicalFromDocPath(moved.path as string);
+      expect(fs.existsSync(oldPhysical)).toBe(false);
+      expect(fs.existsSync(newPhysical)).toBe(true);
+    });
+
+    it('should fail if user is not owner', async () => {
+      const doc = await Document.create({
+        filename: 'x.txt',
+        originalname: 'x.txt',
+        mimeType: 'text/plain',
+        size: 1,
+        uploadedBy: testUserId,
+        folder: docsFolderId,
+        organization: testOrgId,
+        path: `/${testOrgSlug}/${testUserId.toString()}/Documents/x.txt`
+      });
+
+      await expect(
+        documentService.moveDocument({
+          documentId: doc._id.toString(),
+          userId: testUser2Id.toString(),
+          targetFolderId: docsFolderId.toString()
+        })
+      ).rejects.toThrow('Only document owner can move it');
+    });
+  });
+
+  describe('copyDocument', () => {
+    it('should copy document (owner) and increase storageUsed', async () => {
+      const targetFolder = await Folder.create({
+        name: 'Backup',
+        displayName: 'Backup',
+        type: 'folder',
+        organization: testOrgId,
+        owner: testUserId,
+        parent: rootFolderId,
+        path: `/${testOrgSlug}/${testUserId.toString()}/Backup`,
+        permissions: [{ userId: testUserId, role: 'owner' }]
+      });
+
+      ensureDir(path.join(storageRoot, testOrgSlug, testUserId.toString(), 'Backup'));
+
+      const filename = `copy-${Date.now()}.txt`;
+      const docPath = `/${testOrgSlug}/${testUserId.toString()}/Documents/${filename}`;
+      const sourcePhysical = physicalFromDocPath(docPath);
+      ensureDir(path.dirname(sourcePhysical));
+      fs.writeFileSync(sourcePhysical, 'to-copy');
+
+      const doc = await Document.create({
+        filename,
+        originalname: 'original.txt',
+        mimeType: 'text/plain',
+        size: 7,
+        uploadedBy: testUserId,
+        folder: docsFolderId,
+        organization: testOrgId,
+        path: docPath,
+        url: `/storage${docPath}`
+      });
+
+      await User.findByIdAndUpdate(testUserId, { storageUsed: 10 });
+
+      const copied = await documentService.copyDocument({
+        documentId: doc._id.toString(),
+        userId: testUserId.toString(),
+        targetFolderId: targetFolder._id.toString()
+      });
+
+      expect(copied._id.toString()).not.toBe(doc._id.toString());
+      expect(copied.folder?.toString()).toBe(targetFolder._id.toString());
+      expect(copied.originalname).toContain('Copy of');
+
+      const user = await User.findById(testUserId);
+      expect(user?.storageUsed).toBe(17);
+
+      const copiedPhysical = physicalFromDocPath(copied.path as string);
+      expect(fs.existsSync(copiedPhysical)).toBe(true);
+      expect(fs.existsSync(sourcePhysical)).toBe(true);
+    });
+
+    it('should fail if user does not have access (not uploadedBy and not sharedWith)', async () => {
+      const doc = await Document.create({
+        filename: 'noaccess.txt',
+        originalname: 'noaccess.txt',
+        mimeType: 'text/plain',
+        size: 1,
+        uploadedBy: testUserId,
+        folder: docsFolderId,
+        organization: testOrgId,
+        path: `/${testOrgSlug}/${testUserId.toString()}/Documents/noaccess.txt`
+      });
+
+      await expect(
+        documentService.copyDocument({
+          documentId: doc._id.toString(),
+          userId: testUser2Id.toString(),
+          targetFolderId: docsFolderId.toString()
+        })
+      ).rejects.toThrow('You do not have access to this document');
+    });
+
+    it('should fail if storage quota exceeded', async () => {
+      const org = await Organization.findById(testOrgId);
+      org!.settings.maxStoragePerUser = 10;
+      await org!.save();
+
+      await User.findByIdAndUpdate(testUserId, { storageUsed: 9 });
+
+      const filename = `quota-${Date.now()}.txt`;
+      const docPath = `/${testOrgSlug}/${testUserId.toString()}/Documents/${filename}`;
+      const sourcePhysical = physicalFromDocPath(docPath);
+      ensureDir(path.dirname(sourcePhysical));
+      fs.writeFileSync(sourcePhysical, 'x'.repeat(5));
+
+      const doc = await Document.create({
+        filename,
+        originalname: 'quota.txt',
+        mimeType: 'text/plain',
+        size: 5,
+        uploadedBy: testUserId,
+        folder: docsFolderId,
+        organization: testOrgId,
+        path: docPath
+      });
+
+      await expect(
+        documentService.copyDocument({
+          documentId: doc._id.toString(),
+          userId: testUserId.toString(),
+          targetFolderId: docsFolderId.toString()
+        })
+      ).rejects.toThrow('Storage quota exceeded');
     });
   });
 });
