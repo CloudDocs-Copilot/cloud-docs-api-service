@@ -76,7 +76,7 @@ export const generalRateLimiter = rateLimit({
  */
 export const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Only 5 authentication attempts per window. hay que cambiarlo cuando terminemos el proyecto, a 5 intentos de login.
+  max: 10, // 10 failed authentication attempts per window
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true, // Does not count successful requests (valid authentications)
@@ -115,7 +115,7 @@ export const authRateLimiter = rateLimit({
  */
 export const createResourceRateLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 30, // Maximum 30 resources created per hour
+  max: 200, // Maximum 200 resources created per hour
   standardHeaders: true,
   legacyHeaders: false,
   skip: (_req: Request) => {
@@ -150,7 +150,7 @@ export const createResourceRateLimiter = rateLimit({
  */
 export const uploadRateLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 20, // Maximum 20 files uploaded per hour
+  max: 100, // Maximum 100 files uploaded per hour
   standardHeaders: true,
   legacyHeaders: false,
   skip: (_req: Request) => {
@@ -165,7 +165,7 @@ export const uploadRateLimiter = rateLimit({
       error: 'Upload Limit Exceeded',
       message: 'You have reached the file upload limit per hour. Please try again later.',
       retryAfter: res.getHeader('Retry-After'),
-      maxUploadsPerHour: 20
+      maxUploadsPerHour: 100
     });
   }
 });
@@ -217,7 +217,7 @@ export const createCustomRateLimiter = (
  */
 export const userBasedRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   skip: (_req: Request) => {

@@ -20,6 +20,7 @@ module.exports = {
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/index.ts', // Excluir el punto de entrada principal
+    '!src/**/index.ts', // Excluir archivos barrel
     '!src/docs/**',
     '!**/node_modules/**'
   ],
