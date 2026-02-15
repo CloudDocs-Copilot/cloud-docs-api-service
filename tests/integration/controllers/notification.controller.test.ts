@@ -6,7 +6,7 @@ jest.mock('../../../src/services/notification.service', () => ({
   __esModule: true,
   listNotifications: jest.fn(),
   markNotificationRead: jest.fn(),
-  markAllRead: jest.fn(),
+  markAllRead: jest.fn()
 }));
 
 jest.mock('../../../src/models/error.model', () => {
@@ -37,14 +37,14 @@ describe('notification.controller (unit)', () => {
     it('parses query params (defaults) and returns payload', async () => {
       const req: any = {
         user: { id: 'user1' },
-        query: {}, // unread default false, limit 20, skip 0, orgId undefined
+        query: {} // unread default false, limit 20, skip 0, orgId undefined
       };
       const res = makeRes();
       const next = jest.fn() as NextFunction;
 
       notificationService.listNotifications.mockResolvedValue({
         notifications: [{ id: 1 }],
-        total: 10,
+        total: 10
       });
 
       await controller.list(req, res, next);
@@ -54,14 +54,14 @@ describe('notification.controller (unit)', () => {
         unreadOnly: false,
         limit: 20,
         skip: 0,
-        organizationId: undefined,
+        organizationId: undefined
       });
 
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         count: 1,
         total: 10,
-        notifications: [{ id: 1 }],
+        notifications: [{ id: 1 }]
       });
 
       expect(next).not.toHaveBeenCalled();
@@ -70,14 +70,14 @@ describe('notification.controller (unit)', () => {
     it('parses query params (unread=true, limit, skip, organizationId)', async () => {
       const req: any = {
         user: { id: 'user1' },
-        query: { unread: 'TRUE', limit: '5', skip: '2', organizationId: 'org1' },
+        query: { unread: 'TRUE', limit: '5', skip: '2', organizationId: 'org1' }
       };
       const res = makeRes();
       const next = jest.fn() as NextFunction;
 
       notificationService.listNotifications.mockResolvedValue({
         notifications: [],
-        total: 0,
+        total: 0
       });
 
       await controller.list(req, res, next);
@@ -87,21 +87,21 @@ describe('notification.controller (unit)', () => {
         unreadOnly: true,
         limit: 5,
         skip: 2,
-        organizationId: 'org1',
+        organizationId: 'org1'
       });
 
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         count: 0,
         total: 0,
-        notifications: [],
+        notifications: []
       });
     });
 
     it('passes errors to next()', async () => {
       const req: any = {
         user: { id: 'user1' },
-        query: {},
+        query: {}
       };
       const res = makeRes();
       const next = jest.fn() as NextFunction;
@@ -119,7 +119,7 @@ describe('notification.controller (unit)', () => {
     it('returns 400 when id missing', async () => {
       const req: any = {
         user: { id: 'user1' },
-        params: {},
+        params: {}
       };
       const res = makeRes();
       const next = jest.fn() as NextFunction;
@@ -137,7 +137,7 @@ describe('notification.controller (unit)', () => {
     it('marks notification as read', async () => {
       const req: any = {
         user: { id: 'user1' },
-        params: { id: 'n1' },
+        params: { id: 'n1' }
       };
       const res = makeRes();
       const next = jest.fn() as NextFunction;
@@ -150,7 +150,7 @@ describe('notification.controller (unit)', () => {
 
       expect(res.json).toHaveBeenCalledWith({
         success: true,
-        message: 'Notification marked as read',
+        message: 'Notification marked as read'
       });
 
       expect(next).not.toHaveBeenCalled();
@@ -159,7 +159,7 @@ describe('notification.controller (unit)', () => {
     it('passes errors to next()', async () => {
       const req: any = {
         user: { id: 'user1' },
-        params: { id: 'n1' },
+        params: { id: 'n1' }
       };
       const res = makeRes();
       const next = jest.fn() as NextFunction;
@@ -177,7 +177,7 @@ describe('notification.controller (unit)', () => {
     it('uses organizationId from body if provided', async () => {
       const req: any = {
         user: { id: 'user1' },
-        body: { organizationId: 'org1' },
+        body: { organizationId: 'org1' }
       };
       const res = makeRes();
       const next = jest.fn() as NextFunction;
@@ -190,7 +190,7 @@ describe('notification.controller (unit)', () => {
 
       expect(res.json).toHaveBeenCalledWith({
         success: true,
-        message: 'All notifications marked as read',
+        message: 'All notifications marked as read'
       });
       expect(next).not.toHaveBeenCalled();
     });
@@ -198,7 +198,7 @@ describe('notification.controller (unit)', () => {
     it('passes undefined organizationId when body missing', async () => {
       const req: any = {
         user: { id: 'user1' },
-        body: undefined,
+        body: undefined
       };
       const res = makeRes();
       const next = jest.fn() as NextFunction;
@@ -214,7 +214,7 @@ describe('notification.controller (unit)', () => {
     it('passes errors to next()', async () => {
       const req: any = {
         user: { id: 'user1' },
-        body: {},
+        body: {}
       };
       const res = makeRes();
       const next = jest.fn() as NextFunction;

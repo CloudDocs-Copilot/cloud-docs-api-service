@@ -36,7 +36,7 @@ jest.mock('jsonwebtoken', () => {
   return {
     __esModule: true,
     verify,
-    default: { verify },
+    default: { verify }
   };
 });
 
@@ -69,13 +69,13 @@ describe('socket/socket (unit)', () => {
     const socket: any = {
       handshake: {
         headers: {},
-        auth: {},
+        auth: {}
       },
       data: {},
       join: jest.fn(),
       emit: jest.fn(),
       on: jest.fn(),
-      ...overrides,
+      ...overrides
     };
     return socket;
   }
@@ -206,8 +206,8 @@ describe('socket/socket (unit)', () => {
     const socket = makeSocket({
       handshake: {
         headers: { authorization: 'Bearer abc' },
-        auth: {},
-      },
+        auth: {}
+      }
     });
     const next = jest.fn();
 
@@ -231,8 +231,8 @@ describe('socket/socket (unit)', () => {
     const socket = makeSocket({
       handshake: {
         headers: { authorization: 'Bearer abc' },
-        auth: {},
-      },
+        auth: {}
+      }
     });
     const next = jest.fn();
 
@@ -256,8 +256,8 @@ describe('socket/socket (unit)', () => {
     const socket = makeSocket({
       handshake: {
         headers: { authorization: 'Bearer token123' },
-        auth: {},
-      },
+        auth: {}
+      }
     });
     const next = jest.fn();
 
@@ -280,8 +280,8 @@ describe('socket/socket (unit)', () => {
     const socket = makeSocket({
       handshake: {
         headers: {},
-        auth: { token: 'abc' },
-      },
+        auth: { token: 'abc' }
+      }
     });
     const next = jest.fn();
 
@@ -304,8 +304,8 @@ describe('socket/socket (unit)', () => {
     const socket = makeSocket({
       handshake: {
         headers: { cookie: 'a=1; token=jwt%2Etoken%2Ehere; b=2' },
-        auth: {},
-      },
+        auth: {}
+      }
     });
     const next = jest.fn();
 

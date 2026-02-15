@@ -23,14 +23,14 @@ export async function list(req: AuthRequest, res: Response, next: NextFunction):
       unreadOnly,
       limit,
       skip,
-      organizationId,
+      organizationId
     });
 
     res.json({
       success: true,
       count: result.notifications.length,
       total: result.total,
-      notifications: result.notifications,
+      notifications: result.notifications
     });
   } catch (err) {
     next(err);
@@ -49,7 +49,7 @@ export async function markRead(req: AuthRequest, res: Response, next: NextFuncti
 
     res.json({
       success: true,
-      message: 'Notification marked as read',
+      message: 'Notification marked as read'
     });
   } catch (err) {
     next(err);
@@ -59,7 +59,11 @@ export async function markRead(req: AuthRequest, res: Response, next: NextFuncti
 /**
  * POST /api/notifications/read-all
  */
-export async function markAllRead(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+export async function markAllRead(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
     const organizationId = req.body?.organizationId ? String(req.body.organizationId) : undefined;
 
@@ -67,7 +71,7 @@ export async function markAllRead(req: AuthRequest, res: Response, next: NextFun
 
     res.json({
       success: true,
-      message: 'All notifications marked as read',
+      message: 'All notifications marked as read'
     });
   } catch (err) {
     next(err);

@@ -974,7 +974,6 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
 
       const user = await User.findById(testUserId);
       expect(user?.storageUsed).toBe(17);
-
     });
 
     it('should fail if user does not have access (not uploadedBy and not sharedWith)', async () => {

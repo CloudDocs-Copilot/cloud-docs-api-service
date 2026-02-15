@@ -8,30 +8,30 @@ jest.mock('../../../src/models/comment.model', () => ({
   default: {
     create: jest.fn(),
     find: jest.fn(),
-    findById: jest.fn(),
-  },
+    findById: jest.fn()
+  }
 }));
 
 jest.mock('../../../src/models/document.model', () => ({
   __esModule: true,
   default: {
-    findById: jest.fn(),
-  },
+    findById: jest.fn()
+  }
 }));
 
 jest.mock('../../../src/services/membership.service', () => ({
   __esModule: true,
-  hasActiveMembership: jest.fn(),
+  hasActiveMembership: jest.fn()
 }));
 
 jest.mock('../../../src/services/notification.service', () => ({
   __esModule: true,
-  notifyOrganizationMembers: jest.fn(),
+  notifyOrganizationMembers: jest.fn()
 }));
 
 jest.mock('../../../src/socket/socket', () => ({
   __esModule: true,
-  emitToUser: jest.fn(),
+  emitToUser: jest.fn()
 }));
 
 // If your HttpError is a class, we don’t need to mock it.
@@ -58,7 +58,7 @@ describe('comment.service (unit)', () => {
     sharedWith: [],
     originalname: 'My Doc.pdf',
     filename: 'my-doc.pdf',
-    ...overrides,
+    ...overrides
   });
 
   const makePersonalDoc = (overrides: any = {}) => ({
@@ -66,7 +66,7 @@ describe('comment.service (unit)', () => {
     organization: null,
     uploadedBy: new mongoose.Types.ObjectId(),
     sharedWith: [],
-    ...overrides,
+    ...overrides
   });
 
   describe('createComment', () => {
@@ -106,7 +106,11 @@ describe('comment.service (unit)', () => {
       hasActiveMembership.mockResolvedValue(false);
 
       await expect(
-        commentService.createComment({ documentId: doc._id.toString(), userId: oid(), content: 'Hello' })
+        commentService.createComment({
+          documentId: doc._id.toString(),
+          userId: oid(),
+          content: 'Hello'
+        })
       ).rejects.toThrow('Access denied to this document');
     });
 
@@ -114,7 +118,7 @@ describe('comment.service (unit)', () => {
       const userId = oid();
       const doc = makePersonalDoc({
         uploadedBy: new mongoose.Types.ObjectId(), // different
-        sharedWith: [new mongoose.Types.ObjectId()], // not user
+        sharedWith: [new mongoose.Types.ObjectId()] // not user
       });
       DocumentModel.findById.mockResolvedValue(doc);
 
@@ -127,7 +131,7 @@ describe('comment.service (unit)', () => {
       const userId = new mongoose.Types.ObjectId();
       const doc = makePersonalDoc({
         uploadedBy: userId,
-        sharedWith: [],
+        sharedWith: []
       });
 
       DocumentModel.findById.mockResolvedValue(doc);
@@ -137,21 +141,21 @@ describe('comment.service (unit)', () => {
         document: doc._id,
         organization: null,
         createdBy: userId,
-        content: 'Hello',
+        content: 'Hello'
       };
       CommentModel.create.mockResolvedValue(created);
 
       const res = await commentService.createComment({
         documentId: doc._id.toString(),
         userId: userId.toString(),
-        content: '  Hello  ',
+        content: '  Hello  '
       });
 
       expect(CommentModel.create).toHaveBeenCalledWith({
         document: doc._id.toString(),
         organization: null,
         createdBy: userId.toString(),
-        content: 'Hello',
+        content: 'Hello'
       });
       expect(res).toBe(created);
       expect(notifyOrganizationMembers).not.toHaveBeenCalled();
@@ -161,7 +165,7 @@ describe('comment.service (unit)', () => {
       const userId = new mongoose.Types.ObjectId();
       const doc = makePersonalDoc({
         uploadedBy: new mongoose.Types.ObjectId(),
-        sharedWith: [userId],
+        sharedWith: [userId]
       });
 
       DocumentModel.findById.mockResolvedValue(doc);
@@ -170,7 +174,7 @@ describe('comment.service (unit)', () => {
       await commentService.createComment({
         documentId: doc._id.toString(),
         userId: userId.toString(),
-        content: 'Hi',
+        content: 'Hi'
       });
 
       expect(CommentModel.create).toHaveBeenCalled();
@@ -195,14 +199,14 @@ describe('comment.service (unit)', () => {
       const res = await commentService.createComment({
         documentId: doc._id.toString(),
         userId,
-        content: '  hola  ',
+        content: '  hola  '
       });
 
       expect(CommentModel.create).toHaveBeenCalledWith({
         document: doc._id.toString(),
         organization: doc.organization.toString(),
         createdBy: userId,
-        content: 'hola',
+        content: 'hola'
       });
 
       expect(notifyOrganizationMembers).toHaveBeenCalledTimes(1);
@@ -214,11 +218,13 @@ describe('comment.service (unit)', () => {
       expect(payload.message).toBe('New comment on: Pretty Name.docx');
       expect(payload.metadata).toMatchObject({
         documentId: doc._id.toString(),
-        commentId: createdComment._id.toString(),
+        commentId: createdComment._id.toString()
       });
 
       // emitter path should call emitToUser with expected event
-      expect(emitToUser).toHaveBeenCalledWith('recipient-user-id', 'notification:new', { hello: 'world' });
+      expect(emitToUser).toHaveBeenCalledWith('recipient-user-id', 'notification:new', {
+        hello: 'world'
+      });
 
       expect(res).toBe(createdComment);
     });
@@ -234,7 +240,7 @@ describe('comment.service (unit)', () => {
       await commentService.createComment({
         documentId: doc._id.toString(),
         userId,
-        content: 'Hi',
+        content: 'Hi'
       });
 
       const payload = notifyOrganizationMembers.mock.calls[0][0];
@@ -248,12 +254,12 @@ describe('comment.service (unit)', () => {
       Object.defineProperty(doc, 'originalname', {
         get() {
           throw new Error('boom');
-        },
+        }
       });
       Object.defineProperty(doc, 'filename', {
         get() {
           throw new Error('boom2');
-        },
+        }
       });
 
       DocumentModel.findById.mockResolvedValue(doc);
@@ -263,7 +269,7 @@ describe('comment.service (unit)', () => {
       await commentService.createComment({
         documentId: doc._id.toString(),
         userId,
-        content: 'Hi',
+        content: 'Hi'
       });
 
       const payload = notifyOrganizationMembers.mock.calls[0][0];
@@ -273,11 +279,13 @@ describe('comment.service (unit)', () => {
 
   describe('listComments', () => {
     it('throws 400 for invalid ids', async () => {
-      await expect(commentService.listComments({ documentId: 'bad', userId: oid() }))
-        .rejects.toThrow('Invalid document ID');
+      await expect(
+        commentService.listComments({ documentId: 'bad', userId: oid() })
+      ).rejects.toThrow('Invalid document ID');
 
-      await expect(commentService.listComments({ documentId: oid(), userId: 'bad' }))
-        .rejects.toThrow('Invalid user ID');
+      await expect(
+        commentService.listComments({ documentId: oid(), userId: 'bad' })
+      ).rejects.toThrow('Invalid user ID');
     });
 
     it('enforces access then returns chained query (sort/populate/select)', async () => {
@@ -297,7 +305,7 @@ describe('comment.service (unit)', () => {
 
       const res = await commentService.listComments({
         documentId: documentId.toString(),
-        userId: userId.toString(),
+        userId: userId.toString()
       });
 
       expect(sort).toHaveBeenCalledWith({ createdAt: -1 });
@@ -336,13 +344,17 @@ describe('comment.service (unit)', () => {
         document: new mongoose.Types.ObjectId(),
         createdBy: new mongoose.Types.ObjectId(), // not user
         content: 'x',
-        save: jest.fn(),
+        save: jest.fn()
       };
 
       CommentModel.findById.mockResolvedValue(comment);
 
       await expect(
-        commentService.updateComment({ commentId: comment._id.toString(), userId: oid(), content: 'hello' })
+        commentService.updateComment({
+          commentId: comment._id.toString(),
+          userId: oid(),
+          content: 'hello'
+        })
       ).rejects.toThrow('You can only edit your own comment');
 
       expect(comment.save).not.toHaveBeenCalled();
@@ -355,7 +367,7 @@ describe('comment.service (unit)', () => {
         document: new mongoose.Types.ObjectId(),
         createdBy: userId,
         content: 'x',
-        save: jest.fn(),
+        save: jest.fn()
       };
 
       CommentModel.findById.mockResolvedValue(comment);
@@ -369,7 +381,7 @@ describe('comment.service (unit)', () => {
         commentService.updateComment({
           commentId: comment._id.toString(),
           userId: userId.toString(),
-          content: ' updated ',
+          content: ' updated '
         })
       ).rejects.toThrow('Access denied to this document');
 
@@ -383,7 +395,7 @@ describe('comment.service (unit)', () => {
         document: new mongoose.Types.ObjectId(),
         createdBy: userId,
         content: 'old',
-        save: jest.fn().mockResolvedValue(undefined),
+        save: jest.fn().mockResolvedValue(undefined)
       };
 
       CommentModel.findById.mockResolvedValue(comment);
@@ -395,7 +407,7 @@ describe('comment.service (unit)', () => {
       const res = await commentService.updateComment({
         commentId: comment._id.toString(),
         userId: userId.toString(),
-        content: '  new content  ',
+        content: '  new content  '
       });
 
       expect(comment.content).toBe('new content');
@@ -411,7 +423,7 @@ describe('comment.service (unit)', () => {
         document: new mongoose.Types.ObjectId(),
         createdBy: userId,
         content: 'old',
-        save: jest.fn().mockResolvedValue(undefined),
+        save: jest.fn().mockResolvedValue(undefined)
       };
 
       CommentModel.findById.mockResolvedValue(comment);
@@ -420,7 +432,7 @@ describe('comment.service (unit)', () => {
         _id: comment.document,
         organization: new mongoose.Types.ObjectId(),
         originalname: undefined,
-        filename: 'doc-fallback.pdf',
+        filename: 'doc-fallback.pdf'
       });
       DocumentModel.findById.mockResolvedValue(doc);
       hasActiveMembership.mockResolvedValue(true);
@@ -432,7 +444,7 @@ describe('comment.service (unit)', () => {
       const res = await commentService.updateComment({
         commentId: comment._id.toString(),
         userId: userId.toString(),
-        content: '  edited  ',
+        content: '  edited  '
       });
 
       expect(comment.content).toBe('edited');
@@ -448,7 +460,7 @@ describe('comment.service (unit)', () => {
       expect(payload.metadata).toMatchObject({
         documentId: comment.document.toString(),
         commentId: comment._id.toString(),
-        edited: true,
+        edited: true
       });
 
       expect(emitToUser).toHaveBeenCalledWith('recipient', 'notification:new', { ok: true });
@@ -462,21 +474,24 @@ describe('comment.service (unit)', () => {
         document: new mongoose.Types.ObjectId(),
         createdBy: userId,
         content: 'old',
-        save: jest.fn().mockResolvedValue(undefined),
+        save: jest.fn().mockResolvedValue(undefined)
       };
 
       CommentModel.findById.mockResolvedValue(comment);
 
-      const doc = makeOrgDoc({ _id: comment.document, organization: new mongoose.Types.ObjectId() });
+      const doc = makeOrgDoc({
+        _id: comment.document,
+        organization: new mongoose.Types.ObjectId()
+      });
       Object.defineProperty(doc, 'originalname', {
         get() {
           throw new Error('boom');
-        },
+        }
       });
       Object.defineProperty(doc, 'filename', {
         get() {
           throw new Error('boom2');
-        },
+        }
       });
 
       DocumentModel.findById.mockResolvedValue(doc);
@@ -485,7 +500,7 @@ describe('comment.service (unit)', () => {
       await commentService.updateComment({
         commentId: comment._id.toString(),
         userId: userId.toString(),
-        content: '  edited  ',
+        content: '  edited  '
       });
 
       const payload = notifyOrganizationMembers.mock.calls[0][0];

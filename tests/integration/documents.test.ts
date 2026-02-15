@@ -16,7 +16,7 @@ describe('Document Endpoints', () => {
     const auth = await registerAndLogin({
       name: docUser.name,
       email: docUser.email,
-      password: docUser.password,
+      password: docUser.password
     });
 
     authCookies = auth.cookies;
@@ -88,9 +88,7 @@ describe('Document Endpoints', () => {
     it('should list user documents', async () => {
       const cookieHeader = getAuthCookie(authCookies);
 
-      const res = await request(app)
-        .get('/api/documents')
-        .set('Cookie', cookieHeader);
+      const res = await request(app).get('/api/documents').set('Cookie', cookieHeader);
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -110,7 +108,7 @@ describe('Document Endpoints', () => {
         name: secondUser.name,
         email: secondUser.email,
         password: secondUser.password,
-        createOrganization: false,
+        createOrganization: false
       });
 
       const user2Id = auth2.userId;

@@ -57,7 +57,7 @@ describe('FolderService Integration Tests', () => {
       settings: {
         maxStoragePerUser: 5368709120,
         allowedFileTypes: ['*'],
-        maxUsers: 10,
+        maxUsers: 10
       }
     });
 
@@ -79,10 +79,12 @@ describe('FolderService Integration Tests', () => {
       owner: testUserId,
       parent: null,
       path: `/${testOrgSlug}/${testUserId}`,
-      permissions: [{
-        userId: testUserId,
-        role: 'owner'
-      }]
+      permissions: [
+        {
+          userId: testUserId,
+          role: 'owner'
+        }
+      ]
     });
 
     rootFolderId = rootFolder._id as mongoose.Types.ObjectId;
@@ -137,11 +139,7 @@ describe('FolderService Integration Tests', () => {
       await folder!.save();
 
       await expect(
-        folderService.validateFolderAccess(
-          rootFolderId.toString(),
-          testUser2Id.toString(),
-          'owner'
-        )
+        folderService.validateFolderAccess(rootFolderId.toString(), testUser2Id.toString(), 'owner')
       ).rejects.toThrow('User does not have owner access to this folder');
     });
 
@@ -161,7 +159,7 @@ describe('FolderService Integration Tests', () => {
         displayName: 'My Projects',
         owner: testUserId.toString(),
         organizationId: testOrgId.toString(),
-        parentId: rootFolderId.toString(),
+        parentId: rootFolderId.toString()
       });
 
       expect(newFolder).toBeDefined();
@@ -178,7 +176,7 @@ describe('FolderService Integration Tests', () => {
         name: 'Documents',
         owner: testUserId.toString(),
         organizationId: testOrgId.toString(),
-        parentId: rootFolderId.toString(),
+        parentId: rootFolderId.toString()
       });
 
       // Verificamos que el directorio del usuario exista
@@ -192,7 +190,7 @@ describe('FolderService Integration Tests', () => {
           name: 'Invalid Folder',
           owner: testUserId.toString(),
           organizationId: testOrgId.toString(),
-          parentId: '',
+          parentId: ''
         })
       ).rejects.toThrow('Parent folder ID is required');
     });
@@ -205,7 +203,7 @@ describe('FolderService Integration Tests', () => {
           name: 'Orphan Folder',
           owner: testUserId.toString(),
           organizationId: testOrgId.toString(),
-          parentId: fakeParentId.toString(),
+          parentId: fakeParentId.toString()
         })
       ).rejects.toThrow('Folder not found');
     });
@@ -217,7 +215,7 @@ describe('FolderService Integration Tests', () => {
           name: 'Unauthorized Folder',
           owner: testUser2Id.toString(),
           organizationId: testOrgId.toString(),
-          parentId: rootFolderId.toString(),
+          parentId: rootFolderId.toString()
         })
       ).rejects.toThrow('User does not have editor access to this folder');
     });
@@ -250,7 +248,7 @@ describe('FolderService Integration Tests', () => {
 
       const result = await folderService.getFolderContents({
         folderId: rootFolderId.toString(),
-        userId: testUserId.toString(),
+        userId: testUserId.toString()
       });
 
       expect(result.folder).toBeDefined();
@@ -264,7 +262,7 @@ describe('FolderService Integration Tests', () => {
       await expect(
         folderService.getFolderContents({
           folderId: rootFolderId.toString(),
-          userId: testUser2Id.toString(),
+          userId: testUser2Id.toString()
         })
       ).rejects.toThrow('User does not have viewer access to this folder');
     });
@@ -295,7 +293,7 @@ describe('FolderService Integration Tests', () => {
 
       const tree = await folderService.getUserFolderTree({
         userId: testUserId.toString(),
-        organizationId: testOrgId.toString(),
+        organizationId: testOrgId.toString()
       });
 
       expect(tree).toBeDefined();
@@ -312,11 +310,11 @@ describe('FolderService Integration Tests', () => {
         folderId: rootFolderId.toString(),
         userId: testUserId.toString(),
         targetUserId: testUser2Id.toString(),
-        role: 'editor',
+        role: 'editor'
       });
 
       expect(sharedFolder).toBeDefined();
-      
+
       // Verificar que el usuario tenga acceso
       const hasAccess = sharedFolder.hasAccess(testUser2Id.toString(), 'editor');
       expect(hasAccess).toBe(true);
@@ -329,7 +327,7 @@ describe('FolderService Integration Tests', () => {
           folderId: rootFolderId.toString(),
           userId: testUser2Id.toString(),
           targetUserId: testUserId.toString(),
-          role: 'viewer',
+          role: 'viewer'
         })
       ).rejects.toThrow('User does not have owner access to this folder');
     });
@@ -342,7 +340,7 @@ describe('FolderService Integration Tests', () => {
           folderId: rootFolderId.toString(),
           userId: testUserId.toString(),
           targetUserId: fakeUserId.toString(),
-          role: 'viewer',
+          role: 'viewer'
         })
       ).rejects.toThrow('Target user not found');
     });
@@ -362,7 +360,7 @@ describe('FolderService Integration Tests', () => {
 
       const result = await folderService.deleteFolder({
         id: folder._id.toString(),
-        userId: testUserId.toString(),
+        userId: testUserId.toString()
       });
 
       expect(result.success).toBe(true);
@@ -396,7 +394,7 @@ describe('FolderService Integration Tests', () => {
       await expect(
         folderService.deleteFolder({
           id: folder._id.toString(),
-          userId: testUserId.toString(),
+          userId: testUserId.toString()
         })
       ).rejects.toThrow('Folder is not empty');
     });
@@ -426,7 +424,7 @@ describe('FolderService Integration Tests', () => {
       const result = await folderService.deleteFolder({
         id: folder._id.toString(),
         userId: testUserId.toString(),
-        force: true,
+        force: true
       });
 
       expect(result.success).toBe(true);
@@ -439,7 +437,7 @@ describe('FolderService Integration Tests', () => {
       await expect(
         folderService.deleteFolder({
           id: rootFolderId.toString(),
-          userId: testUserId.toString(),
+          userId: testUserId.toString()
         })
       ).rejects.toThrow('Cannot delete root folder');
     });
@@ -461,7 +459,7 @@ describe('FolderService Integration Tests', () => {
         id: folder._id.toString(),
         userId: testUserId.toString(),
         name: 'NewName',
-        displayName: 'New Display Name',
+        displayName: 'New Display Name'
       });
 
       expect(renamed.name).toBe('NewName');
@@ -493,7 +491,7 @@ describe('FolderService Integration Tests', () => {
       await folderService.renameFolder({
         id: parent._id.toString(),
         userId: testUserId.toString(),
-        name: 'RenamedParent',
+        name: 'RenamedParent'
       });
 
       const updatedChild = await Folder.findById(child._id);
@@ -505,7 +503,7 @@ describe('FolderService Integration Tests', () => {
         folderService.renameFolder({
           id: rootFolderId.toString(),
           userId: testUserId.toString(),
-          name: 'NewRootName',
+          name: 'NewRootName'
         })
       ).rejects.toThrow('Cannot rename root folder technical name');
     });
@@ -515,7 +513,7 @@ describe('FolderService Integration Tests', () => {
         id: rootFolderId.toString(),
         userId: testUserId.toString(),
         name: `root_${testOrgSlug}_${testUserId}`, // Same technical name
-        displayName: 'My New Drive',
+        displayName: 'My New Drive'
       });
 
       expect(renamed.displayName).toBe('My New Drive');

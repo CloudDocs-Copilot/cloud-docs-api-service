@@ -20,12 +20,12 @@ jest.mock('../../../src/services/organization.service', () => ({
   deleteOrganization: jest.fn(),
   addUserToOrganization: jest.fn(),
   removeUserFromOrganization: jest.fn(),
-  getOrganizationStorageStats: jest.fn(),
+  getOrganizationStorageStats: jest.fn()
 }));
 
 // IMPORTANT: listMembers does `await import('../services/membership.service')`
 jest.mock('../../../src/services/membership.service', () => ({
-  getOrganizationMembers: jest.fn(),
+  getOrganizationMembers: jest.fn()
 }));
 
 import * as organizationService from '../../../src/services/organization.service';
@@ -84,7 +84,7 @@ function buildTestApp(opts: { tokenToUserId: Record<string, string> }) {
 
     res.status(typeof status === 'number' ? status : 500).json({
       success: false,
-      error: err?.message || 'Internal Server Error',
+      error: err?.message || 'Internal Server Error'
     });
   });
 
@@ -110,16 +110,16 @@ describe('OrganizationController Integration-ish Tests (mongo + supertest, mocke
       password: 'hashedpassword123',
       role: 'user',
       active: true,
-      storageUsed: 0,
+      storageUsed: 0
     });
     testUserId = owner._id;
 
-    await new Promise((r) => setTimeout(r, 50));
+    await new Promise(r => setTimeout(r, 50));
 
     testToken = jwtService.signToken({
       id: testUserId.toString(),
       email: 'owner@test.com',
-      role: 'user',
+      role: 'user'
     });
 
     const member = await User.create({
@@ -128,21 +128,21 @@ describe('OrganizationController Integration-ish Tests (mongo + supertest, mocke
       password: 'hashedpassword123',
       role: 'user',
       active: true,
-      storageUsed: 0,
+      storageUsed: 0
     });
     testUser2Id = member._id;
 
     testToken2 = jwtService.signToken({
       id: testUser2Id.toString(),
       email: 'member@test.com',
-      role: 'user',
+      role: 'user'
     });
 
     app = buildTestApp({
       tokenToUserId: {
         [testToken]: testUserId.toString(),
-        [testToken2]: testUser2Id.toString(),
-      },
+        [testToken2]: testUser2Id.toString()
+      }
     });
   });
 
@@ -168,7 +168,7 @@ describe('OrganizationController Integration-ish Tests (mongo + supertest, mocke
         plan: SubscriptionPlan.FREE,
         owner: testUserId.toString(),
         members: [testUserId.toString()],
-        active: true,
+        active: true
       });
 
       const res = await request(app)
@@ -186,7 +186,7 @@ describe('OrganizationController Integration-ish Tests (mongo + supertest, mocke
       expect(organizationService.createOrganization).toHaveBeenCalledWith({
         name: 'Test Organization',
         ownerId: testUserId.toString(),
-        plan: SubscriptionPlan.FREE,
+        plan: SubscriptionPlan.FREE
       });
     });
 
@@ -201,7 +201,7 @@ describe('OrganizationController Integration-ish Tests (mongo + supertest, mocke
         plan: SubscriptionPlan.PREMIUM,
         owner: testUserId.toString(),
         members: [testUserId.toString()],
-        active: true,
+        active: true
       });
 
       const res = await request(app)
@@ -215,7 +215,7 @@ describe('OrganizationController Integration-ish Tests (mongo + supertest, mocke
       expect(organizationService.createOrganization).toHaveBeenCalledWith({
         name: 'Premium Org',
         ownerId: testUserId.toString(),
-        plan: SubscriptionPlan.PREMIUM,
+        plan: SubscriptionPlan.PREMIUM
       });
     });
 
@@ -241,7 +241,7 @@ describe('OrganizationController Integration-ish Tests (mongo + supertest, mocke
     it('should list memberships returned by service', async () => {
       (organizationService.getUserOrganizations as jest.Mock).mockResolvedValueOnce([
         { organization: { id: 'org1', name: 'Org 1' }, role: 'OWNER' },
-        { organization: { id: 'org2', name: 'Org 2' }, role: 'MEMBER' },
+        { organization: { id: 'org2', name: 'Org 2' }, role: 'MEMBER' }
       ]);
 
       const res = await request(app)
@@ -270,7 +270,7 @@ describe('OrganizationController Integration-ish Tests (mongo + supertest, mocke
         id: orgId,
         _id: orgId,
         name: 'Test Org',
-        members: [{ _id: testUserId }],
+        members: [{ _id: testUserId }]
       });
 
       const res = await request(app)
@@ -289,7 +289,7 @@ describe('OrganizationController Integration-ish Tests (mongo + supertest, mocke
         id: orgId,
         _id: orgId,
         name: 'Test Org',
-        members: [testUserId],
+        members: [testUserId]
       });
 
       const res = await request(app)
@@ -307,7 +307,7 @@ describe('OrganizationController Integration-ish Tests (mongo + supertest, mocke
         id: orgId,
         _id: orgId,
         name: 'Test Org',
-        members: [{ _id: testUserId }],
+        members: [{ _id: testUserId }]
       });
 
       const res = await request(app)
@@ -340,7 +340,7 @@ describe('OrganizationController Integration-ish Tests (mongo + supertest, mocke
         id: orgId,
         _id: orgId,
         name: 'Updated Organization Name',
-        settings: { maxUsers: 200 },
+        settings: { maxUsers: 200 }
       });
 
       const res = await request(app)
@@ -366,7 +366,7 @@ describe('OrganizationController Integration-ish Tests (mongo + supertest, mocke
 
       (organizationService.updateOrganization as jest.Mock).mockRejectedValueOnce({
         statusCode: 403,
-        message: 'Only organization owner can update organization',
+        message: 'Only organization owner can update organization'
       });
 
       const res = await request(app)
@@ -382,7 +382,9 @@ describe('OrganizationController Integration-ish Tests (mongo + supertest, mocke
     it('should bubble service error (plain Error -> 500)', async () => {
       const orgId = new mongoose.Types.ObjectId().toString();
 
-      (organizationService.updateOrganization as jest.Mock).mockRejectedValueOnce(new Error('Boom'));
+      (organizationService.updateOrganization as jest.Mock).mockRejectedValueOnce(
+        new Error('Boom')
+      );
 
       const res = await request(app)
         .put(`/api/organizations/${orgId}`)
@@ -407,7 +409,10 @@ describe('OrganizationController Integration-ish Tests (mongo + supertest, mocke
       expect(res.body.success).toBe(true);
       expect(res.body.message).toBe('Organization deleted successfully');
 
-      expect(organizationService.deleteOrganization).toHaveBeenCalledWith(orgId, testUserId.toString());
+      expect(organizationService.deleteOrganization).toHaveBeenCalledWith(
+        orgId,
+        testUserId.toString()
+      );
     });
   });
 
@@ -425,7 +430,10 @@ describe('OrganizationController Integration-ish Tests (mongo + supertest, mocke
       expect(res.body.success).toBe(true);
       expect(res.body.message).toBe('Member added successfully');
 
-      expect(organizationService.addUserToOrganization).toHaveBeenCalledWith(orgId, testUser2Id.toString());
+      expect(organizationService.addUserToOrganization).toHaveBeenCalledWith(
+        orgId,
+        testUser2Id.toString()
+      );
     });
 
     it('should fail if userId missing', async () => {
@@ -446,7 +454,9 @@ describe('OrganizationController Integration-ish Tests (mongo + supertest, mocke
   describe('DELETE /api/organizations/:id/members/:userId', () => {
     it('should remove member and return success', async () => {
       const orgId = new mongoose.Types.ObjectId().toString();
-      (organizationService.removeUserFromOrganization as jest.Mock).mockResolvedValueOnce(undefined);
+      (organizationService.removeUserFromOrganization as jest.Mock).mockResolvedValueOnce(
+        undefined
+      );
 
       const res = await request(app)
         .delete(`/api/organizations/${orgId}/members/${testUser2Id.toString()}`)
@@ -456,7 +466,10 @@ describe('OrganizationController Integration-ish Tests (mongo + supertest, mocke
       expect(res.body.success).toBe(true);
       expect(res.body.message).toBe('Member removed successfully');
 
-      expect(organizationService.removeUserFromOrganization).toHaveBeenCalledWith(orgId, testUser2Id.toString());
+      expect(organizationService.removeUserFromOrganization).toHaveBeenCalledWith(
+        orgId,
+        testUser2Id.toString()
+      );
     });
   });
 
@@ -468,7 +481,7 @@ describe('OrganizationController Integration-ish Tests (mongo + supertest, mocke
         id: orgId,
         _id: orgId,
         name: 'Stats Org',
-        members: [{ _id: testUserId }],
+        members: [{ _id: testUserId }]
       });
 
       (organizationService.getOrganizationStorageStats as jest.Mock).mockResolvedValueOnce({
@@ -478,7 +491,7 @@ describe('OrganizationController Integration-ish Tests (mongo + supertest, mocke
         totalStorageLimit: 123,
         usedStorage: 10,
         availableStorage: 113,
-        storagePerUser: [],
+        storagePerUser: []
       });
 
       const res = await request(app)
@@ -500,7 +513,7 @@ describe('OrganizationController Integration-ish Tests (mongo + supertest, mocke
         id: orgId,
         _id: orgId,
         name: 'Stats Org',
-        members: [{ _id: testUserId }],
+        members: [{ _id: testUserId }]
       });
 
       const res = await request(app)
@@ -532,20 +545,20 @@ describe('OrganizationController Integration-ish Tests (mongo + supertest, mocke
         id: orgId,
         _id: orgId,
         name: 'Members Org',
-        members: [{ _id: testUserId }, { _id: testUser2Id }],
+        members: [{ _id: testUserId }, { _id: testUser2Id }]
       });
 
       (membershipService.getOrganizationMembers as jest.Mock).mockResolvedValueOnce([
         {
           id: 'm1',
           role: 'OWNER',
-          user: { id: testUserId.toString(), name: 'Test Owner', email: 'owner@test.com' },
+          user: { id: testUserId.toString(), name: 'Test Owner', email: 'owner@test.com' }
         },
         {
           id: 'm2',
           role: 'MEMBER',
-          user: { id: testUser2Id.toString(), name: 'Test Member', email: 'member@test.com' },
-        },
+          user: { id: testUser2Id.toString(), name: 'Test Member', email: 'member@test.com' }
+        }
       ]);
 
       const res = await request(app)
@@ -569,7 +582,7 @@ describe('OrganizationController Integration-ish Tests (mongo + supertest, mocke
         id: orgId,
         _id: orgId,
         name: 'Members Org',
-        members: [{ _id: testUserId }],
+        members: [{ _id: testUserId }]
       });
 
       const res = await request(app)

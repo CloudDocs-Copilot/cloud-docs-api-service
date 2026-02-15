@@ -1,9 +1,6 @@
 import mongoose, { Document as MongooseDocument, Schema, Model, Types } from 'mongoose';
 
-export type NotificationType =
-  | 'DOC_UPLOADED'
-  | 'DOC_EDITED'
-  | 'DOC_COMMENTED';
+export type NotificationType = 'DOC_UPLOADED' | 'DOC_EDITED' | 'DOC_COMMENTED';
 
 export interface INotification extends MongooseDocument {
   organization: Types.ObjectId;
@@ -33,53 +30,53 @@ const notificationSchema = new Schema<INotification>(
       type: Schema.Types.ObjectId,
       ref: 'Organization',
       required: true,
-      index: true,
+      index: true
     },
     recipient: {
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
-      index: true,
+      index: true
     },
     actor: {
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
-      index: true,
+      index: true
     },
     type: {
       type: String,
       enum: ['DOC_UPLOADED', 'DOC_EDITED', 'DOC_COMMENTED'],
       required: true,
-      index: true,
+      index: true
     },
     entity: {
       kind: {
         type: String,
         enum: ['document'],
-        required: true,
+        required: true
       },
       id: {
         type: Schema.Types.ObjectId,
         required: true,
-        index: true,
-      },
+        index: true
+      }
     },
     message: {
       type: String,
       trim: true,
       maxlength: 512,
-      default: '',
+      default: ''
     },
     metadata: {
       type: Schema.Types.Mixed,
-      default: {},
+      default: {}
     },
     readAt: {
       type: Date,
       default: null,
-      index: true,
-    },
+      index: true
+    }
   },
   { timestamps: true }
 );
@@ -87,7 +84,9 @@ const notificationSchema = new Schema<INotification>(
 // Fast queries: unread notifications for user in org
 notificationSchema.index({ recipient: 1, organization: 1, readAt: 1, createdAt: -1 });
 
-const NotificationModel: Model<INotification> =
-  mongoose.model<INotification>('Notification', notificationSchema);
+const NotificationModel: Model<INotification> = mongoose.model<INotification>(
+  'Notification',
+  notificationSchema
+);
 
 export default NotificationModel;

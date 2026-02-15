@@ -87,11 +87,11 @@ export async function createComment({
       message: docName ? `New comment on: ${docName}` : 'New comment on a document',
       metadata: {
         documentId,
-        commentId: comment._id?.toString(),
+        commentId: comment._id?.toString()
       },
       emitter: (recipientUserId, payload) => {
         emitToUser(recipientUserId, 'notification:new', payload);
-      },
+      }
     });
   }
 
@@ -150,11 +150,11 @@ export async function updateComment({
       metadata: {
         documentId: comment.document.toString(),
         commentId: comment._id?.toString(),
-        edited: true,
+        edited: true
       },
       emitter: (recipientUserId, payload) => {
         emitToUser(recipientUserId, 'notification:new', payload);
-      },
+      }
     });
   }
 

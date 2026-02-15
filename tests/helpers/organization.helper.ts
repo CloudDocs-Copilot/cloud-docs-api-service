@@ -25,19 +25,18 @@ export async function createCompleteOrganization(options?: {
   orgName?: string;
   ownerName?: string;
   ownerEmail?: string;
-  additionalMembers?: Array<{name: string, email: string, role?: MembershipRole}>;
+  additionalMembers?: Array<{ name: string; email: string; role?: MembershipRole }>;
 }): Promise<OrganizationTestSetup> {
-  
   // Generar email único para evitar duplicados entre tests
   const timestamp = Date.now();
   const defaultOwnerEmail = `owner-${timestamp}@test.com`;
-  
+
   // 1. Crear usuario owner sin organización
   const owner = await User.create({
     name: options?.ownerName || 'Test Owner',
     email: options?.ownerEmail || defaultOwnerEmail,
     password: 'hashedpassword123',
-    role: 'admin',
+    role: 'admin'
   });
 
   // 2. Crear organización usando el servicio (esto automáticamente crea membership para owner)
@@ -53,7 +52,7 @@ export async function createCompleteOrganization(options?: {
     user: owner._id,
     organization: organization._id,
     role: MembershipRole.OWNER,
-    status: MembershipStatus.ACTIVE,
+    status: MembershipStatus.ACTIVE
   });
 
   if (!ownerMembership) {
@@ -63,7 +62,7 @@ export async function createCompleteOrganization(options?: {
   const result: OrganizationTestSetup = {
     organization,
     owner,
-    ownerMembership,
+    ownerMembership
   };
 
   // 4. Crear usuarios adicionales si se especificaron
@@ -73,15 +72,15 @@ export async function createCompleteOrganization(options?: {
 
     for (let i = 0; i < options.additionalMembers.length; i++) {
       const member = options.additionalMembers[i];
-      
+
       // Crear usuario sin organización con email único
       const user = await User.create({
         name: member.name,
         email: `${member.email.split('@')[0]}-${timestamp}-${i}@test.com`,
         password: 'hashedpassword123',
-        role: 'user',
+        role: 'user'
       });
-      
+
       // Usar addUserToOrganization en lugar de createMembership directamente
       // para asegurar que todos los pasos se ejecuten correctamente
       await organizationService.addUserToOrganization(
@@ -93,7 +92,7 @@ export async function createCompleteOrganization(options?: {
       const membership = await Membership.findOne({
         user: user._id,
         organization: organization._id,
-        status: MembershipStatus.ACTIVE,
+        status: MembershipStatus.ACTIVE
       });
 
       if (!membership) {
@@ -121,12 +120,12 @@ export async function createUserWithoutOrganization(options?: {
   // Generar email único
   const timestamp = Date.now();
   const defaultEmail = `noorg-${timestamp}@test.com`;
-  
+
   return await User.create({
     name: options?.name || 'User Without Org',
     email: options?.email || defaultEmail,
     password: 'hashedpassword123',
-    role: 'user',
+    role: 'user'
   });
 }
 
@@ -163,10 +162,7 @@ export function assertOrganizationProperties(
 /**
  * Verifica que un usuario tenga organización y rootFolder configurados
  */
-export function assertUserOrganizationSetup(
-  user: any,
-  expectedOrgId: string
-) {
+export function assertUserOrganizationSetup(user: any, expectedOrgId: string) {
   expect(user.organization?.toString()).toBe(expectedOrgId);
   expect(user.rootFolder).toBeDefined();
 }

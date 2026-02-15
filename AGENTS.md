@@ -261,6 +261,7 @@ describe('DocumentService', () => {
    - Verify fix doesn't break existing functionality
 
 4. **Test coverage requirements**
+
    ```bash
    npm run test:coverage
    ```

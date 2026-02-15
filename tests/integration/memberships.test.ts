@@ -23,7 +23,7 @@ describe('Membership Endpoints', () => {
   beforeEach(async () => {
     // Use unique timestamp to avoid rate limiting across tests
     const timestamp = Date.now();
-    
+
     // 1. Create owner user and first organization
     const ownerAuth = await registerAndLogin({
       name: 'Owner User',
@@ -40,7 +40,7 @@ describe('Membership Endpoints', () => {
       .set('Cookie', ownerCookies.join('; '))
       .send({ name: `Test Org ${timestamp}` })
       .expect(201);
-    
+
     organizationId = orgResponse.body.organization.id;
 
     // Upgrade organization to BASIC plan to allow more than 3 users for testing
@@ -108,7 +108,7 @@ describe('Membership Endpoints', () => {
       .set('Cookie', ownerCookies.join('; '))
       .send({ name: `Second Org ${timestamp}` })
       .expect(201);
-    
+
     secondOrgId = secondOrgResponse.body.organization.id;
   });
 
@@ -127,9 +127,7 @@ describe('Membership Endpoints', () => {
     });
 
     it('should fail without authentication', async () => {
-      const response = await request(app)
-        .get('/api/memberships/my-organizations')
-        .expect(401);
+      const response = await request(app).get('/api/memberships/my-organizations').expect(401);
 
       expect(response.body).toHaveProperty('error');
     });
@@ -148,9 +146,7 @@ describe('Membership Endpoints', () => {
     });
 
     it('should fail without authentication', async () => {
-      const response = await request(app)
-        .get('/api/memberships/active-organization')
-        .expect(401);
+      const response = await request(app).get('/api/memberships/active-organization').expect(401);
 
       expect(response.body).toHaveProperty('error');
     });
@@ -422,7 +418,9 @@ describe('Membership Endpoints', () => {
       });
 
       const response = await request(app)
-        .delete(`/api/memberships/organization/${organizationId}/members/${toRemoveMembership?._id}`)
+        .delete(
+          `/api/memberships/organization/${organizationId}/members/${toRemoveMembership?._id}`
+        )
         .set('Cookie', ownerCookies.join('; '))
         .expect(200);
 
@@ -454,7 +452,9 @@ describe('Membership Endpoints', () => {
       });
 
       const response = await request(app)
-        .delete(`/api/memberships/organization/${organizationId}/members/${toRemoveMembership?._id}`)
+        .delete(
+          `/api/memberships/organization/${organizationId}/members/${toRemoveMembership?._id}`
+        )
         .set('Cookie', adminCookies.join('; '))
         .expect(200);
 

@@ -15,12 +15,9 @@ describe('Password Validation', () => {
     });
 
     // Tests dinámicos usando fixture de contraseñas débiles
-    weakPasswordUsers.forEach((testCase) => {
+    weakPasswordUsers.forEach(testCase => {
       it(`should reject password: ${testCase.expectedError}`, async () => {
-        const response = await request(app)
-          .post('/api/auth/register')
-          .send(testCase)
-          .expect(400);
+        const response = await request(app).post('/api/auth/register').send(testCase).expect(400);
 
         expect(response.body.error).toContain(testCase.expectedError);
       });
@@ -29,17 +26,14 @@ describe('Password Validation', () => {
     it('should accept strong password', async () => {
       // Crear organización de prueba primero
       const auth = await registerAndLogin();
-      
+
       const user = new UserBuilder()
         .withUniqueEmail('strong')
         .withPassword(strongPasswordUser.password)
         .withOrganizationId(auth.organizationId!)
         .build();
 
-      const response = await request(app)
-        .post('/api/auth/register')
-        .send(user)
-        .expect(201);
+      const response = await request(app).post('/api/auth/register').send(user).expect(201);
 
       expect(response.body).toHaveProperty('user');
       expect(response.body.user.email).toBe(user.email);
@@ -58,7 +52,10 @@ describe('Password Validation', () => {
 
       const response = await request(app)
         .patch(`/api/users/${auth.userId}/password`)
-        .set('Cookie', auth.cookies.find((c: string) => c.startsWith('token='))?.split(';')[0] || '')
+        .set(
+          'Cookie',
+          auth.cookies.find((c: string) => c.startsWith('token='))?.split(';')[0] || ''
+        )
         .send({
           currentPassword: oldPassword,
           newPassword: 'weak' // Contraseña débil
@@ -79,7 +76,10 @@ describe('Password Validation', () => {
 
       const response = await request(app)
         .patch(`/api/users/${auth.userId}/password`)
-        .set('Cookie', auth.cookies.find((c: string) => c.startsWith('token='))?.split(';')[0] || '')
+        .set(
+          'Cookie',
+          auth.cookies.find((c: string) => c.startsWith('token='))?.split(';')[0] || ''
+        )
         .send({
           currentPassword: oldPassword,
           newPassword: 'NewPassword123' // Sin carácter especial
@@ -100,7 +100,10 @@ describe('Password Validation', () => {
 
       const response = await request(app)
         .patch(`/api/users/${auth.userId}/password`)
-        .set('Cookie', auth.cookies.find((c: string) => c.startsWith('token='))?.split(';')[0] || '')
+        .set(
+          'Cookie',
+          auth.cookies.find((c: string) => c.startsWith('token='))?.split(';')[0] || ''
+        )
         .send({
           currentPassword: oldPassword,
           newPassword: 'NewStrong@Pass456'

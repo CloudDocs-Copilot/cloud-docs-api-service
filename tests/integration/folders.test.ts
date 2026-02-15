@@ -23,7 +23,7 @@ describe('Folder Endpoints', () => {
     authCookies = auth.cookies;
     userId = auth.userId;
     organizationId = auth.organizationId!;
-    
+
     // Obtener rootFolder del usuario
     const User = (await import('../../src/models/user.model')).default;
     const user = await User.findById(userId);
@@ -36,7 +36,7 @@ describe('Folder Endpoints', () => {
       const response = await request(app)
         .post('/api/folders')
         .set('Cookie', tokenCookie?.split(';')[0] || '')
-        .send({ 
+        .send({
           name: basicFolder.name,
           organizationId,
           parentId: rootFolderId
@@ -64,7 +64,7 @@ describe('Folder Endpoints', () => {
       await request(app)
         .post('/api/folders')
         .set('Cookie', tokenCookie?.split(';')[0] || '')
-        .send({ 
+        .send({
           name: duplicateFolder.name,
           organizationId,
           parentId: rootFolderId
@@ -76,7 +76,7 @@ describe('Folder Endpoints', () => {
       const response = await request(app)
         .post('/api/folders')
         .set('Cookie', tokenCookie?.split(';')[0] || '')
-        .send({ 
+        .send({
           name: duplicateFolder.name,
           displayName: 'Otro nombre display',
           organizationId,
@@ -97,7 +97,7 @@ describe('Folder Endpoints', () => {
         await request(app)
           .post('/api/folders')
           .set('Cookie', tokenCookie?.split(';')[0] || '')
-          .send({ 
+          .send({
             name: folder.name,
             organizationId,
             parentId: rootFolderId
@@ -116,9 +116,7 @@ describe('Folder Endpoints', () => {
     });
 
     it('should fail without authentication', async () => {
-      await request(app)
-        .get('/api/folders')
-        .expect(401);
+      await request(app).get('/api/folders').expect(401);
     });
   });
 
@@ -128,7 +126,7 @@ describe('Folder Endpoints', () => {
       const createResponse = await request(app)
         .post('/api/folders')
         .set('Cookie', tokenCookie?.split(';')[0] || '')
-        .send({ 
+        .send({
           name: 'A Eliminar',
           organizationId,
           parentId: rootFolderId
@@ -157,7 +155,7 @@ describe('Folder Endpoints', () => {
       const createResponse = await request(app)
         .post('/api/folders')
         .set('Cookie', tokenCookie?.split(';')[0] || '')
-        .send({ 
+        .send({
           name: originalFolder.name,
           organizationId,
           parentId: rootFolderId
@@ -176,10 +174,7 @@ describe('Folder Endpoints', () => {
     });
 
     it('should fail without authentication', async () => {
-      await request(app)
-        .patch('/api/folders/123456')
-        .send({ name: 'Nuevo Nombre' })
-        .expect(401);
+      await request(app).patch('/api/folders/123456').send({ name: 'Nuevo Nombre' }).expect(401);
     });
   });
 });

@@ -137,11 +137,11 @@ export class UserBuilder {
  */
 export const createUser = (overrides?: Partial<UserData>): UserData => {
   const builder = new UserBuilder();
-  
+
   if (overrides?.name) builder.withName(overrides.name);
   if (overrides?.email) builder.withEmail(overrides.email);
   if (overrides?.password) builder.withPassword(overrides.password);
   if (overrides?.organizationId) builder.withOrganizationId(overrides.organizationId);
-  
+
   return builder.build();
 };

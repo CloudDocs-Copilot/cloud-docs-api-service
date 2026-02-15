@@ -30,15 +30,9 @@
                 "url": {
                   "raw": "http://localhost:3000/api/auth/register",
                   "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
+                  "host": ["localhost"],
                   "port": "3000",
-                  "path": [
-                    "api",
-                    "auth",
-                    "register"
-                  ]
+                  "path": ["api", "auth", "register"]
                 }
               },
               "response": []
@@ -81,15 +75,9 @@
                 "url": {
                   "raw": "http://localhost:3000/api/auth/login",
                   "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
+                  "host": ["localhost"],
                   "port": "3000",
-                  "path": [
-                    "api",
-                    "auth",
-                    "login"
-                  ]
+                  "path": ["api", "auth", "login"]
                 }
               },
               "response": []
@@ -112,14 +100,9 @@
                 "url": {
                   "raw": "http://localhost:3000/api/users",
                   "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
+                  "host": ["localhost"],
                   "port": "3000",
-                  "path": [
-                    "api",
-                    "users"
-                  ]
+                  "path": ["api", "users"]
                 }
               },
               "response": []
@@ -142,15 +125,9 @@
                 "url": {
                   "raw": "http://localhost:3000/api/users/695d5e5f74757443248499b8",
                   "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
+                  "host": ["localhost"],
                   "port": "3000",
-                  "path": [
-                    "api",
-                    "users",
-                    "695d5e5f74757443248499b8"
-                  ]
+                  "path": ["api", "users", "695d5e5f74757443248499b8"]
                 }
               },
               "response": []
@@ -173,16 +150,9 @@
                 "url": {
                   "raw": "http://localhost:3000/api/users/68dca62838a0e12da8eed421/activate",
                   "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
+                  "host": ["localhost"],
                   "port": "3000",
-                  "path": [
-                    "api",
-                    "users",
-                    "68dca62838a0e12da8eed421",
-                    "activate"
-                  ]
+                  "path": ["api", "users", "68dca62838a0e12da8eed421", "activate"]
                 }
               },
               "response": []
@@ -214,15 +184,9 @@
                 "url": {
                   "raw": "http://localhost:3000/api/users/695d5d1ef6b30cdff4cc9a47",
                   "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
+                  "host": ["localhost"],
                   "port": "3000",
-                  "path": [
-                    "api",
-                    "users",
-                    "695d5d1ef6b30cdff4cc9a47"
-                  ]
+                  "path": ["api", "users", "695d5d1ef6b30cdff4cc9a47"]
                 }
               },
               "response": []
@@ -250,14 +214,9 @@
                 "url": {
                   "raw": "http://localhost:3000/api/folders",
                   "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
+                  "host": ["localhost"],
                   "port": "3000",
-                  "path": [
-                    "api",
-                    "folders"
-                  ]
+                  "path": ["api", "folders"]
                 }
               },
               "response": []
@@ -280,15 +239,9 @@
                 "url": {
                   "raw": "http://localhost:3000/api/folders/695d6be13c3a53fc421538f6",
                   "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
+                  "host": ["localhost"],
                   "port": "3000",
-                  "path": [
-                    "api",
-                    "folders",
-                    "695d6be13c3a53fc421538f6"
-                  ]
+                  "path": ["api", "folders", "695d6be13c3a53fc421538f6"]
                 }
               },
               "response": []
@@ -320,14 +273,9 @@
                 "url": {
                   "raw": "http://localhost:3000/api/folders",
                   "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
+                  "host": ["localhost"],
                   "port": "3000",
-                  "path": [
-                    "api",
-                    "folders"
-                  ]
+                  "path": ["api", "folders"]
                 }
               },
               "response": []
@@ -359,15 +307,9 @@
                 "url": {
                   "raw": "http://localhost:3000/api/folders/695d6be13c3a53fc421538f6",
                   "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
+                  "host": ["localhost"],
                   "port": "3000",
-                  "path": [
-                    "api",
-                    "folders",
-                    "695d6be13c3a53fc421538f6"
-                  ]
+                  "path": ["api", "folders", "695d6be13c3a53fc421538f6"]
                 }
               },
               "response": []
@@ -402,15 +344,9 @@
                 "url": {
                   "raw": "http://localhost:3000/api/folders/tree?organizationId=696e812b583151946f3318eb",
                   "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
+                  "host": ["localhost"],
                   "port": "3000",
-                  "path": [
-                    "api",
-                    "folders",
-                    "tree"
-                  ],
+                  "path": ["api", "folders", "tree"],
                   "query": [
                     {
                       "key": "organizationId",
@@ -429,16 +365,9 @@
                 "url": {
                   "raw": "http://localhost:3000/api/folders/695d6f6f3c3a53fc42153907/contents",
                   "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
+                  "host": ["localhost"],
                   "port": "3000",
-                  "path": [
-                    "api",
-                    "folders",
-                    "695d6f6f3c3a53fc42153907",
-                    "contents"
-                  ]
+                  "path": ["api", "folders", "695d6f6f3c3a53fc42153907", "contents"]
                 }
               },
               "response": []
@@ -495,15 +424,9 @@
                 "url": {
                   "raw": "http://localhost:3000/api/documents/upload",
                   "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
+                  "host": ["localhost"],
                   "port": "3000",
-                  "path": [
-                    "api",
-                    "documents",
-                    "upload"
-                  ]
+                  "path": ["api", "documents", "upload"]
                 }
               },
               "response": []
@@ -533,14 +456,9 @@
                 "url": {
                   "raw": "http://localhost:3000/api/documents",
                   "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
+                  "host": ["localhost"],
                   "port": "3000",
-                  "path": [
-                    "api",
-                    "documents"
-                  ]
+                  "path": ["api", "documents"]
                 }
               },
               "response": []
@@ -570,16 +488,9 @@
                 "url": {
                   "raw": "http://localhost:3000/api/documents/download/695e8687c9a281f7cb4dde0b",
                   "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
+                  "host": ["localhost"],
                   "port": "3000",
-                  "path": [
-                    "api",
-                    "documents",
-                    "download",
-                    "695e8687c9a281f7cb4dde0b"
-                  ]
+                  "path": ["api", "documents", "download", "695e8687c9a281f7cb4dde0b"]
                 }
               },
               "response": []
@@ -602,15 +513,9 @@
                 "url": {
                   "raw": "http://localhost:3000/api/documents/695e8687c9a281f7cb4dde0b",
                   "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
+                  "host": ["localhost"],
                   "port": "3000",
-                  "path": [
-                    "api",
-                    "documents",
-                    "695e8687c9a281f7cb4dde0b"
-                  ]
+                  "path": ["api", "documents", "695e8687c9a281f7cb4dde0b"]
                 }
               },
               "response": []
@@ -642,16 +547,9 @@
                 "url": {
                   "raw": "http://localhost:3000/api/documents/695e8687c9a281f7cb4dde0b/share",
                   "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
+                  "host": ["localhost"],
                   "port": "3000",
-                  "path": [
-                    "api",
-                    "documents",
-                    "695e8687c9a281f7cb4dde0b",
-                    "share"
-                  ]
+                  "path": ["api", "documents", "695e8687c9a281f7cb4dde0b", "share"]
                 }
               },
               "response": []
@@ -683,14 +581,9 @@
                 "url": {
                   "raw": "http://localhost:3000/api/organizations",
                   "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
+                  "host": ["localhost"],
                   "port": "3000",
-                  "path": [
-                    "api",
-                    "organizations"
-                  ]
+                  "path": ["api", "organizations"]
                 }
               },
               "response": []
@@ -713,14 +606,9 @@
                 "url": {
                   "raw": "http://localhost:3000/api/organizations",
                   "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
+                  "host": ["localhost"],
                   "port": "3000",
-                  "path": [
-                    "api",
-                    "organizations"
-                  ]
+                  "path": ["api", "organizations"]
                 }
               },
               "response": []
@@ -745,15 +633,9 @@
                 "url": {
                   "raw": "http://localhost:3000/api/organizations/696e812b583151946f3318eb",
                   "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
+                  "host": ["localhost"],
                   "port": "3000",
-                  "path": [
-                    "api",
-                    "organizations",
-                    "696e812b583151946f3318eb"
-                  ]
+                  "path": ["api", "organizations", "696e812b583151946f3318eb"]
                 }
               },
               "response": []
@@ -783,15 +665,9 @@
                 "url": {
                   "raw": "http://localhost:3000/api/organizations/696e812b583151946f3318eb",
                   "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
+                  "host": ["localhost"],
                   "port": "3000",
-                  "path": [
-                    "api",
-                    "organizations",
-                    "696e812b583151946f3318eb"
-                  ]
+                  "path": ["api", "organizations", "696e812b583151946f3318eb"]
                 }
               },
               "response": []
@@ -819,16 +695,9 @@
                 "url": {
                   "raw": "http://localhost:3000/api/organizations/696e812b583151946f3318eb/members",
                   "protocol": "http",
-                  "host": [
-                    "localhost"
-                  ],
+                  "host": ["localhost"],
                   "port": "3000",
-                  "path": [
-                    "api",
-                    "organizations",
-                    "696e812b583151946f3318eb",
-                    "members"
-                  ]
+                  "path": ["api", "organizations", "696e812b583151946f3318eb", "members"]
                 }
               },
               "response": []

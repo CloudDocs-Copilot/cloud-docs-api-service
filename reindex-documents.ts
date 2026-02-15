@@ -1,6 +1,6 @@
 /**
  * Script para re-indexar documentos existentes en Elasticsearch
- * 
+ *
  * Este script toma todos los documentos de MongoDB y los indexa en Elasticsearch.
  * Útil cuando se habilita Elasticsearch después de tener documentos existentes.
  */
@@ -36,7 +36,9 @@ async function reindexAllDocuments() {
       try {
         await indexDocument(doc);
         indexed++;
-        console.log(`✅ [${indexed}/${documents.length}] Indexado: ${doc.filename || doc.originalname}`);
+        console.log(
+          `✅ [${indexed}/${documents.length}] Indexado: ${doc.filename || doc.originalname}`
+        );
       } catch (error: any) {
         errors++;
         console.error(`❌ Error indexando ${doc.filename}: ${error.message}`);

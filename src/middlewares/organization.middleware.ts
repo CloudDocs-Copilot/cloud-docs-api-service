@@ -2,13 +2,17 @@ import { Response, NextFunction } from 'express';
 import { AuthRequest } from './auth.middleware';
 import HttpError from '../models/error.model';
 import Organization from '../models/organization.model';
-import { hasActiveMembership, getActiveOrganization, getMembership } from '../services/membership.service';
+import {
+  hasActiveMembership,
+  getActiveOrganization,
+  getMembership
+} from '../services/membership.service';
 import { MembershipRole } from '../models/membership.model';
 
 /**
  * Middleware para validar que el usuario pertenece a la organización especificada
  * Valida membresía activa usando el servicio de Membership
- * 
+ *
  * Uso:
  * - En rutas que requieren organizationId en body: validateOrganizationMembership('body')
  * - En rutas que requieren organizationId en params: validateOrganizationMembership('params')
@@ -17,35 +21,36 @@ import { MembershipRole } from '../models/membership.model';
 export function validateOrganizationMembership(source: 'body' | 'params' | 'query' = 'body') {
   return async (req: AuthRequest, _res: Response, next: NextFunction): Promise<void> => {
     try {
-       // En params buscar :id u :organizationId
-      const organizationId = source === 'params' 
-        ? (req.params.organizationId || req.params.id)
-        : req[source]?.organizationId;
-      
+      // En params buscar :id u :organizationId
+      const organizationId =
+        source === 'params'
+          ? req.params.organizationId || req.params.id
+          : req[source]?.organizationId;
+
       if (!organizationId) {
         return next(new HttpError(400, 'Organization ID is required'));
       }
-      
+
       const organization = await Organization.findById(organizationId);
-      
+
       if (!organization) {
         return next(new HttpError(404, 'Organization not found'));
       }
-      
+
       if (!organization.active) {
         return next(new HttpError(403, 'Organization is inactive'));
       }
-      
+
       // Validar membresía activa usando el servicio de Membership
       const isActiveMember = await hasActiveMembership(req.user!.id, organizationId);
-      
+
       if (!isActiveMember) {
         return next(new HttpError(403, 'Access denied: You are not a member of this organization'));
       }
-      
+
       // Agregar la organización al request para uso posterior
       req.organization = organization;
-      
+
       next();
     } catch (err) {
       next(err);
@@ -59,22 +64,27 @@ export function validateOrganizationMembership(source: 'body' | 'params' | 'quer
  * Debe usarse después de validateOrganizationMembership
  */
 export async function validateOrganizationOwnership(
-  req: AuthRequest, 
-  _res: Response, 
+  req: AuthRequest,
+  _res: Response,
   next: NextFunction
 ): Promise<void> {
   try {
     if (!req.organization) {
-      return next(new HttpError(500, 'Organization context not found. Use validateOrganizationMembership first'));
+      return next(
+        new HttpError(
+          500,
+          'Organization context not found. Use validateOrganizationMembership first'
+        )
+      );
     }
-    
+
     // Verificar usando Membership
     const membership = await getMembership(req.user!.id, req.organization._id.toString());
-    
+
     if (!membership || membership.role !== MembershipRole.OWNER) {
       return next(new HttpError(403, 'Only the organization owner can perform this action'));
     }
-    
+
     next();
   } catch (err) {
     next(err);
@@ -85,28 +95,42 @@ export async function validateOrganizationOwnership(
  * Middleware para verificar que la organización no ha alcanzado límites del plan
  * Usa Membership para contar usuarios activos
  */
-export async function validateOrganizationLimits(req: AuthRequest, _res: Response, next: NextFunction): Promise<void> {
+export async function validateOrganizationLimits(
+  req: AuthRequest,
+  _res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
     if (!req.organization) {
-      return next(new HttpError(500, 'Organization context not found. Use validateOrganizationMembership first'));
+      return next(
+        new HttpError(
+          500,
+          'Organization context not found. Use validateOrganizationMembership first'
+        )
+      );
     }
-    
+
     const { settings } = req.organization;
-    
+
     // Verificar límite de usuarios si se está agregando un miembro
     if (req.path.includes('/members') && req.method === 'POST') {
       // Importar Membership para contar usuarios activos
       const Membership = (await import('../models/membership.model')).default;
       const activeMembersCount = await Membership.countDocuments({
         organization: req.organization._id,
-        status: 'active',
+        status: 'active'
       });
-      
+
       if (settings.maxUsers !== -1 && activeMembersCount >= settings.maxUsers) {
-        return next(new HttpError(400, `Organization has reached maximum user limit (${settings.maxUsers}) for ${req.organization.plan} plan`));
+        return next(
+          new HttpError(
+            400,
+            `Organization has reached maximum user limit (${settings.maxUsers}) for ${req.organization.plan} plan`
+          )
+        );
       }
     }
-    
+
     next();
   } catch (err) {
     next(err);
@@ -133,10 +157,7 @@ export async function requireActiveOrganization(
 
     if (!activeOrgId) {
       return next(
-        new HttpError(
-          403,
-          'No active organization. Please create or join an organization first.'
-        )
+        new HttpError(403, 'No active organization. Please create or join an organization first.')
       );
     }
 
@@ -162,17 +183,22 @@ export function validateMinimumRole(minimumRole: MembershipRole) {
     [MembershipRole.VIEWER]: 0,
     [MembershipRole.MEMBER]: 1,
     [MembershipRole.ADMIN]: 2,
-    [MembershipRole.OWNER]: 3,
+    [MembershipRole.OWNER]: 3
   };
 
   return async (req: AuthRequest, _res: Response, next: NextFunction): Promise<void> => {
     try {
       if (!req.organization) {
-        return next(new HttpError(500, 'Organization context not found. Use validateOrganizationMembership first'));
+        return next(
+          new HttpError(
+            500,
+            'Organization context not found. Use validateOrganizationMembership first'
+          )
+        );
       }
 
       const membership = await getMembership(req.user!.id, req.organization._id.toString());
-      
+
       if (!membership) {
         return next(new HttpError(403, 'You are not a member of this organization'));
       }
@@ -190,7 +216,6 @@ export function validateMinimumRole(minimumRole: MembershipRole) {
     }
   };
 }
-
 
 // Extender el tipo AuthRequest para incluir organization
 declare module './auth.middleware' {

@@ -15,23 +15,27 @@ export interface AuthRequest extends Request {
 
 /**
  * Middleware de autenticación avanzado
- * 
+ *
  * Verifica el token JWT desde cookie HttpOnly y valida:
  * - Existencia del usuario
  * - Estado activo del usuario
  * - Validez del token tras cambios en el usuario
  * - Expiración del token por cambio de contraseña
  */
-export async function authenticateToken(req: AuthRequest, _res: Response, next: NextFunction): Promise<void> {
+export async function authenticateToken(
+  req: AuthRequest,
+  _res: Response,
+  next: NextFunction
+): Promise<void> {
   // Intentar obtener el token desde la cookie primero
   let token = req.cookies?.token;
-  
+
   // Fallback: si no hay cookie, intentar con header Authorization (para compatibilidad temporal)
   if (!token) {
     const authHeader = req.headers['authorization'];
     token = authHeader && authHeader.split(' ')[1];
   }
-  
+
   if (!token) {
     return next(new HttpError(401, 'Access token required'));
   }
@@ -39,13 +43,13 @@ export async function authenticateToken(req: AuthRequest, _res: Response, next: 
   try {
     const decoded = verifyToken(token);
     const user = await User.findById(decoded.id);
-    
+
     if (!user) return next(new HttpError(401, 'User no longer exists'));
     if (user.active === false) return next(new HttpError(401, 'User account deactivated'));
 
     // Validar que el token no haya sido invalidado por cambios en el usuario
     // Solo en producción - en tests se permite para facilitar testing
-   /*  if (process.env.NODE_ENV !== 'test' && decoded.tokenCreatedAt) {
+    /*  if (process.env.NODE_ENV !== 'test' && decoded.tokenCreatedAt) {
       const tokenCreated = new Date(decoded.tokenCreatedAt);
       const userUpdated = new Date(user.updatedAt);
       if (userUpdated > tokenCreated) {
@@ -76,13 +80,13 @@ export async function authenticateToken(req: AuthRequest, _res: Response, next: 
       active: user.active,
       role: user.role
     };
-    
+
     // Sliding session: refresh the auth cookie expiration on each valid request
     try {
       const cookieOptions = {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'strict' as const : 'lax' as const,
+        sameSite: process.env.NODE_ENV === 'production' ? ('strict' as const) : ('lax' as const),
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
         path: '/'
       };

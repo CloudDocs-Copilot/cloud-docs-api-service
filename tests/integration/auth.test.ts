@@ -24,10 +24,7 @@ describe('Auth Endpoints', () => {
 
   describe('POST /api/auth/register', () => {
     it('should register a new user', async () => {
-      const userData = new UserBuilder()
-        .withUniqueEmail('test')
-        .withStrongPassword()
-        .build();
+      const userData = new UserBuilder().withUniqueEmail('test').withStrongPassword().build();
 
       const response = await request(app)
         .post('/api/auth/register')
@@ -44,10 +41,7 @@ describe('Auth Endpoints', () => {
         // Missing name and password
       };
 
-      const response = await request(app)
-        .post('/api/auth/register')
-        .send(userData)
-        .expect(400);
+      const response = await request(app).post('/api/auth/register').send(userData).expect(400);
 
       expect(response.body).toHaveProperty('error');
     });
@@ -159,11 +153,15 @@ describe('Auth Endpoints', () => {
 
       expect(logoutResponse.body).toHaveProperty('message');
       expect(logoutResponse.body.message).toBe('Logout successful');
-      
+
       // Verificar que la cookie se limpia
-      const clearCookies: string[] | undefined = logoutResponse.headers['set-cookie'] as unknown as string[] | undefined;
+      const clearCookies: string[] | undefined = logoutResponse.headers['set-cookie'] as unknown as
+        | string[]
+        | undefined;
       if (clearCookies) {
-        const clearedTokenCookie = clearCookies.find((cookie: string) => cookie.startsWith('token='));
+        const clearedTokenCookie = clearCookies.find((cookie: string) =>
+          cookie.startsWith('token=')
+        );
         // La cookie debe estar vac\u00eda o con Max-Age=0
         expect(clearedTokenCookie).toBeDefined();
       }

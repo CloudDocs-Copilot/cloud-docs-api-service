@@ -140,9 +140,9 @@ describe('error.middleware', () => {
 
   describe('Multer Errors', () => {
     it('should handle LIMIT_FILE_SIZE error', () => {
-      const err = { 
-        code: 'LIMIT_FILE_SIZE', 
-        message: 'File too large' 
+      const err = {
+        code: 'LIMIT_FILE_SIZE',
+        message: 'File too large'
       };
       errorHandler(err as any, mockReq as Request, mockRes as Response, mockNext);
 
@@ -154,9 +154,9 @@ describe('error.middleware', () => {
     });
 
     it('should handle LIMIT_FILE_COUNT error', () => {
-      const err = { 
-        code: 'LIMIT_FILE_COUNT', 
-        message: 'Too many files' 
+      const err = {
+        code: 'LIMIT_FILE_COUNT',
+        message: 'Too many files'
       };
       errorHandler(err as any, mockReq as Request, mockRes as Response, mockNext);
 

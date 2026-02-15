@@ -29,7 +29,7 @@ describe('JWT Service', () => {
     it('should verify a valid token', () => {
       const token = jwtService.signToken(testPayload);
       const decoded = jwtService.verifyToken(token);
-      
+
       expect(decoded.id).toBe(testPayload.id);
       expect(decoded.email).toBe(testPayload.email);
       expect(decoded.role).toBe(testPayload.role);
@@ -37,7 +37,7 @@ describe('JWT Service', () => {
 
     it('should throw error with invalid token', () => {
       const invalidToken = 'invalid.token.here';
-      
+
       expect(() => {
         jwtService.verifyToken(invalidToken);
       }).toThrow();

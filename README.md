@@ -78,6 +78,7 @@ docker-compose up -d
 | Document                                         | Description                             |
 | ------------------------------------------------ | --------------------------------------- |
 | [Architecture](docs/ARCHITECTURE.md)             | System design and code organization     |
+| [Test Configuration](docs/TEST-CONFIGURATION.md) | Testing setup and CI configuration      |
 | [OpenAPI Spec](docs/openapi/openapi.json)        | API specification (Swagger/OpenAPI 3.0) |
 | [Mock Data](docs/MOCK-DATA.md)                   | Test data for local development         |
 | [Testing Guide](docs/ENDPOINTS-TESTING-GUIDE.md) | How to test API endpoints               |
@@ -94,15 +95,21 @@ docker-compose up -d
 
 ## 🛠️ Scripts
 
-| Script                  | Description                              |
-| ----------------------- | ---------------------------------------- |
-| `npm run dev`           | Start development server with hot reload |
-| `npm run build`         | Compile TypeScript to JavaScript         |
-| `npm start`             | Run production server                    |
-| `npm test`              | Run test suite                           |
-| `npm run test:coverage` | Run tests with coverage report           |
-| `npm run seed:dev`      | Load test data into database             |
-| `npm run format`        | Format code with Prettier                |
+| Script                     | Description                                    |
+| -------------------------- | ---------------------------------------------- |
+| `npm run dev`              | Start development server with hot reload       |
+| `npm run build`            | Compile TypeScript to JavaScript               |
+| `npm start`                | Run production server                          |
+| **Testing**                |                                                |
+| `npm run test:ci`          | **Run ALL tests + coverage (use in CI)** ⭐    |
+| `npm test`                 | Run main test suite (integration + most unit)  |
+| `npm run test:unit`        | Run unit tests only (includes embedding tests) |
+| `npm run test:integration` | Run integration tests only                     |
+| `npm run test:coverage`    | Run tests with coverage report                 |
+| `npm run test:watch`       | Run tests in watch mode                        |
+| **Utilities**              |                                                |
+| `npm run seed:dev`         | Load test data into database                   |
+| `npm run format`           | Format code with Prettier                      |
 
 ## 📁 Project Structure
 
@@ -152,12 +159,26 @@ Key variables (see [.env.example](.env.example) for full list):
 ## 🧪 Testing
 
 ```bash
-npm test                    # Run all tests
+# CI/CD - Run ALL tests with combined coverage (recommended)
+npm run test:ci             # 108 suites, 1240 tests, 78% coverage
+
+# Development
+npm test                    # Main suite (65 suites, 816 tests)
+npm run test:unit           # Unit tests only (43 suites, 424 tests)
+npm run test:integration    # Integration tests only
 npm run test:watch          # Watch mode
 npm run test:coverage       # With coverage report
 ```
 
-Tests use MongoDB Memory Server - no external database required.
+**Features:**
+
+- ✅ 108 test suites, 1240 tests total
+- ✅ 78% combined coverage (statements)
+- ✅ Dual Jest configurations for optimal testing
+- ✅ MongoDB Memory Server - no external database required
+- ✅ Automatic coverage merging in CI
+
+> 📖 See [docs/TEST-CONFIGURATION.md](docs/TEST-CONFIGURATION.md) for detailed testing documentation
 
 ## 📄 License
 

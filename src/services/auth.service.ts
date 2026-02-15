@@ -37,14 +37,14 @@ export interface AuthResponse {
  * Escapa caracteres especiales para uso seguro en HTML
  */
 function escapeHtml(value: string): string {
-  return value.replace(/[&<>"'\/]/g, (s) => {
+  return value.replace(/[&<>"'\/]/g, s => {
     const entityMap: { [key: string]: string } = {
       '&': '&amp;',
       '<': '&lt;',
       '>': '&gt;',
       '"': '&quot;',
       "'": '&#39;',
-      '/': '&#x2F;',
+      '/': '&#x2F;'
     };
     return entityMap[s] || s;
   });
@@ -57,32 +57,31 @@ function hashResetToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
-
 /**
  * Registra un nuevo usuario en el sistema
  * El usuario se registra sin organización ni rootFolder
  * El rootFolder se crea cuando el usuario se une o crea una organización (en Membership)
- * 
+ *
  * Valida la fortaleza de la contraseña antes de hashearla
  * Hashea la contraseña antes de almacenarla
- * 
+ *
  * @param RegisterUserDto - Datos del usuario a registrar
  * @returns Usuario creado (sin contraseña)
  * @throws HttpError si la contraseña no cumple los requisitos de seguridad
  * @throws HttpError si el email ya está registrado
  */
-export async function registerUser({ 
-  name, 
-  email, 
+export async function registerUser({
+  name,
+  email,
   password,
-  role = 'user' 
+  role = 'user'
 }: RegisterUserDto): Promise<Partial<IUser>> {
   // Validar nombre (solo alfanumérico y espacios)
   const nameRegex = /^[a-zA-Z0-9\s]+$/;
   if (!name || !nameRegex.test(name.trim())) {
     throw new HttpError(400, 'Name must contain only alphanumeric characters and spaces');
   }
-  
+
   // Validar formato de email
   const emailRegex = /^[^\s@]+@([^\s@.]+\.)+[^\s@.]{2,}$/;
   if (!email || !emailRegex.test(email.toLowerCase())) {
@@ -91,41 +90,48 @@ export async function registerUser({
 
   // Validar fortaleza de la contraseña
   validatePasswordOrThrow(password);
-  
+
   // Hashear contraseña
   const hashed = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
-  
+
   // En entorno de test, activar usuarios automáticamente (sin confirmación de email)
   const isTestEnv = process.env.NODE_ENV === 'test';
-  
+
   try {
     // Crear usuario sin organización ni rootFolder
-    const user = await User.create({ 
-      name, 
-      email, 
-      password: hashed, 
+    const user = await User.create({
+      name,
+      email,
+      password: hashed,
       role,
       organization: undefined,
       rootFolder: undefined,
       storageUsed: 0,
       active: isTestEnv // Activo en tests, inactivo en producción hasta confirmar email
     });
-    
+
     // --- Envío de email de confirmación ---
     const sendEmail = String(process.env.SEND_CONFIRMATION_EMAIL).toLowerCase() === 'true';
     if (sendEmail) {
       try {
-        
         const fs = await import('fs');
         const path = await import('path');
         const jwt = await import('jsonwebtoken');
         // Generar token de confirmación (JWT simple)
-        const token = jwt.default.sign({ userId: user._id }, process.env.JWT_SECRET || 'secret', { expiresIn: '1d' });
+        const token = jwt.default.sign({ userId: user._id }, process.env.JWT_SECRET || 'secret', {
+          expiresIn: '1d'
+        });
         // Usar variable de entorno para la URL base de confirmación
-        const baseUrl = process.env.CONFIRMATION_URL_BASE || `http://localhost:${process.env.PORT || 4000}`;
+        const baseUrl =
+          process.env.CONFIRMATION_URL_BASE || `http://localhost:${process.env.PORT || 4000}`;
         const confirmationUrl = `${baseUrl}/api/auth/confirm/${token}`;
         // Leer y personalizar el template HTML
-        const templatePath = path.default.join(process.cwd(), 'src', 'mail', 'confirmationTemplate.html');
+        const templatePath = path.default.join(
+          process.cwd(),
+          'src',
+          'mail',
+          'confirmationTemplate.html'
+        );
         let html = fs.default.readFileSync(templatePath, 'utf8');
         const safeName = escapeHtml(name);
         html = html.replace('{{name}}', safeName).replace('{{confirmationUrl}}', confirmationUrl);
@@ -139,7 +145,7 @@ export async function registerUser({
     const userObj = user.toJSON();
     return {
       ...userObj,
-      _id: user._id,
+      _id: user._id
     };
   } catch (error) {
     // Re-lanzar el error original
@@ -150,7 +156,7 @@ export async function registerUser({
 /**
  * Autentica un usuario y genera un token JWT
  * Valida las credenciales y retorna el token de acceso
- * 
+ *
  * @param LoginUserDto - Credenciales del usuario
  * @returns Token JWT y datos del usuario
  * @throws HttpError si las credenciales son inválidas
@@ -163,22 +169,22 @@ export async function loginUser({ email, password }: LoginUserDto): Promise<Auth
 
   const user = await User.findOne({ email: { $eq: email } });
   if (!user) throw new HttpError(404, 'User not found');
-  
+
   // Validar que el usuario esté activo
   if (!user.active) {
     throw new HttpError(403, 'User account is not active');
   }
-  
+
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) throw new HttpError(401, 'Invalid password');
-  
+
   const token = signToken({
     id: user._id.toString(),
     email: user.email,
     role: user.role,
     tokenVersion: user.tokenVersion
   });
-  
+
   return { token, user: user.toJSON() };
 }
 
@@ -189,7 +195,9 @@ export async function loginUser({ email, password }: LoginUserDto): Promise<Auth
  * @returns Información sobre el estado de la activación
  * @throws Error si el token es inválido o el usuario no existe
  */
-export async function confirmUserAccount(token: string): Promise<{ userId: string, userName: string, userAlreadyActive: boolean }> {
+export async function confirmUserAccount(
+  token: string
+): Promise<{ userId: string; userName: string; userAlreadyActive: boolean }> {
   const jwt = await import('jsonwebtoken');
   const payload: any = jwt.default.verify(token, process.env.JWT_SECRET || 'secret');
   const user = await User.findById(payload.userId);
@@ -205,7 +213,6 @@ export async function confirmUserAccount(token: string): Promise<{ userId: strin
   // La activación se gestiona por cookies, no por localStorage
   return { userId: user._id, userName: user.name, userAlreadyActive: false };
 }
-
 
 /** Reseteo de contraseña */
 export async function requestPasswordReset(email: string): Promise<string | null> {
@@ -235,17 +242,20 @@ export async function requestPasswordReset(email: string): Promise<string | null
         const path = await import('path');
         const jwt = await import('jsonwebtoken');
 
-        const token = jwt.default.sign(
-          { userId: user._id },
-          process.env.JWT_SECRET || 'secret',
-          { expiresIn: '1d' }
-        );
+        const token = jwt.default.sign({ userId: user._id }, process.env.JWT_SECRET || 'secret', {
+          expiresIn: '1d'
+        });
 
         const baseUrl =
           process.env.CONFIRMATION_URL_BASE || `http://localhost:${process.env.PORT || 4000}`;
         const confirmationUrl = `${baseUrl}/api/auth/confirm/${token}`;
 
-        const templatePath = path.default.join(process.cwd(), 'src', 'mail', 'confirmationTemplate.html');
+        const templatePath = path.default.join(
+          process.cwd(),
+          'src',
+          'mail',
+          'confirmationTemplate.html'
+        );
         let html = fs.default.readFileSync(templatePath, 'utf8');
         const safeName = escapeHtml(user.name);
         html = html.replace('{{name}}', safeName).replace('{{confirmationUrl}}', confirmationUrl);
@@ -274,15 +284,26 @@ export async function requestPasswordReset(email: string): Promise<string | null
       const fs = await import('fs');
       const path = await import('path');
 
-      const frontendBase = (process.env.CONFIRMATION_FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+      const frontendBase = (
+        process.env.CONFIRMATION_FRONTEND_URL || 'http://localhost:5173'
+      ).replace(/\/$/, '');
       const resetUrl = `${frontendBase}/auth/reset-password?token=${encodeURIComponent(rawToken)}`;
 
-      const templatePath = path.default.join(process.cwd(), 'src', 'mail', 'passwordResetTemplate.html');
+      const templatePath = path.default.join(
+        process.cwd(),
+        'src',
+        'mail',
+        'passwordResetTemplate.html'
+      );
       let html = fs.default.readFileSync(templatePath, 'utf8');
       const safeName = escapeHtml(user.name);
       html = html.replace('{{name}}', safeName).replace('{{resetUrl}}', resetUrl);
 
-      await sendConfirmationEmail(user.email, 'Restablece tu contraseña en CloudDocs Copilot', html);
+      await sendConfirmationEmail(
+        user.email,
+        'Restablece tu contraseña en CloudDocs Copilot',
+        html
+      );
     } catch (emailErr) {
       console.error('Error enviando email de reset:', emailErr);
     }
@@ -297,8 +318,16 @@ export interface ResetPasswordDto {
   confirmPassword: string;
 }
 
-export async function resetPassword({ token, newPassword, confirmPassword }: ResetPasswordDto): Promise<void> {
-  if (typeof token !== 'string' || typeof newPassword !== 'string' || typeof confirmPassword !== 'string') {
+export async function resetPassword({
+  token,
+  newPassword,
+  confirmPassword
+}: ResetPasswordDto): Promise<void> {
+  if (
+    typeof token !== 'string' ||
+    typeof newPassword !== 'string' ||
+    typeof confirmPassword !== 'string'
+  ) {
     throw new HttpError(400, 'Missing required fields');
   }
   if (!token || !newPassword || !confirmPassword) {
@@ -345,12 +374,21 @@ export async function resetPassword({ token, newPassword, confirmPassword }: Res
       const fs = await import('fs');
       const path = await import('path');
 
-      const templatePath = path.default.join(process.cwd(), 'src', 'mail', 'passwordChangedTemplate.html');
+      const templatePath = path.default.join(
+        process.cwd(),
+        'src',
+        'mail',
+        'passwordChangedTemplate.html'
+      );
       let html = fs.default.readFileSync(templatePath, 'utf8');
       const safeName = escapeHtml(user.name);
       html = html.replace('{{name}}', safeName);
 
-      await sendConfirmationEmail(user.email, 'Tu contraseña ha sido cambiada en CloudDocs Copilot', html);
+      await sendConfirmationEmail(
+        user.email,
+        'Tu contraseña ha sido cambiada en CloudDocs Copilot',
+        html
+      );
     } catch (emailErr) {
       console.error('Error enviando email de confirmación de cambio:', emailErr);
     }

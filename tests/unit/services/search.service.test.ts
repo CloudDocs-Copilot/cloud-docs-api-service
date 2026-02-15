@@ -17,7 +17,15 @@ describe('search.service', () => {
 
     const svc = require('../../../src/services/search.service');
     svc.getEsClient = () => client;
-    const doc = { _id: 'd1', filename: 'f', originalname: 'orig', mimeType: 'text/plain', size: 10, uploadedBy: { toString: () => 'u1' }, uploadedAt: new Date() };
+    const doc = {
+      _id: 'd1',
+      filename: 'f',
+      originalname: 'orig',
+      mimeType: 'text/plain',
+      size: 10,
+      uploadedBy: { toString: () => 'u1' },
+      uploadedAt: new Date()
+    };
     await svc.indexDocument(doc as any);
     expect(client.index).toHaveBeenCalled();
   });
@@ -35,7 +43,10 @@ describe('search.service', () => {
   });
 
   it('searchDocuments maps hits to results', async () => {
-    const hits = { hits: { hits: [{ _id: 'h1', _score: 1.2, _source: { filename: 'a' } }], total: { value: 1 } }, took: 5 };
+    const hits = {
+      hits: { hits: [{ _id: 'h1', _score: 1.2, _source: { filename: 'a' } }], total: { value: 1 } },
+      took: 5
+    };
     const client = { search: jest.fn().mockResolvedValue(hits) };
     const es = require('../../../src/configurations/elasticsearch-config');
     es.getInstance = mockGetInstance;
@@ -50,7 +61,15 @@ describe('search.service', () => {
   });
 
   it('getAutocompleteSuggestions deduplicates and returns strings', async () => {
-    const hits = { hits: { hits: [ { _source: { originalname: 'A' } }, { _source: { filename: 'B' } }, { _source: { originalname: 'A' } } ] } };
+    const hits = {
+      hits: {
+        hits: [
+          { _source: { originalname: 'A' } },
+          { _source: { filename: 'B' } },
+          { _source: { originalname: 'A' } }
+        ]
+      }
+    };
     const client = { search: jest.fn().mockResolvedValue(hits) };
     const es = require('../../../src/configurations/elasticsearch-config');
     es.getInstance = mockGetInstance;

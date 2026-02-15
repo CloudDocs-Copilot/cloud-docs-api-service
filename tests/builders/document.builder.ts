@@ -171,11 +171,11 @@ export class DocumentBuilder {
  */
 export const createDocument = (overrides?: Partial<DocumentData>): DocumentData => {
   const builder = new DocumentBuilder();
-  
+
   if (overrides?.filename) builder.withFilename(overrides.filename);
   if (overrides?.content) builder.withContent(overrides.content);
   if (overrides?.mimeType) builder.withMimeType(overrides.mimeType);
   if (overrides?.size) builder.withSize(overrides.size);
-  
+
   return builder.build();
 };

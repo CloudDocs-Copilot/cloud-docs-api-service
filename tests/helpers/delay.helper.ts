@@ -28,10 +28,7 @@ export const longDelay = (): Promise<void> => delay(1000);
 /**
  * Ejecuta una función con delay entre ejecuciones
  */
-export async function executeWithDelay<T>(
-  fn: () => Promise<T>,
-  delayMs: number = 500
-): Promise<T> {
+export async function executeWithDelay<T>(fn: () => Promise<T>, delayMs: number = 500): Promise<T> {
   const result = await fn();
   await delay(delayMs);
   return result;

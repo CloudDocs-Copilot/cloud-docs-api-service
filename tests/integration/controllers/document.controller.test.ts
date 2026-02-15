@@ -30,25 +30,25 @@ jest.mock('../../../src/services/document.service', () => ({
   shareDocument: (...args: any[]) => mockShareDocument(...args),
   moveDocument: (...args: any[]) => mockMoveDocument(...args),
   copyDocument: (...args: any[]) => mockCopyDocument(...args),
-  deleteDocument: (...args: any[]) => mockDeleteDocument(...args),
+  deleteDocument: (...args: any[]) => mockDeleteDocument(...args)
 }));
 
 jest.mock('../../../src/utils/path-sanitizer', () => ({
   __esModule: true,
-  validateDownloadPath: (...args: any[]) => mockValidateDownloadPath(...args),
+  validateDownloadPath: (...args: any[]) => mockValidateDownloadPath(...args)
 }));
 
 jest.mock('../../../src/services/membership.service', () => ({
   __esModule: true,
-  hasActiveMembership: (...args: any[]) => mockHasActiveMembership(...args),
+  hasActiveMembership: (...args: any[]) => mockHasActiveMembership(...args)
 }));
 
 jest.mock('mammoth', () => ({
   __esModule: true,
   default: {
-    convertToHtml: (...args: any[]) => mockMammothConvertToHtml(...args),
+    convertToHtml: (...args: any[]) => mockMammothConvertToHtml(...args)
   },
-  convertToHtml: (...args: any[]) => mockMammothConvertToHtml(...args),
+  convertToHtml: (...args: any[]) => mockMammothConvertToHtml(...args)
 }));
 
 type MockRes = {
@@ -103,13 +103,12 @@ describe('document.controller (unit)', () => {
       const req: any = {
         file: { filename: 'a.txt' },
         body: { folderId: 'not-an-objectid' },
-        user: { id: USER_ID },
+        user: { id: USER_ID }
       };
       const res = makeRes();
       const next = makeNext();
 
       await upload(req, res, next);
-
     });
 
     it('should call service and return 201 on success', async () => {
@@ -119,7 +118,7 @@ describe('document.controller (unit)', () => {
       const req: any = {
         file: { filename: 'a.txt' },
         body: { folderId: '507f1f77bcf86cd799439099' },
-        user: { id: USER_ID },
+        user: { id: USER_ID }
       };
       const res = makeRes();
       const next = makeNext();
@@ -129,7 +128,7 @@ describe('document.controller (unit)', () => {
       expect(mockUploadDocument).toHaveBeenCalledWith({
         file: req.file,
         userId: USER_ID,
-        folderId: '507f1f77bcf86cd799439099',
+        folderId: '507f1f77bcf86cd799439099'
       });
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith(
@@ -155,7 +154,11 @@ describe('document.controller (unit)', () => {
       const { replaceFile } = require('../../../src/controllers/document.controller');
       mockReplaceDocumentFile.mockRejectedValue(new Error('Document not found'));
 
-      const req: any = { file: { filename: 'a.txt' }, params: { id: DOC_ID }, user: { id: USER_ID } };
+      const req: any = {
+        file: { filename: 'a.txt' },
+        params: { id: DOC_ID },
+        user: { id: USER_ID }
+      };
       const res = makeRes();
       const next = makeNext();
 
@@ -168,7 +171,11 @@ describe('document.controller (unit)', () => {
       const { replaceFile } = require('../../../src/controllers/document.controller');
       mockReplaceDocumentFile.mockResolvedValue({ _id: DOC_ID });
 
-      const req: any = { file: { filename: 'a.txt' }, params: { id: DOC_ID }, user: { id: USER_ID } };
+      const req: any = {
+        file: { filename: 'a.txt' },
+        params: { id: DOC_ID },
+        user: { id: USER_ID }
+      };
       const res = makeRes();
       const next = makeNext();
 
@@ -259,7 +266,11 @@ describe('document.controller (unit)', () => {
       const { getRecent } = require('../../../src/controllers/document.controller');
       mockGetUserRecentDocuments.mockResolvedValue([]);
 
-      const req: any = { user: { id: USER_ID }, params: { organizationId: ORG_ID }, query: { limit: '2' } };
+      const req: any = {
+        user: { id: USER_ID },
+        params: { organizationId: ORG_ID },
+        query: { limit: '2' }
+      };
       const res = makeRes();
       const next = makeNext();
 
@@ -289,7 +300,7 @@ describe('document.controller (unit)', () => {
         _id: DOC_ID,
         organization: new mongoose.Types.ObjectId(ORG_ID),
         uploadedBy: new mongoose.Types.ObjectId(USER_ID),
-        sharedWith: [],
+        sharedWith: []
       });
       mockHasActiveMembership.mockResolvedValue(true);
 
@@ -309,7 +320,7 @@ describe('document.controller (unit)', () => {
         _id: DOC_ID,
         organization: new mongoose.Types.ObjectId(ORG_ID),
         uploadedBy: new mongoose.Types.ObjectId('507f1f77bcf86cd799439099'),
-        sharedWith: [],
+        sharedWith: []
       });
       mockHasActiveMembership.mockResolvedValue(false);
 
@@ -328,7 +339,7 @@ describe('document.controller (unit)', () => {
         _id: DOC_ID,
         organization: null,
         uploadedBy: new mongoose.Types.ObjectId(USER_ID),
-        sharedWith: [],
+        sharedWith: []
       });
 
       const req: any = { user: { id: USER_ID }, params: { id: DOC_ID } };
@@ -346,7 +357,7 @@ describe('document.controller (unit)', () => {
         _id: DOC_ID,
         organization: null,
         uploadedBy: new mongoose.Types.ObjectId('507f1f77bcf86cd799439099'),
-        sharedWith: [new mongoose.Types.ObjectId(USER_ID)],
+        sharedWith: [new mongoose.Types.ObjectId(USER_ID)]
       });
 
       const req: any = { user: { id: USER_ID }, params: { id: DOC_ID } };
@@ -377,7 +388,11 @@ describe('document.controller (unit)', () => {
       const { share } = require('../../../src/controllers/document.controller');
       mockShareDocument.mockRejectedValue(new Error('Document not found'));
 
-      const req: any = { user: { id: USER_ID }, params: { id: DOC_ID }, body: { userIds: [USER_ID] } };
+      const req: any = {
+        user: { id: USER_ID },
+        params: { id: DOC_ID },
+        body: { userIds: [USER_ID] }
+      };
       const res = makeRes();
       const next = makeNext();
 
@@ -390,7 +405,11 @@ describe('document.controller (unit)', () => {
       const { share } = require('../../../src/controllers/document.controller');
       mockShareDocument.mockResolvedValue({ _id: DOC_ID });
 
-      const req: any = { user: { id: USER_ID }, params: { id: DOC_ID }, body: { userIds: [USER_ID] } };
+      const req: any = {
+        user: { id: USER_ID },
+        params: { id: DOC_ID },
+        body: { userIds: [USER_ID] }
+      };
       const res = makeRes();
       const next = makeNext();
 
@@ -419,7 +438,11 @@ describe('document.controller (unit)', () => {
       const { move } = require('../../../src/controllers/document.controller');
       mockMoveDocument.mockResolvedValue({ _id: DOC_ID });
 
-      const req: any = { user: { id: USER_ID }, params: { id: DOC_ID }, body: { targetFolderId: '507f1f77bcf86cd799439099' } };
+      const req: any = {
+        user: { id: USER_ID },
+        params: { id: DOC_ID },
+        body: { targetFolderId: '507f1f77bcf86cd799439099' }
+      };
       const res = makeRes();
       const next = makeNext();
 
@@ -448,7 +471,11 @@ describe('document.controller (unit)', () => {
       const { copy } = require('../../../src/controllers/document.controller');
       mockCopyDocument.mockResolvedValue({ _id: 'newDoc' });
 
-      const req: any = { user: { id: USER_ID }, params: { id: DOC_ID }, body: { targetFolderId: '507f1f77bcf86cd799439099' } };
+      const req: any = {
+        user: { id: USER_ID },
+        params: { id: DOC_ID },
+        body: { targetFolderId: '507f1f77bcf86cd799439099' }
+      };
       const res = makeRes();
       const next = makeNext();
 
@@ -484,7 +511,7 @@ describe('document.controller (unit)', () => {
         sharedWith: [],
         filename: 'a.pdf',
         originalname: 'a.pdf',
-        path: '/obs/a.pdf',
+        path: '/obs/a.pdf'
       });
       mockHasActiveMembership.mockResolvedValue(false);
 
@@ -507,7 +534,7 @@ describe('document.controller (unit)', () => {
         sharedWith: [],
         filename: 'a.pdf',
         originalname: 'nice.pdf',
-        path: '/org/a.pdf',
+        path: '/org/a.pdf'
       });
       mockValidateDownloadPath.mockResolvedValue('/abs/uploads/a.pdf');
 
@@ -529,7 +556,7 @@ describe('document.controller (unit)', () => {
         sharedWith: [],
         filename: 'a.pdf',
         originalname: 'nice.pdf',
-        path: '/org/a.pdf',
+        path: '/org/a.pdf'
       });
 
       mockValidateDownloadPath
@@ -554,7 +581,7 @@ describe('document.controller (unit)', () => {
         sharedWith: [],
         filename: 'a.pdf',
         originalname: 'nice.pdf',
-        path: '/org/a.pdf',
+        path: '/org/a.pdf'
       });
 
       mockValidateDownloadPath
@@ -595,7 +622,7 @@ describe('document.controller (unit)', () => {
         sharedWith: [],
         path: 'org/file.pdf',
         originalname: 'file.pdf',
-        mimeType: 'application/pdf',
+        mimeType: 'application/pdf'
       });
 
       mockValidateDownloadPath
@@ -625,7 +652,7 @@ describe('document.controller (unit)', () => {
         sharedWith: [],
         path: 'org/file.docx',
         originalname: 'file.docx',
-        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
       });
 
       mockValidateDownloadPath.mockResolvedValue('/abs/storage/org/file.docx');
@@ -651,7 +678,7 @@ describe('document.controller (unit)', () => {
         sharedWith: [],
         path: 'org/file.docx',
         originalname: 'file.docx',
-        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
       });
 
       mockValidateDownloadPath.mockResolvedValue('/abs/storage/org/file.docx');
@@ -675,7 +702,7 @@ describe('document.controller (unit)', () => {
         sharedWith: [],
         path: 'org/file.pdf',
         originalname: 'file.pdf',
-        mimeType: 'application/pdf',
+        mimeType: 'application/pdf'
       });
       mockHasActiveMembership.mockResolvedValue(false);
 
@@ -698,7 +725,7 @@ describe('document.controller (unit)', () => {
         sharedWith: [],
         path: 'org/file.pdf',
         originalname: 'file.pdf',
-        mimeType: 'application/pdf',
+        mimeType: 'application/pdf'
       });
 
       mockValidateDownloadPath

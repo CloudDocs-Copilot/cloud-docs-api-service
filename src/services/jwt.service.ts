@@ -23,23 +23,21 @@ export interface SignTokenOptions {
 
 /**
  * Firma un token JWT con el payload proporcionado
- * 
+ *
  * @param payload - Datos a incluir en el token
  * @param options - Opciones de configuración (tiempo de expiración)
  * @returns Token JWT firmado
  */
 export function signToken(payload: Partial<TokenPayload>, options: SignTokenOptions = {}): string {
   const expiresIn: string | number = options.expiresIn || JWT_EXPIRES_IN;
-  return jwt.sign(
-    { ...payload, tokenCreatedAt: new Date().toISOString() } as object,
-    JWT_SECRET,
-    { expiresIn } as jwt.SignOptions
-  );
+  return jwt.sign({ ...payload, tokenCreatedAt: new Date().toISOString() } as object, JWT_SECRET, {
+    expiresIn
+  } as jwt.SignOptions);
 }
 
 /**
  * Verifica y decodifica un token JWT
- * 
+ *
  * @param token - Token JWT a verificar
  * @returns Payload decodificado del token
  * @throws Error si el token es inválido o ha expirado

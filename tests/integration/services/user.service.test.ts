@@ -25,7 +25,7 @@ describe('UserService Integration Tests', () => {
       email: 'test@example.com',
       password: await bcrypt.hash('password123', 10),
       role: 'user',
-      active: true,
+      active: true
     });
     testUserId = user1._id;
 
@@ -34,7 +34,7 @@ describe('UserService Integration Tests', () => {
       email: 'another@example.com',
       password: await bcrypt.hash('password456', 10),
       role: 'admin',
-      active: true,
+      active: true
     });
   });
 
@@ -79,9 +79,9 @@ describe('UserService Integration Tests', () => {
     it('should throw error when user not found', async () => {
       const nonExistentId = new mongoose.Types.ObjectId();
 
-      await expect(
-        userService.setUserActive(nonExistentId.toString(), true)
-      ).rejects.toThrow('User not found');
+      await expect(userService.setUserActive(nonExistentId.toString(), true)).rejects.toThrow(
+        'User not found'
+      );
     });
 
     it('should return user without changes if active status is the same', async () => {
@@ -94,7 +94,7 @@ describe('UserService Integration Tests', () => {
   describe('updateUser', () => {
     it('should update user name', async () => {
       const updatedUser = await userService.updateUser(testUserId.toString(), {
-        name: 'Updated Name',
+        name: 'Updated Name'
       });
 
       expect(updatedUser.name).toBe('Updated Name');
@@ -103,7 +103,7 @@ describe('UserService Integration Tests', () => {
 
     it('should update user email', async () => {
       const updatedUser = await userService.updateUser(testUserId.toString(), {
-        email: 'newemail@example.com',
+        email: 'newemail@example.com'
       });
 
       expect(updatedUser.email).toBe('newemail@example.com');
@@ -113,7 +113,7 @@ describe('UserService Integration Tests', () => {
     it('should update both name and email', async () => {
       const updatedUser = await userService.updateUser(testUserId.toString(), {
         name: 'New Name',
-        email: 'new@example.com',
+        email: 'new@example.com'
       });
 
       expect(updatedUser.name).toBe('New Name');
@@ -133,7 +133,7 @@ describe('UserService Integration Tests', () => {
       const originalPassword = originalUser?.password;
 
       await userService.updateUser(testUserId.toString(), {
-        name: 'New Name',
+        name: 'New Name'
       });
 
       const updatedUser = await User.findById(testUserId);
@@ -145,7 +145,7 @@ describe('UserService Integration Tests', () => {
     it('should change password successfully', async () => {
       const result = await userService.changePassword(testUserId.toString(), {
         currentPassword: 'password123',
-        newPassword: 'NewStrongP@ss123',
+        newPassword: 'NewStrongP@ss123'
       });
 
       expect(result).toHaveProperty('message', 'Password updated successfully');
@@ -162,7 +162,7 @@ describe('UserService Integration Tests', () => {
 
       await userService.changePassword(testUserId.toString(), {
         currentPassword: 'password123',
-        newPassword: 'NewStrongP@ss456',
+        newPassword: 'NewStrongP@ss456'
       });
 
       const updatedUser = await User.findById(testUserId);
@@ -174,7 +174,7 @@ describe('UserService Integration Tests', () => {
 
       await userService.changePassword(testUserId.toString(), {
         currentPassword: 'password123',
-        newPassword: 'NewStrongP@ss789',
+        newPassword: 'NewStrongP@ss789'
       });
 
       const user = await User.findById(testUserId);
@@ -186,7 +186,7 @@ describe('UserService Integration Tests', () => {
       await expect(
         userService.changePassword(testUserId.toString(), {
           currentPassword: 'wrongpassword',
-          newPassword: 'NewStrongP@ss123',
+          newPassword: 'NewStrongP@ss123'
         })
       ).rejects.toThrow('Current password is incorrect');
     });
@@ -197,7 +197,7 @@ describe('UserService Integration Tests', () => {
       await expect(
         userService.changePassword(nonExistentId.toString(), {
           currentPassword: 'password123',
-          newPassword: 'NewStrongP@ss123',
+          newPassword: 'NewStrongP@ss123'
         })
       ).rejects.toThrow('User not found');
     });
@@ -206,7 +206,7 @@ describe('UserService Integration Tests', () => {
       await expect(
         userService.changePassword(testUserId.toString(), {
           currentPassword: 'password123',
-          newPassword: 'weak',
+          newPassword: 'weak'
         })
       ).rejects.toThrow();
     });
@@ -215,7 +215,7 @@ describe('UserService Integration Tests', () => {
       await expect(
         userService.changePassword(testUserId.toString(), {
           currentPassword: 'password123',
-          newPassword: 'weakpassword123',
+          newPassword: 'weakpassword123'
         })
       ).rejects.toThrow();
     });
@@ -224,7 +224,7 @@ describe('UserService Integration Tests', () => {
       await expect(
         userService.changePassword(testUserId.toString(), {
           currentPassword: 'password123',
-          newPassword: 'WeakPassword',
+          newPassword: 'WeakPassword'
         })
       ).rejects.toThrow();
     });
@@ -243,9 +243,9 @@ describe('UserService Integration Tests', () => {
     it('should throw error when user not found', async () => {
       const nonExistentId = new mongoose.Types.ObjectId();
 
-      await expect(
-        userService.deleteUser(nonExistentId.toString())
-      ).rejects.toThrow('User not found');
+      await expect(userService.deleteUser(nonExistentId.toString())).rejects.toThrow(
+        'User not found'
+      );
     });
   });
 
@@ -254,7 +254,7 @@ describe('UserService Integration Tests', () => {
       const avatarUrl = 'https://example.com/avatar.jpg';
 
       const updatedUser = await userService.updateAvatar(testUserId.toString(), {
-        avatar: avatarUrl,
+        avatar: avatarUrl
       });
 
       expect(updatedUser.avatar).toBe(avatarUrl);
@@ -270,17 +270,18 @@ describe('UserService Integration Tests', () => {
       await User.findByIdAndUpdate(testUserId, { avatar: 'https://example.com/old.jpg' });
 
       const updatedUser = await userService.updateAvatar(testUserId.toString(), {
-        avatar: '',
+        avatar: ''
       });
 
       expect(updatedUser.avatar).toBe('');
     });
 
     it('should accept data URLs as avatars', async () => {
-      const dataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+      const dataUrl =
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
       const updatedUser = await userService.updateAvatar(testUserId.toString(), {
-        avatar: dataUrl,
+        avatar: dataUrl
       });
 
       expect(updatedUser.avatar).toBe(dataUrl);
@@ -290,7 +291,7 @@ describe('UserService Integration Tests', () => {
       const relativePath = '/uploads/avatars/user123.jpg';
 
       const updatedUser = await userService.updateAvatar(testUserId.toString(), {
-        avatar: relativePath,
+        avatar: relativePath
       });
 
       expect(updatedUser.avatar).toBe(relativePath);
@@ -301,7 +302,7 @@ describe('UserService Integration Tests', () => {
 
       await expect(
         userService.updateAvatar(nonExistentId.toString(), {
-          avatar: 'https://example.com/avatar.jpg',
+          avatar: 'https://example.com/avatar.jpg'
         })
       ).rejects.toThrow('User not found');
     });
@@ -310,7 +311,7 @@ describe('UserService Integration Tests', () => {
       const avatarUrl = '  https://example.com/avatar.jpg  ';
 
       const updatedUser = await userService.updateAvatar(testUserId.toString(), {
-        avatar: avatarUrl,
+        avatar: avatarUrl
       });
 
       // Mongoose trim debería eliminar espacios
@@ -321,7 +322,7 @@ describe('UserService Integration Tests', () => {
       const originalUser = await User.findById(testUserId);
 
       await userService.updateAvatar(testUserId.toString(), {
-        avatar: 'https://example.com/avatar.jpg',
+        avatar: 'https://example.com/avatar.jpg'
       });
 
       const updatedUser = await User.findById(testUserId);
@@ -354,7 +355,7 @@ describe('UserService Integration Tests', () => {
       const longUrl = 'https://example.com/' + 'a'.repeat(2020);
 
       const updatedUser = await userService.updateAvatar(testUserId.toString(), {
-        avatar: longUrl,
+        avatar: longUrl
       });
 
       expect(updatedUser.avatar).toBe(longUrl);
@@ -365,14 +366,14 @@ describe('UserService Integration Tests', () => {
 
       await expect(
         userService.updateAvatar(testUserId.toString(), {
-          avatar: tooLongUrl,
+          avatar: tooLongUrl
         })
       ).rejects.toThrow();
     });
 
     it('should not expose password in returned user object', async () => {
       const updatedUser = await userService.updateAvatar(testUserId.toString(), {
-        avatar: 'https://example.com/avatar.jpg',
+        avatar: 'https://example.com/avatar.jpg'
       });
 
       expect(updatedUser.toJSON()).not.toHaveProperty('password');
@@ -382,7 +383,7 @@ describe('UserService Integration Tests', () => {
       const specialUrl = 'https://example.com/avatar?user=123&size=large#profile';
 
       const updatedUser = await userService.updateAvatar(testUserId.toString(), {
-        avatar: specialUrl,
+        avatar: specialUrl
       });
 
       expect(updatedUser.avatar).toBe(specialUrl);
@@ -392,7 +393,7 @@ describe('UserService Integration Tests', () => {
       const promises = [
         userService.updateAvatar(testUserId.toString(), { avatar: 'https://example.com/1.jpg' }),
         userService.updateAvatar(testUserId.toString(), { avatar: 'https://example.com/2.jpg' }),
-        userService.updateAvatar(testUserId.toString(), { avatar: 'https://example.com/3.jpg' }),
+        userService.updateAvatar(testUserId.toString(), { avatar: 'https://example.com/3.jpg' })
       ];
 
       await Promise.all(promises);

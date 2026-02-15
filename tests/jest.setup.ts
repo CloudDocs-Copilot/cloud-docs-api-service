@@ -1,11 +1,16 @@
+// Load environment variables from .env for integration tests
+require('dotenv').config();
+
 // Global Jest setup for tests
+// Mock pdf-parse to avoid loading native bindings in integration tests
+jest.mock('pdf-parse', () => ({ __esModule: true, default: jest.fn() }));
 // Mock the search service so tests don't require a running Elasticsearch instance
 
 jest.mock('../src/services/search.service', () => ({
   indexDocument: jest.fn().mockResolvedValue(undefined),
   removeDocumentFromIndex: jest.fn().mockResolvedValue(undefined),
   searchDocuments: jest.fn().mockResolvedValue({ documents: [], total: 0, took: 0 }),
-  getAutocompleteSuggestions: jest.fn().mockResolvedValue([]),
+  getAutocompleteSuggestions: jest.fn().mockResolvedValue([])
 }));
 
 // Optional: silence noisy logs from Elasticsearch config during tests
@@ -29,7 +34,7 @@ console.error = (...args: any[]) => {
 jest.mock('../src/mail/emailService', () => ({
   sendConfirmationEmail: jest.fn().mockResolvedValue(undefined),
   sendPasswordResetEmail: jest.fn().mockResolvedValue(undefined),
-  sendInvitationEmail: jest.fn().mockResolvedValue(undefined),
+  sendInvitationEmail: jest.fn().mockResolvedValue(undefined)
 }));
 
 // Mock Elasticsearch configuration/client to avoid network calls and init logs
@@ -39,7 +44,7 @@ jest.mock('../src/configurations/elasticsearch-config', () => {
       cluster: { health: jest.fn().mockResolvedValue({ status: 'green' }) },
       indices: {
         exists: jest.fn().mockResolvedValue(false),
-        create: jest.fn().mockResolvedValue(undefined),
+        create: jest.fn().mockResolvedValue(undefined)
       },
       index: jest.fn().mockResolvedValue(undefined),
       delete: jest.fn().mockResolvedValue(undefined),
@@ -51,3 +56,135 @@ jest.mock('../src/configurations/elasticsearch-config', () => {
 
   return { __esModule: true, default: mockClient };
 });
+
+// Patch embedding service methods to avoid external API calls during tests
+{
+  const EMBEDDING_DIMENSIONS = 1536;
+  const makeVector = () => new Array(EMBEDDING_DIMENSIONS).fill(0.01);
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const embeddingModule = require('../src/services/ai/embedding.service');
+  if (embeddingModule && embeddingModule.embeddingService) {
+    embeddingModule.embeddingService.generateEmbedding = jest.fn(async (_text: string) =>
+      makeVector()
+    );
+    embeddingModule.embeddingService.generateEmbeddings = jest.fn(async (_texts: string[]) =>
+      _texts.map(() => makeVector())
+    );
+    embeddingModule.embeddingService.getDimensions = jest.fn(() => EMBEDDING_DIMENSIONS);
+    embeddingModule.embeddingService.getModel = jest.fn(() => 'mock-embedding-model');
+  }
+}
+
+// Note: OpenAI client instance is not globally mocked here to allow per-test overrides.
+
+// Note: do not globally mock llmService.generateResponse here — unit tests should
+// mock OpenAI/chat completions or the llmService per-suite to assert behavior.
+
+// Provide a global hook for OpenAI chat completions so tests can set it reliably.
+// Default implementation returns a small mock response to avoid real API calls
+(global as any).__OPENAI_CREATE_IMPL__ = async (_opts: any) => ({
+  choices: [{ message: { content: 'Mocked answer from OpenAI (test)' } }],
+  usage: { total_tokens: 5 },
+  id: 'mocked-response'
+});
+(global as any).__OPENAI_CREATE__ = async (...args: any[]) => {
+  if ((global as any).__OPENAI_CREATE_IMPL__) {
+    return (global as any).__OPENAI_CREATE_IMPL__(...args);
+  }
+  return { choices: [{ message: { content: 'Mocked answer from OpenAI (fallback)' } }] };
+};
+
+// For integration runs, tests may set `USE_OPENAI_GLOBAL_MOCK` themselves when
+// they need the LLM to use the global OpenAI hook. Do not force it globally
+// here to avoid interfering with unit tests.
+
+// Patch MongoDB Atlas module to use an in-memory collection implementation
+{
+  const stores: Record<string, any[]> = {};
+
+  const collectionFactory = (name: string) => {
+    stores[name] = stores[name] || [];
+
+    return {
+      insertMany: async (docs: any[]) => {
+        stores[name].push(...docs.map(d => ({ ...d })));
+        return { insertedCount: docs.length };
+      },
+      deleteMany: async (filter: any) => {
+        if (!filter || !filter.documentId) {
+          const deleted = stores[name].length;
+          stores[name] = [];
+          return { deletedCount: deleted };
+        }
+        const before = stores[name].length;
+        stores[name] = stores[name].filter(d => d.documentId !== filter.documentId);
+        return { deletedCount: before - stores[name].length };
+      },
+      find: (filter: any) => ({
+        sort: () => ({
+          toArray: async () => (stores[name] || []).filter(d => d.documentId === filter.documentId)
+        })
+      }),
+      countDocuments: async (filter: any, _opts?: any) => {
+        if (filter && filter.documentId)
+          return (stores[name] || []).filter(d => d.documentId === filter.documentId).length;
+        return (stores[name] || []).length;
+      },
+      distinct: async (field: string) =>
+        Array.from(new Set((stores[name] || []).map(d => d[field]))),
+      aggregate: (pipeline: any[]) => ({
+        toArray: async () => {
+          const all = stores[name] || [];
+
+          // Try to detect a $vectorSearch stage to honor filter and limit
+          const vsStage = Array.isArray(pipeline)
+            ? pipeline.find(p => p && (p.$vectorSearch || p['$vectorSearch']))
+            : null;
+
+          let results = all;
+
+          if (vsStage) {
+            const stage = vsStage.$vectorSearch || vsStage['$vectorSearch'];
+            // Apply documentId filter if present
+            const filter = stage && stage.filter;
+            if (filter && filter.documentId && filter.documentId.$eq) {
+              const docId = filter.documentId.$eq;
+              results = results.filter(d => d.documentId === docId);
+            }
+
+            // Apply limit if provided
+            const limit = stage && stage.limit ? stage.limit : undefined;
+            if (typeof limit === 'number') {
+              results = results.slice(0, limit);
+            }
+          }
+
+          // Map to include projected fields and a deterministic score
+          return results.map((d: any, i: number) => ({
+            _id: d._id ?? `mock-${i}`,
+            documentId: d.documentId,
+            content: d.content,
+            embedding: d.embedding,
+            createdAt: d.createdAt,
+            chunkIndex: d.chunkIndex,
+            wordCount: d.wordCount,
+            score: typeof d.score === 'number' ? d.score : 0.8
+          }));
+        }
+      }),
+      command: async (_cmd: any) => ({ ok: 1 })
+    };
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const atlasModule = require('../src/configurations/database-config/mongoAtlas');
+  if (atlasModule) {
+    atlasModule.getDb = async () => ({
+      collection: (name: string) => collectionFactory(name),
+      command: async () => ({ ok: 1 })
+    });
+    atlasModule.getClient = () => null;
+    atlasModule.closeAtlasConnection = async () => undefined;
+    atlasModule.isConnected = () => true;
+  }
+}

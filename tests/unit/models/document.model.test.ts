@@ -20,14 +20,14 @@ describe('Document Model - Organization Structure', () => {
     const testUser = await User.create({
       name: 'Test User',
       email: 'test@example.com',
-      password: 'hashedpassword123',
+      password: 'hashedpassword123'
     });
     testUserId = testUser._id;
 
     // Crear organización de prueba
     const testOrg = await Organization.create({
       name: 'Test Organization',
-      owner: testUserId,
+      owner: testUserId
     });
     testOrgId = testOrg._id;
 
@@ -39,7 +39,7 @@ describe('Document Model - Organization Structure', () => {
       organization: testOrgId,
       parent: null,
       isRoot: false,
-      path: '/test-org/test-folder',
+      path: '/test-org/test-folder'
     });
     testFolderId = testFolder._id;
   });
@@ -66,7 +66,7 @@ describe('Document Model - Organization Structure', () => {
         folder: testFolderId,
         path: '/test-org/test-folder/test-file.pdf',
         size: 1024000,
-        mimeType: 'application/pdf',
+        mimeType: 'application/pdf'
       });
 
       expect(document.filename).toBe('test-file.pdf');
@@ -86,7 +86,7 @@ describe('Document Model - Organization Structure', () => {
         folder: testFolderId,
         path: '/path/test.pdf',
         size: 1000,
-        mimeType: 'application/pdf',
+        mimeType: 'application/pdf'
       });
 
       expect(document.organization).toBeNull();
@@ -101,7 +101,7 @@ describe('Document Model - Organization Structure', () => {
           organization: testOrgId,
           path: '/path/test.pdf',
           size: 1000,
-          mimeType: 'application/pdf',
+          mimeType: 'application/pdf'
         })
       ).rejects.toThrow();
     });
@@ -114,7 +114,7 @@ describe('Document Model - Organization Structure', () => {
           organization: testOrgId,
           folder: testFolderId,
           size: 1000,
-          mimeType: 'application/pdf',
+          mimeType: 'application/pdf'
         })
       ).rejects.toThrow();
     });
@@ -127,7 +127,7 @@ describe('Document Model - Organization Structure', () => {
           organization: testOrgId,
           folder: testFolderId,
           path: '/path/test.pdf',
-          mimeType: 'application/pdf',
+          mimeType: 'application/pdf'
         })
       ).rejects.toThrow();
     });
@@ -140,7 +140,7 @@ describe('Document Model - Organization Structure', () => {
           organization: testOrgId,
           folder: testFolderId,
           path: '/path/test.pdf',
-          size: 1000,
+          size: 1000
         })
       ).rejects.toThrow();
     });
@@ -155,7 +155,7 @@ describe('Document Model - Organization Structure', () => {
         folder: testFolderId,
         path: '/path/test.pdf',
         size: 5242880, // 5MB
-        mimeType: 'application/pdf',
+        mimeType: 'application/pdf'
       });
 
       expect(document.size).toBe(5242880);
@@ -170,7 +170,7 @@ describe('Document Model - Organization Structure', () => {
           folder: testFolderId,
           path: '/path/test.pdf',
           size: -1000,
-          mimeType: 'application/pdf',
+          mimeType: 'application/pdf'
         })
       ).rejects.toThrow();
     });
@@ -183,7 +183,7 @@ describe('Document Model - Organization Structure', () => {
         folder: testFolderId,
         path: '/path/empty.txt',
         size: 0,
-        mimeType: 'text/plain',
+        mimeType: 'text/plain'
       });
 
       expect(document.size).toBe(0);
@@ -199,7 +199,7 @@ describe('Document Model - Organization Structure', () => {
         folder: testFolderId,
         path: '/test-org/user-id/folder/document.docx',
         size: 2048000,
-        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
       });
 
       expect(document.path).toBe('/test-org/user-id/folder/document.docx');
@@ -213,7 +213,7 @@ describe('Document Model - Organization Structure', () => {
         folder: testFolderId,
         path: '/org/user/projects/2024/q1/nested.pdf',
         size: 1000,
-        mimeType: 'application/pdf',
+        mimeType: 'application/pdf'
       });
 
       expect(document.path).toContain('/projects/2024/q1/');
@@ -228,7 +228,7 @@ describe('Document Model - Organization Structure', () => {
         'image/png',
         'text/plain',
         'application/vnd.ms-excel',
-        'video/mp4',
+        'video/mp4'
       ];
 
       for (const mimeType of mimeTypes) {
@@ -239,7 +239,7 @@ describe('Document Model - Organization Structure', () => {
           folder: testFolderId,
           path: `/path/file.${mimeType.split('/')[1]}`,
           size: 1000,
-          mimeType,
+          mimeType
         });
 
         expect(doc.mimeType).toBe(mimeType);
@@ -256,7 +256,7 @@ describe('Document Model - Organization Structure', () => {
         folder: testFolderId,
         path: '/path/org-doc.pdf',
         size: 1000,
-        mimeType: 'application/pdf',
+        mimeType: 'application/pdf'
       });
 
       const populated = await DocumentModel.findById(document._id).populate('organization');
@@ -274,7 +274,7 @@ describe('Document Model - Organization Structure', () => {
         folder: testFolderId,
         path: '/path/doc1.pdf',
         size: 1000,
-        mimeType: 'application/pdf',
+        mimeType: 'application/pdf'
       });
 
       await DocumentModel.create({
@@ -284,13 +284,13 @@ describe('Document Model - Organization Structure', () => {
         folder: testFolderId,
         path: '/path/doc2.pdf',
         size: 1000,
-        mimeType: 'application/pdf',
+        mimeType: 'application/pdf'
       });
 
       // Crear documento en otra organización
       const otherOrg = await Organization.create({
         name: 'Other Org',
-        owner: testUserId,
+        owner: testUserId
       });
 
       const otherFolder = await Folder.create({
@@ -300,7 +300,7 @@ describe('Document Model - Organization Structure', () => {
         organization: otherOrg._id,
         parent: null,
         isRoot: false,
-        path: '/other-org/folder',
+        path: '/other-org/folder'
       });
 
       await DocumentModel.create({
@@ -310,7 +310,7 @@ describe('Document Model - Organization Structure', () => {
         folder: otherFolder._id,
         path: '/path/doc3.pdf',
         size: 1000,
-        mimeType: 'application/pdf',
+        mimeType: 'application/pdf'
       });
 
       const docsInTestOrg = await DocumentModel.find({ organization: testOrgId });
@@ -327,7 +327,7 @@ describe('Document Model - Organization Structure', () => {
         folder: testFolderId,
         path: '/path/folder-doc.pdf',
         size: 1000,
-        mimeType: 'application/pdf',
+        mimeType: 'application/pdf'
       });
 
       const populated = await DocumentModel.findById(document._id).populate('folder');
@@ -344,7 +344,7 @@ describe('Document Model - Organization Structure', () => {
         folder: testFolderId,
         path: '/path/doc1.pdf',
         size: 1000,
-        mimeType: 'application/pdf',
+        mimeType: 'application/pdf'
       });
 
       await DocumentModel.create({
@@ -354,7 +354,7 @@ describe('Document Model - Organization Structure', () => {
         folder: testFolderId,
         path: '/path/doc2.pdf',
         size: 1000,
-        mimeType: 'application/pdf',
+        mimeType: 'application/pdf'
       });
 
       const docsInFolder = await DocumentModel.find({ folder: testFolderId });
@@ -371,13 +371,13 @@ describe('Document Model - Organization Structure', () => {
         folder: testFolderId,
         path: '/path/shared-doc.pdf',
         size: 1000,
-        mimeType: 'application/pdf',
+        mimeType: 'application/pdf'
       });
 
       const user2 = await User.create({
         name: 'User 2',
         email: 'user2@example.com',
-        password: 'password123',
+        password: 'password123'
       });
 
       document.sharedWith.push(user2._id);
@@ -391,7 +391,7 @@ describe('Document Model - Organization Structure', () => {
       const user2 = await User.create({
         name: 'User 2',
         email: 'user2@example.com',
-        password: 'password123',
+        password: 'password123'
       });
 
       await DocumentModel.create({
@@ -402,7 +402,7 @@ describe('Document Model - Organization Structure', () => {
         path: '/path/shared1.pdf',
         size: 1000,
         mimeType: 'application/pdf',
-        sharedWith: [user2._id],
+        sharedWith: [user2._id]
       });
 
       await DocumentModel.create({
@@ -413,7 +413,7 @@ describe('Document Model - Organization Structure', () => {
         path: '/path/shared2.pdf',
         size: 1000,
         mimeType: 'application/pdf',
-        sharedWith: [user2._id],
+        sharedWith: [user2._id]
       });
 
       const sharedDocs = await DocumentModel.find({ sharedWith: user2._id });
@@ -425,7 +425,7 @@ describe('Document Model - Organization Structure', () => {
     it('should have index on organization and folder', async () => {
       const indexes = await DocumentModel.collection.getIndexes();
       const orgFolderIndex = Object.keys(indexes).find(
-        (key) => key.includes('organization') && key.includes('folder')
+        key => key.includes('organization') && key.includes('folder')
       );
       expect(orgFolderIndex).toBeDefined();
     });
@@ -433,7 +433,7 @@ describe('Document Model - Organization Structure', () => {
     it('should have index on organization and uploadedBy', async () => {
       const indexes = await DocumentModel.collection.getIndexes();
       const orgUserIndex = Object.keys(indexes).find(
-        (key) => key.includes('organization') && key.includes('uploadedBy')
+        key => key.includes('organization') && key.includes('uploadedBy')
       );
       expect(orgUserIndex).toBeDefined();
     });
@@ -441,14 +441,14 @@ describe('Document Model - Organization Structure', () => {
     it('should have index on uploadedBy and createdAt for recent documents', async () => {
       const indexes = await DocumentModel.collection.getIndexes();
       const recentIndex = Object.keys(indexes).find(
-        (key) => key.includes('uploadedBy') && key.includes('createdAt')
+        key => key.includes('uploadedBy') && key.includes('createdAt')
       );
       expect(recentIndex).toBeDefined();
     });
 
     it('should have index on sharedWith', async () => {
       const indexes = await DocumentModel.collection.getIndexes();
-      const sharedIndex = Object.keys(indexes).find((key) => key.includes('sharedWith'));
+      const sharedIndex = Object.keys(indexes).find(key => key.includes('sharedWith'));
       expect(sharedIndex).toBeDefined();
     });
   });
@@ -462,7 +462,7 @@ describe('Document Model - Organization Structure', () => {
         folder: testFolderId,
         path: '/path/timestamp-test.pdf',
         size: 1000,
-        mimeType: 'application/pdf',
+        mimeType: 'application/pdf'
       });
 
       expect(document.uploadedAt).toBeInstanceOf(Date);
@@ -481,7 +481,7 @@ describe('Document Model - Organization Structure', () => {
         folder: testFolderId,
         path: '/path/legacy-doc.pdf',
         size: 1000,
-        mimeType: 'application/pdf',
+        mimeType: 'application/pdf'
       });
 
       expect(document.url).toBe('https://example.com/files/legacy-doc.pdf');

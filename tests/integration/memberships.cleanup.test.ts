@@ -22,7 +22,7 @@ describe('Membership Removal - Data Cleanup', () => {
 
   beforeEach(async () => {
     const timestamp = Date.now();
-    
+
     // Owner crea organización
     const owner = await registerAndLogin({
       name: 'Owner',
@@ -77,7 +77,7 @@ describe('Membership Removal - Data Cleanup', () => {
       organization: orgId,
       isRoot: true
     });
-    
+
     if (!memberRootFolder) throw new Error('Member root folder not found');
     memberRootFolderId = memberRootFolder._id.toString();
   });
@@ -308,12 +308,12 @@ describe('Membership Removal - Data Cleanup', () => {
       // Crear documento en subfolder2
       const storageRoot = path.resolve(process.cwd(), 'storage');
       const userPath = path.resolve(storageRoot, orgSlug, memberId);
-      
+
       // Asegurar que el directorio existe antes de escribir
       if (!fs.existsSync(userPath)) {
         fs.mkdirSync(userPath, { recursive: true });
       }
-      
+
       const testFilePath = path.join(userPath, 'nested-doc.txt');
       fs.writeFileSync(testFilePath, 'Nested content');
 

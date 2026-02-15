@@ -41,14 +41,17 @@ export async function notifyOrganizationMembers({
   documentId,
   message,
   metadata,
-  emitter,
+  emitter
 }: CreateOrgNotificationDto): Promise<INotification[]> {
   if (!isValidObjectId(actorUserId)) throw new HttpError(400, 'Invalid actor user ID');
   if (!isValidObjectId(documentId)) throw new HttpError(400, 'Invalid document ID');
 
   const activeOrgId = await getActiveOrganization(actorUserId);
   if (!activeOrgId) {
-    throw new HttpError(403, 'No active organization. Please create or join an organization first.');
+    throw new HttpError(
+      403,
+      'No active organization. Please create or join an organization first.'
+    );
   }
 
   const orgObjectId = new mongoose.Types.ObjectId(activeOrgId);
@@ -59,21 +62,19 @@ export async function notifyOrganizationMembers({
     {
       organization: orgObjectId,
       user: { $ne: actorObjectId },
-      status: MembershipStatus.ACTIVE,
+      status: MembershipStatus.ACTIVE
     },
     { user: 1 }
   ).lean();
 
-  const recipientIds = memberships
-    .map((m: any) => m.user?.toString())
-    .filter(Boolean) as string[];
+  const recipientIds = memberships.map((m: any) => m.user?.toString()).filter(Boolean) as string[];
 
   if (recipientIds.length === 0) {
     return [];
   }
 
   const now = new Date();
-  const docsToInsert = recipientIds.map((recipientId) => ({
+  const docsToInsert = recipientIds.map(recipientId => ({
     organization: orgObjectId,
     recipient: new mongoose.Types.ObjectId(recipientId),
     actor: actorObjectId,
@@ -83,7 +84,7 @@ export async function notifyOrganizationMembers({
     metadata: metadata || {},
     readAt: null,
     createdAt: now,
-    updatedAt: now,
+    updatedAt: now
   }));
 
   const inserted = await NotificationModel.insertMany(docsToInsert, { ordered: false });
@@ -102,7 +103,7 @@ export async function notifyOrganizationMembers({
       message: n.message,
       metadata: n.metadata || {},
       readAt: n.readAt,
-      createdAt: n.createdAt,
+      createdAt: n.createdAt
     });
   }
 
@@ -122,7 +123,7 @@ export async function listNotifications({
   organizationId,
   unreadOnly = false,
   limit = 20,
-  skip = 0,
+  skip = 0
 }: ListNotificationsDto): Promise<{ notifications: any[]; total: number }> {
   if (!isValidObjectId(userId)) throw new HttpError(400, 'Invalid user ID');
 
@@ -131,12 +132,15 @@ export async function listNotifications({
     orgId = await getActiveOrganization(userId);
   }
   if (!orgId || !isValidObjectId(orgId)) {
-    throw new HttpError(403, 'No active organization. Please create or join an organization first.');
+    throw new HttpError(
+      403,
+      'No active organization. Please create or join an organization first.'
+    );
   }
 
   const query: any = {
     recipient: new mongoose.Types.ObjectId(userId),
-    organization: new mongoose.Types.ObjectId(orgId),
+    organization: new mongoose.Types.ObjectId(orgId)
   };
 
   if (unreadOnly) {
@@ -144,12 +148,8 @@ export async function listNotifications({
   }
 
   const [items, total] = await Promise.all([
-    NotificationModel.find(query)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean(),
-    NotificationModel.countDocuments(query),
+    NotificationModel.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+    NotificationModel.countDocuments(query)
   ]);
 
   return { notifications: items as any, total };
@@ -162,7 +162,7 @@ export async function markNotificationRead(userId: string, notificationId: strin
   const res = await NotificationModel.updateOne(
     {
       _id: new mongoose.Types.ObjectId(notificationId),
-      recipient: new mongoose.Types.ObjectId(userId),
+      recipient: new mongoose.Types.ObjectId(userId)
     },
     { $set: { readAt: new Date() } }
   );
@@ -180,14 +180,17 @@ export async function markAllRead(userId: string, organizationId?: string | null
     orgId = await getActiveOrganization(userId);
   }
   if (!orgId || !isValidObjectId(orgId)) {
-    throw new HttpError(403, 'No active organization. Please create or join an organization first.');
+    throw new HttpError(
+      403,
+      'No active organization. Please create or join an organization first.'
+    );
   }
 
   await NotificationModel.updateMany(
     {
       recipient: new mongoose.Types.ObjectId(userId),
       organization: new mongoose.Types.ObjectId(orgId),
-      readAt: null,
+      readAt: null
     },
     { $set: { readAt: new Date() } }
   );
@@ -197,5 +200,5 @@ export default {
   notifyOrganizationMembers,
   listNotifications,
   markNotificationRead,
-  markAllRead,
+  markAllRead
 };

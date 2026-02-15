@@ -17,7 +17,7 @@ jest.mock('../../../src/services/comment.service', () => ({
   __esModule: true,
   createComment: jest.fn(),
   listComments: jest.fn(),
-  updateComment: jest.fn(),
+  updateComment: jest.fn()
 }));
 
 const HttpError = require('../../../src/models/error.model').default;
@@ -39,7 +39,7 @@ describe('comment.controller (unit)', () => {
       const req: any = {
         params: { documentId: 'doc1' },
         body: {},
-        user: { id: 'user1' },
+        user: { id: 'user1' }
       };
       const res = makeRes();
       const next = jest.fn() as NextFunction;
@@ -61,7 +61,7 @@ describe('comment.controller (unit)', () => {
       const req: any = {
         params: { documentId: 'doc1' },
         body: { content: 'hola' },
-        user: { id: 'user1' },
+        user: { id: 'user1' }
       };
       const res = makeRes();
       const next = jest.fn() as NextFunction;
@@ -73,14 +73,14 @@ describe('comment.controller (unit)', () => {
       expect(commentService.createComment).toHaveBeenCalledWith({
         documentId: 'doc1',
         userId: 'user1',
-        content: 'hola',
+        content: 'hola'
       });
 
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         message: 'Comentario creado exitosamente',
-        comment: { id: 'c1' },
+        comment: { id: 'c1' }
       });
 
       expect(next).not.toHaveBeenCalled();
@@ -90,7 +90,7 @@ describe('comment.controller (unit)', () => {
       const req: any = {
         params: { documentId: 'doc1' },
         body: { content: 'hola' },
-        user: { id: 'user1' },
+        user: { id: 'user1' }
       };
       const res = makeRes();
       const next = jest.fn() as NextFunction;
@@ -109,7 +109,7 @@ describe('comment.controller (unit)', () => {
       const req: any = {
         params: {},
         body: {},
-        user: { id: 'user1' },
+        user: { id: 'user1' }
       };
       const res = makeRes();
       const next = jest.fn() as NextFunction;
@@ -128,7 +128,7 @@ describe('comment.controller (unit)', () => {
       const req: any = {
         params: { documentId: 'doc1' },
         user: { id: 'user1' },
-        query: {},
+        query: {}
       };
       const res = makeRes();
       const next = jest.fn() as NextFunction;
@@ -139,13 +139,13 @@ describe('comment.controller (unit)', () => {
 
       expect(commentService.listComments).toHaveBeenCalledWith({
         documentId: 'doc1',
-        userId: 'user1',
+        userId: 'user1'
       });
 
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         count: 2,
-        comments: [{ id: 'c1' }, { id: 'c2' }],
+        comments: [{ id: 'c1' }, { id: 'c2' }]
       });
 
       expect(next).not.toHaveBeenCalled();
@@ -154,7 +154,7 @@ describe('comment.controller (unit)', () => {
     it('passes errors to next()', async () => {
       const req: any = {
         params: { documentId: 'doc1' },
-        user: { id: 'user1' },
+        user: { id: 'user1' }
       };
       const res = makeRes();
       const next = jest.fn() as NextFunction;
@@ -173,7 +173,7 @@ describe('comment.controller (unit)', () => {
       const req: any = {
         params: { id: 'c1' },
         body: {},
-        user: { id: 'user1' },
+        user: { id: 'user1' }
       };
       const res = makeRes();
       const next = jest.fn() as NextFunction;
@@ -192,7 +192,7 @@ describe('comment.controller (unit)', () => {
       const req: any = {
         params: { id: 'c1' },
         body: { content: 'nuevo' },
-        user: { id: 'user1' },
+        user: { id: 'user1' }
       };
       const res = makeRes();
       const next = jest.fn() as NextFunction;
@@ -204,13 +204,13 @@ describe('comment.controller (unit)', () => {
       expect(commentService.updateComment).toHaveBeenCalledWith({
         commentId: 'c1',
         userId: 'user1',
-        content: 'nuevo',
+        content: 'nuevo'
       });
 
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         message: 'Comentario actualizado exitosamente',
-        comment: { id: 'c1', content: 'nuevo' },
+        comment: { id: 'c1', content: 'nuevo' }
       });
 
       expect(next).not.toHaveBeenCalled();
@@ -220,7 +220,7 @@ describe('comment.controller (unit)', () => {
       const req: any = {
         params: { id: 'c1' },
         body: { content: 'nuevo' },
-        user: { id: 'user1' },
+        user: { id: 'user1' }
       };
       const res = makeRes();
       const next = jest.fn() as NextFunction;

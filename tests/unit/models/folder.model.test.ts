@@ -18,13 +18,13 @@ describe('Folder Model - Hierarchical Structure', () => {
     const testUser = await User.create({
       name: 'Test User',
       email: 'test@example.com',
-      password: 'hashedpassword123',
+      password: 'hashedpassword123'
     });
     testUserId = testUser._id;
 
     const testOrg = await Organization.create({
       name: 'Test Organization',
-      owner: testUserId,
+      owner: testUserId
     });
     testOrgId = testOrg._id;
   });
@@ -48,7 +48,7 @@ describe('Folder Model - Hierarchical Structure', () => {
         organization: testOrgId,
         parent: null,
         isRoot: false,
-        path: '/test-org/folder',
+        path: '/test-org/folder'
       });
 
       expect(folder.name).toBe('Test Folder');
@@ -67,7 +67,7 @@ describe('Folder Model - Hierarchical Structure', () => {
         organization: testOrgId,
         parent: null,
         isRoot: false,
-        path: '/test-org/default',
+        path: '/test-org/default'
       });
 
       expect(folder.type).toBe('folder');
@@ -80,7 +80,7 @@ describe('Folder Model - Hierarchical Structure', () => {
         owner: testUserId,
         parent: null,
         isRoot: false,
-        path: '/folder',
+        path: '/folder'
       });
 
       expect(folder.organization).toBeNull();
@@ -97,7 +97,7 @@ describe('Folder Model - Hierarchical Structure', () => {
         organization: testOrgId,
         parent: null,
         isRoot: true,
-        path: `/test-organization/${testUserId}`,
+        path: `/test-organization/${testUserId}`
       });
 
       expect(rootFolder.name).toBe(`root_test-organization_${testUserId}`);
@@ -115,7 +115,7 @@ describe('Folder Model - Hierarchical Structure', () => {
         organization: testOrgId,
         parent: null,
         isRoot: true,
-        path: `/test-organization/${testUserId}`,
+        path: `/test-organization/${testUserId}`
       });
 
       expect(rootFolder.displayName).toBe('Mi Unidad');
@@ -131,7 +131,7 @@ describe('Folder Model - Hierarchical Structure', () => {
         organization: testOrgId,
         parent: null,
         isRoot: false,
-        path: '/test-org/technical',
+        path: '/test-org/technical'
       });
 
       // @ts-ignore - visibleName es un virtual
@@ -151,7 +151,7 @@ describe('Folder Model - Hierarchical Structure', () => {
           organization: testOrgId,
           parent: null,
           isRoot: type === 'root',
-          path: `/test-org/${type}`,
+          path: `/test-org/${type}`
         });
 
         expect(folder.type).toBe(type);
@@ -167,7 +167,7 @@ describe('Folder Model - Hierarchical Structure', () => {
           organization: testOrgId,
           parent: null,
           isRoot: false,
-          path: '/test-org/invalid',
+          path: '/test-org/invalid'
         })
       ).rejects.toThrow();
     });
@@ -182,7 +182,7 @@ describe('Folder Model - Hierarchical Structure', () => {
         organization: testOrgId,
         parent: null,
         isRoot: false,
-        path: '/test-org/parent',
+        path: '/test-org/parent'
       });
 
       const childFolder = await Folder.create({
@@ -192,7 +192,7 @@ describe('Folder Model - Hierarchical Structure', () => {
         organization: testOrgId,
         parent: parentFolder._id,
         isRoot: false,
-        path: '/test-org/parent/child',
+        path: '/test-org/parent/child'
       });
 
       expect(childFolder.parent?.toString()).toBe(parentFolder._id.toString());
@@ -206,7 +206,7 @@ describe('Folder Model - Hierarchical Structure', () => {
         organization: testOrgId,
         parent: null,
         isRoot: true,
-        path: `/test-org/${testUserId}`,
+        path: `/test-org/${testUserId}`
       });
 
       const level1 = await Folder.create({
@@ -216,7 +216,7 @@ describe('Folder Model - Hierarchical Structure', () => {
         organization: testOrgId,
         parent: root._id,
         isRoot: false,
-        path: `/test-org/${testUserId}/projects`,
+        path: `/test-org/${testUserId}/projects`
       });
 
       const level2 = await Folder.create({
@@ -226,7 +226,7 @@ describe('Folder Model - Hierarchical Structure', () => {
         organization: testOrgId,
         parent: level1._id,
         isRoot: false,
-        path: `/test-org/${testUserId}/projects/project-a`,
+        path: `/test-org/${testUserId}/projects/project-a`
       });
 
       expect(level2.path).toBe(`/test-org/${testUserId}/projects/project-a`);
@@ -240,7 +240,7 @@ describe('Folder Model - Hierarchical Structure', () => {
         organization: testOrgId,
         parent: null,
         isRoot: false,
-        path: '/test-org/parent',
+        path: '/test-org/parent'
       });
 
       await Folder.create({
@@ -250,7 +250,7 @@ describe('Folder Model - Hierarchical Structure', () => {
         organization: testOrgId,
         parent: parent._id,
         isRoot: false,
-        path: '/test-org/parent/child1',
+        path: '/test-org/parent/child1'
       });
 
       await Folder.create({
@@ -260,7 +260,7 @@ describe('Folder Model - Hierarchical Structure', () => {
         organization: testOrgId,
         parent: parent._id,
         isRoot: false,
-        path: '/test-org/parent/child2',
+        path: '/test-org/parent/child2'
       });
 
       const children = await Folder.find({ parent: parent._id });
@@ -277,13 +277,13 @@ describe('Folder Model - Hierarchical Structure', () => {
         organization: testOrgId,
         parent: null,
         isRoot: false,
-        path: '/test-org/shared',
+        path: '/test-org/shared'
       });
 
       const otherUser = await User.create({
         name: 'Other User',
         email: 'other@example.com',
-        password: 'password123',
+        password: 'password123'
       });
 
       folder.shareWith(otherUser._id.toString(), 'viewer');
@@ -303,13 +303,13 @@ describe('Folder Model - Hierarchical Structure', () => {
         organization: testOrgId,
         parent: null,
         isRoot: false,
-        path: '/test-org/editor',
+        path: '/test-org/editor'
       });
 
       const editorUser = await User.create({
         name: 'Editor User',
         email: 'editor@example.com',
-        password: 'password123',
+        password: 'password123'
       });
 
       folder.shareWith(editorUser._id.toString(), 'editor');
@@ -326,13 +326,13 @@ describe('Folder Model - Hierarchical Structure', () => {
         organization: testOrgId,
         parent: null,
         isRoot: false,
-        path: '/test-org/update',
+        path: '/test-org/update'
       });
 
       const user = await User.create({
         name: 'User',
         email: 'user@example.com',
-        password: 'password123',
+        password: 'password123'
       });
 
       folder.shareWith(user._id.toString(), 'viewer');
@@ -353,7 +353,7 @@ describe('Folder Model - Hierarchical Structure', () => {
         organization: testOrgId,
         parent: null,
         isRoot: false,
-        path: '/test-org/owner',
+        path: '/test-org/owner'
       });
 
       folder.shareWith(testUserId.toString(), 'viewer');
@@ -370,13 +370,13 @@ describe('Folder Model - Hierarchical Structure', () => {
         organization: testOrgId,
         parent: null,
         isRoot: false,
-        path: '/test-org/unshare',
+        path: '/test-org/unshare'
       });
 
       const user = await User.create({
         name: 'User',
         email: 'user@example.com',
-        password: 'password123',
+        password: 'password123'
       });
 
       folder.shareWith(user._id.toString(), 'editor');
@@ -399,7 +399,7 @@ describe('Folder Model - Hierarchical Structure', () => {
         organization: testOrgId,
         parent: null,
         isRoot: false,
-        path: '/test-org/owner-access',
+        path: '/test-org/owner-access'
       });
 
       expect(folder.hasAccess(testUserId.toString())).toBe(true);
@@ -416,13 +416,13 @@ describe('Folder Model - Hierarchical Structure', () => {
         organization: testOrgId,
         parent: null,
         isRoot: false,
-        path: '/test-org/viewer-access',
+        path: '/test-org/viewer-access'
       });
 
       const viewer = await User.create({
         name: 'Viewer',
         email: 'viewer@example.com',
-        password: 'password123',
+        password: 'password123'
       });
 
       folder.shareWith(viewer._id.toString(), 'viewer');
@@ -441,13 +441,13 @@ describe('Folder Model - Hierarchical Structure', () => {
         organization: testOrgId,
         parent: null,
         isRoot: false,
-        path: '/test-org/editor-access',
+        path: '/test-org/editor-access'
       });
 
       const editor = await User.create({
         name: 'Editor',
         email: 'editor@example.com',
-        password: 'password123',
+        password: 'password123'
       });
 
       folder.shareWith(editor._id.toString(), 'editor');
@@ -466,13 +466,13 @@ describe('Folder Model - Hierarchical Structure', () => {
         organization: testOrgId,
         parent: null,
         isRoot: false,
-        path: '/test-org/no-access',
+        path: '/test-org/no-access'
       });
 
       const otherUser = await User.create({
         name: 'Other',
         email: 'other@example.com',
-        password: 'password123',
+        password: 'password123'
       });
 
       expect(folder.hasAccess(otherUser._id.toString())).toBe(false);
@@ -483,7 +483,7 @@ describe('Folder Model - Hierarchical Structure', () => {
     it('should have index on organization and owner', async () => {
       const indexes = await Folder.collection.getIndexes();
       const orgOwnerIndex = Object.keys(indexes).find(
-        (key) => key.includes('organization') && key.includes('owner')
+        key => key.includes('organization') && key.includes('owner')
       );
       expect(orgOwnerIndex).toBeDefined();
     });
@@ -491,7 +491,7 @@ describe('Folder Model - Hierarchical Structure', () => {
     it('should have index on organization and parent', async () => {
       const indexes = await Folder.collection.getIndexes();
       const orgParentIndex = Object.keys(indexes).find(
-        (key) => key.includes('organization') && key.includes('parent')
+        key => key.includes('organization') && key.includes('parent')
       );
       expect(orgParentIndex).toBeDefined();
     });
@@ -499,7 +499,7 @@ describe('Folder Model - Hierarchical Structure', () => {
     it('should have index on owner and isRoot', async () => {
       const indexes = await Folder.collection.getIndexes();
       const rootIndex = Object.keys(indexes).find(
-        (key) => key.includes('owner') && key.includes('isRoot')
+        key => key.includes('owner') && key.includes('isRoot')
       );
       expect(rootIndex).toBeDefined();
     });

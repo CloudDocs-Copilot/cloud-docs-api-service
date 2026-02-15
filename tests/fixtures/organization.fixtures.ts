@@ -15,10 +15,10 @@ export const basicOrganization = {
   active: true,
   settings: {
     maxStoragePerUser: 1073741824, // 1GB
-    maxStorageTotal: 3221225472,   // 3GB
+    maxStorageTotal: 3221225472, // 3GB
     allowedFileTypes: ['pdf', 'txt', 'doc', 'docx'],
-    maxFileSize: 10485760,         // 10MB
-    maxUsers: 3,
+    maxFileSize: 10485760, // 10MB
+    maxUsers: 3
   }
 };
 
@@ -31,11 +31,11 @@ export const testOrganization = {
   plan: SubscriptionPlan.FREE,
   active: true,
   settings: {
-    maxStoragePerUser: 1048576,  // 1MB para testing
-    maxStorageTotal: 3145728,    // 3MB para testing  
+    maxStoragePerUser: 1048576, // 1MB para testing
+    maxStorageTotal: 3145728, // 3MB para testing
     allowedFileTypes: ['txt', 'pdf'],
-    maxFileSize: 524288,         // 512KB para testing
-    maxUsers: 3,
+    maxFileSize: 524288, // 512KB para testing
+    maxUsers: 3
   }
 };
 
@@ -49,10 +49,10 @@ export const premiumOrganization = {
   active: true,
   settings: {
     maxStoragePerUser: 10737418240, // 10GB
-    maxStorageTotal: 536870912000,  // 500GB
+    maxStorageTotal: 536870912000, // 500GB
     allowedFileTypes: ['*'],
-    maxFileSize: 104857600,         // 100MB
-    maxUsers: 50,
+    maxFileSize: 104857600, // 100MB
+    maxUsers: 50
   }
 };
 
@@ -69,7 +69,7 @@ export const inactiveOrganization = {
     maxStorageTotal: 3221225472,
     allowedFileTypes: ['pdf', 'txt', 'doc', 'docx'],
     maxFileSize: 10485760,
-    maxUsers: 3,
+    maxUsers: 3
   }
 };
 
@@ -82,28 +82,28 @@ export const organizationSettingsByPlan = {
     maxStoragePerUser: 1073741824,
     maxStorageTotal: 3221225472,
     allowedFileTypes: ['pdf', 'txt', 'doc', 'docx'],
-    maxFileSize: 10485760,
+    maxFileSize: 10485760
   },
   [SubscriptionPlan.BASIC]: {
     maxUsers: 100,
     maxStoragePerUser: 5368709120,
     maxStorageTotal: 53687091200,
     allowedFileTypes: ['*'],
-    maxFileSize: 52428800,
+    maxFileSize: 52428800
   },
   [SubscriptionPlan.PREMIUM]: {
     maxUsers: 50,
     maxStoragePerUser: 10737418240,
     maxStorageTotal: 536870912000,
     allowedFileTypes: ['*'],
-    maxFileSize: 104857600,
+    maxFileSize: 104857600
   },
   [SubscriptionPlan.ENTERPRISE]: {
     maxUsers: -1,
     maxStoragePerUser: 53687091200,
     maxStorageTotal: -1,
     allowedFileTypes: ['*'],
-    maxFileSize: 524288000,
+    maxFileSize: 524288000
   }
 };
 
@@ -114,8 +114,8 @@ export const storageStatsTestData = {
   users: [
     { id: 'user1', storageUsed: 300000000 }, // 300MB
     { id: 'user2', storageUsed: 500000000 }, // 500MB
-    { id: 'user3', storageUsed: 100000000 }, // 100MB
+    { id: 'user3', storageUsed: 100000000 } // 100MB
   ],
   totalUsed: 900000000, // 900MB
-  totalLimit: 2147483648, // 2GB (2 users * 1GB each for FREE plan)
+  totalLimit: 2147483648 // 2GB (2 users * 1GB each for FREE plan)
 };

@@ -100,8 +100,8 @@ export function initSocket(server: http.Server): Server {
         return cb(new Error('CORS blocked'), false);
       },
       credentials: true,
-      methods: ['GET', 'POST'],
-    },
+      methods: ['GET', 'POST']
+    }
   });
 
   // Auth middleware for sockets
@@ -116,7 +116,7 @@ export function initSocket(server: http.Server): Server {
     next();
   });
 
-  io.on('connection', (socket) => {
+  io.on('connection', socket => {
     const userId = (socket.data as any).userId as string;
     socket.join(userRoom(userId));
 

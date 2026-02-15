@@ -10,30 +10,30 @@ jest.mock('../../../src/models/notification.model', () => ({
     find: jest.fn(),
     countDocuments: jest.fn(),
     updateOne: jest.fn(),
-    updateMany: jest.fn(),
-  },
+    updateMany: jest.fn()
+  }
 }));
 
 jest.mock('../../../src/services/membership.service', () => ({
   __esModule: true,
-  getActiveOrganization: jest.fn(),
+  getActiveOrganization: jest.fn()
 }));
 
 jest.mock('../../../src/models/membership.model', () => ({
   __esModule: true,
   default: {
-    find: jest.fn(),
+    find: jest.fn()
   },
   MembershipStatus: {
     ACTIVE: 'ACTIVE',
     INVITED: 'INVITED',
-    INACTIVE: 'INACTIVE',
-  },
+    INACTIVE: 'INACTIVE'
+  }
 }));
 
 jest.mock('../../../src/socket/socket', () => ({
   __esModule: true,
-  emitToUser: jest.fn(),
+  emitToUser: jest.fn()
 }));
 
 const NotificationModel = require('../../../src/models/notification.model').default;
@@ -72,7 +72,7 @@ describe('notification.service (unit)', () => {
       metadata: overrides.metadata ?? {},
       readAt: overrides.readAt ?? null,
       createdAt: overrides.createdAt ?? new Date('2026-01-01T00:00:00.000Z'),
-      updatedAt: overrides.updatedAt ?? new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: overrides.updatedAt ?? new Date('2026-01-01T00:00:00.000Z')
     };
   };
 
@@ -82,7 +82,7 @@ describe('notification.service (unit)', () => {
         notificationService.notifyOrganizationMembers({
           actorUserId: 'bad',
           type: 'DOC_COMMENTED',
-          documentId: oid(),
+          documentId: oid()
         })
       ).rejects.toThrow('Invalid actor user ID');
     });
@@ -92,7 +92,7 @@ describe('notification.service (unit)', () => {
         notificationService.notifyOrganizationMembers({
           actorUserId: oid(),
           type: 'DOC_COMMENTED',
-          documentId: 'bad',
+          documentId: 'bad'
         })
       ).rejects.toThrow('Invalid document ID');
     });
@@ -104,7 +104,7 @@ describe('notification.service (unit)', () => {
         notificationService.notifyOrganizationMembers({
           actorUserId: oid(),
           type: 'DOC_COMMENTED',
-          documentId: oid(),
+          documentId: oid()
         })
       ).rejects.toThrow('No active organization. Please create or join an organization first.');
     });
@@ -113,13 +113,13 @@ describe('notification.service (unit)', () => {
       getActiveOrganization.mockResolvedValue(oid());
 
       Membership.find.mockReturnValue({
-        lean: jest.fn().mockResolvedValue([]),
+        lean: jest.fn().mockResolvedValue([])
       });
 
       const res = await notificationService.notifyOrganizationMembers({
         actorUserId: oid(),
         type: 'DOC_COMMENTED',
-        documentId: oid(),
+        documentId: oid()
       });
 
       expect(res).toEqual([]);
@@ -137,7 +137,7 @@ describe('notification.service (unit)', () => {
       const recipient2 = new mongoose.Types.ObjectId();
 
       Membership.find.mockReturnValue({
-        lean: jest.fn().mockResolvedValue([{ user: recipient1 }, { user: recipient2 }]),
+        lean: jest.fn().mockResolvedValue([{ user: recipient1 }, { user: recipient2 }])
       });
 
       const inserted = [
@@ -147,7 +147,7 @@ describe('notification.service (unit)', () => {
           actor: new mongoose.Types.ObjectId(actorUserId),
           entity: { kind: 'document', id: new mongoose.Types.ObjectId(documentId) },
           message: 'hello',
-          metadata: { a: 1 },
+          metadata: { a: 1 }
         }),
         makeInsertedNotification({
           organization: new mongoose.Types.ObjectId(activeOrgId),
@@ -155,8 +155,8 @@ describe('notification.service (unit)', () => {
           actor: new mongoose.Types.ObjectId(actorUserId),
           entity: { kind: 'document', id: new mongoose.Types.ObjectId(documentId) },
           message: 'hello',
-          metadata: { a: 1 },
-        }),
+          metadata: { a: 1 }
+        })
       ];
 
       NotificationModel.insertMany.mockResolvedValue(inserted);
@@ -169,13 +169,15 @@ describe('notification.service (unit)', () => {
         documentId,
         message: 'hello',
         metadata: { a: 1 },
-        emitter,
+        emitter
       });
 
       // ---- FIX: compare ObjectIds by string to avoid "serializes to the same string" ----
       const [filter, projection] = Membership.find.mock.calls[0];
 
-      expect(filter.organization.toString()).toBe(new mongoose.Types.ObjectId(activeOrgId).toString());
+      expect(filter.organization.toString()).toBe(
+        new mongoose.Types.ObjectId(activeOrgId).toString()
+      );
       expect(filter.user.$ne.toString()).toBe(new mongoose.Types.ObjectId(actorUserId).toString());
       expect(filter.status).toBe(MembershipStatus.ACTIVE);
       expect(projection).toEqual({ user: 1 });
@@ -215,7 +217,7 @@ describe('notification.service (unit)', () => {
       const recipient1 = new mongoose.Types.ObjectId();
 
       Membership.find.mockReturnValue({
-        lean: jest.fn().mockResolvedValue([{ user: recipient1 }]),
+        lean: jest.fn().mockResolvedValue([{ user: recipient1 }])
       });
 
       const inserted = [
@@ -223,8 +225,8 @@ describe('notification.service (unit)', () => {
           organization: new mongoose.Types.ObjectId(activeOrgId),
           recipient: recipient1,
           actor: new mongoose.Types.ObjectId(actorUserId),
-          entity: { kind: 'document', id: new mongoose.Types.ObjectId(documentId) },
-        }),
+          entity: { kind: 'document', id: new mongoose.Types.ObjectId(documentId) }
+        })
       ];
 
       NotificationModel.insertMany.mockResolvedValue(inserted);
@@ -236,7 +238,7 @@ describe('notification.service (unit)', () => {
       const res = await notificationService.notifyOrganizationMembers({
         actorUserId,
         type: 'DOC_COMMENTED',
-        documentId,
+        documentId
       });
 
       expect(NotificationModel.insertMany).toHaveBeenCalledTimes(1);
@@ -252,13 +254,13 @@ describe('notification.service (unit)', () => {
       getActiveOrganization.mockResolvedValue(oid());
 
       Membership.find.mockReturnValue({
-        lean: jest.fn().mockResolvedValue([{ user: null }, {}, { user: undefined }]),
+        lean: jest.fn().mockResolvedValue([{ user: null }, {}, { user: undefined }])
       });
 
       const res = await notificationService.notifyOrganizationMembers({
         actorUserId: oid(),
         type: 'DOC_COMMENTED',
-        documentId: oid(),
+        documentId: oid()
       });
 
       expect(res).toEqual([]);
@@ -274,7 +276,7 @@ describe('notification.service (unit)', () => {
       const recipient1 = new mongoose.Types.ObjectId();
 
       Membership.find.mockReturnValue({
-        lean: jest.fn().mockResolvedValue([{ user: recipient1 }]),
+        lean: jest.fn().mockResolvedValue([{ user: recipient1 }])
       });
 
       // truly missing _id
@@ -284,8 +286,8 @@ describe('notification.service (unit)', () => {
           organization: new mongoose.Types.ObjectId(activeOrgId),
           recipient: recipient1,
           actor: new mongoose.Types.ObjectId(actorUserId),
-          entity: { kind: 'document', id: new mongoose.Types.ObjectId(documentId) },
-        }),
+          entity: { kind: 'document', id: new mongoose.Types.ObjectId(documentId) }
+        })
       ];
 
       NotificationModel.insertMany.mockResolvedValue(inserted);
@@ -296,7 +298,7 @@ describe('notification.service (unit)', () => {
         actorUserId,
         type: 'DOC_COMMENTED',
         documentId,
-        emitter,
+        emitter
       });
 
       expect(emitter).toHaveBeenCalledTimes(1);
@@ -329,7 +331,7 @@ describe('notification.service (unit)', () => {
         organizationId: orgId,
         unreadOnly: false,
         limit: 10,
-        skip: 5,
+        skip: 5
       });
 
       expect(getActiveOrganization).not.toHaveBeenCalled();
@@ -397,7 +399,7 @@ describe('notification.service (unit)', () => {
       await notificationService.listNotifications({
         userId,
         organizationId: orgId,
-        unreadOnly: true,
+        unreadOnly: true
       });
 
       const queryArg = NotificationModel.find.mock.calls[0][0];

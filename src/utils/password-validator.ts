@@ -21,12 +21,12 @@ export const PASSWORD_REQUIREMENTS = {
   requireLowercase: true,
   requireNumbers: true,
   requireSpecialChars: true,
-  specialChars: '!@#$%^&*()_+\\-=\\[\\]{};:\'",.<>?/|`~',
+  specialChars: '!@#$%^&*()_+\\-=\\[\\]{};:\'",.<>?/|`~'
 };
 
 /**
  * Valida que una contraseña cumpla con los requisitos de seguridad
- * 
+ *
  * Requisitos:
  * - Longitud mínima de 8 caracteres
  * - Longitud máxima de 128 caracteres
@@ -35,7 +35,7 @@ export const PASSWORD_REQUIREMENTS = {
  * - Al menos un número
  * - Al menos un carácter especial
  * - Sin espacios en blanco
- * 
+ *
  * @param password - Contraseña a validar
  * @returns Resultado de validación con errores si los hay
  */
@@ -88,26 +88,28 @@ export function validatePassword(password: string): PasswordValidationResult {
   if (PASSWORD_REQUIREMENTS.requireSpecialChars) {
     const specialCharsRegex = new RegExp(`[${PASSWORD_REQUIREMENTS.specialChars}]`);
     if (!specialCharsRegex.test(password)) {
-      errors.push('Password must contain at least one special character (!@#$%^&*()_+-=[]{};\':"|,.<>?/`~)');
+      errors.push(
+        'Password must contain at least one special character (!@#$%^&*()_+-=[]{};\':"|,.<>?/`~)'
+      );
     }
   }
 
   return {
     isValid: errors.length === 0,
-    errors,
+    errors
   };
 }
 
 /**
  * Valida una contraseña y lanza una excepción si no es válida
  * Útil para usar en servicios donde se espera que falle con error
- * 
+ *
  * @param password - Contraseña a validar
  * @throws Error con mensaje descriptivo de validación
  */
 export function validatePasswordOrThrow(password: string): void {
   const result = validatePassword(password);
-  
+
   if (!result.isValid) {
     const errorMessage = result.errors.join('. ');
     throw new Error(`Password validation failed: ${errorMessage}`);
@@ -116,7 +118,7 @@ export function validatePasswordOrThrow(password: string): void {
 
 /**
  * Genera un mensaje de requisitos de contraseña para mostrar al usuario
- * 
+ *
  * @returns String con los requisitos de contraseña
  */
 export function getPasswordRequirementsMessage(): string {
@@ -126,7 +128,7 @@ export function getPasswordRequirementsMessage(): string {
     'At least one lowercase letter (a-z)',
     'At least one number (0-9)',
     'At least one special character (!@#$%^&*()_+-=[]{};\':"|,.<>?/`~)',
-    'No whitespace characters',
+    'No whitespace characters'
   ];
 
   return `Password requirements:\n- ${requirements.join('\n- ')}`;

@@ -85,11 +85,11 @@ export class FolderBuilder {
     const data: Pick<FolderData, 'name' | 'parent'> = {
       name: this.folderData.name
     };
-    
+
     if (this.folderData.parent) {
       data.parent = this.folderData.parent;
     }
-    
+
     return data;
   }
 
@@ -99,11 +99,7 @@ export class FolderBuilder {
   static buildMany(count: number, prefix: string = 'Carpeta'): FolderData[] {
     const folders: FolderData[] = [];
     for (let i = 0; i < count; i++) {
-      folders.push(
-        new FolderBuilder()
-          .withName(`${prefix} ${i + 1}`)
-          .build()
-      );
+      folders.push(new FolderBuilder().withName(`${prefix} ${i + 1}`).build());
     }
     return folders;
   }
@@ -117,14 +113,14 @@ export class FolderBuilder {
 
     for (let i = 0; i < levels; i++) {
       const builder = new FolderBuilder().withName(`${prefix} ${i + 1}`);
-      
+
       if (previousId) {
         builder.withParent(previousId);
       }
-      
+
       const folder = builder.build();
       folders.push(folder);
-      
+
       // Simular ID para el siguiente nivel
       previousId = `folder-id-${i + 1}`;
     }
@@ -138,10 +134,10 @@ export class FolderBuilder {
  */
 export const createFolder = (overrides?: Partial<FolderData>): FolderData => {
   const builder = new FolderBuilder();
-  
+
   if (overrides?.name) builder.withName(overrides.name);
   if (overrides?.parent) builder.withParent(overrides.parent);
   if (overrides?.description) builder.withDescription(overrides.description);
-  
+
   return builder.build();
 };

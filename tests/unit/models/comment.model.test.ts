@@ -25,7 +25,7 @@ describe('Comment Model', () => {
   const makeIds = () => ({
     documentId: new mongoose.Types.ObjectId(),
     orgId: new mongoose.Types.ObjectId(),
-    userId: new mongoose.Types.ObjectId(),
+    userId: new mongoose.Types.ObjectId()
   });
 
   describe('Creation + defaults', () => {
@@ -36,7 +36,7 @@ describe('Comment Model', () => {
         document: documentId,
         organization: orgId,
         createdBy: userId,
-        content: 'Hola mundo',
+        content: 'Hola mundo'
       });
 
       expect(comment.document.toString()).toBe(documentId.toString());
@@ -55,7 +55,7 @@ describe('Comment Model', () => {
       const comment = await CommentModel.create({
         document: documentId,
         createdBy: userId,
-        content: 'Sin organización',
+        content: 'Sin organización'
       });
 
       expect(comment.organization).toBeNull();
@@ -67,7 +67,7 @@ describe('Comment Model', () => {
       const comment = await CommentModel.create({
         document: documentId,
         createdBy: userId,
-        content: '   contenido con espacios   ',
+        content: '   contenido con espacios   '
       });
 
       expect(comment.content).toBe('contenido con espacios');
@@ -82,7 +82,7 @@ describe('Comment Model', () => {
         CommentModel.create({
           // document missing
           createdBy: userId,
-          content: 'Test',
+          content: 'Test'
         } as any)
       ).rejects.toThrow('Documento es requerido');
     });
@@ -94,7 +94,7 @@ describe('Comment Model', () => {
         CommentModel.create({
           document: documentId,
           // createdBy missing
-          content: 'Test',
+          content: 'Test'
         } as any)
       ).rejects.toThrow('createdBy es requerido');
     });
@@ -105,7 +105,7 @@ describe('Comment Model', () => {
       await expect(
         CommentModel.create({
           document: documentId,
-          createdBy: userId,
+          createdBy: userId
           // content missing
         } as any)
       ).rejects.toThrow('Contenido es requerido');
@@ -118,7 +118,7 @@ describe('Comment Model', () => {
         CommentModel.create({
           document: documentId,
           createdBy: userId,
-          content: '   ', // trim -> ''
+          content: '   ' // trim -> ''
         })
       ).rejects.toThrow();
     });
@@ -132,7 +132,7 @@ describe('Comment Model', () => {
         CommentModel.create({
           document: documentId,
           createdBy: userId,
-          content: tooLong,
+          content: tooLong
         })
       ).rejects.toThrow('Contenido no puede exceder 2000 caracteres');
     });
@@ -145,13 +145,13 @@ describe('Comment Model', () => {
       const comment = await CommentModel.create({
         document: documentId,
         createdBy: userId,
-        content: 'Inicial',
+        content: 'Inicial'
       });
 
       const firstUpdatedAt = comment.updatedAt;
 
       // esperar un “tick” para asegurar diferencia de timestamp
-      await new Promise((r) => setTimeout(r, 5));
+      await new Promise(r => setTimeout(r, 5));
 
       comment.content = 'Actualizado';
       await comment.save();
@@ -167,7 +167,7 @@ describe('Comment Model', () => {
       const comment = await CommentModel.create({
         document: documentId,
         createdBy: userId,
-        content: 'JSON',
+        content: 'JSON'
       });
 
       const json = comment.toJSON() as any;
@@ -190,7 +190,7 @@ describe('Comment Model', () => {
       const comment = await CommentModel.create({
         document: documentId,
         createdBy: userId,
-        content: 'OBJ',
+        content: 'OBJ'
       });
 
       const obj = comment.toObject() as any;
@@ -209,7 +209,7 @@ describe('Comment Model', () => {
       await CommentModel.create({
         document: documentId,
         createdBy: userId,
-        content: 'Index bootstrap',
+        content: 'Index bootstrap'
       });
 
       // init() ya corre en beforeAll, pero por si acaso
@@ -220,9 +220,9 @@ describe('Comment Model', () => {
 
       // single-field indexes por "index: true" en el schema
       // (los nombres pueden variar según mongoose/mongo, por eso buscamos por patrón)
-      const hasDocumentIndex = indexNames.some((n) => n.includes('document_1'));
-      const hasCreatedByIndex = indexNames.some((n) => n.includes('createdBy_1'));
-      const hasOrganizationIndex = indexNames.some((n) => n.includes('organization_1'));
+      const hasDocumentIndex = indexNames.some(n => n.includes('document_1'));
+      const hasCreatedByIndex = indexNames.some(n => n.includes('createdBy_1'));
+      const hasOrganizationIndex = indexNames.some(n => n.includes('organization_1'));
 
       expect(hasDocumentIndex).toBe(true);
       expect(hasCreatedByIndex).toBe(true);
@@ -230,10 +230,10 @@ describe('Comment Model', () => {
 
       // compound indexes definidos explícitamente
       const hasDocCreatedAt = indexNames.some(
-        (n) => n.includes('document_1') && n.includes('createdAt_-1')
+        n => n.includes('document_1') && n.includes('createdAt_-1')
       );
       const hasOrgCreatedAt = indexNames.some(
-        (n) => n.includes('organization_1') && n.includes('createdAt_-1')
+        n => n.includes('organization_1') && n.includes('createdAt_-1')
       );
 
       expect(hasDocCreatedAt).toBe(true);

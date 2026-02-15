@@ -11,7 +11,7 @@ import { MembershipRole, MembershipStatus } from '../../src/models/membership.mo
 export const basicMembership = {
   role: MembershipRole.MEMBER,
   status: MembershipStatus.ACTIVE,
-  joinedAt: new Date('2024-01-01'),
+  joinedAt: new Date('2024-01-01')
 };
 
 /**
@@ -20,7 +20,7 @@ export const basicMembership = {
 export const ownerMembership = {
   role: MembershipRole.OWNER,
   status: MembershipStatus.ACTIVE,
-  joinedAt: new Date('2024-01-01'),
+  joinedAt: new Date('2024-01-01')
 };
 
 /**
@@ -29,7 +29,7 @@ export const ownerMembership = {
 export const adminMembership = {
   role: MembershipRole.ADMIN,
   status: MembershipStatus.ACTIVE,
-  joinedAt: new Date('2024-01-01'),
+  joinedAt: new Date('2024-01-01')
 };
 
 /**
@@ -38,7 +38,7 @@ export const adminMembership = {
 export const viewerMembership = {
   role: MembershipRole.VIEWER,
   status: MembershipStatus.ACTIVE,
-  joinedAt: new Date('2024-01-01'),
+  joinedAt: new Date('2024-01-01')
 };
 
 /**
@@ -47,7 +47,7 @@ export const viewerMembership = {
 export const pendingMembership = {
   role: MembershipRole.MEMBER,
   status: MembershipStatus.PENDING,
-  joinedAt: new Date('2024-01-01'),
+  joinedAt: new Date('2024-01-01')
 };
 
 /**
@@ -56,7 +56,7 @@ export const pendingMembership = {
 export const suspendedMembership = {
   role: MembershipRole.MEMBER,
   status: MembershipStatus.SUSPENDED,
-  joinedAt: new Date('2024-01-01'),
+  joinedAt: new Date('2024-01-01')
 };
 
 /**
@@ -69,7 +69,7 @@ export const membershipPermissionsByRole = {
     canAddMembers: true,
     canRemoveMembers: true,
     canManageSettings: true,
-    canViewStats: true,
+    canViewStats: true
   },
   [MembershipRole.ADMIN]: {
     canUpdate: false,
@@ -77,7 +77,7 @@ export const membershipPermissionsByRole = {
     canAddMembers: true,
     canRemoveMembers: true,
     canManageSettings: false,
-    canViewStats: true,
+    canViewStats: true
   },
   [MembershipRole.MEMBER]: {
     canUpdate: false,
@@ -85,7 +85,7 @@ export const membershipPermissionsByRole = {
     canAddMembers: false,
     canRemoveMembers: false,
     canManageSettings: false,
-    canViewStats: false,
+    canViewStats: false
   },
   [MembershipRole.VIEWER]: {
     canUpdate: false,
@@ -93,7 +93,7 @@ export const membershipPermissionsByRole = {
     canAddMembers: false,
     canRemoveMembers: false,
     canManageSettings: false,
-    canViewStats: false,
+    canViewStats: false
   }
 };
 
@@ -104,26 +104,26 @@ export const multipleMembershipsTestData = {
   owner: {
     role: MembershipRole.OWNER,
     status: MembershipStatus.ACTIVE,
-    joinedAt: new Date('2024-01-01'),
+    joinedAt: new Date('2024-01-01')
   },
   admin: {
     role: MembershipRole.ADMIN,
     status: MembershipStatus.ACTIVE,
-    joinedAt: new Date('2024-01-02'),
+    joinedAt: new Date('2024-01-02')
   },
   member1: {
     role: MembershipRole.MEMBER,
     status: MembershipStatus.ACTIVE,
-    joinedAt: new Date('2024-01-03'),
+    joinedAt: new Date('2024-01-03')
   },
   member2: {
     role: MembershipRole.MEMBER,
     status: MembershipStatus.ACTIVE,
-    joinedAt: new Date('2024-01-04'),
+    joinedAt: new Date('2024-01-04')
   },
   viewer: {
     role: MembershipRole.VIEWER,
     status: MembershipStatus.ACTIVE,
-    joinedAt: new Date('2024-01-05'),
+    joinedAt: new Date('2024-01-05')
   }
 };

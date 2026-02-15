@@ -76,9 +76,7 @@ describe('SearchController', () => {
       await searchController.search(mockReq as AuthRequest, mockRes as Response, mockNext);
 
       expect(mockNext).toHaveBeenCalledWith(expect.any(HttpError));
-      expect(mockNext).toHaveBeenCalledWith(
-        expect.objectContaining({ statusCode: 500 })
-      );
+      expect(mockNext).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 500 }));
     });
   });
 
@@ -109,7 +107,9 @@ describe('SearchController', () => {
 
     it('should handle errors and call next with HttpError', async () => {
       mockReq.query = { q: 'test' };
-      (searchService.getAutocompleteSuggestions as jest.Mock).mockRejectedValue(new Error('Failed'));
+      (searchService.getAutocompleteSuggestions as jest.Mock).mockRejectedValue(
+        new Error('Failed')
+      );
 
       await searchController.autocomplete(mockReq as AuthRequest, mockRes as Response, mockNext);
 

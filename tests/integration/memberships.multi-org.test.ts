@@ -21,7 +21,7 @@ describe('Multi-Organization Membership Flow', () => {
 
   beforeEach(async () => {
     const timestamp = Date.now();
-    
+
     // 1. Crear Usuario A (creará la primera organización)
     const userA = await registerAndLogin({
       name: 'User A',
@@ -201,7 +201,9 @@ describe('Multi-Organization Membership Flow', () => {
       });
 
       expect(rootFolder).toBeDefined();
-      expect(rootFolder?.name).toMatch(new RegExp(`^root_${org1Slug.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}_`));
+      expect(rootFolder?.name).toMatch(
+        new RegExp(`^root_${org1Slug.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}_`)
+      );
       expect(rootFolder?.name).toContain(userAId);
     });
 

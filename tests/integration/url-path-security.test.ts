@@ -6,12 +6,12 @@ import { securityUser } from '../fixtures';
 
 /**
  * Tests de Seguridad para Validación de URLs y Paths
- * 
+ *
  * Estos tests verifican las protecciones contra:
  * - SSRF (Server-Side Request Forgery)
  * - Open Redirect
  * - Path Traversal
- * 
+ *
  * NOTA IMPORTANTE: Multer ya sanitiza los nombres de archivo usando UUIDs aleatorios,
  * por lo que los tests de integración verifican que el sistema funcione correctamente.
  * Las utilidades de validación (url-validator, path-sanitizer) se prueban unitariamente.
@@ -31,20 +31,20 @@ describe('Security - URL and Path Validation', () => {
     });
     globalAuthCookies = auth.cookies;
     organizationId = auth.organizationId!;
-    
+
     // Obtener el rootFolder del usuario
     const User = (await import('../../src/models/user.model')).default;
     const userId = auth.userId;
     const user = await User.findById(userId);
     folderId = user?.rootFolder?.toString() || '';
   });
-  
+
   describe('Path Traversal Protection', () => {
     it('should accept file upload (Multer sanitizes filename with UUID)', async () => {
       // NOTA: Multer automáticamente convierte cualquier nombre de archivo
       // en un UUID seguro, por lo que el path traversal se previene a nivel de Multer
       const testFile = Buffer.from('test content');
-      
+
       const response = await request(app)
         .post('/api/documents/upload')
         .set('Cookie', getAuthCookie(globalAuthCookies))
@@ -54,7 +54,7 @@ describe('Security - URL and Path Validation', () => {
 
       // El upload puede ser exitoso (201), rechazado por MIME (400), o fallar por otros motivos
       expect([201, 400, 401, 500]).toContain(response.status);
-      
+
       // Verificar que no se creó archivo fuera del directorio permitido
       const maliciousPath = path.join(process.cwd(), '..', '..', '..', 'etc', 'passwd.txt');
       expect(fs.existsSync(maliciousPath)).toBe(false);
@@ -62,7 +62,7 @@ describe('Security - URL and Path Validation', () => {
 
     it('should accept file with encoded characters (Multer sanitizes)', async () => {
       const testFile = Buffer.from('test content');
-      
+
       const response = await request(app)
         .post('/api/documents/upload')
         .set('Cookie', getAuthCookie(globalAuthCookies))
@@ -76,7 +76,7 @@ describe('Security - URL and Path Validation', () => {
 
     it('should accept valid filename without traversal', async () => {
       const testFile = Buffer.from('legitimate content');
-      
+
       const response = await request(app)
         .post('/api/documents/upload')
         .set('Cookie', getAuthCookie(globalAuthCookies))
@@ -90,7 +90,7 @@ describe('Security - URL and Path Validation', () => {
 
     it('should handle filename with null bytes (Multer sanitizes)', async () => {
       const testFile = Buffer.from('test content');
-      
+
       const response = await request(app)
         .post('/api/documents/upload')
         .set('Cookie', getAuthCookie(globalAuthCookies))
@@ -102,7 +102,7 @@ describe('Security - URL and Path Validation', () => {
 
     it('should handle absolute paths in filename (Multer sanitizes)', async () => {
       const testFile = Buffer.from('test content');
-      
+
       const response = await request(app)
         .post('/api/documents/upload')
         .set('Cookie', getAuthCookie(globalAuthCookies))
@@ -114,7 +114,7 @@ describe('Security - URL and Path Validation', () => {
 
     it('should sanitize filename with dangerous characters', async () => {
       const testFile = Buffer.from('test content');
-      
+
       const response = await request(app)
         .post('/api/documents/upload')
         .set('Cookie', getAuthCookie(globalAuthCookies))
@@ -131,7 +131,7 @@ describe('Security - URL and Path Validation', () => {
   describe('File Extension Validation', () => {
     it('should reject executable file extensions', async () => {
       const maliciousFile = Buffer.from('malicious code');
-      
+
       const response = await request(app)
         .post('/api/documents/upload')
         .set('Cookie', getAuthCookie(globalAuthCookies))
@@ -143,7 +143,7 @@ describe('Security - URL and Path Validation', () => {
 
     it('should reject script file extensions', async () => {
       const scriptFile = Buffer.from('rm -rf /');
-      
+
       const response = await request(app)
         .post('/api/documents/upload')
         .set('Cookie', getAuthCookie(globalAuthCookies))
@@ -155,7 +155,7 @@ describe('Security - URL and Path Validation', () => {
 
     it('should accept allowed file extensions', async () => {
       const validFile = Buffer.from('valid content');
-      
+
       // Solo .txt está permitido por defecto (text/plain en ALLOWED_MIME_TYPES)
       const response = await request(app)
         .post('/api/documents/upload')
@@ -171,7 +171,7 @@ describe('Security - URL and Path Validation', () => {
     it('should handle extremely long filenames (Multer uses UUID)', async () => {
       const testFile = Buffer.from('test');
       const longName = 'a'.repeat(300) + '.txt'; // Más de 255 caracteres
-      
+
       const response = await request(app)
         .post('/api/documents/upload')
         .set('Cookie', getAuthCookie(globalAuthCookies))
@@ -184,7 +184,7 @@ describe('Security - URL and Path Validation', () => {
     it('should accept reasonable filename lengths', async () => {
       const testFile = Buffer.from('test');
       const normalName = 'reasonable-filename.txt';
-      
+
       const response = await request(app)
         .post('/api/documents/upload')
         .set('Cookie', getAuthCookie(globalAuthCookies))
@@ -206,7 +206,7 @@ describe('Security - URL and Path Validation', () => {
         password: 'Download@123'
       });
       testAuthCookies = auth.cookies;
-      
+
       // Subir un documento legítimo
       const testFile = Buffer.from('download test content');
       const uploadResponse = await request(app)
@@ -251,7 +251,7 @@ describe('Security - URL and Path Validation', () => {
 
     it('should validate URL utility rejects private IPs', async () => {
       const { validateUrl } = await import('../../src/utils/url-validator');
-      
+
       const privateIps = [
         'http://127.0.0.1/admin',
         'http://localhost:8080/secret',
@@ -269,12 +269,8 @@ describe('Security - URL and Path Validation', () => {
 
     it('should validate URL utility accepts public URLs', async () => {
       const { validateUrl } = await import('../../src/utils/url-validator');
-      
-      const publicUrls = [
-        'https://example.com',
-        'https://www.google.com',
-        'http://api.github.com'
-      ];
+
+      const publicUrls = ['https://example.com', 'https://www.google.com', 'http://api.github.com'];
 
       for (const url of publicUrls) {
         const result = validateUrl(url);
@@ -285,12 +281,12 @@ describe('Security - URL and Path Validation', () => {
 
     it('should validate URL utility rejects blocked ports', async () => {
       const { validateUrl } = await import('../../src/utils/url-validator');
-      
+
       const blockedPorts = [
-        'http://example.com:22',    // SSH
-        'http://example.com:3306',  // MySQL
+        'http://example.com:22', // SSH
+        'http://example.com:3306', // MySQL
         'http://example.com:27017', // MongoDB
-        'http://example.com:6379'   // Redis
+        'http://example.com:6379' // Redis
       ];
 
       for (const url of blockedPorts) {
@@ -302,13 +298,13 @@ describe('Security - URL and Path Validation', () => {
 
     it('should validate URL utility enforces whitelist', async () => {
       const { validateUrl } = await import('../../src/utils/url-validator');
-      
+
       const allowedDomains = ['trusted.com', 'api.trusted.com'];
-      
+
       // URL permitida
       const validResult = validateUrl('https://api.trusted.com/webhook', allowedDomains);
       expect(validResult.isValid).toBe(true);
-      
+
       // URL no permitida
       const invalidResult = validateUrl('https://malicious.com/webhook', allowedDomains);
       expect(invalidResult.isValid).toBe(false);
@@ -317,7 +313,7 @@ describe('Security - URL and Path Validation', () => {
 
     it('should validate URL utility rejects invalid protocols', async () => {
       const { validateUrl } = await import('../../src/utils/url-validator');
-      
+
       const invalidProtocols = [
         'file:///etc/passwd',
         'ftp://example.com',
@@ -335,7 +331,7 @@ describe('Security - URL and Path Validation', () => {
   describe('Path Sanitizer Utility', () => {
     it('should detect path traversal patterns', async () => {
       const { sanitizePath } = await import('../../src/utils/path-sanitizer');
-      
+
       const maliciousPaths = [
         '../../../etc/passwd',
         '..\\..\\..\\windows\\system32',
@@ -352,9 +348,9 @@ describe('Security - URL and Path Validation', () => {
 
     it('should sanitize dangerous characters in filenames', async () => {
       const { sanitizePath } = await import('../../src/utils/path-sanitizer');
-      
+
       const result = sanitizePath('file<>:|?.txt');
-      
+
       if (result.isValid && result.sanitizedPath) {
         expect(result.sanitizedPath).not.toMatch(/[<>:"|?*]/);
       }
@@ -362,13 +358,13 @@ describe('Security - URL and Path Validation', () => {
 
     it('should validate file is within base directory', async () => {
       const { isPathWithinBase } = await import('../../src/utils/path-sanitizer');
-      
+
       const baseDir = path.join(process.cwd(), 'uploads');
-      
+
       // Path válido dentro del directorio
       const validPath = 'documents/file.txt';
       expect(isPathWithinBase(validPath, baseDir)).toBe(true);
-      
+
       // Path fuera del directorio
       const invalidPath = '../../../etc/passwd';
       expect(isPathWithinBase(invalidPath, baseDir)).toBe(false);

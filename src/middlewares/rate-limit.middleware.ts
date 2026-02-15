@@ -10,11 +10,11 @@ const ipKeyGenerator = (req: Request): string => {
 
 /**
  * Middleware de Rate Limiting
- * 
+ *
  * Este middleware implementa una estrategia de limitación de tasa para proteger
  * la API contra abusos, ataques de denegación de servicio (DoS) y uso excesivo
  * de recursos.
- * 
+ *
  * Funcionalidad:
  * - Limita el número de peticiones que un cliente puede hacer en un período de tiempo
  * - Identifica clientes por su dirección IP
@@ -24,9 +24,9 @@ const ipKeyGenerator = (req: Request): string => {
 
 /**
  * Rate Limiter General
- * 
+ *
  * Configuración estándar para endpoints públicos y generales.
- * 
+ *
  * Configuración:
  * - windowMs: Ventana de tiempo en milisegundos (15 minutos)
  * - max: Número máximo de peticiones permitidas por ventana de tiempo (100 peticiones)
@@ -59,15 +59,15 @@ export const generalRateLimiter = rateLimit({
 
 /**
  * Rate Limiter Estricto para Autenticación
- * 
+ *
  * Configuración más restrictiva para endpoints sensibles como login,
  * registro y recuperación de contraseña.
- * 
+ *
  * Configuración:
  * - windowMs: 15 minutos
  * - max: 5 intentos por ventana (más restrictivo para prevenir ataques de fuerza bruta)
  * - skipSuccessfulRequests: true - Solo cuenta intentos fallidos
- * 
+ *
  * Uso recomendado:
  * - POST /auth/login
  * - POST /auth/register
@@ -91,7 +91,8 @@ export const authRateLimiter = rateLimit({
   handler: (_req: Request, res: Response) => {
     res.status(429).json({
       error: 'Too Many Authentication Attempts',
-      message: 'Too many failed authentication attempts. Please wait 15 minutes before trying again.',
+      message:
+        'Too many failed authentication attempts. Please wait 15 minutes before trying again.',
       retryAfter: res.getHeader('Retry-After'),
       blockedUntil: new Date(Date.now() + 15 * 60 * 1000).toISOString()
     });
@@ -100,14 +101,14 @@ export const authRateLimiter = rateLimit({
 
 /**
  * Rate Limiter para Creación de Recursos
- * 
+ *
  * Límite moderado para operaciones de creación (POST) que consumen
  * más recursos del servidor.
- * 
+ *
  * Configuración:
  * - windowMs: 1 hora
  * - max: 30 creaciones por hora
- * 
+ *
  * Uso recomendado:
  * - POST /documents
  * - POST /folders
@@ -136,14 +137,14 @@ export const createResourceRateLimiter = rateLimit({
 
 /**
  * Rate Limiter para Subida de Archivos
- * 
+ *
  * Límite específico para operaciones de upload que consumen
  * ancho de banda y almacenamiento.
- * 
+ *
  * Configuración:
  * - windowMs: 1 hora
  * - max: 20 uploads por hora
- * 
+ *
  * Uso recomendado:
  * - POST /documents/upload
  * - Cualquier endpoint que maneje archivos
@@ -172,14 +173,14 @@ export const uploadRateLimiter = rateLimit({
 
 /**
  * Rate Limiter Flexible
- * 
+ *
  * Función helper para crear rate limiters personalizados con configuración específica.
- * 
+ *
  * @param windowMinutes - Ventana de tiempo en minutos
  * @param maxRequests - Número máximo de peticiones
  * @param message - Mensaje personalizado de error
  * @returns Middleware de rate limiting configurado
- * 
+ *
  * Ejemplo de uso:
  * ```typescript
  * const customLimiter = createCustomRateLimiter(5, 10, 'Límite personalizado excedido');
@@ -209,10 +210,10 @@ export const createCustomRateLimiter = (
 
 /**
  * Configuración Avanzada: Rate Limiter por IP y Usuario
- * 
+ *
  * Este limiter combina la dirección IP con el ID del usuario autenticado
  * para una limitación más precisa.
- * 
+ *
  * Nota: Requiere que el usuario esté autenticado. El objeto req.user debe estar disponible.
  */
 export const userBasedRateLimiter = rateLimit({
@@ -242,33 +243,33 @@ export const userBasedRateLimiter = rateLimit({
 
 /**
  * Instrucciones de Instalación:
- * 
+ *
  * 1. Instalar la dependencia:
  *    npm install express-rate-limit
  *    npm install --save-dev @types/express-rate-limit
- * 
+ *
  * 2. Aplicar globalmente en app.ts:
  *    import { generalRateLimiter } from './middlewares/rate-limit.middleware';
  *    app.use(generalRateLimiter);
- * 
+ *
  * 3. Aplicar a rutas específicas:
  *    import { authRateLimiter, uploadRateLimiter } from './middlewares/rate-limit.middleware';
- *    
+ *
  *    router.post('/auth/login', authRateLimiter, authController.login);
  *    router.post('/documents/upload', uploadRateLimiter, documentController.upload);
- * 
+ *
  * 4. Configuración con proxy/load balancer (si aplica):
  *    En app.ts, antes de usar el middleware:
  *    app.set('trust proxy', 1); // Confiar en el primer proxy
- * 
+ *
  * 5. Uso de Redis para aplicaciones distribuidas (opcional):
  *    Para aplicaciones con múltiples instancias, considera usar Redis como store:
- *    
+ *
  *    import RedisStore from 'rate-limit-redis';
  *    import { createClient } from 'redis';
- *    
+ *
  *    const redisClient = createClient({ url: 'redis://localhost:6379' });
- *    
+ *
  *    export const distributedRateLimiter = rateLimit({
  *      store: new RedisStore({
  *        client: redisClient,
@@ -281,28 +282,28 @@ export const userBasedRateLimiter = rateLimit({
 
 /**
  * Mejores Prácticas:
- * 
+ *
  * 1. Aplicar diferentes límites según el tipo de operación:
  *    - Operaciones de lectura: Más permisivo (100-200 req/15min)
  *    - Operaciones de escritura: Moderado (30-50 req/hora)
  *    - Autenticación: Restrictivo (5-10 req/15min)
  *    - Uploads: Muy restrictivo (10-20 req/hora)
- * 
+ *
  * 2. Considerar el contexto del usuario:
  *    - Usuarios premium: Límites más altos
  *    - Usuarios free: Límites estándar
  *    - IP sospechosas: Límites más bajos
- * 
+ *
  * 3. Monitorear y ajustar:
  *    - Registrar eventos de rate limiting
  *    - Analizar patrones de uso
  *    - Ajustar límites según necesidad
- * 
+ *
  * 4. Comunicar claramente los límites:
  *    - Documentar límites en la API
  *    - Incluir headers informativos
  *    - Proporcionar mensajes de error claros
- * 
+ *
  * 5. Combinar con otras medidas de seguridad:
  *    - CAPTCHA después de múltiples intentos fallidos
  *    - Bloqueo temporal de cuentas

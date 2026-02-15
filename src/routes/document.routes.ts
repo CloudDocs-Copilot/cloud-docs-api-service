@@ -57,7 +57,11 @@ router.get('/', documentController.list);
  * @desc    Obtiene documentos recientes del usuario en una organización
  * @access  Authenticated users (organization members)
  */
-router.get('/recent/:organizationId', validateOrganizationMembership('params'), documentController.getRecent);
+router.get(
+  '/recent/:organizationId',
+  validateOrganizationMembership('params'),
+  documentController.getRecent
+);
 
 /**
  * @route   GET /api/documents/:id

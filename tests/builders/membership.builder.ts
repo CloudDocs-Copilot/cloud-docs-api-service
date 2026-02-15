@@ -22,7 +22,7 @@ export class MembershipBuilder {
     organizationId: new mongoose.Types.ObjectId().toString(),
     role: MembershipRole.MEMBER,
     status: MembershipStatus.ACTIVE,
-    joinedAt: new Date(),
+    joinedAt: new Date()
   };
 
   /**
@@ -148,7 +148,7 @@ export class MembershipBuilder {
       userId: this.membershipData.userId,
       organizationId: this.membershipData.organizationId,
       role: this.membershipData.role,
-      invitedBy: this.membershipData.invitedBy,
+      invitedBy: this.membershipData.invitedBy
     };
   }
 
@@ -161,7 +161,7 @@ export class MembershipBuilder {
       organizationId: new mongoose.Types.ObjectId().toString(),
       role: MembershipRole.MEMBER,
       status: MembershipStatus.ACTIVE,
-      joinedAt: new Date(),
+      joinedAt: new Date()
     };
     return this;
   }

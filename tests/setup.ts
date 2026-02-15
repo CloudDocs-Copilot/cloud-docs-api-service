@@ -9,12 +9,12 @@ jest.mock('../src/services/search.service', () => ({
   indexDocument: jest.fn().mockResolvedValue(undefined),
   removeDocumentFromIndex: jest.fn().mockResolvedValue(undefined),
   searchDocuments: jest.fn().mockResolvedValue({ documents: [], total: 0, took: 0 }),
-  getAutocompleteSuggestions: jest.fn().mockResolvedValue([]),
+  getAutocompleteSuggestions: jest.fn().mockResolvedValue([])
 }));
 
 /**
  * Configuración global para tests de integración
- * 
+ *
  * Este archivo configura el entorno de pruebas:
  * - Conecta a una base de datos de prueba antes de ejecutar los tests
  * - Limpia las colecciones después de cada test para aislarlos

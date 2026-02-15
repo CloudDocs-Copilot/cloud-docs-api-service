@@ -28,7 +28,7 @@ const isElasticsearchEnabled = (): boolean => {
 async function start(): Promise<void> {
   try {
     await connectMongo();
-    
+
     // Verificar conexión con Elasticsearch solo si está habilitado
     if (isElasticsearchEnabled()) {
       const esConnected = await ElasticsearchClient.checkConnection();
@@ -36,7 +36,9 @@ async function start(): Promise<void> {
         // Crear índice de documentos si no existe
         await ElasticsearchClient.createDocumentIndex();
       } else {
-        console.warn('⚠️  Elasticsearch enabled but not available. Search functionality will be limited.');
+        console.warn(
+          '⚠️  Elasticsearch enabled but not available. Search functionality will be limited.'
+        );
       }
     } else {
       console.log('ℹ️  Elasticsearch disabled. Search functionality will be limited.');

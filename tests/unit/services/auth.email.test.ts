@@ -15,7 +15,9 @@ jest.mock('bcryptjs', () => ({ hash: mockBcryptHashEmail }));
 
 jest.mock('../../../src/mail/emailService', () => ({ sendConfirmationEmail: mockSendEmail }));
 
-jest.mock('fs', () => ({ readFileSync: jest.fn(() => '<html>{{name}}{{confirmationUrl}}</html>') }));
+jest.mock('fs', () => ({
+  readFileSync: jest.fn(() => '<html>{{name}}{{confirmationUrl}}</html>')
+}));
 jest.mock('path', () => ({ join: jest.fn(() => 'template.html') }));
 jest.mock('jsonwebtoken', () => ({ __esModule: true, default: { sign: jest.fn(() => 'tok') } }));
 
@@ -30,7 +32,12 @@ describe('Auth Service - email branches', () => {
     process.env.SEND_CONFIRMATION_EMAIL = 'true';
     process.env.NODE_ENV = 'production';
     mockBcryptHashEmail.mockResolvedValue('h');
-    const fakeUser = { _id: 'u1', email: 'x@y.com', name: 'X', toJSON: jest.fn(() => ({ _id: 'u1', email: 'x@y.com' })) };
+    const fakeUser = {
+      _id: 'u1',
+      email: 'x@y.com',
+      name: 'X',
+      toJSON: jest.fn(() => ({ _id: 'u1', email: 'x@y.com' }))
+    };
     mockUserCreateEmail.mockResolvedValue(fakeUser);
 
     const { registerUser } = require('../../../src/services/auth.service');
@@ -45,7 +52,12 @@ describe('Auth Service - email branches', () => {
     process.env.SEND_CONFIRMATION_EMAIL = 'true';
     process.env.NODE_ENV = 'production';
     mockBcryptHashEmail.mockResolvedValue('h');
-    const fakeUser = { _id: 'u2', email: 'y@z.com', name: 'Y', toJSON: jest.fn(() => ({ _id: 'u2', email: 'y@z.com' })) };
+    const fakeUser = {
+      _id: 'u2',
+      email: 'y@z.com',
+      name: 'Y',
+      toJSON: jest.fn(() => ({ _id: 'u2', email: 'y@z.com' }))
+    };
     mockUserCreateEmail.mockResolvedValue(fakeUser);
     mockSendEmail.mockRejectedValue(new Error('SMTP fail'));
 
