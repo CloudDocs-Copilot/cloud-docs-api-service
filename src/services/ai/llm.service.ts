@@ -55,10 +55,19 @@ export class LlmService {
     const systemMessage = options?.systemMessage;
 
     try {
-      // Load OpenAI client at runtime to allow tests to mock the module
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const OpenAIClientRuntime = require('../../configurations/openai-config').default;
-      const openai = OpenAIClientRuntime.getInstance();
+      const envForce = process.env.USE_OPENAI_GLOBAL_MOCK === 'true';
+      const globalCreate = (global as any).__OPENAI_CREATE__;
+
+      let openai: any;
+      let chatCreate: any;
+
+      if (!envForce) {
+        // Load OpenAI client at runtime to allow tests to mock the module
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const OpenAIClientRuntime = require('../../configurations/openai-config').default;
+        openai = OpenAIClientRuntime.getInstance();
+        chatCreate = openai?.chat?.completions?.create;
+      }
 
       // Construir mensajes para el chat
       const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
@@ -80,9 +89,6 @@ export class LlmService {
       console.log(`[llm] Generating response with model ${model}...`);
 
       // Llamar a la API de chat completions
-      const globalCreate = (global as any).__OPENAI_CREATE__;
-      const chatCreate = openai?.chat?.completions?.create;
-      const envForce = process.env.USE_OPENAI_GLOBAL_MOCK === 'true';
       const useGlobal =
         envForce || (typeof globalCreate === 'function' && typeof chatCreate !== 'function');
 
@@ -173,10 +179,19 @@ export class LlmService {
     const systemMessage = options?.systemMessage;
 
     try {
-      // Load OpenAI client at runtime to allow tests to mock the module
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const OpenAIClientRuntime = require('../../configurations/openai-config').default;
-      const openai = OpenAIClientRuntime.getInstance();
+      const globalCreate = (global as any).__OPENAI_CREATE__;
+      const envForce = process.env.USE_OPENAI_GLOBAL_MOCK === 'true';
+
+      let openai: any;
+      let chatCreate: any;
+
+      if (!envForce) {
+        // Load OpenAI client at runtime to allow tests to mock the module
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const OpenAIClientRuntime = require('../../configurations/openai-config').default;
+        openai = OpenAIClientRuntime.getInstance();
+        chatCreate = openai?.chat?.completions?.create;
+      }
 
       // Construir mensajes
       const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
@@ -196,9 +211,8 @@ export class LlmService {
       console.log(`[llm] Generating streaming response with model ${model}...`);
 
       // Llamar a la API con streaming
-      const globalCreate = (global as any).__OPENAI_CREATE__;
-      const chatCreate = openai?.chat?.completions?.create;
-      const useGlobal = typeof globalCreate === 'function' && typeof chatCreate !== 'function';
+      const useGlobal =
+        envForce || (typeof globalCreate === 'function' && typeof chatCreate !== 'function');
 
       const stream = useGlobal
         ? await globalCreate({ model, messages, temperature, max_tokens: maxTokens, stream: true })

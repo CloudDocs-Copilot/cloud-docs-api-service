@@ -33,15 +33,15 @@ All test accounts use the same password: `Test@1234`
 
 ## Membership Matrix
 
-| User                  | Acme Corporation | Startup Inc | Free Tier Org |
-| --------------------- | ---------------- | ----------- | ------------- |
-| admin@clouddocs.local | Owner            | -           | -             |
-| john@clouddocs.local  | Admin            | Owner       | Owner         |
-| jane@clouddocs.local  | Member           | Member      | -             |
+| User                    | Acme Corporation | Startup Inc | Free Tier Org |
+| ----------------------- | ---------------- | ----------- | ------------- |
+| <admin@clouddocs.local> | Owner            | -           | -             |
+| <john@clouddocs.local>  | Admin            | Owner       | Owner         |
+| <jane@clouddocs.local>  | Member           | Member      | -             |
 
 ## Folder Structure (Acme Corporation)
 
-```
+```text
 /
 ├── Documents/
 │   ├── Reports/
@@ -57,11 +57,11 @@ All test accounts use the same password: `Test@1234`
 
 ## Sample Documents
 
-| Title                | Filename          | Type | Size   | Owner                 |
-| -------------------- | ----------------- | ---- | ------ | --------------------- |
-| Company Handbook     | handbook.pdf      | PDF  | 500 KB | admin@clouddocs.local |
-| Project Roadmap 2025 | roadmap-2025.pdf  | PDF  | 200 KB | john@clouddocs.local  |
-| Meeting Notes        | meeting-notes.txt | Text | 10 KB  | admin@clouddocs.local |
+| Title                | Filename          | Type | Size   | Owner                   |
+| -------------------- | ----------------- | ---- | ------ | ----------------------- |
+| Company Handbook     | handbook.pdf      | PDF  | 500 KB | <admin@clouddocs.local> |
+| Project Roadmap 2025 | roadmap-2025.pdf  | PDF  | 200 KB | <john@clouddocs.local>  |
+| Meeting Notes        | meeting-notes.txt | Text | 10 KB  | <admin@clouddocs.local> |
 
 ## Testing Scenarios
 
