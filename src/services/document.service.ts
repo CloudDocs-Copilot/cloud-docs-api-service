@@ -406,11 +406,15 @@ export async function getUserRecentDocuments({
   .lean();
 
   // Agregar campo calculado indicando si es propio o compartido
-  const documentsWithAccessType = documents.map(doc => ({
-    ...doc,
-    accessType: doc.uploadedBy.toString() === userId.toString() ? 'owner' : 'shared',
-    isOwned: doc.uploadedBy.toString() === userId.toString()
-  }));
+  const documentsWithAccessType = documents.map(doc => {
+    const { _id, ...rest } = doc as any;
+    return {
+      ...rest,
+      id: _id.toString(),
+      accessType: doc.uploadedBy.toString() === userId.toString() ? 'owner' : 'shared',
+      isOwned: doc.uploadedBy.toString() === userId.toString()
+    };
+  });
 
   return documentsWithAccessType as any;
 }
