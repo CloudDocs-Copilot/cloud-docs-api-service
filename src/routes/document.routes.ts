@@ -41,13 +41,6 @@ router.get('/', documentController.list);
 router.get('/recent/:organizationId', validateOrganizationMembership('params'), documentController.getRecent);
 
 /**
- * @route   GET /api/documents/:id
- * @desc    Obtiene un documento por ID
- * @access  Document owner or shared users
- */
-router.get('/:id', documentController.getById);
-
-/**
  * @route   GET /api/documents/download/:id
  * @desc    Descarga un documento
  * @access  Document owner or shared users
@@ -60,6 +53,14 @@ router.get('/download/:id', documentController.download);
  * @access  Document owner or shared users
  */
 router.get('/preview/:id', documentController.preview);
+
+/**
+ * @route   GET /api/documents/:id
+ * @desc    Obtiene un documento por ID
+ * @access  Document owner or shared users
+ * IMPORTANTE: Esta ruta debe ir DESPUÉS de /download y /preview
+ */
+router.get('/:id', documentController.getById);
 
 /**
  * @route   POST /api/documents/:id/share
