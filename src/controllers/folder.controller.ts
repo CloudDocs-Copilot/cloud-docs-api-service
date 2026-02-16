@@ -218,4 +218,31 @@ export async function remove(req: AuthRequest, res: Response, next: NextFunction
   }
 }
 
-export default { create, getUserTree, getContents, share, list, rename, remove };
+/**
+ * Controlador para mover una carpeta a otra ubicación (Drag & Drop)
+ */
+export async function move(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { targetFolderId } = req.body;
+    
+    if (!targetFolderId) {
+      return next(new HttpError(400, 'Target folder ID is required'));
+    }
+    
+    const folder = await folderService.moveFolder({
+      folderId: req.params.id,
+      userId: req.user!.id,
+      targetFolderId
+    });
+    
+    res.json({
+      success: true,
+      message: 'Folder moved successfully',
+      folder
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export default { create, getUserTree, getContents, share, list, rename, remove, move };
