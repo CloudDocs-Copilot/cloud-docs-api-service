@@ -3,9 +3,22 @@ import path from 'path';
 import Folder, { IFolder, FolderPermissionRole } from '../models/folder.model';
 import User from '../models/user.model';
 import Organization from '../models/organization.model';
+import Membership from '../models/membership.model';
 import DocumentModel from '../models/document.model';
 import HttpError from '../models/error.model';
 import mongoose from 'mongoose';
+
+/**
+ * Función auxiliar para construir rutas de carpetas correctamente sin dobles slashes
+ */
+function buildFolderPath(parentPath: string, folderName: string): string {
+  // Si el padre es raíz ('/'), no agregar slash extra
+  if (parentPath === '/') {
+    return `/${folderName}`;
+  }
+  // De lo contrario, agregar con slash
+  return `${parentPath}/${folderName}`;
+}
 
 /**
  * DTO para creación de carpeta
@@ -64,6 +77,15 @@ export interface GetUserFolderTreeDto {
 }
 
 /**
+ * DTO para mover carpeta (Drag & Drop)
+ */
+export interface MoveFolderDto {
+  folderId: string;
+  userId: string;
+  targetFolderId: string;
+}
+
+/**
  * Valida que un usuario tenga acceso a una carpeta con un rol específico
  * 
  * @param folderId - ID de la carpeta
@@ -101,6 +123,85 @@ export async function validateFolderAccess(
   }
   
   return true;
+}
+
+/**
+ * Crea la carpeta raíz para una organización si no existe
+ */
+export async function createRootFolder(userId: string, organizationId: string): Promise<IFolder> {
+  console.log('[createRootFolder] Called with userId:', userId, 'orgId:', organizationId);
+  
+  const org = await Organization.findById(organizationId);
+  if (!org) throw new HttpError(404, 'Organization not found');
+
+  // Check if exist
+  const existingRoot = await Folder.findOne({
+    organization: new mongoose.Types.ObjectId(organizationId),
+    parent: null
+  });
+
+  if (existingRoot) {
+    console.log('[createRootFolder] Found existing root:', existingRoot._id);
+    return existingRoot;
+  }
+  
+  console.log('[createRootFolder] No existing root found, creating new one...');
+
+  // Create root
+  try {
+    const rootFolder = await Folder.create({
+      name: 'root', // Internal name
+      displayName: org.name, // Nombre de la organización (mejor UX)
+      type: 'root', // CORRECT TYPE
+      owner: userId,
+      organization: organizationId,
+      parent: null,
+      path: '/',
+      permissions: [{
+          userId: new mongoose.Types.ObjectId(userId),
+          role: 'owner'
+      }]
+    });
+    
+    console.log('[createRootFolder] Created new root folder:', rootFolder._id, 'for org:', organizationId);
+    
+    // Ensure physical directory
+    const storageRoot = path.join(process.cwd(), 'storage');
+    // Sanitizar slug para prevenir path traversal
+    const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+    const folderPath = path.join(storageRoot, safeSlug); // Root of org bucket
+    
+    if (!fs.existsSync(folderPath)) {
+      fs.mkdirSync(folderPath, { recursive: true });
+    }
+
+    // UPDATE MEMBERSHIP WITH ROOT FOLDER
+    // Find the membership for this user in this organization
+    const membership = await Membership.findOne({
+      user: new mongoose.Types.ObjectId(userId),
+      organization: new mongoose.Types.ObjectId(organizationId)
+    });
+
+    if (membership) {
+       // Assuming Membership model has a 'rootFolder' field (based on document.service usage)
+       await Membership.updateOne(
+         { _id: membership._id },
+         { $set: { rootFolder: rootFolder._id } }
+       );
+    }
+    
+    return rootFolder;
+  } catch (err: any) {
+    // If race condition where it was just created
+    if (err.code === 11000) {
+       const found = await Folder.findOne({
+          organization: new mongoose.Types.ObjectId(organizationId),
+          parent: null
+       });
+       if (found) return found;
+    }
+    throw err;
+  }
 }
 
 /**
@@ -147,7 +248,7 @@ export async function createFolder({
   if (!parentFolder) throw new HttpError(404, 'Parent folder not found');
   
   // Construir el path basado en el padre
-  const newPath = `${parentFolder.path}/${name}`;
+  const newPath = buildFolderPath(parentFolder.path, name);
   
   try {
     const folder = await Folder.create({ 
@@ -198,6 +299,8 @@ export async function getFolderContents({ folderId, userId }: GetFolderContentsD
   subfolders: IFolder[];
   documents: any[];
 }> {
+  console.log('[getFolderContents] folderId:', folderId);
+  
   // Validar acceso (viewer como mínimo)
   await validateFolderAccess(folderId, userId, 'viewer');
   
@@ -217,6 +320,8 @@ export async function getFolderContents({ folderId, userId }: GetFolderContentsD
     ]
   }).sort({ name: 1 });
   
+  console.log('[getFolderContents] Found', subfolders.length, 'subfolders');
+  
   // Obtener documentos de la carpeta
   const documents = await DocumentModel.find({
     folder: folderObjectId,
@@ -227,6 +332,9 @@ export async function getFolderContents({ folderId, userId }: GetFolderContentsD
   })
   .sort({ createdAt: -1 })
   .select('-__v');
+  
+  console.log('[getFolderContents] Found', documents.length, 'documents in folder', folderId);
+  console.log('[getFolderContents] Documents:', documents.map(d => ({ id: d._id, name: d.filename, folder: d.folder })));
   
   return {
     folder,
@@ -242,6 +350,8 @@ export async function getFolderContents({ folderId, userId }: GetFolderContentsD
  * @returns Árbol jerárquico de carpetas
  */
 export async function getUserFolderTree({ userId, organizationId }: GetUserFolderTreeDto): Promise<IFolder | null> {
+  console.log('[getUserFolderTree] userId:', userId, 'orgId:', organizationId);
+  
   // Convertir IDs a ObjectIds para prevenir inyección NoSQL
   const userObjectId = new mongoose.Types.ObjectId(userId);
   const orgObjectId = new mongoose.Types.ObjectId(organizationId);
@@ -257,25 +367,36 @@ export async function getUserFolderTree({ userId, organizationId }: GetUserFolde
   .sort({ path: 1 })
   .lean();
   
+  console.log('[getUserFolderTree] Found', folders.length, 'folders');
+  
   if (folders.length === 0) {
     return null;
   }
+  
+  // Transformar _id a id (lean() no aplica toJSON transform)
+  const transformedFolders = folders.map(folder => {
+    const { _id, ...rest } = folder as any;
+    return {
+      ...rest,
+      id: _id.toString()
+    };
+  });
   
   // Construir árbol jerárquico
   const folderMap = new Map<string, any>();
   const rootFolders: any[] = [];
   
   // Primero crear el mapa con todos los folders
-  folders.forEach(folder => {
-    folderMap.set(folder._id.toString(), {
+  transformedFolders.forEach(folder => {
+    folderMap.set(folder.id, {
       ...folder,
       children: []
     });
   });
   
   // Luego construir la jerarquía
-  folders.forEach(folder => {
-    const folderWithChildren = folderMap.get(folder._id.toString());
+  transformedFolders.forEach(folder => {
+    const folderWithChildren = folderMap.get(folder.id);
     
     if (!folder.parent) {
       // Carpeta raíz
@@ -288,6 +409,8 @@ export async function getUserFolderTree({ userId, organizationId }: GetUserFolde
       }
     }
   });
+  
+  console.log('[getUserFolderTree] Found', rootFolders.length, 'root folders');
   
   // Retornar la primera carpeta raíz (debería haber solo una por usuario)
   return rootFolders.length > 0 ? rootFolders[0] as IFolder : null;
@@ -473,9 +596,17 @@ export async function renameFolder({ id, userId, name, displayName }: RenameFold
   }
   
   const oldPath = folder.path;
-  const newPath = folder.parent 
-    ? `${oldPath.substring(0, oldPath.lastIndexOf('/'))}/${name}`
-    : `/${name}`;
+  let newPath: string;
+  
+  if (folder.parent) {
+    // Get parent folder to build path correctly
+    const parentFolder = await Folder.findById(folder.parent);
+    if (!parentFolder) throw new HttpError(404, 'Parent folder not found');
+    newPath = buildFolderPath(parentFolder.path, name);
+  } else {
+    // Root folder
+    newPath = `/${name}`;
+  }
   
   try {
     // Actualizar primero en BD para validar unicidad
@@ -542,6 +673,106 @@ async function updateSubfolderPaths(folderId: string, oldParentPath: string, new
   }
 }
 
+export async function moveFolder({ folderId, userId, targetFolderId }: MoveFolderDto): Promise<IFolder> {
+  // Validar formato de IDs
+  if (!mongoose.Types.ObjectId.isValid(folderId) || !mongoose.Types.ObjectId.isValid(targetFolderId)) {
+    throw new HttpError(400, 'Invalid folder ID');
+  }
+
+  // Validar que el usuario tenga permisos de 'editor' en la carpeta que se mueve
+  // (necesitas permiso para "sacarla" de su lugar actual)
+  await validateFolderAccess(folderId, userId, 'editor');
+
+  // Validar permisos de 'editor' en la carpeta destino
+  // (necesitas permiso para "ponerla" en el nuevo lugar)
+  await validateFolderAccess(targetFolderId, userId, 'editor');
+
+  const folder = await Folder.findById(folderId);
+  const targetFolder = await Folder.findById(targetFolderId);
+
+  if (!folder) throw new HttpError(404, 'Source folder not found');
+  if (!targetFolder) throw new HttpError(404, 'Target folder not found');
+
+  // Validaciones lógicas
+  if (folder.type === 'root') {
+    throw new HttpError(400, 'Cannot move root folder');
+  }
+
+  if (folder.id === targetFolder.id) {
+    throw new HttpError(400, 'Cannot move folder into itself');
+  }
+
+  // Prevenir ciclos: La carpeta destino no puede ser hija de la carpeta que muevo
+  if (targetFolder.path.startsWith(folder.path)) {
+    throw new HttpError(400, 'Cannot move folder into its own subfolder');
+  }
+  
+  // Validar que no exista ya una carpeta con el mismo nombre en el destino
+  const existingName = await Folder.findOne({
+    parent: targetFolder._id,
+    name: folder.name,
+    _id: { $ne: folder._id } // Excluir la misma carpeta (por si se mueve al mismo padre)
+  });
+
+  if (existingName) {
+    throw new HttpError(409, `A folder named '${folder.name}' already exists in the destination`);
+  }
+
+  // Proceder con el movimiento
+  const oldPath = folder.path;
+  const newPath = buildFolderPath(targetFolder.path, folder.name);
+
+  // Actualizar la carpeta
+  folder.parent = targetFolder._id;
+  folder.path = newPath;
+  await folder.save();
+
+  // Actualizar recursivamente los paths de todas las subcarpetas
+  await updateSubfolderPaths(folderId, oldPath, newPath);
+
+  // Mover físicamente en el sistema de archivos
+  try {
+    const org = await Organization.findById(folder.organization);
+    if (org) {
+      const storageRoot = path.join(process.cwd(), 'storage');
+      
+      // Sanitizar slug de organización
+      const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+      
+      // Sanitizar componentes del path antiguo
+      const oldPathComponents = oldPath.split('/').filter(p => p).map(component => 
+        component.replace(/[^a-z0-9_.-]/gi, '-')
+      );
+      
+      // Sanitizar componentes del path nuevo
+      const newPathComponents = newPath.split('/').filter(p => p).map(component => 
+        component.replace(/[^a-z0-9_.-]/gi, '-')
+      );
+      
+      const oldFolderPath = path.join(storageRoot, safeSlug, ...oldPathComponents);
+      const newFolderPath = path.join(storageRoot, safeSlug, ...newPathComponents);
+
+      if (fs.existsSync(oldFolderPath)) {
+        // Asegurar que el directorio padre destino exista
+        const parentDestDir = path.dirname(newFolderPath);
+        if (!fs.existsSync(parentDestDir)) {
+          fs.mkdirSync(parentDestDir, { recursive: true });
+        }
+        
+        fs.renameSync(oldFolderPath, newFolderPath);
+      }
+    }
+  } catch (err: any) {
+    console.error('[folder-move-fs-error]', err);
+    // Nota: Si falla el movimiento físico, la base de datos quedará actualizada.
+    // Esto podría dejar inconsistencias. En un sistema más complejo, usaríamos transacciones
+    // o un job de reparación. Por ahora, loggeamos el error.
+  }
+
+  return folder;
+}
+
+
 export default {
   createFolder,
   listFolders,
@@ -550,5 +781,6 @@ export default {
   validateFolderAccess,
   getFolderContents,
   getUserFolderTree,
-  shareFolder
-};
+  shareFolder,
+  moveFolder,
+}
