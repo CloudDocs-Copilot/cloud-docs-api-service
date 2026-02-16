@@ -46,7 +46,7 @@ export interface DeleteFolderDto {
 export interface RenameFolderDto {
   id: string;
   userId: string;
-  name: string;
+  name?: string;
   displayName?: string;
 }
 
@@ -582,7 +582,10 @@ async function deleteSubfoldersRecursively(folderId: string): Promise<void> {
 }
 
 export async function renameFolder({ id, userId, name, displayName }: RenameFolderDto): Promise<IFolder> {
-  if (!name) throw new HttpError(400, 'Folder name is required');
+  // Validar que al menos uno de los campos esté presente
+  if (!name && !displayName) {
+    throw new HttpError(400, 'Name or displayName is required');
+  }
   
   // Validar que el usuario tenga permisos de editor o owner
   await validateFolderAccess(id, userId, 'editor');
@@ -590,9 +593,15 @@ export async function renameFolder({ id, userId, name, displayName }: RenameFold
   const folder = await Folder.findById(id);
   if (!folder) throw new HttpError(404, 'Folder not found');
   
-  // Validar que no sea carpeta raíz (solo se puede cambiar displayName)
-  if (folder.type === 'root' && name !== folder.name) {
-    throw new HttpError(400, 'Cannot rename root folder technical name, use displayName instead');
+  // ROOT no se puede renombrar (está casado a la organización)
+  if (folder.type === 'root') {
+    throw new HttpError(400, 'Cannot rename root folder - it is tied to the organization');
+  }
+  
+  // Para carpetas normales: usar name o displayName como valor de renombrado
+  const newName = name || displayName;
+  if (!newName) {
+    throw new HttpError(400, 'New folder name is required');
   }
   
   const oldPath = folder.path;
@@ -602,18 +611,16 @@ export async function renameFolder({ id, userId, name, displayName }: RenameFold
     // Get parent folder to build path correctly
     const parentFolder = await Folder.findById(folder.parent);
     if (!parentFolder) throw new HttpError(404, 'Parent folder not found');
-    newPath = buildFolderPath(parentFolder.path, name);
+    newPath = buildFolderPath(parentFolder.path, newName);
   } else {
-    // Root folder
-    newPath = `/${name}`;
+    // Subcarpeta sin padre (no debería ocurrir excepto ROOT)
+    newPath = `/${newName}`;
   }
   
   try {
-    // Actualizar primero en BD para validar unicidad
-    folder.name = name;
-    if (displayName !== undefined) {
-      folder.displayName = displayName;
-    }
+    // Renombrado completo: name y displayName
+    folder.name = newName;
+    folder.displayName = displayName || newName; // displayName opcional, usar newName como fallback
     folder.path = newPath;
     await folder.save();
   } catch (err: any) {
