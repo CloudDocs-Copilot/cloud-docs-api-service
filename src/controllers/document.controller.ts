@@ -16,6 +16,8 @@ export async function upload(req: AuthRequest, res: Response, next: NextFunction
       return next(new HttpError(400, 'File is required'));
     }
     
+    console.log('[upload] Received folderId:', req.body.folderId);
+    
     // Validar folderId si se proporciona (prevención de inyección)
     let validatedFolderId: string | undefined;
     if (req.body.folderId) {
@@ -24,6 +26,7 @@ export async function upload(req: AuthRequest, res: Response, next: NextFunction
         return next(new HttpError(400, 'Invalid folderId format'));
       }
       validatedFolderId = req.body.folderId;
+      console.log('[upload] Validated folderId:', validatedFolderId);
     }
 
     // folderId es opcional - si no se proporciona, se usa el rootFolder del usuario
@@ -32,6 +35,8 @@ export async function upload(req: AuthRequest, res: Response, next: NextFunction
       userId: req.user!.id,
       folderId: validatedFolderId
     });
+    
+    console.log('[upload] Document created with folder:', doc.folder);
     
     res.status(201).json({
       success: true,
@@ -223,22 +228,27 @@ export async function download(req: AuthRequest, res: Response, next: NextFuncti
     if (!hasAccess) {
       return next(new HttpError(403, 'Access denied to this document'));
     }
+
+    // Get organization to build the correct path with slug
+    const Organization = (await import('../models/organization.model')).default;
+    const org = await Organization.findById(doc.organization);
+    if (!org) {
+      return next(new HttpError(404, 'Organization not found'));
+    }
     
     // Validar y sanitizar el path para prevenir Path Traversal
-    const uploadsBase = path.join(process.cwd(), 'uploads');
     const storageBase = path.join(process.cwd(), 'storage');
+    const relativePath = doc.path.startsWith('/') ? doc.path.substring(1) : doc.path;
+    
+    // Build path with organization slug
+    const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+    const pathWithSlug = path.join(safeSlug, relativePath);
     
     let filePath: string;
     try {
-      // Intentar primero en uploads
-      filePath = await validateDownloadPath(doc.filename || '', uploadsBase);
+      filePath = await validateDownloadPath(pathWithSlug, storageBase);
     } catch (error) {
-      // Si no está en uploads, intentar en storage
-      try {
-        filePath = await validateDownloadPath(doc.filename || '', storageBase);
-      } catch (error2) {
-        return next(new HttpError(404, 'File not found'));
-      }
+      return next(new HttpError(404, 'File not found'));
     }
     
     res.download(filePath, doc.originalname || 'download');
@@ -268,24 +278,28 @@ export async function preview(req: AuthRequest, res: Response, next: NextFunctio
     if (!hasAccess) {
       return next(new HttpError(403, 'Access denied to this document'));
     }
+
+    // Get organization to build the correct path with slug
+    const Organization = (await import('../models/organization.model')).default;
+    const org = await Organization.findById(doc.organization);
+    if (!org) {
+      return next(new HttpError(404, 'Organization not found'));
+    }
     
     const storageBase = path.join(process.cwd(), 'storage');
     const relativePath = doc.path.startsWith('/') ? doc.path.substring(1) : doc.path;
+    
+    // Build path with organization slug
+    const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+    const pathWithSlug = path.join(safeSlug, relativePath);
     
     // Intentar validar el path
     let fullPath: string | null = null;
     
     try {
-      fullPath = await validateDownloadPath(relativePath, storageBase);
+      fullPath = await validateDownloadPath(pathWithSlug, storageBase);
     } catch (error) {
-      // Si falla, intentar con /obs adicional (bug conocido de duplicación)
-      const alternativePath = path.join('obs', relativePath);
-      
-      try {
-        fullPath = await validateDownloadPath(alternativePath, storageBase);
-      } catch (error2) {
-        return next(new HttpError(404, 'File not found'));
-      }
+      return next(new HttpError(404, 'File not found'));
     }
     
     if (!fullPath) {
