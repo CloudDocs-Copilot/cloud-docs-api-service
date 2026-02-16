@@ -77,6 +77,13 @@ router.post('/:id/share', documentController.share);
 router.post('/:id/move', documentController.move);
 
 /**
+ * @route   PATCH /api/documents/:id/rename
+ * @desc    Renombra un documento
+ * @access  Document owner
+ */
+router.patch('/:id/rename', documentController.rename);
+
+/**
  * @route   POST /api/documents/:id/copy
  * @desc    Copia un documento a otra carpeta
  * @access  Document owner

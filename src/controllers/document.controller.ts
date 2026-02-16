@@ -183,6 +183,33 @@ export async function move(req: AuthRequest, res: Response, next: NextFunction):
 }
 
 /**
+ * Controlador para renombrar un documento
+ */
+export async function rename(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { filename } = req.body;
+    
+    if (!filename) {
+      return next(new HttpError(400, 'Filename is required'));
+    }
+    
+    const doc = await documentService.renameDocument({
+      documentId: req.params.id,
+      userId: req.user!.id,
+      filename
+    });
+    
+    res.json({
+      success: true,
+      message: 'Document renamed successfully',
+      document: doc
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
  * Controlador para copiar un documento a otra carpeta
  */
 export async function copy(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {

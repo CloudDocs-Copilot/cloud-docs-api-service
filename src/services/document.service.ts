@@ -52,6 +52,12 @@ export interface CopyDocumentDto {
   targetFolderId: string;
 }
 
+export interface RenameDocumentDto {
+  documentId: string;
+  userId: string;
+  filename: string; // Nuevo nombre del archivo (con extensión)
+}
+
 export interface GetRecentDocumentsDto {
   userId: string;
   limit?: number;
@@ -244,6 +250,103 @@ export async function moveDocument({
   doc.path = newDocPath;
   doc.url = `/storage/${safeSlug}${newDocPath}`;
   await doc.save();
+
+  return doc;
+}
+
+/**
+ * Renombra un documento
+ */
+export async function renameDocument({
+  documentId,
+  userId,
+  filename
+}: RenameDocumentDto): Promise<IDocument> {
+  if (!isValidObjectId(documentId)) throw new HttpError(400, 'Invalid document ID');
+  if (!filename || !filename.trim()) throw new HttpError(400, 'Filename is required');
+
+  const doc = await DocumentModel.findById(documentId);
+  if (!doc) throw new HttpError(404, 'Document not found');
+
+  // Solo el propietario puede renombrar
+  if (String(doc.uploadedBy) !== String(userId)) {
+    throw new HttpError(403, 'Only document owner can rename it');
+  }
+
+  const folder = await Folder.findById(doc.folder);
+  if (!folder) throw new HttpError(404, 'Document folder not found');
+
+  // Validar que la extensión se mantiene
+  const oldExt = path.extname(doc.filename || '').toLowerCase();
+  const newExt = path.extname(filename).toLowerCase();
+  
+  if (oldExt !== newExt) {
+    throw new HttpError(400, `Cannot change file extension from ${oldExt} to ${newExt}`);
+  }
+
+  // Obtener organización si existe
+  let org = null;
+  if (doc.organization) {
+    org = await Organization.findById(doc.organization);
+    if (!org) throw new HttpError(404, 'Organization not found');
+  }
+
+  // Sanitizar nuevo filename
+  const storageRoot = path.join(process.cwd(), 'storage');
+  const safeFilename = sanitizePathOrThrow(filename.trim(), storageRoot);
+
+  // Construir paths
+  const safeSlug = org 
+    ? org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '')
+    : 'users';
+  
+  const oldPathComponents = (doc.path || '').split('/').filter(p => p).map(component => 
+    component.replace(/[^a-z0-9_.-]/gi, '-')
+  );
+  
+  const newDocPath = `${folder.path}/${safeFilename}`;
+  const newPathComponents = newDocPath.split('/').filter(p => p).map(component => 
+    component.replace(/[^a-z0-9_.-]/gi, '-')
+  );
+  
+  const oldPhysicalPath = path.join(storageRoot, safeSlug, ...oldPathComponents);
+  const newPhysicalPath = path.join(storageRoot, safeSlug, ...newPathComponents);
+
+  // Validar que el nuevo nombre no exista ya en la misma carpeta
+  const existingDoc = await DocumentModel.findOne({
+    folder: doc.folder,
+    filename: safeFilename,
+    _id: { $ne: doc._id }
+  });
+
+  if (existingDoc) {
+    throw new HttpError(409, `A document named '${safeFilename}' already exists in this folder`);
+  }
+
+  // Renombrar archivo físico
+  try {
+    if (fs.existsSync(oldPhysicalPath)) {
+      fs.renameSync(oldPhysicalPath, newPhysicalPath);
+    }
+  } catch (e: any) {
+    console.error('File rename error:', e.message);
+    throw new HttpError(500, 'Failed to rename file in storage');
+  }
+
+  // Actualizar documento en BD
+  doc.filename = safeFilename;
+  doc.originalname = safeFilename; // Actualizar también originalname
+  doc.path = newDocPath;
+  doc.url = `/storage/${safeSlug}${newDocPath}`;
+  await doc.save();
+
+  // Actualizar índice de búsqueda si está habilitado
+  try {
+    await searchService.indexDocument(doc);
+  } catch (e) {
+    // Si falla la indexación, no afecta la operación principal
+    console.warn('Failed to index renamed document:', e);
+  }
 
   return doc;
 }
@@ -686,6 +789,7 @@ export default {
   listDocuments,
   findDocumentById,
   moveDocument,
+  renameDocument,
   copyDocument,
   getUserRecentDocuments
 };
