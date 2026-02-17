@@ -46,7 +46,7 @@ export interface DeleteFolderDto {
 export interface RenameFolderDto {
   id: string;
   userId: string;
-  name: string;
+  name?: string;
   displayName?: string;
 }
 
@@ -101,13 +101,13 @@ export async function validateFolderAccess(
 ): Promise<boolean> {
   // Validar que el folderId sea un ObjectId válido y no un objeto de consulta
   if (typeof folderId !== 'string' || !mongoose.Types.ObjectId.isValid(folderId)) {
-    throw new HttpError(400, 'Invalid folder ID');
+    throw new HttpError(400, 'ID de carpeta inválido');
   }
 
   const folder = await Folder.findById(folderId);
   
   if (!folder) {
-    throw new HttpError(404, 'Folder not found');
+    throw new HttpError(404, 'Carpeta no encontrada');
   }
   
   // Usar el método hasAccess del modelo
@@ -117,8 +117,8 @@ export async function validateFolderAccess(
     throw new HttpError(
       403,
       requiredRole 
-        ? `User does not have ${requiredRole} access to this folder`
-        : 'User does not have access to this folder'
+        ? `El usuario no tiene acceso de ${requiredRole} a esta carpeta`
+        : 'El usuario no tiene acceso a esta carpeta'
     );
   }
   
@@ -129,30 +129,30 @@ export async function validateFolderAccess(
  * Crea la carpeta raíz para una organización si no existe
  */
 export async function createRootFolder(userId: string, organizationId: string): Promise<IFolder> {
-  console.log('[createRootFolder] Called with userId:', userId, 'orgId:', organizationId);
+  console.log('[createRootFolder] Llamado con userId:', userId, 'orgId:', organizationId);
   
   const org = await Organization.findById(organizationId);
-  if (!org) throw new HttpError(404, 'Organization not found');
+  if (!org) throw new HttpError(404, 'Organización no encontrada');
 
-  // Check if exist
+  // Verificar si ya existe
   const existingRoot = await Folder.findOne({
     organization: new mongoose.Types.ObjectId(organizationId),
     parent: null
   });
 
   if (existingRoot) {
-    console.log('[createRootFolder] Found existing root:', existingRoot._id);
+    console.log('[createRootFolder] Encontrada raíz existente:', existingRoot._id);
     return existingRoot;
   }
   
-  console.log('[createRootFolder] No existing root found, creating new one...');
+  console.log('[createRootFolder] No se encontró raíz existente, creando nueva...');
 
-  // Create root
+  // Crear carpeta raíz
   try {
     const rootFolder = await Folder.create({
-      name: 'root', // Internal name
+      name: 'root', // Nombre interno
       displayName: org.name, // Nombre de la organización (mejor UX)
-      type: 'root', // CORRECT TYPE
+      type: 'root', // TIPO CORRECTO
       owner: userId,
       organization: organizationId,
       parent: null,
@@ -163,27 +163,27 @@ export async function createRootFolder(userId: string, organizationId: string): 
       }]
     });
     
-    console.log('[createRootFolder] Created new root folder:', rootFolder._id, 'for org:', organizationId);
+    console.log('[createRootFolder] Creada nueva carpeta raíz:', rootFolder._id, 'para org:', organizationId);
     
-    // Ensure physical directory
+    // Asegurar directorio físico
     const storageRoot = path.join(process.cwd(), 'storage');
     // Sanitizar slug para prevenir path traversal
     const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-    const folderPath = path.join(storageRoot, safeSlug); // Root of org bucket
+    const folderPath = path.join(storageRoot, safeSlug); // Raíz del bucket de la org
     
     if (!fs.existsSync(folderPath)) {
       fs.mkdirSync(folderPath, { recursive: true });
     }
 
-    // UPDATE MEMBERSHIP WITH ROOT FOLDER
-    // Find the membership for this user in this organization
+    // ACTUALIZAR MEMBRESÍA CON CARPETA RAÍZ
+    // Buscar la membresía de este usuario en esta organización
     const membership = await Membership.findOne({
       user: new mongoose.Types.ObjectId(userId),
       organization: new mongoose.Types.ObjectId(organizationId)
     });
 
     if (membership) {
-       // Assuming Membership model has a 'rootFolder' field (based on document.service usage)
+       // Asumiendo que el modelo Membership tiene un campo 'rootFolder' (basado en uso de document.service)
        await Membership.updateOne(
          { _id: membership._id },
          { $set: { rootFolder: rootFolder._id } }
@@ -192,7 +192,7 @@ export async function createRootFolder(userId: string, organizationId: string): 
     
     return rootFolder;
   } catch (err: any) {
-    // If race condition where it was just created
+    // Si ocurrió race condition y fue recién creada
     if (err.code === 11000) {
        const found = await Folder.findOne({
           organization: new mongoose.Types.ObjectId(organizationId),
@@ -218,34 +218,34 @@ export async function createFolder({
   organizationId,
   parentId 
 }: CreateFolderDto): Promise<IFolder> {
-  if (!name) throw new HttpError(400, 'Folder name is required');
-  if (!owner) throw new HttpError(400, 'Owner is required');
-  if (!organizationId) throw new HttpError(400, 'Organization ID is required');
-  if (!parentId) throw new HttpError(400, 'Parent folder ID is required');
+  if (!name) throw new HttpError(400, 'El nombre de la carpeta es requerido');
+  if (!owner) throw new HttpError(400, 'El propietario es requerido');
+  if (!organizationId) throw new HttpError(400, 'El ID de organización es requerido');
+  if (!parentId) throw new HttpError(400, 'El ID de carpeta padre es requerido');
 
   // Validar que el organizationId sea un ObjectId válido y no un objeto de consulta
   if (typeof organizationId !== 'string' || !mongoose.Types.ObjectId.isValid(organizationId)) {
-    throw new HttpError(400, 'Invalid organization ID');
+    throw new HttpError(400, 'ID de organización inválido');
   }
 
   // Validar que el parentId sea un ObjectId válido y no un objeto de consulta
   if (typeof parentId !== 'string' || !mongoose.Types.ObjectId.isValid(parentId)) {
-    throw new HttpError(400, 'Invalid parent folder ID');
+    throw new HttpError(400, 'ID de carpeta padre inválido');
   }
   
   // Validar que el usuario exista
   const user = await User.findById(owner);
-  if (!user) throw new HttpError(404, 'Owner user not found');
+  if (!user) throw new HttpError(404, 'Usuario propietario no encontrado');
   
   // Validar que la organización exista
   const org = await Organization.findById(organizationId);
-  if (!org) throw new HttpError(404, 'Organization not found');
+  if (!org) throw new HttpError(404, 'Organización no encontrada');
   
   // Validar que la carpeta padre exista y el usuario tenga permisos de editor o owner
   await validateFolderAccess(parentId, owner, 'editor');
   
   const parentFolder = await Folder.findById(parentId);
-  if (!parentFolder) throw new HttpError(404, 'Parent folder not found');
+  if (!parentFolder) throw new HttpError(404, 'Carpeta padre no encontrada');
   
   // Construir el path basado en el padre
   const newPath = buildFolderPath(parentFolder.path, name);
@@ -296,7 +296,7 @@ export async function createFolder({
  */
 export async function getFolderContents({ folderId, userId }: GetFolderContentsDto): Promise<{
   folder: IFolder;
-  subfolders: IFolder[];
+  subfolders: any[];
   documents: any[];
 }> {
   console.log('[getFolderContents] folderId:', folderId);
@@ -320,7 +320,7 @@ export async function getFolderContents({ folderId, userId }: GetFolderContentsD
     ]
   }).sort({ name: 1 });
   
-  console.log('[getFolderContents] Found', subfolders.length, 'subfolders');
+  console.log('[getFolderContents] Encontradas', subfolders.length, 'subcarpetas');
   
   // Obtener conteo de documentos por subcarpeta
   const documentCounts = await DocumentModel.aggregate([
@@ -363,8 +363,8 @@ export async function getFolderContents({ folderId, userId }: GetFolderContentsD
   .sort({ createdAt: -1 })
   .select('-__v');
   
-  console.log('[getFolderContents] Found', documents.length, 'documents in folder', folderId);
-  console.log('[getFolderContents] Documents:', documents.map(d => ({ id: d._id, name: d.filename, folder: d.folder })));
+  console.log('[getFolderContents] Encontrados', documents.length, 'documentos en carpeta', folderId);
+  console.log('[getFolderContents] Documentos:', documents.map(d => ({ id: d._id, name: d.filename, folder: d.folder })));
   
   return {
     folder,
@@ -397,7 +397,7 @@ export async function getUserFolderTree({ userId, organizationId }: GetUserFolde
   .sort({ path: 1 })
   .lean();
   
-  console.log('[getUserFolderTree] Found', folders.length, 'folders');
+  console.log('[getUserFolderTree] Encontradas', folders.length, 'carpetas');
   
   if (folders.length === 0) {
     return null;
@@ -468,7 +468,7 @@ export async function getUserFolderTree({ userId, organizationId }: GetUserFolde
     }
   });
   
-  console.log('[getUserFolderTree] Found', rootFolders.length, 'root folders');
+  console.log('[getUserFolderTree] Encontradas', rootFolders.length, 'carpetas raíz');
   
   // Retornar la primera carpeta raíz (debería haber solo una por usuario)
   return rootFolders.length > 0 ? rootFolders[0] as IFolder : null;
@@ -494,7 +494,7 @@ export async function shareFolder({
   
   // Validar que el usuario objetivo exista y esté en la misma organización
   const targetUser = await User.findById(targetUserId);
-  if (!targetUser) throw new HttpError(404, 'Target user not found');
+  if (!targetUser) throw new HttpError(404, 'Usuario objetivo no encontrado');
   
   // Validar compatibilidad de organización:
   // - Ambos sin organización: OK (usuarios personales)
@@ -508,9 +508,9 @@ export async function shareFolder({
     if (!folderOrgId && !userOrgId) {
       // Ambos son usuarios personales - OK
     } else if (folderOrgId && userOrgId) {
-      throw new HttpError(403, 'Users belong to different organizations');
+      throw new HttpError(403, 'Los usuarios pertenecen a organizaciones diferentes');
     } else {
-      throw new HttpError(403, 'Cannot share between personal and organization users');
+      throw new HttpError(403, 'No se puede compartir entre usuarios personales y de organización');
     }
   }
   
@@ -547,20 +547,20 @@ export async function deleteFolder({ id, userId, force = false }: DeleteFolderDt
   
   // Validar que no sea carpeta raíz
   if (folder.type === 'root') {
-    throw new HttpError(400, 'Cannot delete root folder');
+    throw new HttpError(400, 'No se puede eliminar la carpeta raíz');
   }
   
   if (!force) {
     // Verificar si tiene subcarpetas
     const hasSubfolders = await Folder.exists({ parent: id });
     if (hasSubfolders) {
-      throw new HttpError(400, 'Folder contains subfolders');
+      throw new HttpError(400, 'La carpeta contiene subcarpetas');
     }
     
     // Verificar si tiene documentos
     const hasDocs = await DocumentModel.exists({ folder: id });
     if (hasDocs) {
-      throw new HttpError(400, 'Folder is not empty');
+      throw new HttpError(400, 'La carpeta no está vacía');
     }
   } else {
     // Forzar: elimina subcarpetas recursivamente
@@ -640,7 +640,10 @@ async function deleteSubfoldersRecursively(folderId: string): Promise<void> {
 }
 
 export async function renameFolder({ id, userId, name, displayName }: RenameFolderDto): Promise<IFolder> {
-  if (!name) throw new HttpError(400, 'Folder name is required');
+  // Validar que al menos uno de los campos esté presente
+  if (!name && !displayName) {
+    throw new HttpError(400, 'Se requiere name o displayName');
+  }
   
   // Validar que el usuario tenga permisos de editor o owner
   await validateFolderAccess(id, userId, 'editor');
@@ -648,35 +651,39 @@ export async function renameFolder({ id, userId, name, displayName }: RenameFold
   const folder = await Folder.findById(id);
   if (!folder) throw new HttpError(404, 'Folder not found');
   
-  // Validar que no sea carpeta raíz (solo se puede cambiar displayName)
-  if (folder.type === 'root' && name !== folder.name) {
-    throw new HttpError(400, 'Cannot rename root folder technical name, use displayName instead');
+  // ROOT no se puede renombrar (está casado a la organización)
+  if (folder.type === 'root') {
+    throw new HttpError(400, 'No se puede renombrar la carpeta ROOT - está vinculada a la organización');
+  }
+  
+  // Para carpetas normales: usar name o displayName como valor de renombrado
+  const newName = name || displayName;
+  if (!newName) {
+    throw new HttpError(400, 'El nombre de la carpeta es requerido');
   }
   
   const oldPath = folder.path;
   let newPath: string;
   
   if (folder.parent) {
-    // Get parent folder to build path correctly
+    // Obtener carpeta padre para construir path correctamente
     const parentFolder = await Folder.findById(folder.parent);
-    if (!parentFolder) throw new HttpError(404, 'Parent folder not found');
-    newPath = buildFolderPath(parentFolder.path, name);
+    if (!parentFolder) throw new HttpError(404, 'Carpeta padre no encontrada');
+    newPath = buildFolderPath(parentFolder.path, newName);
   } else {
-    // Root folder
-    newPath = `/${name}`;
+    // Subcarpeta sin padre (no debería ocurrir excepto ROOT)
+    newPath = `/${newName}`;
   }
   
   try {
-    // Actualizar primero en BD para validar unicidad
-    folder.name = name;
-    if (displayName !== undefined) {
-      folder.displayName = displayName;
-    }
+    // Renombrado completo: name y displayName
+    folder.name = newName;
+    folder.displayName = displayName || newName; // displayName opcional, usar newName como fallback
     folder.path = newPath;
     await folder.save();
   } catch (err: any) {
     if (err && err.code === 11000) {
-      throw new HttpError(409, 'Folder name already exists in this location');
+      throw new HttpError(409, 'Ya existe una carpeta con este nombre en esta ubicación');
     }
     throw err;
   }
@@ -734,7 +741,7 @@ async function updateSubfolderPaths(folderId: string, oldParentPath: string, new
 export async function moveFolder({ folderId, userId, targetFolderId }: MoveFolderDto): Promise<IFolder> {
   // Validar formato de IDs
   if (!mongoose.Types.ObjectId.isValid(folderId) || !mongoose.Types.ObjectId.isValid(targetFolderId)) {
-    throw new HttpError(400, 'Invalid folder ID');
+    throw new HttpError(400, 'ID de carpeta inválido');
   }
 
   // Validar que el usuario tenga permisos de 'editor' en la carpeta que se mueve
@@ -748,21 +755,21 @@ export async function moveFolder({ folderId, userId, targetFolderId }: MoveFolde
   const folder = await Folder.findById(folderId);
   const targetFolder = await Folder.findById(targetFolderId);
 
-  if (!folder) throw new HttpError(404, 'Source folder not found');
-  if (!targetFolder) throw new HttpError(404, 'Target folder not found');
+  if (!folder) throw new HttpError(404, 'Carpeta origen no encontrada');
+  if (!targetFolder) throw new HttpError(404, 'Carpeta destino no encontrada');
 
   // Validaciones lógicas
   if (folder.type === 'root') {
-    throw new HttpError(400, 'Cannot move root folder');
+    throw new HttpError(400, 'No se puede mover la carpeta raíz');
   }
 
   if (folder.id === targetFolder.id) {
-    throw new HttpError(400, 'Cannot move folder into itself');
+    throw new HttpError(400, 'No se puede mover una carpeta dentro de sí misma');
   }
 
   // Prevenir ciclos: La carpeta destino no puede ser hija de la carpeta que muevo
   if (targetFolder.path.startsWith(folder.path)) {
-    throw new HttpError(400, 'Cannot move folder into its own subfolder');
+    throw new HttpError(400, 'No se puede mover una carpeta dentro de su propia subcarpeta');
   }
   
   // Validar que no exista ya una carpeta con el mismo nombre en el destino
@@ -773,7 +780,7 @@ export async function moveFolder({ folderId, userId, targetFolderId }: MoveFolde
   });
 
   if (existingName) {
-    throw new HttpError(409, `A folder named '${folder.name}' already exists in the destination`);
+    throw new HttpError(409, `Ya existe una carpeta llamada '${folder.name}' en el destino`);
   }
 
   // Proceder con el movimiento
