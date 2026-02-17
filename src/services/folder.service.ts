@@ -412,15 +412,43 @@ export async function getUserFolderTree({ userId, organizationId }: GetUserFolde
     };
   });
   
+  // Obtener todos los documentos de estas carpetas
+  const documents = await DocumentModel.find({
+    organization: orgObjectId,
+    folder: { $in: folders.map(f => f._id) },
+    $or: [
+      { uploadedBy: userObjectId },
+      { sharedWith: userObjectId }
+    ]
+  })
+  .sort({ originalname: 1 })
+  .select('-__v')
+  .lean();
+  
+  // Agrupar documentos por carpeta
+  const documentsByFolder = new Map<string, any[]>();
+  documents.forEach(doc => {
+    const folderId = doc.folder.toString();
+    if (!documentsByFolder.has(folderId)) {
+      documentsByFolder.set(folderId, []);
+    }
+    const { _id, ...restDoc } = doc as any;
+    documentsByFolder.get(folderId)!.push({
+      ...restDoc,
+      id: _id.toString()
+    });
+  });
+  
   // Construir árbol jerárquico
   const folderMap = new Map<string, any>();
   const rootFolders: any[] = [];
   
-  // Primero crear el mapa con todos los folders
+  // Primero crear el mapa con todos los folders y sus documentos
   transformedFolders.forEach(folder => {
     folderMap.set(folder.id, {
       ...folder,
-      children: []
+      children: [],
+      documents: documentsByFolder.get(folder.id) || []
     });
   });
   
