@@ -38,7 +38,7 @@ const ipKeyGenerator = (req: Request): string => {
  */
 export const generalRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit of 100 requests per time window
+  max: process.env.NODE_ENV === 'development' ? 1000 : 100, // 1000 requests for dev, 100 for prod
   standardHeaders: true, // Returns rate limit info in `RateLimit-*` headers
   legacyHeaders: false, // Disables legacy `X-RateLimit-*` headers
   // Skip rate limiting in test environment

@@ -393,6 +393,7 @@ export async function getUserRecentDocuments({
 
   const documents = await DocumentModel.find({
     organization: orgObjectId,
+    deletedAt: null, // Excluir documentos en papelera
     $or: [
       { uploadedBy: userObjectId },
       { sharedWith: userObjectId }
@@ -602,7 +603,10 @@ export function listDocuments(userId: string): Promise<IDocument[]> {
     throw new HttpError(400, 'Invalid user ID');
   }
   const userObjectId = new mongoose.Types.ObjectId(userId);
-  return DocumentModel.find({ uploadedBy: userObjectId }).populate('folder');
+  return DocumentModel.find({ 
+    uploadedBy: userObjectId,
+    deletedAt: null // Excluir documentos en papelera
+  }).populate('folder');
 }
 
 export async function findDocumentById(id: string): Promise<IDocument | null> {
