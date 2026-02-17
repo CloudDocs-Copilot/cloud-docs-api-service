@@ -46,7 +46,7 @@ export interface DeleteFolderDto {
 export interface RenameFolderDto {
   id: string;
   userId: string;
-  name?: string;
+  name: string;
   displayName?: string;
 }
 
@@ -322,6 +322,36 @@ export async function getFolderContents({ folderId, userId }: GetFolderContentsD
   
   console.log('[getFolderContents] Found', subfolders.length, 'subfolders');
   
+  // Obtener conteo de documentos por subcarpeta
+  const documentCounts = await DocumentModel.aggregate([
+    {
+      $match: {
+        folder: { $in: subfolders.map(f => f._id) }
+      }
+    },
+    {
+      $group: {
+        _id: '$folder',
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+  
+  // Crear mapa de conteos para acceso O(1)
+  const countMap = new Map<string, number>();
+  documentCounts.forEach(item => {
+    countMap.set(item._id.toString(), item.count);
+  });
+  
+  // Agregar itemCount a cada subcarpeta
+  const subfoldersWithCount = subfolders.map(subfolder => {
+    const plain = subfolder.toObject();
+    return {
+      ...plain,
+      itemCount: countMap.get(subfolder._id.toString()) || 0
+    };
+  });
+  
   // Obtener documentos de la carpeta
   const documents = await DocumentModel.find({
     folder: folderObjectId,
@@ -338,7 +368,7 @@ export async function getFolderContents({ folderId, userId }: GetFolderContentsD
   
   return {
     folder,
-    subfolders,
+    subfolders: subfoldersWithCount,
     documents
   };
 }
@@ -582,10 +612,7 @@ async function deleteSubfoldersRecursively(folderId: string): Promise<void> {
 }
 
 export async function renameFolder({ id, userId, name, displayName }: RenameFolderDto): Promise<IFolder> {
-  // Validar que al menos uno de los campos esté presente
-  if (!name && !displayName) {
-    throw new HttpError(400, 'Name or displayName is required');
-  }
+  if (!name) throw new HttpError(400, 'Folder name is required');
   
   // Validar que el usuario tenga permisos de editor o owner
   await validateFolderAccess(id, userId, 'editor');
@@ -593,15 +620,9 @@ export async function renameFolder({ id, userId, name, displayName }: RenameFold
   const folder = await Folder.findById(id);
   if (!folder) throw new HttpError(404, 'Folder not found');
   
-  // ROOT no se puede renombrar (está casado a la organización)
-  if (folder.type === 'root') {
-    throw new HttpError(400, 'Cannot rename root folder - it is tied to the organization');
-  }
-  
-  // Para carpetas normales: usar name o displayName como valor de renombrado
-  const newName = name || displayName;
-  if (!newName) {
-    throw new HttpError(400, 'New folder name is required');
+  // Validar que no sea carpeta raíz (solo se puede cambiar displayName)
+  if (folder.type === 'root' && name !== folder.name) {
+    throw new HttpError(400, 'Cannot rename root folder technical name, use displayName instead');
   }
   
   const oldPath = folder.path;
@@ -611,16 +632,18 @@ export async function renameFolder({ id, userId, name, displayName }: RenameFold
     // Get parent folder to build path correctly
     const parentFolder = await Folder.findById(folder.parent);
     if (!parentFolder) throw new HttpError(404, 'Parent folder not found');
-    newPath = buildFolderPath(parentFolder.path, newName);
+    newPath = buildFolderPath(parentFolder.path, name);
   } else {
-    // Subcarpeta sin padre (no debería ocurrir excepto ROOT)
-    newPath = `/${newName}`;
+    // Root folder
+    newPath = `/${name}`;
   }
   
   try {
-    // Renombrado completo: name y displayName
-    folder.name = newName;
-    folder.displayName = displayName || newName; // displayName opcional, usar newName como fallback
+    // Actualizar primero en BD para validar unicidad
+    folder.name = name;
+    if (displayName !== undefined) {
+      folder.displayName = displayName;
+    }
     folder.path = newPath;
     await folder.save();
   } catch (err: any) {
