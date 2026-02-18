@@ -13,7 +13,7 @@ interface MulterError extends Error {
 
 /**
  * Mapea errores específicos de Mongoose a respuestas HTTP estándar
- * 
+ *
  * @param err - Error de Mongoose a mapear
  * @returns Objeto con status y mensaje, o null si no es un error de Mongoose conocido
  */
@@ -23,12 +23,12 @@ function mapMongooseError(err: MongooseError): { status: number; message: string
     console.error('[mongoose-validation-error]', err);
     return { status: 400, message: 'Validation failed' };
   }
-  
+
   // CastError (ObjectId inválido)
   if (err.name === 'CastError') {
     return { status: 400, message: 'Invalid identifier format' };
   }
-  
+
   // Error de clave duplicada (índice único)
   if (err.code && err.code === 11000) {
     // Caso específico: índice único en Folder (owner+name)
@@ -42,14 +42,14 @@ function mapMongooseError(err: MongooseError): { status: number; message: string
     const fields = Object.keys(err.keyValue || {});
     return { status: 409, message: `Duplicate value for field(s): ${fields.join(', ')}` };
   }
-  
+
   // Escenarios de no encontrado pueden viajar como HttpError desde los servicios
   return null;
 }
 
 /**
  * Manejador global de errores de la aplicación
- * 
+ *
  * Procesa y formatea diferentes tipos de errores:
  * - HttpError personalizado
  * - Errores de Mongoose (validación, cast, duplicados)
@@ -61,7 +61,11 @@ export function errorHandler(err: any, _req: Request, res: Response, _next: Next
   // Error de aplicación tipado personalizado
   if (err instanceof HttpError) {
     if (process.env.NODE_ENV !== 'test') {
-      console.error('[http-error]', { message: err.message, details: err.details, stack: err.stack });
+      console.error('[http-error]', {
+        message: err.message,
+        details: err.details,
+        stack: err.stack
+      });
     }
     res.status(err.statusCode).json({
       success: false,
@@ -88,7 +92,7 @@ export function errorHandler(err: any, _req: Request, res: Response, _next: Next
     res.status(401).json({ success: false, error: 'Token expired' });
     return;
   }
-  
+
   if (err.name === 'JsonWebTokenError') {
     if (process.env.NODE_ENV !== 'test') {
       console.error('[auth-token-invalid]', err);

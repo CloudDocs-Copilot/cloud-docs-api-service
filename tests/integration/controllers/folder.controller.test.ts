@@ -32,17 +32,17 @@ describe('FolderController - New Endpoints Integration Tests', () => {
       email: 'user@test.com',
       password: 'hashedpassword123',
       role: 'user',
-      active: true,
+      active: true
     });
     testUserId = user1._id;
-    
+
     // Esperar 100ms para asegurar que tokenCreatedAt > user.updatedAt
     await new Promise(resolve => setTimeout(resolve, 100));
-    
+
     testToken = jwtService.signToken({
       id: testUserId.toString(),
       email: 'user@test.com',
-      role: 'user',
+      role: 'user'
     });
 
     const user2 = await User.create({
@@ -50,32 +50,33 @@ describe('FolderController - New Endpoints Integration Tests', () => {
       email: 'user2@test.com',
       password: 'hashedpassword123',
       role: 'user',
-      active: true,
+      active: true
     });
     testUser2Id = user2._id;
     testToken2 = jwtService.signToken({
       id: testUser2Id.toString(),
       email: 'user2@test.com',
-      role: 'user',
+      role: 'user'
     });
 
     // Crear organización
     const org = await Organization.create({
       name: 'Test Org',
       owner: testUserId,
-      members: [testUserId, testUser2Id],
+      members: [testUserId, testUser2Id]
     });
     testOrgId = org._id;
+    const testOrgSlug = org.slug; // Generado automáticamente: 'test-org'
 
     // Crear estructura de carpetas
     const rootFolder = await Folder.create({
-      name: `root_user_${testUserId}`,
+      name: `root_${testOrgSlug}_${testUserId}`,
       displayName: 'My Files',
       type: 'root',
       organization: testOrgId,
       owner: testUserId,
       path: '/',
-      isRoot: true,
+      isRoot: true
     });
     rootFolderId = rootFolder._id;
 
@@ -87,7 +88,7 @@ describe('FolderController - New Endpoints Integration Tests', () => {
       owner: testUserId,
       parent: rootFolderId,
       path: '/projects',
-      isRoot: false,
+      isRoot: false
     });
     subFolder1Id = subFolder1._id;
 
@@ -99,7 +100,7 @@ describe('FolderController - New Endpoints Integration Tests', () => {
       owner: testUserId,
       parent: rootFolderId,
       path: '/documents',
-      isRoot: false,
+      isRoot: false
     });
     subFolder2Id = subFolder2._id;
 
@@ -112,17 +113,17 @@ describe('FolderController - New Endpoints Integration Tests', () => {
       owner: testUserId,
       parent: subFolder1Id,
       path: '/projects/web-projects',
-      isRoot: false,
+      isRoot: false
     });
 
     // Actualizar usuarios
     await User.findByIdAndUpdate(testUserId, {
       organization: testOrgId,
-      rootFolder: rootFolderId,
+      rootFolder: rootFolderId
     });
 
     await User.findByIdAndUpdate(testUser2Id, {
-      organization: testOrgId,
+      organization: testOrgId
     });
   });
 
@@ -133,7 +134,15 @@ describe('FolderController - New Endpoints Integration Tests', () => {
     // Limpiar directorios de prueba
     const storageDir = path.join(process.cwd(), 'storage');
     if (fs.existsSync(storageDir)) {
-      fs.rmSync(storageDir, { recursive: true, force: true });
+      try {
+        fs.rmSync(storageDir, { recursive: true, force: true });
+      } catch (err: any) {
+        if (err && (err.code === 'ENOTEMPTY' || err.code === 'EBUSY' || err.code === 'EPERM')) {
+          console.warn('Warning: could not fully remove storageDir during cleanup:', err.code);
+        } else {
+          throw err;
+        }
+      }
     }
   });
 
@@ -151,15 +160,15 @@ describe('FolderController - New Endpoints Integration Tests', () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.tree).toBeDefined();
-      
-      // Verificar estructura raíz
-      expect(response.body.tree.name).toBe(`root_user_${testUserId}`);
+
+      // Verificar estructura raíz (el nombre técnico ahora incluye el slug: root_{orgSlug}_{userId})
+      expect(response.body.tree.name).toMatch(/^root_test-org_/);
       expect(response.body.tree.displayName).toBe('My Files');
       expect(response.body.tree.isRoot).toBe(true);
-      
+
       // Verificar hijos directos
       expect(response.body.tree.children).toHaveLength(2);
-      
+
       // Verificar que el primer hijo tiene sus propios hijos
       const projectsFolder = response.body.tree.children.find(
         (child: any) => child.name === 'projects'
@@ -209,7 +218,7 @@ describe('FolderController - New Endpoints Integration Tests', () => {
         path: '/root-doc.txt',
         size: 1000,
         mimeType: 'text/plain',
-        uploadedBy: testUserId,
+        uploadedBy: testUserId
       });
 
       await Document.create({
@@ -220,7 +229,7 @@ describe('FolderController - New Endpoints Integration Tests', () => {
         path: '/projects/project-doc.txt',
         size: 2000,
         mimeType: 'text/plain',
-        uploadedBy: testUserId,
+        uploadedBy: testUserId
       });
 
       await Document.create({
@@ -231,7 +240,7 @@ describe('FolderController - New Endpoints Integration Tests', () => {
         path: '/documents/document-doc.txt',
         size: 3000,
         mimeType: 'text/plain',
-        uploadedBy: testUserId,
+        uploadedBy: testUserId
       });
     });
 
@@ -243,17 +252,19 @@ describe('FolderController - New Endpoints Integration Tests', () => {
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.contents).toBeDefined();
-      
+
       // Verificar carpeta
       expect(response.body.contents.folder).toBeDefined();
-      expect(response.body.contents.folder.id || response.body.contents.folder._id.toString()).toBe(rootFolderId.toString());
-      
+      expect(response.body.contents.folder.id || response.body.contents.folder._id.toString()).toBe(
+        rootFolderId.toString()
+      );
+
       // Verificar subcarpetas (solo hijos directos)
       expect(response.body.contents.subfolders).toHaveLength(2);
       const folderNames = response.body.contents.subfolders.map((f: any) => f.name);
       expect(folderNames).toContain('projects');
       expect(folderNames).toContain('documents');
-      
+
       // Verificar documentos en root
       expect(response.body.contents.documents).toHaveLength(1);
       expect(response.body.contents.documents[0].originalname).toBe('root-doc.txt');
@@ -301,13 +312,13 @@ describe('FolderController - New Endpoints Integration Tests', () => {
         .set('Authorization', `Bearer ${testToken}`)
         .send({
           userId: testUser2Id.toString(),
-          role: 1, // viewer
+          role: 1 // viewer
         });
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
       expect(response.body.folder).toBeDefined();
-      
+
       // Verificar que se agregó al array permissions
       const folder = await Folder.findById(subFolder1Id);
       expect(folder?.permissions).toHaveLength(1);
@@ -321,11 +332,11 @@ describe('FolderController - New Endpoints Integration Tests', () => {
         .set('Authorization', `Bearer ${testToken}`)
         .send({
           userId: testUser2Id.toString(),
-          role: 2, // editor
+          role: 2 // editor
         });
 
       expect(response.status).toBe(200);
-      
+
       const folder = await Folder.findById(subFolder1Id);
       expect(folder?.permissions[0].role).toBe('editor');
     });
@@ -337,7 +348,7 @@ describe('FolderController - New Endpoints Integration Tests', () => {
         .set('Authorization', `Bearer ${testToken}`)
         .send({
           userId: testUser2Id.toString(),
-          role: 1,
+          role: 1
         });
 
       // Compartir de nuevo con editor
@@ -346,11 +357,11 @@ describe('FolderController - New Endpoints Integration Tests', () => {
         .set('Authorization', `Bearer ${testToken}`)
         .send({
           userId: testUser2Id.toString(),
-          role: 2,
+          role: 2
         });
 
       expect(response.status).toBe(200);
-      
+
       const folder = await Folder.findById(subFolder1Id);
       expect(folder?.permissions).toHaveLength(1);
       expect(folder?.permissions[0].role).toBe('editor');
@@ -362,7 +373,7 @@ describe('FolderController - New Endpoints Integration Tests', () => {
         .set('Authorization', `Bearer ${testToken2}`)
         .send({
           userId: testUserId.toString(),
-          role: 1,
+          role: 1
         });
 
       expect(response.status).toBe(403);
@@ -392,7 +403,7 @@ describe('FolderController - New Endpoints Integration Tests', () => {
         .set('Authorization', `Bearer ${testToken}`)
         .send({
           userId: testUser2Id.toString(),
-          role: 3, // owner - not allowed
+          role: 3 // owner - not allowed
         });
 
       expect(response.status).toBe(400);
@@ -406,7 +417,7 @@ describe('FolderController - New Endpoints Integration Tests', () => {
         .set('Authorization', `Bearer ${testToken}`)
         .send({
           userId: fakeUserId,
-          role: 1,
+          role: 1
         });
 
       expect(response.status).toBe(404);
@@ -419,19 +430,17 @@ describe('FolderController - New Endpoints Integration Tests', () => {
         .set('Authorization', `Bearer ${testToken}`)
         .send({
           userId: testUser2Id.toString(),
-          role: 1,
+          role: 1
         });
 
       expect(response.status).toBe(404);
     });
 
     it('should fail without authentication', async () => {
-      const response = await request(app)
-        .post(`/api/folders/${subFolder1Id}/share`)
-        .send({
-          userId: testUser2Id.toString(),
-          role: 1,
-        });
+      const response = await request(app).post(`/api/folders/${subFolder1Id}/share`).send({
+        userId: testUser2Id.toString(),
+        role: 1
+      });
 
       expect(response.status).toBe(401);
     });
@@ -444,9 +453,9 @@ describe('FolderController - New Endpoints Integration Tests', () => {
         $push: {
           permissions: {
             userId: testUser2Id,
-            role: 'viewer',
-          },
-        },
+            role: 'viewer'
+          }
+        }
       });
     });
 
@@ -463,7 +472,7 @@ describe('FolderController - New Endpoints Integration Tests', () => {
       const user3 = await User.create({
         name: 'User 3',
         email: 'user3@test.com',
-        password: 'hashedpassword123',
+        password: 'hashedpassword123'
       });
 
       const response = await request(app)
@@ -471,7 +480,7 @@ describe('FolderController - New Endpoints Integration Tests', () => {
         .set('Authorization', `Bearer ${testToken2}`)
         .send({
           userId: user3._id.toString(),
-          role: 1,
+          role: 1
         });
 
       expect(response.status).toBe(403);
@@ -486,11 +495,11 @@ describe('FolderController - New Endpoints Integration Tests', () => {
         .set('Authorization', `Bearer ${testToken}`);
 
       expect(response.status).toBe(200);
-      
+
       const projectsFolder = response.body.tree.children.find(
         (child: any) => child.name === 'projects'
       );
-      
+
       expect(projectsFolder.children).toHaveLength(1);
       expect(projectsFolder.children[0].displayName).toBe('Web Projects');
       expect(projectsFolder.children[0].path).toBe('/projects/web-projects');
@@ -500,7 +509,7 @@ describe('FolderController - New Endpoints Integration Tests', () => {
       // Obtener el ID de web-projects
       const webProjectsFolder = await Folder.findOne({
         name: 'web-projects',
-        organization: testOrgId,
+        organization: testOrgId
       });
 
       // Crear documento en web-projects
@@ -512,7 +521,7 @@ describe('FolderController - New Endpoints Integration Tests', () => {
         path: '/projects/web-projects/nested-doc.txt',
         size: 500,
         mimeType: 'text/plain',
-        uploadedBy: testUserId,
+        uploadedBy: testUserId
       });
 
       const response = await request(app)

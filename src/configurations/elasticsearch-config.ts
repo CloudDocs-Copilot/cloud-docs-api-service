@@ -12,15 +12,16 @@ class ElasticsearchClient {
   public static getInstance(): Client {
     if (!ElasticsearchClient.instance) {
       const esNode = process.env.ELASTICSEARCH_NODE || 'http://localhost:9200';
-      
+
       ElasticsearchClient.instance = new Client({
         node: esNode,
-        auth: process.env.ELASTICSEARCH_USERNAME && process.env.ELASTICSEARCH_PASSWORD
-          ? {
-              username: process.env.ELASTICSEARCH_USERNAME,
-              password: process.env.ELASTICSEARCH_PASSWORD
-            }
-          : undefined,
+        auth:
+          process.env.ELASTICSEARCH_USERNAME && process.env.ELASTICSEARCH_PASSWORD
+            ? {
+                username: process.env.ELASTICSEARCH_USERNAME,
+                password: process.env.ELASTICSEARCH_PASSWORD
+              }
+            : undefined,
         maxRetries: 5,
         requestTimeout: 60000,
         sniffOnStart: false

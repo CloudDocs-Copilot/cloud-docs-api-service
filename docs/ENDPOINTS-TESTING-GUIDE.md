@@ -7,6 +7,7 @@ Esta guía contiene los endpoints principales para probar el sistema multi-tenan
 ## 🔐 1. Autenticación (Sin Organización Requerida)
 
 ### Registrar Usuario
+
 ```http
 POST /api/auth/register
 Content-Type: application/json
@@ -20,6 +21,7 @@ Content-Type: application/json
 ```
 
 **Respuesta esperada:**
+
 ```json
 {
   "success": true,
@@ -38,6 +40,7 @@ Content-Type: application/json
 ---
 
 ### Login
+
 ```http
 POST /api/auth/login
 Content-Type: application/json
@@ -49,6 +52,7 @@ Content-Type: application/json
 ```
 
 **Respuesta esperada:**
+
 ```json
 {
   "success": true,
@@ -69,6 +73,7 @@ Content-Type: application/json
 ## 🏢 2. Crear Organización (FREE Plan por defecto)
 
 ### Crear Primera Organización
+
 ```http
 POST /api/organizations
 Cookie: token=<token>
@@ -81,12 +86,14 @@ Content-Type: application/json
 ```
 
 **Plan Values:**
+
 - `0` = FREE (3 usuarios, 1GB/usuario, 10MB max archivo, solo pdf/txt/doc/docx)
 - `1` = BASIC (10 usuarios, 5GB/usuario, 50MB max archivo)
 - `2` = PREMIUM (50 usuarios, 10GB/usuario, 100MB max archivo)
 - `3` = ENTERPRISE (ilimitados usuarios, 50GB/usuario, 500MB max archivo)
 
 **Respuesta esperada:**
+
 ```json
 {
   "success": true,
@@ -109,7 +116,8 @@ Content-Type: application/json
 }
 ```
 
-**✅ Automático:** 
+**✅ Automático:**
+
 - Se crea una `Membership` con role `OWNER` para el usuario
 - Se crea el `rootFolder` en `storage/mi-empresa-tech-1768949190760/697008fa7bdfacca3aa23687/`
 
@@ -118,12 +126,14 @@ Content-Type: application/json
 ## 👥 3. Gestión de Membresías
 
 ### Ver Mis Organizaciones
+
 ```http
 GET /api/memberships/my-organizations
 Cookie: token=<token>
 ```
 
 **Respuesta esperada:**
+
 ```json
 {
   "success": true,
@@ -150,12 +160,14 @@ Cookie: token=<token>
 ---
 
 ### Ver Organización Activa
+
 ```http
 GET /api/memberships/active-organization
 Authorization: Bearer <token>
 ```
 
 **Respuesta esperada:**
+
 ```json
 {
   "success": true,
@@ -166,12 +178,14 @@ Authorization: Bearer <token>
 ---
 
 ### Ver Miembros de mi Organización
+
 ```http
 GET /api/memberships/organization/697005c7327fe390b912bc98/members
 Authorization: Bearer <token>
 ```
 
 **Respuesta esperada:**
+
 ```json
 {
   "success": true,
@@ -198,6 +212,7 @@ Authorization: Bearer <token>
 ## 📤 4. Subir Documento (Con Validaciones de Plan)
 
 ### Upload - Plan FREE (Máximo 10MB, solo pdf/txt/doc/docx)
+
 ```http
 POST /api/documents/upload
 Authorization: Bearer <token>
@@ -210,12 +225,14 @@ Content-Type: multipart/form-data
 ```
 
 **Validaciones automáticas:**
+
 - ❌ Archivo > 10MB → Error: "File size exceeds plan limit"
 - ❌ Archivo .xlsx → Error: "File type not allowed in your plan"
 - ❌ Usuario sin organización → Error: "User must belong to an active organization"
 - ❌ Storage total org > 3GB → Error: "Organization storage limit exceeded"
 
 **Respuesta exitosa:**
+
 ```json
 {
   "success": true,
@@ -239,6 +256,7 @@ Content-Type: multipart/form-data
 ## 🧪 5. Tests de Límites del Plan FREE
 
 ### Test 1: Intentar subir archivo > 10MB
+
 ```http
 POST /api/documents/upload
 Authorization: Bearer <token>
@@ -250,6 +268,7 @@ Content-Type: multipart/form-data
 ```
 
 **Respuesta esperada:**
+
 ```json
 {
   "success": false,
@@ -260,6 +279,7 @@ Content-Type: multipart/form-data
 ---
 
 ### Test 2: Intentar subir tipo no permitido (.xlsx)
+
 ```http
 POST /api/documents/upload
 Authorization: Bearer <token>
@@ -271,6 +291,7 @@ Content-Type: multipart/form-data
 ```
 
 **Respuesta esperada:**
+
 ```json
 {
   "success": false,
@@ -285,6 +306,7 @@ Content-Type: multipart/form-data
 **Paso 1:** Registrar 3 nuevos usuarios (usuario2, usuario3, usuario4)
 
 **Paso 2:** Como owner, invitar usuario2 (debe funcionar)
+
 ```http
 POST /api/organizations/697005c7327fe390b912bc98/members
 Cookie: token=<token-owner>
@@ -294,9 +316,11 @@ Content-Type: application/json
   "userId": "697009ab7bdfacca3aa23688"
 }
 ```
+
 ✅ **Debe funcionar** (2º usuario)
 
 **Paso 3:** Invitar usuario3 (debe funcionar)
+
 ```http
 POST /api/organizations/697005c7327fe390b912bc98/members
 Cookie: token=<token-owner>
@@ -306,9 +330,11 @@ Content-Type: application/json
   "userId": "697009cd7bdfacca3aa23689"
 }
 ```
+
 ✅ **Debe funcionar** (3º usuario - límite alcanzado)
 
 **Paso 4:** Intentar invitar usuario4 (debe fallar)
+
 ```http
 POST /api/organizations/697005c7327fe390b912bc98/members
 Cookie: token=<token-owner>
@@ -320,6 +346,7 @@ Content-Type: application/json
 ```
 
 **Respuesta esperada:**
+
 ```json
 {
   "success": false,
@@ -332,6 +359,7 @@ Content-Type: application/json
 ## 🔄 6. Multi-Organización (Usuario en 2 Orgs)
 
 ### Crear Segunda Organización
+
 ```http
 POST /api/organizations
 Cookie: token=<token>
@@ -344,6 +372,7 @@ Content-Type: application/json
 ```
 
 **Respuesta esperada:**
+
 ```json
 {
   "success": true,
@@ -358,12 +387,14 @@ Content-Type: application/json
 ---
 
 ### Verificar que tengo 2 Organizaciones
+
 ```http
 GET /api/memberships/my-organizations
 Cookie: token=<token>
 ```
 
 **Respuesta esperada:**
+
 ```json
 {
   "success": true,
@@ -386,12 +417,14 @@ Cookie: token=<token>
 ---
 
 ### Cambiar Organización Activa
+
 ```http
 POST /api/memberships/switch/697010ab327fe390b912bcf0
 Cookie: token=<token>
 ```
 
 **Respuesta esperada:**
+
 ```json
 {
   "success": true,
@@ -405,6 +438,7 @@ Cookie: token=<token>
 ---
 
 ### Subir Documento en Nueva Org Activa
+
 ```http
 POST /api/documents/upload
 Cookie: token=<token>
@@ -422,12 +456,14 @@ Content-Type: multipart/form-data
 ## 📊 7. Ver Documentos Recientes (Solo de Org Activa)
 
 ### Obtener Documentos
+
 ```http
 GET /api/documents/recent
 Authorization: Bearer <token>
 ```
 
 **Respuesta esperada:**
+
 ```json
 {
   "success": true,
@@ -451,12 +487,14 @@ Authorization: Bearer <token>
 ## 🚪 8. Abandonar Organización
 
 ### Usuario Abandona Org (No Owner)
+
 ```http
 DELETE /api/memberships/697005c7327fe390b912bc98/leave
 Cookie: token=<token-miembro>
 ```
 
 **Respuesta esperada:**
+
 ```json
 {
   "success": true,
@@ -465,6 +503,7 @@ Cookie: token=<token-miembro>
 ```
 
 **✅ Automático:**
+
 - Se elimina la `Membership` (soft delete)
 - Se elimina el `rootFolder` del usuario en esa org
 - Se eliminan archivos físicos del usuario en `storage/{org-slug}/{userId}/`
@@ -497,6 +536,7 @@ Cookie: token=<token-miembro>
 ## 🔗 Variables de Entorno Necesarias
 
 Asegurar que `.env` tiene:
+
 ```env
 PORT=3000
 MONGODB_URI=mongodb://localhost:27017/clouddocs
@@ -510,16 +550,19 @@ ALLOWED_ORIGINS=http://localhost:4200
 ## 🛠️ Comandos Útiles
 
 ### Iniciar servidor
+
 ```bash
 npm run dev
 ```
 
 ### Ver logs de storage
+
 ```bash
 ls -la storage/
 ```
 
 ### Ver organizaciones en MongoDB
+
 ```bash
 mongosh
 use clouddocs
@@ -540,9 +583,9 @@ db.memberships.find().pretty()
 ---
 
 **✅ Con estos tests validarás:**
+
 1. Registro sin organización requerida
 2. Creación de organizaciones con planes
 3. Validaciones de límites de plan (FREE)
 4. Multi-tenancy (aislamiento entre orgs)
 5. Gestión de membresías (invitar, cambiar org, abandonar)
-

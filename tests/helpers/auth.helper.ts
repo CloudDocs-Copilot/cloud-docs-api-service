@@ -26,13 +26,13 @@ export interface AuthResult {
 async function createTestOrganization(): Promise<string> {
   // Crear un owner temporal para la organización
   const tempOwnerId = new mongoose.Types.ObjectId();
-  
+
   const org = await Organization.create({
     name: `Test Org ${Date.now()}`,
     owner: tempOwnerId,
     members: [tempOwnerId]
   });
-  
+
   return org._id.toString();
 }
 
@@ -64,9 +64,7 @@ export async function registerUser(userData?: {
     payload.organizationId = organizationId;
   }
 
-  const response = await request(app)
-    .post('/api/auth/register')
-    .send(payload);
+  const response = await request(app).post('/api/auth/register').send(payload);
 
   return response;
 }
@@ -75,18 +73,15 @@ export async function registerUser(userData?: {
  * Inicia sesión con un usuario
  */
 export async function loginUser(email: string, password: string): Promise<AuthResult> {
-  const response = await request(app)
-    .post('/api/auth/login')
-    .send({ email, password })
-    .expect(200);
+  const response = await request(app).post('/api/auth/login').send({ email, password }).expect(200);
 
   // Extraer cookies de la respuesta
-  const cookies: string[] = Array.isArray(response.headers['set-cookie']) 
-    ? response.headers['set-cookie'] 
-    : response.headers['set-cookie'] 
+  const cookies: string[] = Array.isArray(response.headers['set-cookie'])
+    ? response.headers['set-cookie']
+    : response.headers['set-cookie']
       ? [response.headers['set-cookie']]
       : [];
-  
+
   // Extraer el token de la cookie
   let token = '';
   if (cookies.length > 0) {
@@ -184,10 +179,10 @@ export function getAuthHeaders(token: string): Record<string, string> {
  */
 export function getAuthCookie(cookies: string[]): string {
   if (cookies.length === 0) return '';
-  
+
   const tokenCookie = cookies.find((cookie: string) => cookie.startsWith('token='));
   if (!tokenCookie) return '';
-  
+
   return tokenCookie.split(';')[0];
 }
 
@@ -196,9 +191,7 @@ export function getAuthCookie(cookies: string[]): string {
  */
 export async function verifyToken(cookies: string[]): Promise<boolean> {
   try {
-    const response = await request(app)
-      .get('/api/documents')
-      .set('Cookie', getAuthCookie(cookies));
+    const response = await request(app).get('/api/documents').set('Cookie', getAuthCookie(cookies));
 
     return response.status !== 401;
   } catch {
@@ -228,7 +221,5 @@ export async function getAuthCookies(): Promise<string[]> {
  * Intenta autenticar con credenciales incorrectas
  */
 export async function attemptInvalidLogin(email: string, password: string): Promise<any> {
-  return await request(app)
-    .post('/api/auth/login')
-    .send({ email, password });
+  return await request(app).post('/api/auth/login').send({ email, password });
 }

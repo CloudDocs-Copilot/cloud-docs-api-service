@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import DocumentModel, { IDocument } from '../models/document.model';
 import Folder from '../models/folder.model';
 import User from '../models/user.model';
@@ -8,13 +9,16 @@ import Organization from '../models/organization.model';
 import HttpError from '../models/error.model';
 import { sanitizePathOrThrow, isPathWithinBase } from '../utils/path-sanitizer';
 import { validateFolderAccess } from './folder.service';
-import { getMembership, getActiveOrganization } from './membership.service';
+import { getMembership, getActiveOrganization, hasAnyRole } from './membership.service';
+import { MembershipRole } from '../models/membership.model';
 import { PLAN_LIMITS } from '../models/types/organization.types';
 import * as searchService from './search.service';
+import * as notificationService from './notification.service';
+import { emitToUser } from '../socket/socket';
 
 /**
  * Valida si un string es un ObjectId válido de MongoDB
- * 
+ *
  * @param id - String a validar
  * @returns true si es un ObjectId válido
  */
@@ -39,6 +43,12 @@ export interface UploadDocumentDto {
   folderId?: string; // Opcional - usa rootFolder de la membresía activa si no se especifica
 }
 
+export interface ReplaceDocumentFileDto {
+  documentId: string;
+  userId: string;
+  file: Express.Multer.File;
+}
+
 export interface MoveDocumentDto {
   documentId: string;
   userId: string;
@@ -59,7 +69,11 @@ export interface GetRecentDocumentsDto {
 /**
  * Compartir un documento con una lista de usuarios
  */
-export async function shareDocument({ id, userId, userIds }: ShareDocumentDto): Promise<IDocument | null> {
+export async function shareDocument({
+  id,
+  userId,
+  userIds
+}: ShareDocumentDto): Promise<IDocument | null> {
   if (!isValidObjectId(id)) throw new HttpError(400, 'Invalid document id');
   if (!Array.isArray(userIds) || userIds.length === 0) {
     throw new HttpError(400, 'userIds must be a non-empty array');
@@ -71,9 +85,16 @@ export async function shareDocument({ id, userId, userIds }: ShareDocumentDto): 
   if (!doc) throw new Error('Document not found');
   if (String(doc.uploadedBy) !== String(userId)) throw new HttpError(403, 'Forbidden');
 
+  // Si el documento pertenece a una organización, por defecto ya es visible para todos los miembros activos.
+  // Mantener endpoint por compatibilidad, pero no es necesario para "org-wide access".
+  if (doc.organization) {
+    return doc;
+  }
+
   // Filtra el owner de la lista de usuarios con los que compartir
   const filteredIds = uniqueIds.filter(id => String(id) !== String(userId));
-  if (filteredIds.length === 0) throw new HttpError(400, 'Cannot share document with yourself as the owner');
+  if (filteredIds.length === 0)
+    throw new HttpError(400, 'Cannot share document with yourself as the owner');
 
   // Convertir strings a ObjectIds para prevenir inyección NoSQL
   const filteredObjectIds = filteredIds.map(id => new mongoose.Types.ObjectId(id));
@@ -92,40 +113,260 @@ export async function shareDocument({ id, userId, userIds }: ShareDocumentDto): 
 }
 
 /**
- * Eliminar un documento si el usuario es propietario
+ * Lista documentos compartidos al usuario (por otros usuarios) en su organización activa
+ * NOTA: Se filtra únicamente por organización y se excluyen los documentos subidos por el usuario.
+ */
+export async function listSharedDocumentsToUser(userId: string): Promise<IDocument[]> {
+  if (!isValidObjectId(userId)) {
+    throw new HttpError(400, 'Invalid user ID');
+  }
+
+  const activeOrgId = await getActiveOrganization(userId);
+  if (!activeOrgId) {
+    throw new HttpError(
+      403,
+      'No existe una organización activa. Por favor, crea o únete a una organización primero.'
+    );
+  }
+
+  const orgObjectId = new mongoose.Types.ObjectId(activeOrgId);
+  const userObjectId = new mongoose.Types.ObjectId(userId);
+
+  const docs = await DocumentModel.find({
+    organization: orgObjectId,
+    uploadedBy: { $ne: userObjectId }
+  })
+    .sort({ createdAt: -1 })
+    .populate('folder', 'name displayName path')
+    .select('-__v')
+    .lean();
+
+  return docs as any;
+}
+
+/**
+ * Reemplazar (sobrescribir) el archivo físico y metadatos de un documento existente
+ * Mantiene el mismo doc.path y doc.filename para que el URL quede estable.
+ */
+export async function replaceDocumentFile({
+  documentId,
+  userId,
+  file
+}: ReplaceDocumentFileDto): Promise<IDocument> {
+  if (!isValidObjectId(documentId)) throw new HttpError(400, 'Invalid document ID');
+  if (!file || !file.filename) throw new HttpError(400, 'File is required');
+
+  const doc = await DocumentModel.findById(documentId);
+  if (!doc) throw new Error('Document not found');
+
+  // Permisos:
+  // - Si es de organización: permitir a OWNER/ADMIN, o al uploadedBy (propietario del documento).
+  // - Si es personal: solo uploadedBy.
+  if (doc.organization) {
+    const orgId = doc.organization.toString();
+
+    const isOrgAdmin = await hasAnyRole(userId, orgId, [
+      MembershipRole.OWNER,
+      MembershipRole.ADMIN
+    ]);
+
+    const isDocOwner = String(doc.uploadedBy) === String(userId);
+
+    if (!isOrgAdmin && !isDocOwner) {
+      throw new HttpError(403, 'No tienes permisos para editar este documento');
+    }
+  } else {
+    if (String(doc.uploadedBy) !== String(userId)) {
+      throw new HttpError(403, 'Forbidden');
+    }
+  }
+
+  const user = await User.findById(userId);
+  if (!user) throw new HttpError(404, 'User not found');
+
+  const orgIdForLimits = doc.organization?.toString() || (await getActiveOrganization(userId));
+  if (!orgIdForLimits) {
+    throw new HttpError(
+      403,
+      'No active organization. Please create or join an organization first.'
+    );
+  }
+
+  const organization = await Organization.findById(orgIdForLimits);
+  if (!organization) throw new HttpError(404, 'Organization not found');
+
+  const newFileSize = file.size || 0;
+
+  // Validar tamaño máximo de archivo según el plan
+  const planLimits = PLAN_LIMITS[organization.plan];
+  if (newFileSize > planLimits.maxFileSize) {
+    throw new HttpError(
+      400,
+      `File size exceeds maximum allowed (${planLimits.maxFileSize} bytes) for ${organization.plan} plan`
+    );
+  }
+
+  // Validar tipo de archivo permitido según el plan
+  const fileExt = path.extname(file.originalname).slice(1).toLowerCase();
+  const allowedTypes = organization.settings.allowedFileTypes;
+
+  if (!allowedTypes.includes('*') && !allowedTypes.includes(fileExt)) {
+    throw new HttpError(
+      400,
+      `File type '${fileExt}' not allowed for ${organization.plan} plan. Allowed types: ${allowedTypes.join(', ')}`
+    );
+  }
+
+  // Ajustar cuota de almacenamiento del usuario con delta
+  const oldSize = doc.size || 0;
+  const delta = newFileSize - oldSize;
+
+  const maxStoragePerUser = organization.settings.maxStoragePerUser;
+  const currentUsage = user.storageUsed || 0;
+
+  if (delta > 0 && currentUsage + delta > maxStoragePerUser) {
+    throw new HttpError(
+      403,
+      `Storage quota exceeded. Used: ${currentUsage}, Limit: ${maxStoragePerUser} (${organization.plan} plan)`
+    );
+  }
+
+  // Path temp (uploads) del nuevo archivo subido
+  const uploadsRoot = path.join(process.cwd(), 'uploads');
+  const rawFilename = path.basename(file.filename);
+  const sanitizedTempFilename = sanitizePathOrThrow(rawFilename, uploadsRoot);
+  const tempPath = path.join(uploadsRoot, sanitizedTempFilename);
+
+  // Path destino: el mismo archivo del documento (doc.path/doc.filename)
+  const storageRoot = path.join(process.cwd(), 'storage');
+  const relativeStoragePath = (doc.path || '').startsWith('/')
+    ? (doc.path || '').substring(1)
+    : doc.path || '';
+  const physicalPath = path.join(storageRoot, relativeStoragePath);
+
+  if (!relativeStoragePath) {
+    throw new HttpError(400, 'Document storage path is missing');
+  }
+
+  // Validación defensa en profundidad
+  if (!isPathWithinBase(physicalPath, storageRoot)) {
+    throw new HttpError(400, 'Invalid destination path');
+  }
+
+  // Overwrite físico
+  try {
+    const destDir = path.dirname(physicalPath);
+    if (!fs.existsSync(destDir)) {
+      fs.mkdirSync(destDir, { recursive: true });
+    }
+
+    if (!fs.existsSync(tempPath)) {
+      throw new HttpError(500, 'Uploaded file not found in temp directory');
+    }
+
+    if (fs.existsSync(physicalPath)) {
+      fs.unlinkSync(physicalPath);
+    }
+
+    fs.renameSync(tempPath, physicalPath);
+  } catch (error: any) {
+    console.error('File replace error:', error.message);
+    try {
+      if (fs.existsSync(tempPath)) {
+        fs.unlinkSync(tempPath);
+      }
+    } catch (e: any) {
+      console.error('Temp file cleanup error:', e.message);
+    }
+    throw new HttpError(500, 'Failed to replace file in storage');
+  }
+
+  doc.originalname = file.originalname;
+  doc.mimeType = file.mimetype || 'application/octet-stream';
+  doc.size = newFileSize;
+  await doc.save();
+
+  user.storageUsed = Math.max(0, currentUsage + delta);
+  await user.save();
+
+  try {
+    await searchService.indexDocument(doc);
+  } catch (error: any) {
+    console.error('Failed to index document in search:', error.message);
+  }
+
+  // Notificación (persistida) a miembros de la organización (excluye al actor)
+  if (doc.organization) {
+    try {
+      await notificationService.notifyOrganizationMembers({
+        actorUserId: userId,
+        type: 'DOC_EDITED',
+        documentId: doc._id.toString(),
+        message: 'Se actualizó un documento',
+        metadata: {
+          originalname: doc.originalname,
+          folderId: doc.folder?.toString?.()
+        },
+        emitter: (recipientUserId, payload) => {
+          emitToUser(recipientUserId, 'notification:new', payload);
+        }
+      });
+    } catch (e: any) {
+      console.error('Failed to create notification (DOC_EDITED):', e.message);
+    }
+  }
+
+  return doc;
+}
+
+/**
+ * Eliminar un documento con permisos:
+ * - Si es de organización: SOLO OWNER o ADMIN pueden eliminar.
+ * - Si es personal (sin organización): SOLO el uploadedBy puede eliminar (legacy).
  */
 export async function deleteDocument({ id, userId }: DeleteDocumentDto): Promise<IDocument | null> {
   if (!isValidObjectId(id)) throw new HttpError(400, 'Invalid document id');
+
   const doc = await DocumentModel.findById(id);
   if (!doc) throw new Error('Document not found');
-  if (String(doc.uploadedBy) !== String(userId)) throw new HttpError(403, 'Forbidden');
+
+  // Permisos para documentos de organización
+  if (doc.organization) {
+    const orgId = doc.organization.toString();
+
+    const canDelete = await hasAnyRole(userId, orgId, [MembershipRole.OWNER, MembershipRole.ADMIN]);
+
+    if (!canDelete) {
+      throw new HttpError(
+        403,
+        'Solo el propietario o administradores de la organización pueden eliminar este documento'
+      );
+    }
+  } else {
+    // Personal: solo el propietario (uploadedBy)
+    if (String(doc.uploadedBy) !== String(userId)) {
+      throw new HttpError(403, 'Forbidden');
+    }
+  }
 
   // Elimina el archivo físico
   try {
-    if (doc.filename && doc.organization) {
-      const org = await Organization.findById(doc.organization);
-      if (org && doc.path) {
-        const storageRoot = path.join(process.cwd(), 'storage');
-        // Sanitizar org.slug para prevenir path traversal
-        const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-        // Sanitizar componentes del path
-        const pathComponents = doc.path.split('/').filter(p => p).map(component => 
-          component.replace(/[^a-z0-9_.-]/gi, '-')
-        );
-        const filePath = path.join(storageRoot, safeSlug, ...pathComponents);
-        
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-        }
+    if (doc.path) {
+      const storageRoot = path.join(process.cwd(), 'storage');
+      const relativePath = doc.path.startsWith('/') ? doc.path.substring(1) : doc.path;
+      const filePath = path.join(storageRoot, relativePath);
+
+      if (isPathWithinBase(filePath, storageRoot) && fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
       }
     }
-    
+
     // Fallback: buscar en uploads legacy
     if (doc.filename) {
       const uploadsBase = path.join(process.cwd(), 'uploads');
       const safeFilename = sanitizePathOrThrow(doc.filename, uploadsBase);
       const uploadsPath = path.join(uploadsBase, safeFilename);
-      
+
       if (fs.existsSync(uploadsPath)) {
         fs.unlinkSync(uploadsPath);
       }
@@ -142,7 +383,7 @@ export async function deleteDocument({ id, userId }: DeleteDocumentDto): Promise
   }
 
   const deleted = await DocumentModel.findByIdAndDelete(id);
-  
+
   // Eliminar documento del índice de Elasticsearch
   if (deleted) {
     try {
@@ -152,7 +393,7 @@ export async function deleteDocument({ id, userId }: DeleteDocumentDto): Promise
       // No lanzar error para no bloquear la eliminación
     }
   }
-  
+
   return deleted;
 }
 
@@ -184,7 +425,7 @@ export async function moveDocument({
   // Validar compatibilidad de organización
   const docOrgId = doc.organization?.toString();
   const folderOrgId = targetFolder.organization?.toString();
-  
+
   if (docOrgId !== folderOrgId) {
     if (!docOrgId && !folderOrgId) {
       // Ambos son personales - OK
@@ -206,31 +447,31 @@ export async function moveDocument({
   const storageRoot = path.join(process.cwd(), 'storage');
   const safeFilename = sanitizePathOrThrow(doc.filename || '', storageRoot);
   const newDocPath = `${targetFolder.path}/${safeFilename}`;
-  
-  // Sanitizar paths para prevenir path traversal
-  // Si no hay organización, usar 'users' como slug
-  const safeSlug = org 
-    ? org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '')
-    : 'users';
-  const oldPathComponents = (doc.path || '').split('/').filter(p => p).map(component => 
-    component.replace(/[^a-z0-9_.-]/gi, '-')
-  );
-  const newPathComponents = newDocPath.split('/').filter(p => p).map(component => 
-    component.replace(/[^a-z0-9_.-]/gi, '-')
-  );
-  
-  const oldPhysicalPath = path.join(storageRoot, safeSlug, ...oldPathComponents);
-  const newPhysicalPath = path.join(storageRoot, safeSlug, ...newPathComponents);
+
+  const oldRelativePath = (doc.path || '').startsWith('/')
+    ? (doc.path || '').substring(1)
+    : doc.path || '';
+  const newRelativePath = newDocPath.startsWith('/') ? newDocPath.substring(1) : newDocPath;
+
+  const oldPhysicalPath = path.join(storageRoot, oldRelativePath);
+  const newPhysicalPath = path.join(storageRoot, newRelativePath);
 
   // Mover archivo físico
   try {
+    if (
+      !isPathWithinBase(oldPhysicalPath, storageRoot) ||
+      !isPathWithinBase(newPhysicalPath, storageRoot)
+    ) {
+      throw new HttpError(400, 'Ubicación de archivo inválida');
+    }
+
     if (fs.existsSync(oldPhysicalPath)) {
       // Asegurar que el directorio destino existe
       const newDir = path.dirname(newPhysicalPath);
       if (!fs.existsSync(newDir)) {
         fs.mkdirSync(newDir, { recursive: true });
       }
-      
+
       fs.renameSync(oldPhysicalPath, newPhysicalPath);
     }
   } catch (e: any) {
@@ -241,7 +482,7 @@ export async function moveDocument({
   // Actualizar documento en BD
   doc.folder = targetFolder._id as mongoose.Types.ObjectId;
   doc.path = newDocPath;
-  doc.url = `/storage/${safeSlug}${newDocPath}`;
+  doc.url = `/storage${newDocPath}`;
   await doc.save();
 
   return doc;
@@ -261,8 +502,11 @@ export async function copyDocument({
   const doc = await DocumentModel.findById(documentId);
   if (!doc) throw new HttpError(404, 'Document not found');
 
-  // Usuario debe tener acceso al documento original (owner o shared)
-  const hasAccess = String(doc.uploadedBy) === String(userId) ||
+  // Usuario debe tener acceso al documento original:
+  // - Si es de organización: cualquier miembro activo
+  // - Si es personal: owner o sharedWith.
+  const hasAccess =
+    String(doc.uploadedBy) === String(userId) ||
     doc.sharedWith?.some((id: mongoose.Types.ObjectId) => String(id) === String(userId));
 
   if (!hasAccess) {
@@ -278,7 +522,7 @@ export async function copyDocument({
   // Validar compatibilidad de organización
   const docOrgId = doc.organization?.toString();
   const folderOrgId = targetFolder.organization?.toString();
-  
+
   if (docOrgId !== folderOrgId) {
     if (!docOrgId && !folderOrgId) {
       // Ambos son personales - OK
@@ -300,7 +544,7 @@ export async function copyDocument({
   const user = await User.findById(userId);
   if (!user) throw new HttpError(404, 'User not found');
 
-  const maxStorage = org ? (org.settings.maxStoragePerUser || 5368709120) : 5368709120; // 5GB para usuarios personales
+  const maxStorage = org ? org.settings.maxStoragePerUser || 5368709120 : 5368709120; // 5GB para usuarios personales
   if ((user.storageUsed || 0) + (doc.size || 0) > maxStorage) {
     throw new HttpError(400, 'Storage quota exceeded');
   }
@@ -314,31 +558,31 @@ export async function copyDocument({
   const safeNewFilename = sanitizePathOrThrow(newFilename, process.cwd());
   const newDocPath = `${targetFolder.path}/${safeNewFilename}`;
   const storageRoot = path.join(process.cwd(), 'storage');
-  
-  // Sanitizar paths para prevenir path traversal
-  // Si no hay organización, usar 'users' como slug
-  const safeSlug = org 
-    ? org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '')
-    : 'users';
-  const sourcePathComponents = (doc.path || '').split('/').filter(p => p).map(component => 
-    component.replace(/[^a-z0-9_.-]/gi, '-')
-  );
-  const targetPathComponents = newDocPath.split('/').filter(p => p).map(component => 
-    component.replace(/[^a-z0-9_.-]/gi, '-')
-  );
-  
-  const sourcePhysicalPath = path.join(storageRoot, safeSlug, ...sourcePathComponents);
-  const targetPhysicalPath = path.join(storageRoot, safeSlug, ...targetPathComponents);
+
+  const sourceRelativePath = (doc.path || '').startsWith('/')
+    ? (doc.path || '').substring(1)
+    : doc.path || '';
+  const targetRelativePath = newDocPath.startsWith('/') ? newDocPath.substring(1) : newDocPath;
+
+  const sourcePhysicalPath = path.join(storageRoot, sourceRelativePath);
+  const targetPhysicalPath = path.join(storageRoot, targetRelativePath);
 
   // Copiar archivo físico
   try {
+    if (
+      !isPathWithinBase(sourcePhysicalPath, storageRoot) ||
+      !isPathWithinBase(targetPhysicalPath, storageRoot)
+    ) {
+      throw new HttpError(400, 'Invalid destination path');
+    }
+
     if (fs.existsSync(sourcePhysicalPath)) {
       // Asegurar que el directorio destino existe
       const targetDir = path.dirname(targetPhysicalPath);
       if (!fs.existsSync(targetDir)) {
         fs.mkdirSync(targetDir, { recursive: true });
       }
-      
+
       fs.copyFileSync(sourcePhysicalPath, targetPhysicalPath);
     } else {
       throw new HttpError(500, 'Source file not found in storage');
@@ -358,7 +602,7 @@ export async function copyDocument({
     folder: targetFolderId,
     organization: doc.organization,
     path: newDocPath,
-    url: `/storage/${safeSlug}${newDocPath}`
+    url: `/storage${newDocPath}`
   });
 
   // Actualizar almacenamiento del usuario
@@ -382,33 +626,30 @@ export async function getUserRecentDocuments({
 
   // Obtener organización activa del usuario
   const activeOrgId = await getActiveOrganization(userId);
-  
+
   if (!activeOrgId) {
-    throw new HttpError(403, 'No active organization. Please create or join an organization first.');
+    throw new HttpError(
+      403,
+      'No active organization. Please create or join an organization first.'
+    );
   }
 
-  // Convertir a ObjectId para asegurar tipos seguros en la query
-  const userObjectId = new mongoose.Types.ObjectId(userId);
   const orgObjectId = new mongoose.Types.ObjectId(activeOrgId);
 
   const documents = await DocumentModel.find({
-    organization: orgObjectId,
+    organization: orgObjectId
     deletedAt: null, // Excluir documentos en papelera
-    $or: [
-      { uploadedBy: userObjectId },
-      { sharedWith: userObjectId }
-    ]
   })
-  .sort({ createdAt: -1 })
-  .limit(limit)
-  .populate('folder', 'name displayName path')
-  .select('-__v')
-  .lean();
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .populate('folder', 'name displayName path')
+    .select('-__v')
+    .lean();
 
-  // Agregar campo calculado indicando si es propio o compartido
+  // Agregar campo calculado indicando si es propio o visible por organización
   const documentsWithAccessType = documents.map(doc => ({
     ...doc,
-    accessType: doc.uploadedBy.toString() === userId.toString() ? 'owner' : 'shared',
+    accessType: doc.uploadedBy.toString() === userId.toString() ? 'owner' : 'org',
     isOwned: doc.uploadedBy.toString() === userId.toString()
   }));
 
@@ -420,10 +661,10 @@ export async function getUserRecentDocuments({
  * Valida cuotas de almacenamiento y tipo/tamaño de archivo según el plan de la organización
  * Usa la organización activa y rootFolder de la membresía del usuario
  */
-export async function uploadDocument({ 
-  file, 
-  userId, 
-  folderId,
+export async function uploadDocument({
+  file,
+  userId,
+  folderId
 }: UploadDocumentDto): Promise<IDocument> {
   if (!file || !file.filename) throw new HttpError(400, 'File is required');
 
@@ -434,7 +675,10 @@ export async function uploadDocument({
   // Obtener organización activa (requerida)
   const activeOrgId = await getActiveOrganization(userId);
   if (!activeOrgId) {
-    throw new HttpError(403, 'No active organization. Please create or join an organization first.');
+    throw new HttpError(
+      403,
+      'No active organization. Please create or join an organization first.'
+    );
   }
 
   // Obtener membresía para acceder al rootFolder
@@ -504,7 +748,7 @@ export async function uploadDocument({
   const currentOrgStorage = totalOrgStorage[0]?.total || 0;
   const maxOrgStorage = organization.settings.maxStorageTotal;
 
-  if (maxOrgStorage !== -1 && (currentOrgStorage + fileSize) > maxOrgStorage) {
+  if (maxOrgStorage !== -1 && currentOrgStorage + fileSize > maxOrgStorage) {
     throw new HttpError(
       403,
       `Organization storage quota exceeded (${maxOrgStorage} bytes for ${organization.plan} plan)`
@@ -524,25 +768,18 @@ export async function uploadDocument({
 
   // Construir path en el sistema de archivos
   const uploadsRoot = path.join(process.cwd(), 'uploads');
-  const sanitizedFilename = sanitizePathOrThrow(file.filename, uploadsRoot);
+  const rawFilename = path.basename(file.filename);
+  const sanitizedFilename = sanitizePathOrThrow(rawFilename, uploadsRoot);
   const tempPath = path.join(uploadsRoot, sanitizedFilename);
-  
+
   // Construir paths de destino
   const documentPath = `${folder.path}/${sanitizedFilename}`;
   const storageRoot = path.join(process.cwd(), 'storage');
-  
-  // Sanitizar org.slug y folder.path para prevenir path traversal
-  const safeSlug = organization.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-  const folderPathComponents = folder.path.split('/').filter(p => p).map(component => 
-    component.replace(/[^a-z0-9_.-]/gi, '-')
-  );
-  
-  const physicalPath = path.join(
-    storageRoot, 
-    safeSlug,
-    ...folderPathComponents,
-    sanitizedFilename
-  );
+
+  const relativeStoragePath = documentPath.startsWith('/')
+    ? documentPath.substring(1)
+    : documentPath;
+  const physicalPath = path.join(storageRoot, relativeStoragePath);
 
   // Validar que el path de destino está dentro del directorio storage
   // (validación final por defensa en profundidad)
@@ -557,10 +794,71 @@ export async function uploadDocument({
     if (!fs.existsSync(destDir)) {
       fs.mkdirSync(destDir, { recursive: true });
     }
-    
-    if (fs.existsSync(tempPath)) {
-      fs.renameSync(tempPath, physicalPath);
-    } else {
+    // Multer may store the uploaded file in different places depending on configuration
+    // Try a few candidate locations before failing. Also support memory buffer uploads.
+    const candidatePaths: string[] = [];
+    const uploadsDir = path.join(process.cwd(), 'uploads');
+
+    candidatePaths.push(tempPath);
+
+    // Sanitizar y validar file.path si existe
+    if ((file as any).path) {
+      const filePath = (file as any).path.toString();
+      const resolvedPath = path.resolve(filePath);
+      // Validar que está dentro de uploads o temp
+      if (
+        resolvedPath.startsWith(path.resolve(uploadsDir)) ||
+        resolvedPath.startsWith(path.resolve(os.tmpdir()))
+      ) {
+        candidatePaths.push(resolvedPath);
+      }
+    }
+
+    // Sanitizar destination + filename si existen
+    if ((file as any).destination && (file as any).filename) {
+      const destination = (file as any).destination.toString();
+      const filename = (file as any).filename.toString();
+      const combined = path.join(destination, filename);
+      const resolvedCombined = path.resolve(combined);
+      // Validar que está dentro de uploads
+      if (resolvedCombined.startsWith(path.resolve(uploadsDir))) {
+        candidatePaths.push(resolvedCombined);
+      }
+    }
+
+    let moved = false;
+    const storageDir = path.join(process.cwd(), 'storage');
+
+    for (const candidate of candidatePaths) {
+      if (!candidate) continue;
+
+      // Sanitizar y resolver el path del candidato
+      const resolvedCandidate = path.resolve(candidate);
+
+      // Validar que el candidato está en un directorio permitido (uploads, temp, o storage)
+      const isInUploads = resolvedCandidate.startsWith(path.resolve(uploadsDir));
+      const isInTemp = resolvedCandidate.startsWith(path.resolve(os.tmpdir()));
+      const isInStorage = resolvedCandidate.startsWith(path.resolve(storageDir));
+
+      if (!isInUploads && !isInTemp && !isInStorage) {
+        continue; // Skip paths fuera de directorios permitidos
+      }
+
+      // Validar que existe y mover
+      if (fs.existsSync(resolvedCandidate)) {
+        fs.renameSync(resolvedCandidate, physicalPath);
+        moved = true;
+        break;
+      }
+    }
+
+    // If not moved and buffer is present (memory storage), write buffer to destination
+    if (!moved && (file as any).buffer) {
+      fs.writeFileSync(physicalPath, (file as any).buffer as Buffer);
+      moved = true;
+    }
+
+    if (!moved) {
       throw new HttpError(500, 'Uploaded file not found in temp directory');
     }
   } catch (error: any) {
@@ -578,7 +876,7 @@ export async function uploadDocument({
     folder: effectiveFolderId,
     organization: activeOrgId,
     path: documentPath,
-    url: `/storage/${safeSlug}${documentPath}`
+    url: `/storage${documentPath}`
   };
 
   const doc = await DocumentModel.create(docData);
@@ -595,18 +893,49 @@ export async function uploadDocument({
     // No lanzar error para no bloquear la creación del documento
   }
 
+  // Notificación (persistida) a miembros de la organización (excluye al actor)
+  if (doc.organization) {
+    try {
+      await notificationService.notifyOrganizationMembers({
+        actorUserId: userId,
+        type: 'DOC_UPLOADED',
+        documentId: doc._id.toString(),
+        message: 'Se subió un documento',
+        metadata: {
+          originalname: doc.originalname,
+          folderId: doc.folder?.toString?.()
+        },
+        emitter: (recipientUserId, payload) => {
+          emitToUser(recipientUserId, 'notification:new', payload);
+        }
+      });
+    } catch (e: any) {
+      console.error('Failed to create notification (DOC_UPLOADED):', e.message);
+    }
+  }
+
   return doc;
 }
 
-export function listDocuments(userId: string): Promise<IDocument[]> {
+export async function listDocuments(userId: string): Promise<IDocument[]> {
   if (!isValidObjectId(userId)) {
     throw new HttpError(400, 'Invalid user ID');
   }
+
+  const activeOrgId = await getActiveOrganization(userId);
+  if (!activeOrgId) {
+    throw new HttpError(
+      403,
+      'No existe una organización activa. Por favor, crea o únete a una organización primero.'
+    );
+  }
+
   const userObjectId = new mongoose.Types.ObjectId(userId);
   return DocumentModel.find({ 
     uploadedBy: userObjectId,
     deletedAt: null // Excluir documentos en papelera
   }).populate('folder');
+  
 }
 
 export async function findDocumentById(id: string): Promise<IDocument | null> {
@@ -617,13 +946,13 @@ export async function findDocumentById(id: string): Promise<IDocument | null> {
   return DocumentModel.findById(documentObjectId);
 }
 
-
-
 export default {
   shareDocument,
   deleteDocument,
+  replaceDocumentFile,
   uploadDocument,
   listDocuments,
+  listSharedDocumentsToUser,
   findDocumentById,
   moveDocument,
   copyDocument,

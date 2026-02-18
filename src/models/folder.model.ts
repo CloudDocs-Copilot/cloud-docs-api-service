@@ -62,7 +62,7 @@ export interface IFolder extends Document {
 
 /**
  * Schema de Mongoose para el modelo de Carpeta
- * 
+ *
  * Características:
  * - Estructura jerárquica con parent/child
  * - Multi-tenancy con organización
@@ -77,82 +77,82 @@ const folderSchema = new Schema<IFolder>(
       required: [true, 'Folder name is required'],
       trim: true,
       minlength: [1, 'Folder name must be at least 1 character'],
-      maxlength: [255, 'Folder name cannot exceed 255 characters'],
+      maxlength: [255, 'Folder name cannot exceed 255 characters']
     },
     displayName: {
       type: String,
       trim: true,
       minlength: [1, 'Display name must be at least 1 character'],
-      maxlength: [255, 'Display name cannot exceed 255 characters'],
+      maxlength: [255, 'Display name cannot exceed 255 characters']
     },
     type: {
       type: String,
       enum: {
         values: ['root', 'folder', 'shared'],
-        message: '{VALUE} is not a valid folder type',
+        message: '{VALUE} is not a valid folder type'
       },
       default: 'folder',
-      required: [true, 'Folder type is required'],
+      required: [true, 'Folder type is required']
     },
     owner: {
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: [true, 'Folder owner is required'],
-      index: true,
+      index: true
     },
     organization: {
       type: Schema.Types.ObjectId,
       ref: 'Organization',
       required: false,
       index: true,
-      default: null,
+      default: null
     },
     parent: {
       type: Schema.Types.ObjectId,
       ref: 'Folder',
       default: null,
-      index: true,
+      index: true
     },
     isRoot: {
       type: Boolean,
       default: false,
-      index: true,
+      index: true
     },
     path: {
       type: String,
       required: [true, 'Folder path is required'],
       trim: true,
-      maxlength: [1024, 'Folder path cannot exceed 1024 characters'],
+      maxlength: [1024, 'Folder path cannot exceed 1024 characters']
     },
     documents: [
       {
         type: Schema.Types.ObjectId,
-        ref: 'Document',
-      },
+        ref: 'Document'
+      }
     ],
     sharedWith: [
       {
         type: Schema.Types.ObjectId,
-        ref: 'User',
-      },
+        ref: 'User'
+      }
     ],
     permissions: [
       {
         userId: {
           type: Schema.Types.ObjectId,
           ref: 'User',
-          required: true,
+          required: true
         },
         role: {
           type: String,
           enum: {
             values: ['viewer', 'editor', 'owner'],
-            message: '{VALUE} is not a valid permission role',
+            message: '{VALUE} is not a valid permission role'
           },
-          required: [true, 'Permission role is required'],
-        },
-      },
-    ],
+          required: [true, 'Permission role is required']
+        }
+      }
+    ]
   },
   {
     timestamps: true,
@@ -187,7 +187,10 @@ folderSchema.index({ owner: 1, isRoot: 1 });
 // Índice para buscar por nombre dentro de una organización y padre
 folderSchema.index({ organization: 1, parent: 1, name: 1 });
 // Índice adicional para usuarios sin organización (carpetas personales)
-folderSchema.index({ owner: 1, parent: 1 }, { sparse: true, partialFilterExpression: { organization: null } });
+folderSchema.index(
+  { owner: 1, parent: 1 },
+  { sparse: true, partialFilterExpression: { organization: null } }
+);
 
 /**
  * Virtual para obtener el nombre a mostrar
@@ -229,19 +232,18 @@ folderSchema.methods.hasAccess = function (
   const roleHierarchy: Record<FolderPermissionRole, number> = {
     owner: 3,
     editor: 2,
-    viewer: 1,
+    viewer: 1
   };
 
-  return (roleHierarchy[permission.role as FolderPermissionRole] ?? 0) >= roleHierarchy[requiredRole];
+  return (
+    (roleHierarchy[permission.role as FolderPermissionRole] ?? 0) >= roleHierarchy[requiredRole]
+  );
 };
 
 /**
  * Método de instancia para compartir carpeta con un usuario
  */
-folderSchema.methods.shareWith = function (
-  userId: string,
-  role: FolderPermissionRole = 'viewer'
-) {
+folderSchema.methods.shareWith = function (userId: string, role: FolderPermissionRole = 'viewer') {
   const userIdStr = userId.toString();
 
   // No compartir con el owner
@@ -275,9 +277,7 @@ folderSchema.methods.unshareWith = function (userId: string) {
   this.permissions = this.permissions.filter(
     (p: IFolderPermission) => p.userId.toString() !== userIdStr
   );
-  this.sharedWith = this.sharedWith.filter(
-    (id: Types.ObjectId) => id.toString() !== userIdStr
-  );
+  this.sharedWith = this.sharedWith.filter((id: Types.ObjectId) => id.toString() !== userIdStr);
 };
 
 const Folder: Model<IFolder> = mongoose.model<IFolder>('Folder', folderSchema);

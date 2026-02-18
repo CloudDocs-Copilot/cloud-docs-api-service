@@ -1,0 +1,163 @@
+name: API CI
+
+# CI Pipeline para CloudDocs Backend API
+#
+# Este workflow ejecuta:
+# - Compilación de TypeScript
+# - TODOS los test suites (main + unit):
+#   * Tests main (integration + most unit tests)
+#   * Tests unit (including isolated unit tests)
+# - Coverage combinado mergeado automáticamente
+# - Análisis de código y formatting
+#
+# Comando principal: npm run test:ci
+# - Ejecuta test:coverage:main → coverage/main/
+# - Ejecuta test:coverage:unit:ci → coverage/unit/
+# - Merge automático de coverage → coverage/
+
+on:
+  push:
+    branches: ['**'] # Ejecutar en push a cualquier rama
+  pull_request:
+    branches: ['**'] # También en pull requests
+
+jobs:
+  test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20.x]
+
+    steps:
+      # 1. Checkout del código
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Configurar Node.js
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      # 3. Instalar dependencias
+      - name: Install dependencies
+        run: npm ci
+
+      # 4. Compilar TypeScript
+      - name: Build project
+        run: npm run build
+
+      # 5. Ejecutar TODOS los tests con cobertura combinada
+      - name: Run all tests with combined coverage
+        run: npm run test:ci
+        env:
+          NODE_ENV: test
+
+      # 6. Verificar archivos de cobertura generados
+      - name: Verify coverage files
+        if: always()
+        run: |
+          echo "📊 Coverage files generated:"
+          ls -la coverage/ || echo "No coverage directory"
+          if [ -f coverage/coverage-final.json ]; then
+            echo "✅ Combined coverage-final.json exists"
+          fi
+          if [ -f coverage/lcov.info ]; then
+            echo "✅ LCOV report exists"
+          fi
+
+      # 7. Subir reporte de cobertura combinado
+      - name: Upload combined coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          files: ./coverage/lcov.info
+          flags: all-tests
+          name: clouddocs-backend-combined-coverage
+          fail_ci_if_error: false
+          verbose: true
+        continue-on-error: true
+
+      # 8. Generar resumen de cobertura en PR
+      - name: Coverage Summary
+        if: always()
+        run: |
+          echo "### 📊 Test Coverage Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Combined Coverage Report** (Main + Unit Tests)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f coverage/lcov.info ]; then
+            # Extraer métricas del archivo lcov
+            STATEMENTS=$(grep -o "LF:[0-9]*" coverage/lcov.info | awk -F: '{sum+=$2} END {print sum}')
+            COVERED=$(grep -o "LH:[0-9]*" coverage/lcov.info | awk -F: '{sum+=$2} END {print sum}')
+            
+            if [ -n "$STATEMENTS" ] && [ -n "$COVERED" ] && [ "$STATEMENTS" != "0" ]; then
+              PERCENTAGE=$(awk "BEGIN {printf \"%.2f\", ($COVERED/$STATEMENTS)*100}")
+              echo "- **Lines Coverage:** $PERCENTAGE% ($COVERED/$STATEMENTS)" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ Full coverage report uploaded to Codecov" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "📁 Coverage files:" >> $GITHUB_STEP_SUMMARY
+            echo "- Main tests: \`coverage/main/\`" >> $GITHUB_STEP_SUMMARY
+            echo "- Unit tests: \`coverage/unit/\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Combined:** \`coverage/lcov.info\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ No coverage report found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # 9. Archivar reportes de cobertura
+      - name: Archive coverage reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-reports
+          path: |
+            coverage/lcov-report/
+            coverage/lcov.info
+            coverage/coverage-final.json
+          retention-days: 30
+
+  lint:
+    name: Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check code formatting
+        run: npm run format -- --check
+        continue-on-error: true
+
+  # Job de resumen - solo pasa si ambos anteriores pasaron
+  ci-success:
+    name: CI Success
+    needs: [test, lint]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Check CI Status
+        run: |
+          if [ "${{ needs.test.result }}" != "success" ]; then
+            echo "❌ Tests failed"
+            exit 1
+          fi
+          echo "✅ All CI checks passed"
+          echo "✅ All test suites executed successfully"
+          echo "✅ Combined coverage report generated"

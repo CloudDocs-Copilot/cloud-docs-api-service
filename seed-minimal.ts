@@ -1,7 +1,7 @@
 /* Para crear un idOrganization ejecuta este archivo con los siguientes comandos
-**** MONGO_URI=mongodb://localhost:27017/tu_base_de_datos*****
-**** npx ts-node seed-minimal.ts ****
-*/
+ **** MONGO_URI=mongodb://localhost:27017/tu_base_de_datos*****
+ **** npx ts-node seed-minimal.ts ****
+ */
 import 'dotenv/config';
 import mongoose from 'mongoose';
 import Organization, { generateSlug } from './src/models/organization.model';
@@ -13,14 +13,14 @@ async function seed() {
 
     // 2. Crear Organización Default
     let org = await Organization.findOne({ name: 'Default Eval Corp' });
-    
+
     if (!org) {
       const ownerId = new mongoose.Types.ObjectId(); // Temporal
       const name = 'Default Eval Corp';
       org = await Organization.create({
         name,
         slug: generateSlug(name), // ✅ Usamos la función aquí
-        owner: ownerId, 
+        owner: ownerId,
         active: true,
         settings: { maxUsers: 100 }
       });
@@ -34,7 +34,6 @@ async function seed() {
     console.log('Usa este organizationId en tu registro:');
     console.log(org._id.toString());
     console.log('--------------------------\n');
-
   } catch (err) {
     console.error(err);
   } finally {

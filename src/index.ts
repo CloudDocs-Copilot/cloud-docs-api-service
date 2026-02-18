@@ -1,10 +1,12 @@
 // Load environment variables first (handles .env, .env.local, .env.{NODE_ENV})
 import './configurations/env-config';
+import http from 'http';
 
 import app from './app';
 import { connectMongo } from './configurations/database-config/mongoDB';
 import ElasticsearchClient from './configurations/elasticsearch-config';
 import { startAutoDeletionJob } from './jobs/auto-deletion.job';
+import { initSocket } from './socket/socket';
 
 /**
  * Puerto en el que correrá el servidor
@@ -27,7 +29,7 @@ const isElasticsearchEnabled = (): boolean => {
 async function start(): Promise<void> {
   try {
     await connectMongo();
-    
+
     // Verificar conexión con Elasticsearch solo si está habilitado
     if (isElasticsearchEnabled()) {
       const esConnected = await ElasticsearchClient.checkConnection();
@@ -35,7 +37,9 @@ async function start(): Promise<void> {
         // Crear índice de documentos si no existe
         await ElasticsearchClient.createDocumentIndex();
       } else {
-        console.warn('⚠️  Elasticsearch enabled but not available. Search functionality will be limited.');
+        console.warn(
+          '⚠️  Elasticsearch enabled but not available. Search functionality will be limited.'
+        );
       }
     } else {
       console.log('ℹ️  Elasticsearch disabled. Search functionality will be limited.');
@@ -44,7 +48,14 @@ async function start(): Promise<void> {
     // Iniciar job de eliminación automática
     startAutoDeletionJob();
     
-    app.listen(PORT, () => console.log(`Backend server listening on port ${PORT}`));
+    
+    // Create HTTP server (required for Socket.IO)
+    const server = http.createServer(app);
+
+    // Attach Socket.IO to server
+    initSocket(server);
+
+    server.listen(PORT, () => console.log(`Backend server listening on port ${PORT}`));
   } catch (err) {
     console.error('Startup failed. Exiting process.');
     process.exit(1);

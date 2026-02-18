@@ -1,6 +1,6 @@
 /**
  * URL Validator - Seguridad contra SSRF y Open Redirect
- * 
+ *
  * Este módulo proporciona funciones para validar URLs y prevenir:
  * - SSRF (Server-Side Request Forgery): Ataques donde el servidor hace peticiones maliciosas
  * - Open Redirect: Redirecciones a sitios maliciosos
@@ -15,46 +15,46 @@ import { URL } from 'url';
 export const URL_VALIDATION_CONFIG = {
   // Esquemas permitidos
   allowedSchemes: ['http:', 'https:'],
-  
+
   // Puertos bloqueados (puertos de servicios internos comunes)
   blockedPorts: [
-    22,    // SSH
-    23,    // Telnet
-    25,    // SMTP
-    3306,  // MySQL
-    5432,  // PostgreSQL
-    6379,  // Redis
-    9200,  // Elasticsearch
+    22, // SSH
+    23, // Telnet
+    25, // SMTP
+    3306, // MySQL
+    5432, // PostgreSQL
+    6379, // Redis
+    9200, // Elasticsearch
     27017, // MongoDB
     27018,
     27019,
-    5984,  // CouchDB
-    8086,  // InfluxDB
-    9000,  // MinIO
+    5984, // CouchDB
+    8086, // InfluxDB
+    9000 // MinIO
   ],
-  
+
   // Rangos de IPs privadas (RFC 1918)
   privateIpRanges: [
-    /^127\./,                    // Localhost
-    /^10\./,                     // 10.0.0.0/8
+    /^127\./, // Localhost
+    /^10\./, // 10.0.0.0/8
     /^172\.(1[6-9]|2[0-9]|3[01])\./, // 172.16.0.0/12
-    /^192\.168\./,               // 192.168.0.0/16
-    /^169\.254\./,               // Link-local
-    /^::1$/,                     // IPv6 localhost
-    /^fe80:/,                    // IPv6 link-local
-    /^fc00:/,                    // IPv6 unique local
-    /^fd00:/,                    // IPv6 unique local
+    /^192\.168\./, // 192.168.0.0/16
+    /^169\.254\./, // Link-local
+    /^::1$/, // IPv6 localhost
+    /^fe80:/, // IPv6 link-local
+    /^fc00:/, // IPv6 unique local
+    /^fd00:/ // IPv6 unique local
   ],
-  
+
   // Dominios especiales bloqueados
   blockedDomains: [
     'localhost',
-    'metadata.google.internal',  // GCP metadata
-    '169.254.169.254',            // AWS/Azure metadata
+    'metadata.google.internal', // GCP metadata
+    '169.254.169.254' // AWS/Azure metadata
   ],
-  
+
   // Longitud máxima de URL
-  maxLength: 2048,
+  maxLength: 2048
 };
 
 /**
@@ -93,21 +93,18 @@ function isBlockedPort(port: string): boolean {
 
 /**
  * Valida una URL contra ataques SSRF y Open Redirect
- * 
+ *
  * @param urlString - URL a validar
  * @param allowedDomains - Lista opcional de dominios permitidos (whitelist)
  * @returns Resultado de validación con errores si existen
- * 
+ *
  * @example
  * const result = validateUrl('https://example.com/path');
  * if (!result.isValid) {
  *   console.error(result.errors);
  * }
  */
-export function validateUrl(
-  urlString: string,
-  allowedDomains?: string[]
-): UrlValidationResult {
+export function validateUrl(urlString: string, allowedDomains?: string[]): UrlValidationResult {
   const errors: string[] = [];
 
   // Validar longitud
@@ -156,27 +153,25 @@ export function validateUrl(
     });
 
     if (!isAllowed) {
-      errors.push(
-        `Domain '${parsedUrl.hostname}' is not in the allowed domains list`
-      );
+      errors.push(`Domain '${parsedUrl.hostname}' is not in the allowed domains list`);
     }
   }
 
   return {
     isValid: errors.length === 0,
     errors,
-    url: errors.length === 0 ? parsedUrl : undefined,
+    url: errors.length === 0 ? parsedUrl : undefined
   };
 }
 
 /**
  * Valida una URL y lanza un error si es inválida
- * 
+ *
  * @param urlString - URL a validar
  * @param allowedDomains - Lista opcional de dominios permitidos
  * @throws Error si la URL es inválida
  * @returns URL parseada si es válida
- * 
+ *
  * @example
  * try {
  *   const url = validateUrlOrThrow('https://example.com');
@@ -184,24 +179,19 @@ export function validateUrl(
  *   console.error(error.message);
  * }
  */
-export function validateUrlOrThrow(
-  urlString: string,
-  allowedDomains?: string[]
-): URL {
+export function validateUrlOrThrow(urlString: string, allowedDomains?: string[]): URL {
   const result = validateUrl(urlString, allowedDomains);
-  
+
   if (!result.isValid) {
-    throw new Error(
-      `URL validation failed: ${result.errors.join('. ')}`
-    );
+    throw new Error(`URL validation failed: ${result.errors.join('. ')}`);
   }
-  
+
   return result.url!;
 }
 
 /**
  * Valida múltiples URLs de forma eficiente
- * 
+ *
  * @param urls - Array de URLs a validar
  * @param allowedDomains - Lista opcional de dominios permitidos
  * @returns Array de resultados de validación
@@ -215,36 +205,33 @@ export function validateMultipleUrls(
 
 /**
  * Verifica si todas las URLs en un array son válidas
- * 
+ *
  * @param urls - Array de URLs a validar
  * @param allowedDomains - Lista opcional de dominios permitidos
  * @returns true si todas son válidas, false en caso contrario
  */
-export function areAllUrlsValid(
-  urls: string[],
-  allowedDomains?: string[]
-): boolean {
+export function areAllUrlsValid(urls: string[], allowedDomains?: string[]): boolean {
   return urls.every(url => validateUrl(url, allowedDomains).isValid);
 }
 
 /**
  * Sanitiza una URL eliminando componentes potencialmente peligrosos
  * pero manteniendo la URL funcional
- * 
+ *
  * @param urlString - URL a sanitizar
  * @returns URL sanitizada como string
  */
 export function sanitizeUrl(urlString: string): string {
   try {
     const url = new URL(urlString);
-    
+
     // Eliminar credenciales (username:password)
     url.username = '';
     url.password = '';
-    
+
     // Eliminar fragmentos (#)
     url.hash = '';
-    
+
     return url.toString();
   } catch (error) {
     throw new Error('Cannot sanitize invalid URL');
@@ -253,7 +240,7 @@ export function sanitizeUrl(urlString: string): string {
 
 /**
  * Extrae el dominio base de una URL para comparaciones
- * 
+ *
  * @param urlString - URL de la cual extraer el dominio
  * @returns Dominio base
  */

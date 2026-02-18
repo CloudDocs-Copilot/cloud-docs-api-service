@@ -14,11 +14,11 @@ export async function getMyOrganizations(
 ): Promise<void> {
   try {
     const memberships = await membershipService.getUserMemberships(req.user!.id);
-    
+
     res.json({
       success: true,
       count: memberships.length,
-      data: memberships,
+      data: memberships
     });
   } catch (err) {
     next(err);
@@ -36,13 +36,13 @@ export async function getOrganizationMembers(
 ): Promise<void> {
   try {
     const { organizationId } = req.params;
-    
-    const members = await membershipService.getOrganizationMembers(organizationId);
-    
+
+    const members = await membershipService.getOrganizationMembers(String(organizationId));
+
     res.json({
       success: true,
       count: members.length,
-      data: members,
+      data: members
     });
   } catch (err) {
     next(err);
@@ -60,13 +60,13 @@ export async function switchOrganization(
 ): Promise<void> {
   try {
     const { organizationId } = req.params;
-    
-    await membershipService.switchActiveOrganization(req.user!.id, organizationId);
-    
+
+    await membershipService.switchActiveOrganization(req.user!.id, String(organizationId));
+
     res.json({
       success: true,
       message: 'Active organization switched successfully',
-      organizationId,
+      organizationId
     });
   } catch (err) {
     next(err);
@@ -84,12 +84,12 @@ export async function leaveOrganization(
 ): Promise<void> {
   try {
     const { organizationId } = req.params;
-    
-    await membershipService.removeMembership(req.user!.id, organizationId);
-    
+
+    await membershipService.removeMembership(req.user!.id, String(organizationId));
+
     res.json({
       success: true,
-      message: 'You have left the organization successfully',
+      message: 'You have left the organization successfully'
     });
   } catch (err) {
     next(err);
@@ -107,14 +107,14 @@ export async function getActiveOrganization(
 ): Promise<void> {
   try {
     const activeOrgId = await membershipService.getActiveOrganization(req.user!.id);
-    
+
     if (!activeOrgId) {
       return next(new HttpError(404, 'No active organization found'));
     }
-    
+
     res.json({
       success: true,
-      organizationId: activeOrgId,
+      organizationId: activeOrgId
     });
   } catch (err) {
     next(err);
@@ -133,17 +133,17 @@ export async function setActiveOrganization(
 ): Promise<void> {
   try {
     const { organizationId } = req.body;
-    
+
     if (!organizationId) {
       return next(new HttpError(400, 'organizationId is required'));
     }
-    
+
     await membershipService.switchActiveOrganization(req.user!.id, organizationId);
-    
+
     res.json({
       success: true,
       message: 'Active organization updated successfully',
-      activeOrganization: organizationId,
+      activeOrganization: organizationId
     });
   } catch (err) {
     next(err);
@@ -163,7 +163,7 @@ export async function inviteUserToOrganization(
   try {
     const { organizationId } = req.params;
     const { userId, role = 'member' } = req.body;
-    
+
     if (!userId) {
       return next(new HttpError(400, 'userId is required'));
     }
@@ -172,18 +172,18 @@ export async function inviteUserToOrganization(
     if (typeof userId !== 'string' || !/^[a-fA-F0-9]{24}$/.test(userId)) {
       return next(new HttpError(400, 'Invalid userId format'));
     }
-    
-    const membership = await membershipService.createMembership({
+
+    const invitation = await membershipService.createInvitation({
       userId,
-      organizationId,
+      organizationId: String(organizationId),
       role,
-      invitedBy: req.user!.id,
+      invitedBy: req.user!.id
     });
-    
+
     res.status(201).json({
       success: true,
-      message: 'User invited successfully',
-      membership,
+      message: 'Invitation sent successfully',
+      invitation
     });
   } catch (err) {
     next(err);
@@ -203,20 +203,20 @@ export async function updateMemberRole(
   try {
     const { membershipId } = req.params;
     const { role } = req.body;
-    
+
     if (!role) {
       return next(new HttpError(400, 'role is required'));
     }
-    
+
     const membership = await membershipService.updateMembershipRole(
-      membershipId,
+      String(membershipId),
       role,
       req.user!.id
     );
-    
+
     res.json({
       success: true,
-      membership,
+      membership
     });
   } catch (err) {
     next(err);
@@ -234,16 +234,85 @@ export async function removeMember(
 ): Promise<void> {
   try {
     const { organizationId, membershipId } = req.params;
-    
+
     await membershipService.removeMembershipById(
-      membershipId,
-      organizationId,
+      String(membershipId),
+      String(organizationId),
       req.user!.id
     );
-    
+
     res.json({
       success: true,
-      message: 'Member removed successfully',
+      message: 'Member removed successfully'
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Obtiene las invitaciones pendientes del usuario autenticado
+ * GET /api/memberships/pending-invitations
+ */
+export async function getPendingInvitations(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const invitations = await membershipService.getPendingInvitations(req.user!.id);
+
+    res.json({
+      success: true,
+      count: invitations.length,
+      data: invitations
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Acepta una invitación pendiente
+ * POST /api/memberships/invitations/:membershipId/accept
+ */
+export async function acceptInvitation(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { membershipId } = req.params;
+
+    const membership = await membershipService.acceptInvitation(String(membershipId), req.user!.id);
+
+    res.json({
+      success: true,
+      message: 'Invitation accepted successfully',
+      membership
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Rechaza una invitación pendiente
+ * POST /api/memberships/invitations/:membershipId/reject
+ */
+export async function rejectInvitation(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { membershipId } = req.params;
+
+    await membershipService.rejectInvitation(String(membershipId), req.user!.id);
+
+    res.json({
+      success: true,
+      message: 'Invitation rejected successfully'
     });
   } catch (err) {
     next(err);
@@ -260,4 +329,7 @@ export default {
   inviteUserToOrganization,
   updateMemberRole,
   removeMember,
+  getPendingInvitations,
+  acceptInvitation,
+  rejectInvitation
 };

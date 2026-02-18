@@ -15,7 +15,7 @@ describe('User Model - Organization Integration', () => {
     // Crear una organización de prueba
     const testOrg = await Organization.create({
       name: 'Test Organization',
-      owner: new mongoose.Types.ObjectId(),
+      owner: new mongoose.Types.ObjectId()
     });
     testOrgId = testOrg._id;
   });
@@ -35,7 +35,7 @@ describe('User Model - Organization Integration', () => {
         name: 'Test User',
         email: 'test@example.com',
         password: 'hashedpassword123',
-        organization: testOrgId,
+        organization: testOrgId
       });
 
       expect(user.organization).toBeDefined();
@@ -46,7 +46,7 @@ describe('User Model - Organization Integration', () => {
       const user = await User.create({
         name: 'Test User',
         email: 'test@example.com',
-        password: 'hashedpassword123',
+        password: 'hashedpassword123'
       });
 
       expect(user.organization).toBeUndefined();
@@ -57,7 +57,7 @@ describe('User Model - Organization Integration', () => {
         name: 'Test User',
         email: 'test@example.com',
         password: 'hashedpassword123',
-        organization: testOrgId,
+        organization: testOrgId
       });
 
       const populatedUser = await User.findById(user._id).populate('organization');
@@ -75,7 +75,7 @@ describe('User Model - Organization Integration', () => {
         email: 'test@example.com',
         password: 'hashedpassword123',
         organization: testOrgId,
-        rootFolder: rootFolderId,
+        rootFolder: rootFolderId
       });
 
       expect(user.rootFolder).toBeDefined();
@@ -87,7 +87,7 @@ describe('User Model - Organization Integration', () => {
         name: 'Test User',
         email: 'test@example.com',
         password: 'hashedpassword123',
-        organization: testOrgId,
+        organization: testOrgId
       });
 
       expect(user.rootFolder).toBeUndefined();
@@ -100,7 +100,7 @@ describe('User Model - Organization Integration', () => {
         name: 'Test User',
         email: 'test@example.com',
         password: 'hashedpassword123',
-        organization: testOrgId,
+        organization: testOrgId
       });
 
       expect(user.storageUsed).toBe(0);
@@ -112,7 +112,7 @@ describe('User Model - Organization Integration', () => {
         email: 'test@example.com',
         password: 'hashedpassword123',
         organization: testOrgId,
-        storageUsed: 1024000, // 1MB
+        storageUsed: 1024000 // 1MB
       });
 
       expect(user.storageUsed).toBe(1024000);
@@ -125,7 +125,7 @@ describe('User Model - Organization Integration', () => {
           email: 'test@example.com',
           password: 'hashedpassword123',
           organization: testOrgId,
-          storageUsed: -1000,
+          storageUsed: -1000
         })
       ).rejects.toThrow();
     });
@@ -136,7 +136,7 @@ describe('User Model - Organization Integration', () => {
         email: 'test@example.com',
         password: 'hashedpassword123',
         organization: testOrgId,
-        storageUsed: 0,
+        storageUsed: 0
       });
 
       // Simular subida de archivo de 5MB
@@ -154,7 +154,7 @@ describe('User Model - Organization Integration', () => {
         email: 'test@example.com',
         password: 'hashedpassword123',
         organization: testOrgId,
-        storageUsed: 10485760, // 10MB
+        storageUsed: 10485760 // 10MB
       });
 
       // Simular eliminación de archivo de 3MB
@@ -170,14 +170,14 @@ describe('User Model - Organization Integration', () => {
   describe('Indexes', () => {
     it('should have index on organization field', async () => {
       const indexes = await User.collection.getIndexes();
-      const orgIndex = Object.keys(indexes).find((key) => key.includes('organization'));
+      const orgIndex = Object.keys(indexes).find(key => key.includes('organization'));
       expect(orgIndex).toBeDefined();
     });
 
     it('should have compound index on organization and email', async () => {
       const indexes = await User.collection.getIndexes();
       const compoundIndex = Object.keys(indexes).find(
-        (key) => key.includes('organization') && key.includes('email')
+        key => key.includes('organization') && key.includes('email')
       );
       expect(compoundIndex).toBeDefined();
     });
@@ -185,7 +185,7 @@ describe('User Model - Organization Integration', () => {
     it('should have compound index on organization and active', async () => {
       const indexes = await User.collection.getIndexes();
       const activeIndex = Object.keys(indexes).find(
-        (key) => key.includes('organization') && key.includes('active')
+        key => key.includes('organization') && key.includes('active')
       );
       expect(activeIndex).toBeDefined();
     });
@@ -198,27 +198,27 @@ describe('User Model - Organization Integration', () => {
         name: 'User 1',
         email: 'user1@example.com',
         password: 'password123',
-        organization: testOrgId,
+        organization: testOrgId
       });
 
       await User.create({
         name: 'User 2',
         email: 'user2@example.com',
         password: 'password123',
-        organization: testOrgId,
+        organization: testOrgId
       });
 
       // Crear usuario en otra organización
       const otherOrg = await Organization.create({
         name: 'Other Organization',
-        owner: new mongoose.Types.ObjectId(),
+        owner: new mongoose.Types.ObjectId()
       });
 
       await User.create({
         name: 'User 3',
         email: 'user3@example.com',
         password: 'password123',
-        organization: otherOrg._id,
+        organization: otherOrg._id
       });
 
       const usersInTestOrg = await User.find({ organization: testOrgId });
@@ -231,7 +231,7 @@ describe('User Model - Organization Integration', () => {
         email: 'active@example.com',
         password: 'password123',
         organization: testOrgId,
-        active: true,
+        active: true
       });
 
       await User.create({
@@ -239,7 +239,7 @@ describe('User Model - Organization Integration', () => {
         email: 'inactive@example.com',
         password: 'password123',
         organization: testOrgId,
-        active: false,
+        active: false
       });
 
       const activeUsers = await User.find({ organization: testOrgId, active: true });
@@ -255,7 +255,7 @@ describe('User Model - Organization Integration', () => {
         email: 'test@example.com',
         password: 'hashedpassword123',
         role: 'admin',
-        tokenVersion: 5,
+        tokenVersion: 5
       });
 
       expect(user.name).toBe('Test User');
@@ -270,7 +270,7 @@ describe('User Model - Organization Integration', () => {
         name: 'Test User',
         email: 'test@example.com',
         password: 'hashedpassword123',
-        organization: testOrgId,
+        organization: testOrgId
       });
 
       const userJSON = user.toJSON();
@@ -285,7 +285,7 @@ describe('User Model - Organization Integration', () => {
         name: 'Test User',
         email: 'test@example.com',
         password: 'hashedpassword123',
-        organization: testOrgId,
+        organization: testOrgId
       });
 
       expect(user.avatar).toBeNull();
@@ -298,7 +298,7 @@ describe('User Model - Organization Integration', () => {
         email: 'test@example.com',
         password: 'hashedpassword123',
         organization: testOrgId,
-        avatar: avatarUrl,
+        avatar: avatarUrl
       });
 
       expect(user.avatar).toBe(avatarUrl);
@@ -310,7 +310,7 @@ describe('User Model - Organization Integration', () => {
         email: 'test@example.com',
         password: 'hashedpassword123',
         organization: testOrgId,
-        avatar: '  https://example.com/avatar.jpg  ',
+        avatar: '  https://example.com/avatar.jpg  '
       });
 
       expect(user.avatar).toBe('https://example.com/avatar.jpg');
@@ -322,7 +322,7 @@ describe('User Model - Organization Integration', () => {
         email: 'test@example.com',
         password: 'hashedpassword123',
         organization: testOrgId,
-        avatar: '',
+        avatar: ''
       });
 
       expect(user.avatar).toBe('');
@@ -337,19 +337,20 @@ describe('User Model - Organization Integration', () => {
           email: 'test@example.com',
           password: 'hashedpassword123',
           organization: testOrgId,
-          avatar: longUrl,
+          avatar: longUrl
         })
       ).rejects.toThrow(/cannot exceed 2048 characters/i);
     });
 
     it('should allow data URLs as avatar', async () => {
-      const dataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+      const dataUrl =
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
       const user = await User.create({
         name: 'Test User',
         email: 'test@example.com',
         password: 'hashedpassword123',
         organization: testOrgId,
-        avatar: dataUrl,
+        avatar: dataUrl
       });
 
       expect(user.avatar).toBe(dataUrl);
@@ -362,7 +363,7 @@ describe('User Model - Organization Integration', () => {
         email: 'test@example.com',
         password: 'hashedpassword123',
         organization: testOrgId,
-        avatar: relativePath,
+        avatar: relativePath
       });
 
       expect(user.avatar).toBe(relativePath);
@@ -374,7 +375,7 @@ describe('User Model - Organization Integration', () => {
         email: 'test@example.com',
         password: 'hashedpassword123',
         organization: testOrgId,
-        avatar: 'https://example.com/old.jpg',
+        avatar: 'https://example.com/old.jpg'
       });
 
       user.avatar = 'https://example.com/new.jpg';
@@ -391,7 +392,7 @@ describe('User Model - Organization Integration', () => {
         email: 'test@example.com',
         password: 'hashedpassword123',
         organization: testOrgId,
-        avatar: avatarUrl,
+        avatar: avatarUrl
       });
 
       const userJSON = user.toJSON();
@@ -400,4 +401,3 @@ describe('User Model - Organization Integration', () => {
     });
   });
 });
-

@@ -1,8 +1,13 @@
 import nodemailer from 'nodemailer';
 
-export async function sendConfirmationEmail(to: string, subject: string, html: string): Promise<any> {
+export async function sendConfirmationEmail(
+  to: string,
+  subject: string,
+  html: string
+): Promise<any> {
   // Flag de prueba para permitir certificados TLS no válidos (solo testing)
-  const allowInsecureTls = (process.env.EMAIL_ALLOW_INSECURE_TLS || 'false').toLowerCase() === 'true';
+  const allowInsecureTls =
+    (process.env.EMAIL_ALLOW_INSECURE_TLS || 'false').toLowerCase() === 'true';
 
   // Determinar si usar secure (true normalmente para puerto 465)
   const port = Number(process.env.EMAIL_PORT || '587');

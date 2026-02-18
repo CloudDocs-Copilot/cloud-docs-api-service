@@ -128,11 +128,7 @@ export const invalidProtocolUrls = [
 /**
  * Whitelist de dominios para pruebas
  */
-export const domainWhitelist = [
-  'example.com',
-  'trusted-site.com',
-  'api.service.com'
-];
+export const domainWhitelist = ['example.com', 'trusted-site.com', 'api.service.com'];
 
 /**
  * Patrones de path traversal
