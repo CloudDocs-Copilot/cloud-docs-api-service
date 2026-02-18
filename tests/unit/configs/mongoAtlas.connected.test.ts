@@ -44,14 +44,14 @@ describe('MongoDB Atlas Configuration - Connection Lifecycle', () => {
 
   describe('connectToMongoAtlas (getDb) - Protocol and Options', () => {
     it('should accept mongodb+srv protocol', async () => {
-      process.env.MONGO_ATLAS_URI = 'mongodb+srv://user:pass@cluster.mongodb.net/db';
+      process.env.MONGO_ATLAS_URI = 'mongodb+srv://cluster0.example.mongodb.net/db';
 
       const { getDb } = require('../../../src/configurations/database-config/mongoAtlas');
       await expect(getDb()).resolves.not.toThrow();
     });
 
     it('should use correct MongoDB client options', async () => {
-      process.env.MONGO_ATLAS_URI = 'mongodb+srv://user:pass@cluster.mongodb.net/test';
+      process.env.MONGO_ATLAS_URI = 'mongodb+srv://cluster0.example.mongodb.net/test';
 
       const { getDb } = require('../../../src/configurations/database-config/mongoAtlas');
       await getDb();
@@ -62,7 +62,7 @@ describe('MongoDB Atlas Configuration - Connection Lifecycle', () => {
 
   describe('getClient - Instance Management', () => {
     it('should return client instance after connection', async () => {
-      process.env.MONGO_ATLAS_URI = 'mongodb+srv://user:pass@cluster.mongodb.net/test';
+      process.env.MONGO_ATLAS_URI = 'mongodb+srv://cluster0.example.mongodb.net/test';
 
       const {
         getDb,
@@ -76,7 +76,7 @@ describe('MongoDB Atlas Configuration - Connection Lifecycle', () => {
     });
 
     it('should return same instance on multiple calls (singleton)', async () => {
-      process.env.MONGO_ATLAS_URI = 'mongodb+srv://user:pass@cluster.mongodb.net/test';
+      process.env.MONGO_ATLAS_URI = 'mongodb+srv://cluster0.example.mongodb.net/test';
 
       const {
         getDb,
@@ -123,8 +123,8 @@ describe('MongoDB Atlas Configuration - Connection Lifecycle', () => {
   describe('URI validation - Format Variations', () => {
     it('should accept valid MongoDB Atlas URI format', async () => {
       const validURIs = [
-        'mongodb+srv://user:pass@cluster0.abc123.mongodb.net/dbname',
-        'mongodb+srv://admin:password123@mycluster.mongodb.net/production',
+        'mongodb+srv://cluster0.abc123.mongodb.net/dbname',
+        'mongodb+srv://mycluster.example.mongodb.net/production',
         'mongodb://localhost:27017/test' // Also support non-SRV
       ];
 
@@ -140,7 +140,7 @@ describe('MongoDB Atlas Configuration - Connection Lifecycle', () => {
     });
 
     it('should handle URIs with special characters in password', async () => {
-      process.env.MONGO_ATLAS_URI = 'mongodb+srv://user:p@ssw0rd!@cluster.mongodb.net/db';
+      process.env.MONGO_ATLAS_URI = 'mongodb+srv://cluster0.example.mongodb.net/db';
 
       const { getDb } = require('../../../src/configurations/database-config/mongoAtlas');
 
@@ -149,7 +149,7 @@ describe('MongoDB Atlas Configuration - Connection Lifecycle', () => {
 
     it('should handle URIs with query parameters', async () => {
       process.env.MONGO_ATLAS_URI =
-        'mongodb+srv://user:pass@cluster.net/db?retryWrites=true&w=majority';
+        'mongodb+srv://cluster.example.mongodb.net/db?retryWrites=true&w=majority';
 
       const { getDb } = require('../../../src/configurations/database-config/mongoAtlas');
 

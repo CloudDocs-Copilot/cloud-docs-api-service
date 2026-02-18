@@ -1,4 +1,11 @@
-name: API CI
+# API CI
+
+# Minimal permissions to allow CodeQL and other security scanners
+permissions:
+  contents: read
+  id-token: write
+  security-events: write
+  actions: read
 
 # CI Pipeline para CloudDocs Backend API
 #
