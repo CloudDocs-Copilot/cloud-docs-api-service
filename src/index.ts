@@ -5,6 +5,7 @@ import http from 'http';
 import app from './app';
 import { connectMongo } from './configurations/database-config/mongoDB';
 import ElasticsearchClient from './configurations/elasticsearch-config';
+import { startAutoDeletionJob } from './jobs/auto-deletion.job';
 import { initSocket } from './socket/socket';
 
 /**
@@ -43,7 +44,11 @@ async function start(): Promise<void> {
     } else {
       console.log('ℹ️  Elasticsearch disabled. Search functionality will be limited.');
     }
-
+    
+    // Iniciar job de eliminación automática
+    startAutoDeletionJob();
+    
+    
     // Create HTTP server (required for Socket.IO)
     const server = http.createServer(app);
 

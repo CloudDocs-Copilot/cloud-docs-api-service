@@ -27,6 +27,16 @@ export interface IDocument extends MongooseDocument {
   uploadedAt: Date;
   /** Usuarios con quienes se comparte el documento */
   sharedWith: Types.ObjectId[];
+  /** Indica si el documento está marcado como eliminado (soft delete) */
+  isDeleted: boolean;
+  /** Fecha en que el documento fue marcado como eliminado */
+  deletedAt?: Date;
+  /** Razón por la cual el documento fue movido a la papelera */
+  deletionReason?: string | null;
+  /** Usuario que eliminó el documento */
+  deletedBy?: Types.ObjectId;
+  /** Fecha programada para eliminación permanente (30 días después de deletedAt) */
+  scheduledDeletionDate?: Date;
   createdAt: Date;
   updatedAt: Date;
 
@@ -127,7 +137,32 @@ const documentSchema = new Schema<IDocument>(
         type: Schema.Types.ObjectId,
         ref: 'User'
       }
-    ]
+    ],
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletionReason: {
+      type: String,
+      trim: true,
+      maxlength: [500, 'Deletion reason cannot exceed 500 characters'],
+      default: null,
+    },
+    deletedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    scheduledDeletionDate: {
+      type: Date,
+      default: null,
+      index: true, // Índice para el job de eliminación automática
+    },
   },
   {
     timestamps: true,
@@ -155,6 +190,7 @@ documentSchema.index({ organization: 1, folder: 1 });
 documentSchema.index({ organization: 1, uploadedBy: 1 });
 documentSchema.index({ uploadedBy: 1, createdAt: -1 }); // Para documentos recientes
 documentSchema.index({ sharedWith: 1 }); // Para documentos compartidos
+documentSchema.index({ isDeleted: 1, scheduledDeletionDate: 1 }); // Para papelera y eliminación automática
 // Índice para documentos personales (sin organización)
 documentSchema.index(
   { uploadedBy: 1, folder: 1 },

@@ -637,7 +637,8 @@ export async function getUserRecentDocuments({
   const orgObjectId = new mongoose.Types.ObjectId(activeOrgId);
 
   const documents = await DocumentModel.find({
-    organization: orgObjectId
+    organization: orgObjectId,
+    deletedAt: null, // Excluir documentos en papelera
   })
     .sort({ createdAt: -1 })
     .limit(limit)
@@ -929,8 +930,12 @@ export async function listDocuments(userId: string): Promise<IDocument[]> {
     );
   }
 
-  const orgObjectId = new mongoose.Types.ObjectId(activeOrgId);
-  return DocumentModel.find({ organization: orgObjectId }).populate('folder');
+  const userObjectId = new mongoose.Types.ObjectId(userId);
+  return DocumentModel.find({ 
+    uploadedBy: userObjectId,
+    deletedAt: null // Excluir documentos en papelera
+  }).populate('folder');
+  
 }
 
 export async function findDocumentById(id: string): Promise<IDocument | null> {
