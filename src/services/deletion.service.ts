@@ -65,6 +65,8 @@ class DeletionService {
     document.isDeleted = true;
     document.deletedAt = now;
     document.deletedBy = new Types.ObjectId(context.userId);
+    // Guardar la razón de eliminación para auditoría y respuestas API
+    document.deletionReason = context.reason ?? null;
     document.scheduledDeletionDate = scheduledDeletion;
 
     await document.save();
@@ -72,6 +74,7 @@ class DeletionService {
     // Crear registro de auditoría
     const auditData: any = {
       document: document._id,
+      documentId: document._id,
       documentSnapshot: {
         filename: document.filename,
         originalname: document.originalname,
@@ -127,6 +130,7 @@ class DeletionService {
     document.isDeleted = false;
     document.deletedAt = undefined;
     document.deletedBy = undefined;
+    document.deletionReason = undefined;
     document.scheduledDeletionDate = undefined;
 
     await document.save();
@@ -134,6 +138,7 @@ class DeletionService {
     // Crear registro de auditoría
     const auditData: any = {
       document: document._id,
+      documentId: document._id,
       documentSnapshot: {
         filename: document.filename,
         originalname: document.originalname,
@@ -192,6 +197,7 @@ class DeletionService {
 
     const auditEntry = await DeletionAuditModel.create({
       document: document._id,
+      documentId: document._id,
       documentSnapshot: {
         filename: document.filename,
         originalname: document.originalname,

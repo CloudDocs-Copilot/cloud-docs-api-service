@@ -4,8 +4,8 @@ import mongoose, { Document as MongooseDocument, Schema, Model, Types } from 'mo
  * Tipo de acción de eliminación
  */
 export enum DeletionAction {
-  SOFT_DELETE = 'soft_delete',      // Mover a papelera
-  RESTORE = 'restore',                // Recuperar de papelera
+  SOFT_DELETE = 'move_to_trash',      // Mover a papelera (compatibilidad legacy)
+  RESTORE = 'restore_from_trash',     // Recuperar de papelera (compatibilidad legacy)
   PERMANENT_DELETE = 'permanent_delete', // Eliminación definitiva
   SECURE_OVERWRITE = 'secure_overwrite', // Sobrescritura segura del archivo
   AUTO_DELETE = 'auto_delete'        // Eliminación automática (30 días)
@@ -29,6 +29,8 @@ export enum DeletionStatus {
 export interface IDeletionAudit extends MongooseDocument {
   /** Documento afectado */
   document: Types.ObjectId;
+  /** Legacy alias for document id */
+  documentId?: Types.ObjectId;
   /** Información del documento eliminado (snapshot) */
   documentSnapshot: {
     filename: string;
@@ -82,6 +84,14 @@ const deletionAuditSchema = new Schema<IDeletionAudit>(
       ref: 'Document',
       required: [true, 'Document reference is required'],
       index: true,
+    },
+    // Legacy alias to support older queries that used `documentId`
+    documentId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Document',
+      required: false,
+      index: true,
+      default: null,
     },
     documentSnapshot: {
       filename: {

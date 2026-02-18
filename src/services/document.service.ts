@@ -637,7 +637,7 @@ export async function getUserRecentDocuments({
   const orgObjectId = new mongoose.Types.ObjectId(activeOrgId);
 
   const documents = await DocumentModel.find({
-    organization: orgObjectId
+    organization: orgObjectId,
     deletedAt: null, // Excluir documentos en papelera
   })
     .sort({ createdAt: -1 })

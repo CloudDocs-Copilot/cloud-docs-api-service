@@ -31,6 +31,8 @@ export interface IDocument extends MongooseDocument {
   isDeleted: boolean;
   /** Fecha en que el documento fue marcado como eliminado */
   deletedAt?: Date;
+  /** Razón por la cual el documento fue movido a la papelera */
+  deletionReason?: string | null;
   /** Usuario que eliminó el documento */
   deletedBy?: Types.ObjectId;
   /** Fecha programada para eliminación permanente (30 días después de deletedAt) */
@@ -135,7 +137,7 @@ const documentSchema = new Schema<IDocument>(
         type: Schema.Types.ObjectId,
         ref: 'User'
       }
-    ]
+    ],
     isDeleted: {
       type: Boolean,
       default: false,
@@ -143,6 +145,12 @@ const documentSchema = new Schema<IDocument>(
     },
     deletedAt: {
       type: Date,
+      default: null,
+    },
+    deletionReason: {
+      type: String,
+      trim: true,
+      maxlength: [500, 'Deletion reason cannot exceed 500 characters'],
       default: null,
     },
     deletedBy: {

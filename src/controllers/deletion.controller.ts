@@ -135,6 +135,37 @@ export const getTrash = async (req: AuthRequest, res: Response, next: NextFuncti
     const userId = req.user.id;
     const organizationId = req.activeOrganization?.toString();
 
+    // Support optional pagination via query params
+    const page = req.query.page ? parseInt(req.query.page as string, 10) : undefined;
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+
+    if (page && limit) {
+      const skip = (page - 1) * limit;
+      const query: any = { uploadedBy: userId, isDeleted: true };
+      if (organizationId) query.organization = organizationId;
+
+      const total = await (await import('../models/document.model')).default.countDocuments(query);
+      const documents = await (await import('../models/document.model')).default
+        .find(query)
+        .populate('folder', 'name type')
+        .sort({ deletedAt: -1 })
+        .skip(skip)
+        .limit(limit);
+
+      res.status(200).json({
+        success: true,
+        count: documents.length,
+        pagination: {
+          currentPage: page,
+          pageSize: limit,
+          totalItems: total,
+          totalPages: Math.ceil(total / limit)
+        },
+        data: documents,
+      });
+      return;
+    }
+
     const documents = await deletionService.getTrash(userId, organizationId);
 
     res.status(200).json({
@@ -179,7 +210,7 @@ export const emptyTrash = async (req: AuthRequest, res: Response, next: NextFunc
     res.status(200).json({
       success: true,
       message: `Successfully deleted ${deletedCount} documents`,
-      deletedCount,
+      data: { deletedCount },
     });
   } catch (error) {
     next(error);
