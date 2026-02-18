@@ -36,9 +36,10 @@
     "mongoose": "^7.8.8",
     "multer": "^2.0.2",
     "nodemailer": "^7.0.12",
-    "pdf-parse": "^2.2.2",
+    "pdf-parse": "^2.4.5",
     "swagger-ui-express": "^5.0.1",
-    "tough-cookie": "^5.1.2"
+    "tough-cookie": "^5.1.2",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
