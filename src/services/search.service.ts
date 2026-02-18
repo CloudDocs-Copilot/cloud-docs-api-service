@@ -136,7 +136,17 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
     }
 
     if (mimeType) {
-      filters.push({ term: { mimeType } });
+      console.log(`🔍 [Elasticsearch] Filtering by mimeType: ${mimeType}`);
+      
+      // Usar coincidencia exacta para el mimeType específico
+      // Esto asegura que se filtren exactamente los documentos del tipo seleccionado
+      filters.push({ 
+        term: { 
+          "mimeType.keyword": mimeType 
+        } 
+      });
+      
+      console.log(`📋 [Elasticsearch] Added exact mimeType filter: ${mimeType}`);
     }
 
     if (fromDate || toDate) {
@@ -177,11 +187,23 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
 
     console.log(`✅ [Elasticsearch] Found ${typeof result.hits.total === 'object' ? result.hits.total.value : result.hits.total} documents in ${result.took}ms`);
 
-    const documents = result.hits.hits.map((hit: any) => ({
-      id: hit._id,
-      score: hit._score,
-      ...hit._source
-    }));
+    const documents = result.hits.hits.map((hit: any) => {
+      const doc = {
+        id: hit._id,
+        score: hit._score,
+        ...hit._source
+      };
+      
+      // Debug: Log cada documento encontrado
+      console.log(`📄 [Elasticsearch] Document found:`, {
+        id: doc.id,
+        filename: doc.filename || doc.originalname,
+        mimeType: doc.mimeType,
+        score: doc.score
+      });
+      
+      return doc;
+    });
 
     return {
       documents,
