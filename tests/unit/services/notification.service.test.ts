@@ -83,7 +83,7 @@ describe('notification.service (unit)', () => {
 
     const baseEntityId =
       overrides.entity?.id ?? overrides.entity?.id === undefined
-        ? overrides.entity.id
+        ? overrides?.entity?.id
         : new mongoose.Types.ObjectId();
 
     const entityKind = (overrides.entity?.kind ?? 'document') as EntityKind;
