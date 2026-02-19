@@ -113,8 +113,8 @@ export class EmbeddingService {
 
       // Extraer vectores en el orden correcto
       const embeddings = response.data
-        .sort((a, b) => a.index - b.index) // Ordenar por índice
-        .map(item => item.embedding);
+        .sort((a: { index: number }, b: { index: number }) => a.index - b.index) // Ordenar por índice
+        .map((item: { index: number; embedding: number[] }) => item.embedding);
 
       // Validar que se generaron todos los embeddings
       if (embeddings.length !== texts.length) {
