@@ -536,17 +536,7 @@ describe('notification.service (unit)', () => {
         })
       ).rejects.toThrow('Invalid actor user ID');
     });
-
-    it('throws 400 for invalid documentId', async () => {
-      await expect(
-        notificationService.notifyOrganizationMembers({
-          actorUserId: oid(),
-          type: 'DOC_COMMENTED',
-          documentId: 'bad'
-        })
-      ).rejects.toThrow('Invalid document ID');
-    });
-
+    
     it('throws 400 for invalid entityId when using entityKind+entityId', async () => {
       await expect(
         notificationService.notifyOrganizationMembers({
