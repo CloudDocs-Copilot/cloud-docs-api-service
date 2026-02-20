@@ -260,6 +260,50 @@ describe('FolderService Integration Tests', () => {
       expect(result.documents[0]._id).toEqual(document._id);
     });
 
+    it('should include itemCount in subfolders', async () => {
+      // Crear subcarpeta
+      const subfolder = await Folder.create({
+        name: 'Subfolder',
+        type: 'folder',
+        organization: testOrgId,
+        owner: testUserId,
+        parent: rootFolderId,
+        path: `/${testOrgSlug}/${testUserId}/Subfolder`,
+        permissions: [{ userId: testUserId, role: 'owner' }]
+      });
+
+      // Crear documentos dentro de la subcarpeta
+      await Document.create({
+        filename: 'doc1.txt',
+        originalName: 'doc1.txt',
+        mimeType: 'text/plain',
+        size: 100,
+        uploadedBy: testUserId,
+        folder: subfolder._id,
+        organization: testOrgId,
+        path: `/${testOrgSlug}/${testUserId}/Subfolder/doc1.txt`
+      });
+
+      await Document.create({
+        filename: 'doc2.txt',
+        originalName: 'doc2.txt',
+        mimeType: 'text/plain',
+        size: 100,
+        uploadedBy: testUserId,
+        folder: subfolder._id,
+        organization: testOrgId,
+        path: `/${testOrgSlug}/${testUserId}/Subfolder/doc2.txt`
+      });
+
+      const result = await folderService.getFolderContents({
+        folderId: rootFolderId.toString(),
+        userId: testUserId.toString(),
+      });
+
+      expect(result.subfolders).toHaveLength(1);
+      expect(result.subfolders[0].itemCount).toBe(2);
+    });
+
     it('should fail if user does not have access', async () => {
       await expect(
         folderService.getFolderContents({
@@ -303,6 +347,63 @@ describe('FolderService Integration Tests', () => {
       expect(tree!._id.toString()).toBe(rootFolderId.toString());
       // El árbol debe tener hijos
       expect((tree as any).children).toBeDefined();
+    });
+
+    it('should include documents in folder tree', async () => {
+      // Crear carpeta
+      const folder1 = await Folder.create({
+        name: 'Folder1',
+        type: 'folder',
+        organization: testOrgId,
+        owner: testUserId,
+        parent: rootFolderId,
+        path: `/${testOrgSlug}/${testUserId}/Folder1`,
+        permissions: [{ userId: testUserId, role: 'owner' }]
+      });
+
+      // Crear documento en la carpeta
+      await Document.create({
+        filename: 'test-doc.pdf',
+        originalname: 'test-doc.pdf',
+        mimeType: 'application/pdf',
+        size: 1000,
+        uploadedBy: testUserId,
+        folder: folder1._id,
+        organization: testOrgId,
+        path: `/${testOrgSlug}/${testUserId}/Folder1/test-doc.pdf`
+      });
+
+      // Crear otro documento en la raíz
+      await Document.create({
+        filename: 'root-doc.txt',
+        originalname: 'root-doc.txt',
+        mimeType: 'text/plain',
+        size: 500,
+        uploadedBy: testUserId,
+        folder: rootFolderId,
+        organization: testOrgId,
+        path: `/${testOrgSlug}/${testUserId}/root-doc.txt`
+      });
+
+      const tree = await folderService.getUserFolderTree({
+        userId: testUserId.toString(),
+        organizationId: testOrgId.toString(),
+      });
+
+      expect(tree).toBeDefined();
+      expect(tree).not.toBeNull();
+      
+      // Verificar que la raíz tiene documents
+      expect((tree as any).documents).toBeDefined();
+      expect((tree as any).documents).toHaveLength(1);
+      expect((tree as any).documents[0].originalname).toBe('root-doc.txt');
+
+      // Verificar que folder1 tiene documents
+      expect((tree as any).children).toHaveLength(1);
+      const folder1InTree = (tree as any).children[0];
+      expect(folder1InTree.documents).toBeDefined();
+      expect(folder1InTree.documents).toHaveLength(1);
+      expect(folder1InTree.documents[0].originalname).toBe('test-doc.pdf');
     });
   });
 
