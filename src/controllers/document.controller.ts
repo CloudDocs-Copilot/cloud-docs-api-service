@@ -269,7 +269,10 @@ export async function download(req: AuthRequest, res: Response, next: NextFuncti
     
     // Build path with organization slug
     const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-    const pathWithSlug = path.join(safeSlug, relativePath);
+    
+    // Check if path already includes the slug to avoid double slug
+    const hasSlugPrefix = relativePath.startsWith(safeSlug + '/') || relativePath.startsWith(safeSlug + '\\');
+    const pathWithSlug = hasSlugPrefix ? relativePath : path.join(safeSlug, relativePath);
     
     let filePath: string;
     try {
@@ -318,7 +321,10 @@ export async function preview(req: AuthRequest, res: Response, next: NextFunctio
     
     // Build path with organization slug
     const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-    const pathWithSlug = path.join(safeSlug, relativePath);
+    
+    // Check if path already includes the slug to avoid double slug
+    const hasSlugPrefix = relativePath.startsWith(safeSlug + '/') || relativePath.startsWith(safeSlug + '\\');
+    const pathWithSlug = hasSlugPrefix ? relativePath : path.join(safeSlug, relativePath);
     
     // Intentar validar el path
     let fullPath: string | null = null;

@@ -116,9 +116,15 @@ export async function deleteDocument({ id, userId }: DeleteDocumentDto): Promise
         // Sanitizar org.slug para prevenir path traversal
         const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
         // Sanitizar componentes del path
-        const pathComponents = doc.path.split('/').filter(p => p).map(component => 
+        let pathComponents = doc.path.split('/').filter(p => p).map(component => 
           component.replace(/[^a-z0-9_.-]/gi, '-')
         );
+        
+        // Eliminar slug si está duplicado al inicio
+        if (pathComponents.length > 0 && pathComponents[0] === safeSlug) {
+          pathComponents.shift();
+        }
+
         const filePath = path.join(storageRoot, safeSlug, ...pathComponents);
         
         if (fs.existsSync(filePath)) {
@@ -640,9 +646,14 @@ export async function uploadDocument({
   
   // Sanitizar org.slug y folder.path para prevenir path traversal
   const safeSlug = organization.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-  const folderPathComponents = folder.path.split('/').filter(p => p).map(component => 
+  let folderPathComponents = folder.path.split('/').filter(p => p).map(component => 
     component.replace(/[^a-z0-9_.-]/gi, '-')
   );
+  
+  // Eliminar slug del path si ya está presente al inicio
+  if (folderPathComponents.length > 0 && folderPathComponents[0] === safeSlug) {
+    folderPathComponents.shift();
+  }
   
   const physicalPath = path.join(
     storageRoot, 

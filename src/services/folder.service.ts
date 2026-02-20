@@ -269,10 +269,17 @@ export async function createFolder({
     const storageRoot = path.join(process.cwd(), 'storage');
     // Sanitizar slug para prevenir path traversal
     const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+    
     // Sanitizar cada componente del path
-    const pathComponents = newPath.split('/').filter(p => p).map(component => 
+    let pathComponents = newPath.split('/').filter(p => p).map(component => 
       component.replace(/[^a-z0-9_.-]/gi, '-')
     );
+    
+    // Si el primer componente es el slug, eliminarlo para evitar duplicación
+    if (pathComponents.length > 0 && pathComponents[0] === safeSlug) {
+      pathComponents.shift();
+    }
+    
     const folderPath = path.join(storageRoot, safeSlug, ...pathComponents);
     
     if (!fs.existsSync(folderPath)) {
@@ -354,11 +361,7 @@ export async function getFolderContents({ folderId, userId }: GetFolderContentsD
   
   // Obtener documentos de la carpeta
   const documents = await DocumentModel.find({
-    folder: folderObjectId,
-    $or: [
-      { uploadedBy: userObjectId },
-      { sharedWith: userObjectId }
-    ]
+    folder: folderObjectId
   })
   .sort({ createdAt: -1 })
   .select('-__v');
@@ -414,12 +417,7 @@ export async function getUserFolderTree({ userId, organizationId }: GetUserFolde
   
   // Obtener todos los documentos de estas carpetas
   const documents = await DocumentModel.find({
-    organization: orgObjectId,
-    folder: { $in: folders.map(f => f._id) },
-    $or: [
-      { uploadedBy: userObjectId },
-      { sharedWith: userObjectId }
-    ]
+    folder: { $in: folders.map(f => f._id) }
   })
   .sort({ originalname: 1 })
   .select('-__v')
@@ -701,9 +699,21 @@ export async function renameFolder({ id, userId, name, displayName }: RenameFold
       const oldPathComponents = oldPath.split('/').filter(p => p).map(component => 
         component.replace(/[^a-z0-9_.-]/gi, '-')
       );
+      
+      // Remove duplicated slug if present
+      if (oldPathComponents.length > 0 && oldPathComponents[0] === safeSlug) {
+        oldPathComponents.shift();
+      }
+
       const newPathComponents = newPath.split('/').filter(p => p).map(component => 
         component.replace(/[^a-z0-9_.-]/gi, '-')
       );
+
+      // Remove duplicated slug if present
+      if (newPathComponents.length > 0 && newPathComponents[0] === safeSlug) {
+        newPathComponents.shift();
+      }
+
       const oldFolderPath = path.join(storageRoot, safeSlug, ...oldPathComponents);
       const newFolderPath = path.join(storageRoot, safeSlug, ...newPathComponents);
       
