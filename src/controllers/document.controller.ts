@@ -270,9 +270,16 @@ export async function download(req: AuthRequest, res: Response, next: NextFuncti
     // Build path with organization slug
     const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
     
+    // Sanitize path components (replace spaces and special chars with dashes)
+    // to match the physical folder structure
+    const pathComponents = relativePath.split('/').filter(p => p).map(component =>
+      component.replace(/[^a-z0-9_.-]/gi, '-')
+    );
+    const sanitizedRelativePath = pathComponents.join('/');
+    
     // Check if path already includes the slug to avoid double slug
-    const hasSlugPrefix = relativePath.startsWith(safeSlug + '/') || relativePath.startsWith(safeSlug + '\\');
-    const pathWithSlug = hasSlugPrefix ? relativePath : path.join(safeSlug, relativePath);
+    const hasSlugPrefix = sanitizedRelativePath.startsWith(safeSlug + '/') || sanitizedRelativePath.startsWith(safeSlug + '\\');
+    const pathWithSlug = hasSlugPrefix ? sanitizedRelativePath : path.join(safeSlug, sanitizedRelativePath);
     
     let filePath: string;
     try {
@@ -322,9 +329,16 @@ export async function preview(req: AuthRequest, res: Response, next: NextFunctio
     // Build path with organization slug
     const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
     
+    // Sanitize path components (replace spaces and special chars with dashes)
+    // to match the physical folder structure
+    const pathComponents = relativePath.split('/').filter(p => p).map(component =>
+      component.replace(/[^a-z0-9_.-]/gi, '-')
+    );
+    const sanitizedRelativePath = pathComponents.join('/');
+    
     // Check if path already includes the slug to avoid double slug
-    const hasSlugPrefix = relativePath.startsWith(safeSlug + '/') || relativePath.startsWith(safeSlug + '\\');
-    const pathWithSlug = hasSlugPrefix ? relativePath : path.join(safeSlug, relativePath);
+    const hasSlugPrefix = sanitizedRelativePath.startsWith(safeSlug + '/') || sanitizedRelativePath.startsWith(safeSlug + '\\');
+    const pathWithSlug = hasSlugPrefix ? sanitizedRelativePath : path.join(safeSlug, sanitizedRelativePath);
     
     // Intentar validar el path
     let fullPath: string | null = null;
