@@ -9,10 +9,12 @@ module.exports = {
   testMatch: ['**/tests/**/*.test.ts', '**/tests/**/*.spec.ts'],
 
   // Excluir tests de embedding que requieren configuración específica sin mocks globales
+  // y tests de Ollama que requieren Ollama server corriendo localmente
   testPathIgnorePatterns: [
     '/node_modules/',
     '.*embedding\\.service\\.test\\.ts$',
-    '.*embedding\\.service\\.error-validation\\.test\\.ts$'
+    '.*embedding\\.service\\.error-validation\\.test\\.ts$',
+    '.*ollama\\.provider\\.test\\.ts$' // Ollama integration tests (use RUN_OLLAMA_TESTS=true to enable)
   ],
 
   // Transformación de archivos TypeScript
