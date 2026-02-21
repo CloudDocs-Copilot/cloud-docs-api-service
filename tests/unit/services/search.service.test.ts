@@ -30,6 +30,78 @@ describe('search.service', () => {
     expect(client.index).toHaveBeenCalled();
   });
 
+  // 🔍 RFE-AI-004: Verify that extractedText is indexed in 'content' field
+  it('indexDocument includes content field when extractedText is provided', async () => {
+    const client = { index: jest.fn().mockResolvedValue(true) };
+    const es = require('../../../src/configurations/elasticsearch-config');
+    es.getInstance = mockGetInstance;
+    if (es.default) es.default.getInstance = mockGetInstance;
+    mockGetInstance.mockReturnValue(client);
+
+    const svc = require('../../../src/services/search.service');
+    svc.getEsClient = () => client;
+    const doc = {
+      _id: 'd2',
+      filename: 'report.pdf',
+      originalname: 'Annual Report 2024.pdf',
+      mimeType: 'application/pdf',
+      size: 5000,
+      uploadedBy: { toString: () => 'u2' },
+      uploadedAt: new Date(),
+      aiCategory: 'financial',
+      aiTags: ['annual', 'report', '2024'],
+      aiProcessingStatus: 'completed'
+    };
+    const extractedText = 'This is the extracted content from the PDF document.';
+    
+    await svc.indexDocument(doc as any, extractedText);
+    
+    expect(client.index).toHaveBeenCalledWith(
+      expect.objectContaining({
+        index: 'documents',
+        id: 'd2',
+        document: expect.objectContaining({
+          filename: 'report.pdf',
+          content: extractedText,
+          aiCategory: 'financial',
+          aiTags: ['annual', 'report', '2024'],
+          aiProcessingStatus: 'completed'
+        })
+      })
+    );
+  });
+
+  // 🔍 RFE-AI-004: Verify that content is null when no extractedText provided
+  it('indexDocument sets content to null when no extractedText provided', async () => {
+    const client = { index: jest.fn().mockResolvedValue(true) };
+    const es = require('../../../src/configurations/elasticsearch-config');
+    es.getInstance = mockGetInstance;
+    if (es.default) es.default.getInstance = mockGetInstance;
+    mockGetInstance.mockReturnValue(client);
+
+    const svc = require('../../../src/services/search.service');
+    svc.getEsClient = () => client;
+    const doc = {
+      _id: 'd3',
+      filename: 'image.png',
+      originalname: 'photo.png',
+      mimeType: 'image/png',
+      size: 2000,
+      uploadedBy: { toString: () => 'u3' },
+      uploadedAt: new Date()
+    };
+    
+    await svc.indexDocument(doc as any);
+    
+    expect(client.index).toHaveBeenCalledWith(
+      expect.objectContaining({
+        document: expect.objectContaining({
+          content: null
+        })
+      })
+    );
+  });
+
   it('removeDocumentFromIndex handles 404 gracefully', async () => {
     const client = { delete: jest.fn().mockRejectedValue({ meta: { statusCode: 404 } }) };
     const es = require('../../../src/configurations/elasticsearch-config');

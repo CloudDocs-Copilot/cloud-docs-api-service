@@ -1,33 +1,34 @@
-import OpenAIClient from '../../configurations/openai-config';
 import HttpError from '../../models/error.model';
-import { EMBEDDING_MODEL, EMBEDDING_DIMENSIONS } from '../../models/types/ai.types';
+import { getAIProvider } from './providers';
 
 /**
- * EMBEDDING_MODEL y EMBEDDING_DIMENSIONS ahora se importan desde ai.types.ts
- *
- * text-embedding-3-small: Recomendado para la mayoría de casos
- * - Dimensiones: 1536
- * - Costo: Económico
- * - Rendimiento: Excelente balance calidad/precio
- *
- * Alternativas:
- * - text-embedding-3-large: Mayor calidad (3072 dims) pero más costoso
- * - text-embedding-ada-002: Modelo legacy (1536 dims)
- */
-
-/**
- * Servicio para generar embeddings vectoriales usando OpenAI
- *
+ * Servicio para generar embeddings vectoriales
+ * 
+ * MIGRADO A PROVIDER ABSTRACTION (RFE-AI-001)
+ * 
+ * Este servicio ahora delega toda la lógica de generación de embeddings
+ * al provider configurado (OpenAI, Ollama, Mock, etc.), permitiendo:
+ * - Cambiar de proveedor sin modificar código
+ * - Soportar múltiples modelos de embeddings
+ * - Dimensiones dinámicas según provider (1536, 768, etc.)
+ * 
+ * Proveedores soportados:
+ * - OpenAI: text-embedding-3-small (1536 dims)
+ * - Ollama: nomic-embed-text (768 dims)
+ * - Mock: Embeddings determinísticos para tests
+ * 
  * Este servicio se encarga exclusivamente de convertir texto en vectores numéricos.
  * NO maneja almacenamiento ni lógica de búsqueda - solo generación de embeddings.
  */
 export class EmbeddingService {
   /**
    * Genera un embedding vectorial a partir de texto
+   * 
+   * Delega al provider activo configurado via AI_PROVIDER env var.
    *
    * @param text - Texto a convertir en vector de embeddings
-   * @returns Vector numérico de 1536 dimensiones
-   * @throws HttpError si el texto está vacío o hay error en la API
+   * @returns Vector numérico (dimensiones dependen del provider)
+   * @throws HttpError si el texto está vacío o hay error en el provider
    */
   async generateEmbedding(text: string): Promise<number[]> {
     // Validar que el texto no esté vacío
@@ -36,47 +37,24 @@ export class EmbeddingService {
     }
 
     try {
-      const openai = OpenAIClient.getInstance();
+      const provider = getAIProvider();
+      
+      // Delegar al provider - maneja su propia implementación y errores
+      const result = await provider.generateEmbedding(text);
 
-      // Generar embedding usando OpenAI API
-      const response = await openai.embeddings.create({
-        model: EMBEDDING_MODEL,
-        input: text,
-        encoding_format: 'float' // Formato de punto flotante estándar
-      });
-
-      // Extraer el vector de embedding
-      const embedding = response.data[0]?.embedding;
-
-      if (!embedding || !Array.isArray(embedding)) {
-        throw new Error('Invalid embedding response from OpenAI API');
+      if (!result || !result.embedding || !Array.isArray(result.embedding) || result.embedding.length === 0) {
+        throw new Error('Provider returned invalid embedding (empty or not an array)');
       }
 
-      // Validar dimensiones del vector
-      if (embedding.length !== EMBEDDING_DIMENSIONS) {
-        throw new Error(
-          `Unexpected embedding dimensions: expected ${EMBEDDING_DIMENSIONS}, got ${embedding.length}`
-        );
-      }
-
-      return embedding;
+      return result.embedding;
     } catch (error: unknown) {
-      // Manejo de errores de OpenAI API
+      // Manejo de errores genérico - providers lanzan HttpError directamente
       if (error instanceof HttpError) {
         throw error;
       }
 
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('[embedding] Error generating embedding:', errorMessage);
-
-      // Convertir a HttpError apropiado
-      if (errorMessage.includes('API key')) {
-        throw new HttpError(500, 'OpenAI API key configuration error');
-      } else if (errorMessage.includes('rate limit')) {
-        throw new HttpError(429, 'OpenAI API rate limit exceeded');
-      } else if (errorMessage.includes('quota')) {
-        throw new HttpError(503, 'OpenAI API quota exceeded');
-      }
 
       throw new HttpError(500, `Failed to generate embedding: ${errorMessage}`);
     }
@@ -85,10 +63,13 @@ export class EmbeddingService {
   /**
    * Genera embeddings para múltiples textos en lote
    * Más eficiente que llamar a generateEmbedding() múltiples veces
+   * 
+   * Delega al provider activo - algunos providers (como OpenAI) optimizan
+   * procesamiento en lote, mientras que otros procesan secuencialmente.
    *
    * @param texts - Array de textos a procesar
    * @returns Array de vectores de embeddings
-   * @throws HttpError si algún texto está vacío o hay error en la API
+   * @throws HttpError si algún texto está vacío o hay error en el provider
    */
   async generateEmbeddings(texts: string[]): Promise<number[][]> {
     // Validar que el array no esté vacío
@@ -102,37 +83,29 @@ export class EmbeddingService {
     }
 
     try {
-      const openai = OpenAIClient.getInstance();
+      const provider = getAIProvider();
 
-      // Generar embeddings en lote
-      const response = await openai.embeddings.create({
-        model: EMBEDDING_MODEL,
-        input: texts,
-        encoding_format: 'float'
-      });
-
-      // Extraer vectores en el orden correcto
-      const embeddings = response.data
-        .sort((a: { index: number }, b: { index: number }) => a.index - b.index) // Ordenar por índice
-        .map((item: { index: number; embedding: number[] }) => item.embedding);
+      // Delegar al provider - maneja batch processing según sus capacidades
+      const results = await provider.generateEmbeddings(texts);
 
       // Validar que se generaron todos los embeddings
-      if (embeddings.length !== texts.length) {
-        throw new Error(`Expected ${texts.length} embeddings, got ${embeddings.length}`);
+      if (results.length !== texts.length) {
+        throw new Error(`Expected ${texts.length} embeddings, got ${results.length}`);
       }
 
-      // Validar dimensiones de cada vector
-      for (const embedding of embeddings) {
-        if (embedding.length !== EMBEDDING_DIMENSIONS) {
-          throw new Error(
-            `Unexpected embedding dimensions: expected ${EMBEDDING_DIMENSIONS}, got ${embedding.length}`
-          );
+      // Extraer los embeddings de los resultados y validar
+      const embeddings: number[][] = [];
+      for (let i = 0; i < results.length; i++) {
+        const embedding = results[i].embedding;
+        if (!Array.isArray(embedding) || embedding.length === 0) {
+          throw new Error(`Invalid embedding at index ${i}: not a valid array`);
         }
+        embeddings.push(embedding);
       }
 
       return embeddings;
     } catch (error: unknown) {
-      // Manejo de errores similar a generateEmbedding
+      // Manejo de errores genérico
       if (error instanceof HttpError) {
         throw error;
       }
@@ -140,35 +113,33 @@ export class EmbeddingService {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('[embedding] Error generating embeddings batch:', errorMessage);
 
-      if (errorMessage.includes('API key')) {
-        throw new HttpError(500, 'OpenAI API key configuration error');
-      } else if (errorMessage.includes('rate limit')) {
-        throw new HttpError(429, 'OpenAI API rate limit exceeded');
-      } else if (errorMessage.includes('quota')) {
-        throw new HttpError(503, 'OpenAI API quota exceeded');
-      }
-
       throw new HttpError(500, `Failed to generate embeddings: ${errorMessage}`);
     }
   }
 
   /**
-   * Obtiene el modelo de embeddings utilizado
+   * Obtiene el modelo de embeddings utilizado por el provider activo
    * Útil para logging y debugging
    *
-   * @returns Nombre del modelo de OpenAI
+   * @returns Nombre del modelo (e.g., 'text-embedding-3-small', 'nomic-embed-text')
    */
   getModel(): string {
-    return EMBEDDING_MODEL;
+    const provider = getAIProvider();
+    return provider.getEmbeddingModel();
   }
 
   /**
-   * Obtiene las dimensiones del vector de embedding
+   * Obtiene las dimensiones del vector de embedding del provider activo
+   * IMPORTANTE: Las dimensiones varían según el provider:
+   * - OpenAI text-embedding-3-small: 1536
+   * - Ollama nomic-embed-text: 768
+   * - Mock: 1536 (compatible con OpenAI)
    *
-   * @returns Número de dimensiones (1536 para text-embedding-3-small)
+   * @returns Número de dimensiones del vector
    */
   getDimensions(): number {
-    return EMBEDDING_DIMENSIONS;
+    const provider = getAIProvider();
+    return provider.getEmbeddingDimensions();
   }
 }
 

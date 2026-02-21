@@ -40,8 +40,10 @@
     "multer": "^2.0.2",
     "node-cron": "^4.2.1",
     "nodemailer": "^7.0.12",
+    "ollama": "^0.6.3",
     "openai": "^6.22.0",
     "pdf-parse": "^2.4.5",
+    "tesseract.js": "^2.1.5",
     "socket.io": "^4.8.3",
     "swagger-ui-express": "^5.0.1"
   },

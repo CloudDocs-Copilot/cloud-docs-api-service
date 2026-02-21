@@ -65,4 +65,30 @@ router.delete(
   aiController.deleteDocumentChunks
 );
 
+/**
+ * @route   POST /api/ai/documents/:documentId/classify
+ * @desc    Clasifica un documento en categorías predefinidas (manual)
+ * @access  Document owner/shared users (organization members)
+ * @params  documentId - ID del documento
+ * @returns { success: true, message: string, data: { category, confidence, tags } }
+ */
+router.post(
+  '/documents/:documentId/classify',
+  generalRateLimiter,
+  aiController.classifyDocument
+);
+
+/**
+ * @route   POST /api/ai/documents/:documentId/summarize
+ * @desc    Genera resumen y puntos clave del documento (manual)
+ * @access  Document owner/shared users (organization members)
+ * @params  documentId - ID del documento
+ * @returns { success: true, message: string, data: { summary, keyPoints } }
+ */
+router.post(
+  '/documents/:documentId/summarize',
+  generalRateLimiter,
+  aiController.summarizeDocument
+);
+
 export default router;

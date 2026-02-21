@@ -21,6 +21,16 @@ jest.mock('../../../src/services/ai/text-extraction.service');
 jest.mock('../../../src/models/document.model');
 jest.mock('../../../src/services/membership.service');
 
+/**
+ * Helper function to create a chainable mock for DocumentModel.findById
+ * that supports .select('+extractedText')
+ */
+function mockFindByIdWithSelect(document: any) {
+  return {
+    select: jest.fn().mockResolvedValue(document)
+  };
+}
+
 describe('AI Controller', () => {
   let mockReq: any;
   let mockRes: Partial<Response>;
@@ -137,7 +147,7 @@ describe('AI Controller', () => {
 
       await aiController.askQuestion(mockReq as Request, mockRes as Response, mockNext);
 
-      expect(ragService.answerQuestion).toHaveBeenCalledWith('  What is AI?  ');
+      expect(ragService.answerQuestion).toHaveBeenCalledWith('  What is AI?  ', 'org123');
     });
   });
 
@@ -158,7 +168,7 @@ describe('AI Controller', () => {
         chunks: []
       };
 
-      (DocumentModel.findById as jest.Mock).mockResolvedValue(mockDoc);
+      (DocumentModel.findById as jest.Mock).mockReturnValue(mockFindByIdWithSelect(mockDoc));
       (hasActiveMembership as jest.Mock).mockResolvedValue(true);
       (ragService.answerQuestionInDocument as jest.Mock).mockResolvedValue(mockResult);
 
@@ -182,7 +192,7 @@ describe('AI Controller', () => {
     it('should return 404 if document not found', async () => {
       mockReq.params = { documentId: '60a7c0c5f1d2a3b4c5d6e7f8' };
       mockReq.body = { question: 'Test?' };
-      (DocumentModel.findById as jest.Mock).mockResolvedValue(null);
+      (DocumentModel.findById as jest.Mock).mockReturnValue(mockFindByIdWithSelect(null));
 
       await aiController.askQuestionInDocument(mockReq as Request, mockRes as Response, mockNext);
 
@@ -199,7 +209,7 @@ describe('AI Controller', () => {
         uploadedBy: 'other-user'
       };
 
-      (DocumentModel.findById as jest.Mock).mockResolvedValue(mockDoc);
+      (DocumentModel.findById as jest.Mock).mockReturnValue(mockFindByIdWithSelect(mockDoc));
       (hasActiveMembership as jest.Mock).mockResolvedValue(false);
 
       await aiController.askQuestionInDocument(mockReq as Request, mockRes as Response, mockNext);
@@ -228,7 +238,7 @@ describe('AI Controller', () => {
         totalWords: 20
       };
 
-      (DocumentModel.findById as jest.Mock).mockResolvedValue(mockDoc);
+      (DocumentModel.findById as jest.Mock).mockReturnValue(mockFindByIdWithSelect(mockDoc));
       (hasActiveMembership as jest.Mock).mockResolvedValue(true);
       (documentProcessor.processDocument as jest.Mock).mockResolvedValue(mockResult);
 
@@ -269,7 +279,7 @@ describe('AI Controller', () => {
         uploadedBy: 'user123'
       };
 
-      (DocumentModel.findById as jest.Mock).mockResolvedValue(mockDoc);
+      (DocumentModel.findById as jest.Mock).mockReturnValue(mockFindByIdWithSelect(mockDoc));
       (hasActiveMembership as jest.Mock).mockResolvedValue(true);
       (documentProcessor.processDocument as jest.Mock).mockRejectedValue(
         new Error('Processing failed')
@@ -291,7 +301,7 @@ describe('AI Controller', () => {
         uploadedBy: 'user123'
       };
 
-      (DocumentModel.findById as jest.Mock).mockResolvedValue(mockDoc);
+      (DocumentModel.findById as jest.Mock).mockReturnValue(mockFindByIdWithSelect(mockDoc));
       (hasActiveMembership as jest.Mock).mockResolvedValue(true);
       (documentProcessor.deleteDocumentChunks as jest.Mock).mockResolvedValue(5);
 
@@ -308,7 +318,7 @@ describe('AI Controller', () => {
     it('should return 404 if document not found', async () => {
       mockReq.params = { documentId: '60a7c0c5f1d2a3b4c5d6e7f8' };
 
-      (DocumentModel.findById as jest.Mock).mockResolvedValue(null);
+      (DocumentModel.findById as jest.Mock).mockReturnValue(mockFindByIdWithSelect(null));
 
       await aiController.deleteDocumentChunks(mockReq as Request, mockRes as Response, mockNext);
 
@@ -335,7 +345,7 @@ describe('AI Controller', () => {
         mimeType: 'application/pdf'
       };
 
-      (DocumentModel.findById as jest.Mock).mockResolvedValue(mockDoc);
+      (DocumentModel.findById as jest.Mock).mockReturnValue(mockFindByIdWithSelect(mockDoc));
       (hasActiveMembership as jest.Mock).mockResolvedValue(true);
       (textExtractionService.isSupportedMimeType as jest.Mock).mockReturnValue(true);
       (textExtractionService.getSupportedMimeTypes as jest.Mock).mockReturnValue([
@@ -363,7 +373,7 @@ describe('AI Controller', () => {
         mimeType: 'application/pdf'
       };
 
-      (DocumentModel.findById as jest.Mock).mockResolvedValue(mockDoc);
+      (DocumentModel.findById as jest.Mock).mockReturnValue(mockFindByIdWithSelect(mockDoc));
       (hasActiveMembership as jest.Mock).mockResolvedValue(true);
       (textExtractionService.extractText as jest.Mock).mockRejectedValue(
         new Error('Failed to extract text')

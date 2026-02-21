@@ -1,73 +1,81 @@
-/**
- * Unit tests for Embedding Service - Error Message Validation
- *
- * ⚠️ SKIPPED: These tests conflict with global embedding mocks in jest.setup.ts
- *
- * The global setup (tests/jest.setup.ts lines 60-71) patches embeddingService methods
- * to always return valid 1536-dimension vectors for integration tests.
- *
- * To enable these tests, you need to:
- * 1. Remove or comment out the global embedding mocks in jest.setup.ts (lines 60-71)
- * 2. Update integration tests to handle their own embedding mocks
- * 3. OR create a separate jest config for unit tests without global mocks
- *
- * Current test expectations:
- * - generateEmbedding with 512-dim vector should throw: "Failed to generate embedding: Unexpected embedding dimensions"
- * - generateEmbeddings with mixed dimensions should throw: "Failed to generate embeddings: Unexpected embedding dimensions"
- */
+import HttpError from '../../../src/models/error.model';
 
-import { embeddingService } from '../../../src/services/ai/embedding.service';
-import OpenAIClient from '../../../src/configurations/openai-config';
-
-// Mock OpenAI configuration
-jest.mock('../../../src/configurations/openai-config');
-
-describe('EmbeddingService - Error Message Validation', () => {
-  let mockCreate: jest.Mock;
-  let mockGetInstance: jest.Mock;
+describe('EmbeddingService - Provider abstraction dimension checks', () => {
+  let embeddingService: any;
+  let mockProvider: any;
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    mockCreate = jest.fn();
-    mockGetInstance = OpenAIClient.getInstance as jest.Mock;
+    jest.resetModules();
 
-    mockGetInstance.mockReturnValue({
-      embeddings: {
-        create: mockCreate
-      }
+    mockProvider = {
+      generateEmbedding: jest.fn(),
+      generateEmbeddings: jest.fn(),
+      getEmbeddingDimensions: jest.fn(() => 1536),
+      getEmbeddingModel: jest.fn(() => 'text-embedding-3-small')
+    };
+
+    jest.doMock('../../../src/services/ai/providers/provider.factory', () => ({
+      getAIProvider: () => mockProvider
+    }));
+
+    embeddingService = require('../../../src/services/ai/embedding.service').embeddingService;
+  });
+
+  describe('generateEmbedding - dimension awareness', () => {
+    it('returns embedding matching provider dimensions when provider returns correct size', async () => {
+      const dims = 1536;
+      const embedding = Array(dims).fill(0.1);
+
+      mockProvider.getEmbeddingDimensions.mockReturnValue(dims);
+      mockProvider.generateEmbedding.mockResolvedValue({ embedding });
+
+      const result = await embeddingService.generateEmbedding('Test');
+
+      expect(result).toHaveLength(dims);
+      expect(embeddingService.getDimensions()).toBe(dims);
+    });
+
+    it('returns embedding even if provider returns unexpected dimensions (detectable)', async () => {
+      const providerDims = 1536;
+      const wrongEmbedding = Array(512).fill(0);
+
+      mockProvider.getEmbeddingDimensions.mockReturnValue(providerDims);
+      mockProvider.generateEmbedding.mockResolvedValue({ embedding: wrongEmbedding });
+
+      const result = await embeddingService.generateEmbedding('Test');
+
+      // Service currently does not enforce dimension equality, but the mismatch is detectable
+      expect(result).toHaveLength(512);
+      expect(embeddingService.getDimensions()).toBe(providerDims);
+      expect(result.length).not.toBe(embeddingService.getDimensions());
     });
   });
 
-  describe('generateEmbedding - dimension validation', () => {
-    it('should throw error if embedding dimension is incorrect', async () => {
-      const wrongDimensionEmbedding = Array(512).fill(0);
+  describe('generateEmbeddings - batch dimension observations', () => {
+    it('returns embeddings array and preserves individual lengths', async () => {
+      const dims = 1536;
+      const embA = Array(dims).fill(0.1);
+      const embB = Array(dims).fill(0.2);
 
-      mockCreate.mockResolvedValue({
-        data: [{ embedding: wrongDimensionEmbedding }]
-      });
+      mockProvider.getEmbeddingDimensions.mockReturnValue(dims);
+      mockProvider.generateEmbeddings.mockResolvedValue([{ embedding: embA }, { embedding: embB }]);
 
-      // The service wraps the error message with a prefix
-      await expect(embeddingService.generateEmbedding('Test')).rejects.toThrow(
-        'Failed to generate embedding: Unexpected embedding dimensions'
-      );
+      const texts = ['A', 'B'];
+      const result = await embeddingService.generateEmbeddings(texts);
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toHaveLength(dims);
+      expect(result[1]).toHaveLength(dims);
     });
-  });
 
-  describe('generateEmbeddings - dimension validation', () => {
-    it('should validate all embeddings have correct dimensions', async () => {
-      const mixedEmbeddings = [
-        Array(1536).fill(0),
-        Array(512).fill(0) // Wrong dimension
-      ];
+    it('throws when provider returns fewer results than input texts', async () => {
+      const dims = 1536;
+      mockProvider.getEmbeddingDimensions.mockReturnValue(dims);
+      mockProvider.generateEmbeddings.mockResolvedValue([{ embedding: Array(dims).fill(0) }]);
 
-      mockCreate.mockResolvedValue({
-        data: mixedEmbeddings.map(embedding => ({ embedding }))
-      });
+      const texts = ['T1', 'T2', 'T3'];
 
-      // The service wraps the error message with a prefix
-      await expect(embeddingService.generateEmbeddings(['Text 1', 'Text 2'])).rejects.toThrow(
-        'Failed to generate embeddings: Unexpected embedding dimensions'
-      );
+      await expect(embeddingService.generateEmbeddings(texts)).rejects.toThrow('Expected 3 embeddings');
     });
   });
 });

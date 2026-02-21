@@ -56,7 +56,7 @@ describe('DocumentProcessor (updated)', () => {
       (splitIntoChunks as jest.Mock).mockReturnValue(chunks);
       (embeddingService.generateEmbeddings as jest.Mock).mockResolvedValue(embeddings);
 
-      const result = await documentProcessor.processDocument('doc123', text);
+      const result = await documentProcessor.processDocument('doc123', 'org123', text);
 
       expect(result.documentId).toBe('doc123');
       expect(result.chunksCreated).toBe(2);
@@ -65,7 +65,7 @@ describe('DocumentProcessor (updated)', () => {
     });
 
     it('throws on empty text', async () => {
-      await expect(documentProcessor.processDocument('doc123', '')).rejects.toThrow(HttpError);
+      await expect(documentProcessor.processDocument('doc123', 'org123', '')).rejects.toThrow(HttpError);
     });
 
     it('handles embedding generation errors', async () => {
@@ -73,7 +73,7 @@ describe('DocumentProcessor (updated)', () => {
       (splitIntoChunks as jest.Mock).mockReturnValue(['Some content']);
       (embeddingService.generateEmbeddings as jest.Mock).mockRejectedValue(new Error('API error'));
 
-      await expect(documentProcessor.processDocument('doc123', text)).rejects.toThrow(HttpError);
+      await expect(documentProcessor.processDocument('doc123', 'org123', text)).rejects.toThrow(HttpError);
     });
   });
 

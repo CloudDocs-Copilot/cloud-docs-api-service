@@ -16,6 +16,7 @@ export const EMBEDDING_DIMENSIONS = 1536;
 export interface IDocumentChunk {
   _id?: ObjectId;
   documentId: string;
+  organizationId: string; // 🔐 Multitenancy: filtrado obligatorio en búsquedas vectoriales
   content: string;
   embedding: number[];
   createdAt: Date;
@@ -136,3 +137,21 @@ export interface IRagResponse {
     score: number;
   }>;
 }
+
+/**
+ * Taxonomía de categorías para clasificación de documentos
+ */
+export const DOCUMENT_CATEGORIES = [
+  'Contrato',
+  'Factura',
+  'Informe',
+  'Manual',
+  'Política',
+  'Presentación',
+  'Reporte Financiero',
+  'Acta de Reunión',
+  'Propuesta',
+  'Otro'
+] as const;
+
+export type DocumentCategory = typeof DOCUMENT_CATEGORIES[number];

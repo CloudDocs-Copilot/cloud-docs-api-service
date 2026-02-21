@@ -58,7 +58,7 @@ describe('RAGService', () => {
         toArray: jest.fn().mockResolvedValue(mockDBResults)
       });
 
-      const results = await ragService.search('What is AI?', 5);
+      const results = await ragService.search('What is AI?', 'org123', 5);
 
       expect(results).toHaveLength(2);
       expect(results[0].chunk.content).toContain('test chunk');
@@ -76,7 +76,7 @@ describe('RAGService', () => {
         toArray: jest.fn().mockResolvedValue([])
       });
 
-      const results = await ragService.search('Obscure query', 5);
+      const results = await ragService.search('Obscure query', 'org123', 5);
 
       expect(results).toEqual([]);
     });
@@ -90,7 +90,7 @@ describe('RAGService', () => {
         toArray: jest.fn().mockResolvedValue([])
       });
 
-      await ragService.search('Test', 10);
+      await ragService.search('Test', 'org123', 10);
 
       // Verify aggregate was called with correct pipeline including limit
       expect(mockAggregate).toHaveBeenCalled();
@@ -105,7 +105,7 @@ describe('RAGService', () => {
         new Error('Embedding failed')
       );
 
-      await expect(ragService.search('Test', 5)).rejects.toThrow(HttpError);
+      await expect(ragService.search('Test', 'org123', 5)).rejects.toThrow(HttpError);
     });
 
     it('should handle database errors', async () => {
@@ -117,7 +117,7 @@ describe('RAGService', () => {
         toArray: jest.fn().mockRejectedValue(new Error('Database error'))
       });
 
-      await expect(ragService.search('Test', 5)).rejects.toThrow(HttpError);
+      await expect(ragService.search('Test', 'org123', 5)).rejects.toThrow(HttpError);
     });
 
     it('should filter by organizationId', async () => {
@@ -129,7 +129,7 @@ describe('RAGService', () => {
         toArray: jest.fn().mockResolvedValue([])
       });
 
-      await ragService.search('Test', 5);
+      await ragService.search('Test', 'org123', 5);
 
       const pipeline = mockAggregate.mock.calls[0][0];
       const limitStage = pipeline.find((stage: any) => stage.$limit);
@@ -157,7 +157,7 @@ describe('RAGService', () => {
         toArray: jest.fn().mockResolvedValue(mockResults)
       });
 
-      const results = await ragService.searchInDocument('Query', 'doc123', 5);
+      const results = await ragService.searchInDocument('Query', 'org123', 'doc123', 5);
 
       // results are returned as ISearchResult[] with chunk and score
       expect(results[0].chunk.documentId).toBe('doc123');
@@ -178,7 +178,7 @@ describe('RAGService', () => {
         toArray: jest.fn().mockResolvedValue([])
       });
 
-      const results = await ragService.searchInDocument('Query', 'empty-doc', 5);
+      const results = await ragService.searchInDocument('Query', 'org123', 'empty-doc', 5);
 
       expect(results).toEqual([]);
     });
@@ -210,7 +210,7 @@ describe('RAGService', () => {
         'AI stands for Artificial Intelligence.'
       );
 
-      const result = await ragService.answerQuestion('What is AI?', 5);
+      const result = await ragService.answerQuestion('What is AI?', 'org123', 5);
 
       expect(result.answer).toBe('AI stands for Artificial Intelligence.');
       expect(result.chunks).toBeInstanceOf(Array);
@@ -234,7 +234,7 @@ describe('RAGService', () => {
         'No tengo información sobre eso.'
       );
 
-      const result = await ragService.answerQuestion('Obscure question', 5);
+      const result = await ragService.answerQuestion('Obscure question', 'org123', 5);
 
       expect(result.answer).toBeDefined();
       expect(result.chunks).toEqual([]);
@@ -257,7 +257,7 @@ describe('RAGService', () => {
         new Error('LLM service unavailable')
       );
 
-      await expect(ragService.answerQuestion('Test?', 5)).rejects.toThrow(HttpError);
+      await expect(ragService.answerQuestion('Test?', 'org123', 5)).rejects.toThrow(HttpError);
     });
   });
 
@@ -287,6 +287,7 @@ describe('RAGService', () => {
 
       const result = await ragService.answerQuestionInDocument(
         'What does the document say?',
+        'org123',
         'doc123',
         5
       );
@@ -312,7 +313,7 @@ describe('RAGService', () => {
         'El documento no contiene información relevante.'
       );
 
-      const result = await ragService.answerQuestionInDocument('Test?', 'empty-doc', 5);
+      const result = await ragService.answerQuestionInDocument('Test?', 'org123', 'empty-doc', 5);
 
       expect(result.chunks).toEqual([]);
       expect(result.answer).toBeDefined();

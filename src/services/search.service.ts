@@ -36,8 +36,15 @@ export interface SearchResult {
 
 /**
  * Indexar un documento en Elasticsearch
+ * 
+ * ACTUALIZADO (RFE-AI-004): Ahora incluye:
+ * - Campo 'content' para búsqueda full-text (antes 'extractedContent' nunca se indexaba)
+ * - Campos AI: aiCategory, aiTags, aiProcessingStatus
+ * 
+ * @param document - Documento de MongoDB a indexar
+ * @param extractedText - Contenido extraído del documento (opcional)
  */
-export async function indexDocument(document: IDocument): Promise<void> {
+export async function indexDocument(document: IDocument, extractedText?: string): Promise<void> {
   try {
     const client = getEsModule().getInstance();
 
@@ -45,6 +52,7 @@ export async function indexDocument(document: IDocument): Promise<void> {
       index: 'documents',
       id: document._id.toString(),
       document: {
+        // Campos básicos
         filename: document.filename || '',
         originalname: document.originalname || '',
         mimeType: document.mimeType,
@@ -52,7 +60,19 @@ export async function indexDocument(document: IDocument): Promise<void> {
         uploadedBy: document.uploadedBy.toString(),
         organization: document.organization ? document.organization.toString() : null,
         folder: document.folder ? document.folder.toString() : null,
-        uploadedAt: document.uploadedAt
+        uploadedAt: document.uploadedAt,
+        
+        // 🔍 NUEVO: Contenido extraído para búsqueda full-text
+        // Limitado a 100KB para no saturar Elasticsearch
+        content: extractedText ? extractedText.slice(0, 100000) : null,
+        
+        // 🤖 NUEVO: Campos AI para búsqueda facetada y filtrado (RFE-AI-002, RFE-AI-004)
+        aiCategory: (document as any).aiCategory || null,
+        aiTags: (document as any).aiTags || [],
+        aiSummary: (document as any).aiSummary || null,
+        aiKeyPoints: (document as any).aiKeyPoints || [],
+        aiProcessingStatus: (document as any).aiProcessingStatus || 'none',
+        aiConfidence: (document as any).aiConfidence || null
       }
     });
 
@@ -134,7 +154,9 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
             {
               multi_match: {
                 query,
-                fields: ['filename^3', 'originalname^2', 'extractedContent'],
+                // 🔍 CORREGIDO (RFE-AI-004): Cambiado 'extractedContent' → 'content'
+                // El campo 'content' ahora se indexa correctamente en indexDocument()
+                fields: ['filename^3', 'originalname^2', 'content'],
                 type: 'best_fields',
                 fuzziness: 'AUTO'
               }

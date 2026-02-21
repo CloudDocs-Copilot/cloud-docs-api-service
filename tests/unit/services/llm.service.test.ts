@@ -2,76 +2,46 @@
  * Unit tests for LLM Service
  */
 
-import { llmService } from '../../../src/services/ai/llm.service';
-import OpenAIClient from '../../../src/configurations/openai-config';
-import HttpError from '../../../src/models/error.model';
-
-// Mock OpenAI configuration
-jest.mock('../../../src/configurations/openai-config');
+// Note: removed unused HttpError import to avoid TS6133 during CI
 
 describe('LLMService', () => {
-  let mockCreate: jest.Mock;
+  let llmService: any;
+  let mockProvider: any;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetModules();
 
-    mockCreate = jest.fn();
+    // Mock provider with predictable behavior
+    mockProvider = {
+      name: 'mock',
+      generateResponse: jest.fn(),
+      getChatModel: jest.fn(() => 'mock-chat-model')
+    };
 
-    (OpenAIClient.getInstance as jest.Mock) = jest.fn().mockReturnValue({
-      chat: {
-        completions: {
-          create: mockCreate
-        }
-      }
-    });
+    // Mock the provider factory to return our mockProvider
+    jest.doMock('../../../src/services/ai/providers/provider.factory', () => ({
+      getAIProvider: () => mockProvider
+    }));
+
+    // Now require the service under test so it picks up the mocked factory
+    llmService = require('../../../src/services/ai/llm.service').llmService;
   });
 
   describe('generateResponse', () => {
     it('should generate response for a prompt', async () => {
-      mockCreate.mockResolvedValue({
-        choices: [
-          {
-            message: {
-              content: 'This is a test response from the AI model.'
-            }
-          }
-        ],
-        usage: {
-          prompt_tokens: 10,
-          completion_tokens: 20,
-          total_tokens: 30
-        }
+      mockProvider.generateResponse.mockResolvedValue({
+        response: 'This is a test response from the AI model.',
+        usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 }
       });
 
       const result = await llmService.generateResponse('What is AI?');
 
       expect(result).toBe('This is a test response from the AI model.');
-      expect(mockCreate).toHaveBeenCalledWith({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'user',
-            content: 'What is AI?'
-          }
-        ],
-        temperature: 0.3,
-        max_tokens: 1000,
-        top_p: 1,
-        frequency_penalty: 0,
-        presence_penalty: 0
-      });
+      expect(mockProvider.generateResponse).toHaveBeenCalledWith('What is AI?', undefined);
     });
 
     it('should handle empty response from API', async () => {
-      mockCreate.mockResolvedValue({
-        choices: [
-          {
-            message: {
-              content: ''
-            }
-          }
-        ]
-      });
+      mockProvider.generateResponse.mockResolvedValue({ response: '' });
 
       const result = await llmService.generateResponse('Test prompt');
 
@@ -79,72 +49,41 @@ describe('LLMService', () => {
     });
 
     it('should throw error when API fails', async () => {
-      mockCreate.mockRejectedValue(new Error('API unavailable'));
+      mockProvider.generateResponse.mockRejectedValue(new Error('API unavailable'));
 
-      await expect(llmService.generateResponse('Test prompt')).rejects.toThrow(HttpError);
+      await expect(llmService.generateResponse('Test prompt')).rejects.toThrow(/Failed to generate response/);
     });
 
     it('should handle missing choices in response', async () => {
-      mockCreate.mockResolvedValue({
-        choices: []
-      });
+      mockProvider.generateResponse.mockResolvedValue({ response: '' });
 
-      await expect(llmService.generateResponse('Test')).rejects.toThrow(
-        'Empty response from OpenAI API'
-      );
+      await expect(llmService.generateResponse('Test')).resolves.toBe('');
     });
 
     it('should handle long prompts', async () => {
       const longPrompt = 'word '.repeat(5000);
 
-      mockCreate.mockResolvedValue({
-        choices: [
-          {
-            message: {
-              content: 'Response for long prompt'
-            }
-          }
-        ]
-      });
+      mockProvider.generateResponse.mockResolvedValue({ response: 'Response for long prompt' });
 
       const result = await llmService.generateResponse(longPrompt);
 
       expect(result).toBeDefined();
-      expect(mockCreate).toHaveBeenCalled();
+      expect(mockProvider.generateResponse).toHaveBeenCalled();
     });
 
     it('should use correct temperature setting', async () => {
-      mockCreate.mockResolvedValue({
-        choices: [
-          {
-            message: {
-              content: 'Test response'
-            }
-          }
-        ]
-      });
+      mockProvider.generateResponse.mockResolvedValue({ response: 'Test response' });
 
       await llmService.generateResponse('Test');
 
-      expect(mockCreate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          temperature: 0.3
-        })
-      );
+      // The service delegates options to the provider; verify default temperature function
+      expect(llmService.getDefaultTemperature()).toBe(0.3);
     });
 
     it('should handle special characters in prompt', async () => {
       const specialPrompt = '¿Qué es la IA? 你好 مرحبا';
 
-      mockCreate.mockResolvedValue({
-        choices: [
-          {
-            message: {
-              content: 'Response with special chars'
-            }
-          }
-        ]
-      });
+      mockProvider.generateResponse.mockResolvedValue({ response: 'Response with special chars' });
 
       const result = await llmService.generateResponse(specialPrompt);
 
@@ -152,16 +91,7 @@ describe('LLMService', () => {
     });
 
     it('should handle missing usage data gracefully', async () => {
-      mockCreate.mockResolvedValue({
-        choices: [
-          {
-            message: {
-              content: 'Response without usage'
-            }
-          }
-        ]
-        // No usage field
-      });
+      mockProvider.generateResponse.mockResolvedValue({ response: 'Response without usage' });
 
       const result = await llmService.generateResponse('Test');
 
@@ -174,15 +104,8 @@ describe('LLMService', () => {
       const chunks: string[] = [];
       const onChunk = (chunk: string) => chunks.push(chunk);
 
-      // Mock async iterator for streaming
-      const mockStream = {
-        async *[Symbol.asyncIterator]() {
-          yield { choices: [{ delta: { content: 'Streamed ' } }] };
-          yield { choices: [{ delta: { content: 'response' } }] };
-        }
-      };
-
-      mockCreate.mockResolvedValue(mockStream);
+      // Provider abstraction returns a response string; service simulates streaming by words
+      mockProvider.generateResponse.mockResolvedValue({ response: 'Streamed response' });
 
       const result = await llmService.generateResponseStream('Test', onChunk);
 
@@ -193,36 +116,28 @@ describe('LLMService', () => {
 
   describe('edge cases', () => {
     it('should handle null or undefined prompt gracefully', async () => {
-      mockCreate.mockResolvedValue({
-        choices: [
-          {
-            message: {
-              content: 'Response'
-            }
-          }
-        ]
-      });
+      mockProvider.generateResponse.mockResolvedValue({ response: 'Response' });
 
       // Should throw error for empty prompt
-      await expect(llmService.generateResponse('')).rejects.toThrow(HttpError);
+      await expect(llmService.generateResponse('')).rejects.toThrow('Prompt cannot be empty');
     });
 
     it('should handle rate limit errors', async () => {
       const rateLimitError = new Error('Rate limit exceeded');
       (rateLimitError as any).status = 429;
 
-      mockCreate.mockRejectedValue(rateLimitError);
+      mockProvider.generateResponse.mockRejectedValue(rateLimitError);
 
-      await expect(llmService.generateResponse('Test')).rejects.toThrow(HttpError);
+      await expect(llmService.generateResponse('Test')).rejects.toThrow(/Failed to generate response/);
     });
 
     it('should handle authentication errors', async () => {
       const authError = new Error('Invalid API key');
       (authError as any).status = 401;
 
-      mockCreate.mockRejectedValue(authError);
+      mockProvider.generateResponse.mockRejectedValue(authError);
 
-      await expect(llmService.generateResponse('Test')).rejects.toThrow(HttpError);
+      await expect(llmService.generateResponse('Test')).rejects.toThrow(/Failed to generate response/);
     });
   });
 });

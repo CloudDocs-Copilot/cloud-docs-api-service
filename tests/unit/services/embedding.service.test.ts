@@ -24,29 +24,30 @@
  * For now, these tests remain skipped to avoid false failures.
  */
 
-import { embeddingService } from '../../../src/services/ai/embedding.service';
-import OpenAIClient from '../../../src/configurations/openai-config';
+let embeddingService: any;
+let mockProvider: any;
 import HttpError from '../../../src/models/error.model';
-
-// Mock OpenAI configuration
-jest.mock('../../../src/configurations/openai-config');
 
 // Tests that work with current mock setup (dimension validation tests moved to separate file)
 describe('Embedding Service', () => {
-  let mockCreate: jest.Mock;
-  let mockGetInstance: jest.Mock;
+  let mockProvider: any;
 
   beforeEach(() => {
-    mockCreate = jest.fn();
-    mockGetInstance = OpenAIClient.getInstance as jest.Mock;
+    // Reset modules and mock the provider factory so we control provider behaviour
+    jest.resetModules();
 
-    // Reset and reconfigure the mock
-    mockGetInstance.mockReset();
-    mockGetInstance.mockReturnValue({
-      embeddings: {
-        create: mockCreate
-      }
-    });
+    mockProvider = {
+      generateEmbedding: jest.fn(),
+      generateEmbeddings: jest.fn(),
+      getEmbeddingDimensions: jest.fn(() => 1536),
+      getEmbeddingModel: jest.fn(() => 'text-embedding-3-small')
+    };
+
+    jest.doMock('../../../src/services/ai/providers/provider.factory', () => ({
+      getAIProvider: () => mockProvider
+    }));
+
+    embeddingService = require('../../../src/services/ai/embedding.service').embeddingService;
   });
 
   describe('generateEmbedding', () => {
@@ -55,28 +56,24 @@ describe('Embedding Service', () => {
         .fill(0)
         .map((_, i) => i / 1536);
 
-      mockCreate.mockResolvedValue({
-        data: [{ embedding: mockEmbedding }]
-      });
+      mockProvider.generateEmbedding.mockResolvedValue({ embedding: mockEmbedding });
 
       const result = await embeddingService.generateEmbedding('Test text');
 
       expect(result).toEqual(mockEmbedding);
-      expect(mockCreate).toHaveBeenCalledWith({
-        model: 'text-embedding-3-small',
-        input: 'Test text',
-        encoding_format: 'float'
-      });
+      expect(mockProvider.generateEmbedding).toHaveBeenCalledWith('Test text');
     });
 
     it('should handle OpenAI API errors', async () => {
-      mockCreate.mockRejectedValue(new Error('API rate limit exceeded'));
+      mockProvider.generateEmbedding.mockRejectedValue(new Error('API rate limit exceeded'));
 
-      await expect(embeddingService.generateEmbedding('Test')).rejects.toThrow(HttpError);
+      await expect(embeddingService.generateEmbedding('Test')).rejects.toThrow(/Failed to generate embedding/);
     });
 
     it('should throw error for empty text input', async () => {
-      await expect(embeddingService.generateEmbedding('')).rejects.toThrow(HttpError);
+      await expect(embeddingService.generateEmbedding('')).rejects.toThrow(
+        'Text cannot be empty for embedding generation'
+      );
 
       await expect(embeddingService.generateEmbedding('   ')).rejects.toThrow(
         'Text cannot be empty for embedding generation'
@@ -87,23 +84,19 @@ describe('Embedding Service', () => {
       const longText = 'word '.repeat(10000); // 10,000 words
       const mockEmbedding = Array(1536).fill(0);
 
-      mockCreate.mockResolvedValue({
-        data: [{ embedding: mockEmbedding }]
-      });
+      mockProvider.generateEmbedding.mockResolvedValue({ embedding: mockEmbedding });
 
       const result = await embeddingService.generateEmbedding(longText);
 
       expect(result).toBeDefined();
-      expect(mockCreate).toHaveBeenCalled();
+      expect(mockProvider.generateEmbedding).toHaveBeenCalled();
     });
 
     it('should handle special characters in text', async () => {
       const specialText = '¡Hola! ¿Cómo estás? 你好 مرحبا';
       const mockEmbedding = Array(1536).fill(0);
 
-      mockCreate.mockResolvedValue({
-        data: [{ embedding: mockEmbedding }]
-      });
+      mockProvider.generateEmbedding.mockResolvedValue({ embedding: mockEmbedding });
 
       const result = await embeddingService.generateEmbedding(specialText);
 
@@ -116,61 +109,45 @@ describe('Embedding Service', () => {
     it('should generate embeddings for multiple texts', async () => {
       const mockEmbeddings = [Array(1536).fill(0.1), Array(1536).fill(0.2), Array(1536).fill(0.3)];
 
-      mockCreate.mockResolvedValue({
-        data: mockEmbeddings.map(embedding => ({ embedding }))
-      });
+      mockProvider.generateEmbeddings.mockResolvedValue(mockEmbeddings.map(embedding => ({ embedding })));
 
       const texts = ['Text 1', 'Text 2', 'Text 3'];
       const result = await embeddingService.generateEmbeddings(texts);
 
       expect(result).toEqual(mockEmbeddings);
-      expect(mockCreate).toHaveBeenCalledWith({
-        model: 'text-embedding-3-small',
-        input: texts,
-        encoding_format: 'float'
-      });
+      expect(mockProvider.generateEmbeddings).toHaveBeenCalledWith(texts);
     });
 
     it('should throw error for empty array input', async () => {
-      await expect(embeddingService.generateEmbeddings([])).rejects.toThrow(HttpError);
-
       await expect(embeddingService.generateEmbeddings([])).rejects.toThrow(
         'Texts array cannot be empty'
       );
     });
 
     it('should throw error if result count does not match input count', async () => {
-      mockCreate.mockResolvedValue({
-        data: [{ embedding: Array(1536).fill(0) }]
-      });
+      mockProvider.generateEmbeddings.mockResolvedValue([{ embedding: Array(1536).fill(0) }]);
 
       const texts = ['Text 1', 'Text 2', 'Text 3'];
 
-      await expect(embeddingService.generateEmbeddings(texts)).rejects.toThrow(
-        'Expected 3 embeddings'
-      );
+      await expect(embeddingService.generateEmbeddings(texts)).rejects.toThrow('Expected 3 embeddings');
     });
 
     it('should handle batch processing for large arrays', async () => {
       const largeArray = Array(100).fill('test text');
       const mockEmbedding = Array(1536).fill(0);
 
-      mockCreate.mockResolvedValue({
-        data: largeArray.map(() => ({ embedding: mockEmbedding }))
-      });
+      mockProvider.generateEmbeddings.mockResolvedValue(largeArray.map(() => ({ embedding: mockEmbedding })));
 
       const result = await embeddingService.generateEmbeddings(largeArray);
 
       expect(result.length).toBe(100);
-      expect(mockCreate).toHaveBeenCalled();
+      expect(mockProvider.generateEmbeddings).toHaveBeenCalled();
     });
 
     it('should handle API errors during batch processing', async () => {
-      mockCreate.mockRejectedValue(new Error('Batch processing failed'));
+      mockProvider.generateEmbeddings.mockRejectedValue(new Error('Batch processing failed'));
 
-      await expect(embeddingService.generateEmbeddings(['Text 1', 'Text 2'])).rejects.toThrow(
-        HttpError
-      );
+      await expect(embeddingService.generateEmbeddings(['Text 1', 'Text 2'])).rejects.toThrow(/Failed to generate embeddings/);
     });
   });
 });

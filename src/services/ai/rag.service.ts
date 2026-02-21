@@ -32,17 +32,24 @@ export class RAGService {
    * Busca chunks relevantes usando búsqueda vectorial
    *
    * @param queryEmbedding - Vector de embedding de la consulta
+   * @param organizationId - ID de la organización (filtro obligatorio multitenancy)
    * @param topK - Número de resultados a retornar (default: 5)
    * @returns Array de chunks relevantes con puntuación
    * @throws HttpError si hay error en la búsqueda
    */
   private async findRelevantChunks(
     queryEmbedding: number[],
+    organizationId: string,
     topK: number = TOP_K_RESULTS
   ): Promise<ISearchResult[]> {
     // Validar que el embedding sea válido
     if (!queryEmbedding || queryEmbedding.length === 0) {
       throw new HttpError(400, 'Query embedding is required');
+    }
+
+    // Validar organizationId (obligatorio para multitenancy)
+    if (!organizationId || organizationId.trim().length === 0) {
+      throw new HttpError(400, 'Organization ID is required for multitenancy security');
     }
 
     // Validar dimensiones del embedding (debe ser 1536 para text-embedding-3-small)
@@ -66,7 +73,11 @@ export class RAGService {
               path: 'embedding',
               queryVector: queryEmbedding,
               numCandidates: topK * 10, // Buscar más candidatos para mejor calidad
-              limit: topK
+              limit: topK,
+              filter: {
+                // 🔐 CRITICAL: Filtro obligatorio para multitenancy
+                organizationId: { $eq: organizationId }
+              }
             }
           },
           {
@@ -80,6 +91,7 @@ export class RAGService {
             $project: {
               _id: 1,
               documentId: 1,
+              organizationId: 1,
               content: 1,
               embedding: 1,
               createdAt: 1,
@@ -98,6 +110,7 @@ export class RAGService {
         chunk: {
           _id: doc._id,
           documentId: doc.documentId,
+          organizationId: doc.organizationId,
           content: doc.content,
           embedding: doc.embedding,
           createdAt: doc.createdAt,
@@ -137,11 +150,16 @@ export class RAGService {
    * 3. Retorna resultados ordenados por relevancia
    *
    * @param query - Consulta en texto natural
+   * @param organizationId - ID de la organización (filtro obligatorio multitenancy)
    * @param topK - Número de resultados a retornar (default: 5)
    * @returns Array de chunks relevantes con puntuación
    * @throws HttpError si la consulta está vacía o hay errores
    */
-  async search(query: string, topK: number = TOP_K_RESULTS): Promise<ISearchResult[]> {
+  async search(
+    query: string,
+    organizationId: string,
+    topK: number = TOP_K_RESULTS
+  ): Promise<ISearchResult[]> {
     // Validar entrada
     if (!query || query.trim().length === 0) {
       throw new HttpError(400, 'Search query cannot be empty');
@@ -166,8 +184,8 @@ export class RAGService {
         queryEmbedding = new Array(EMBEDDING_DIMENSIONS).fill(0.01);
       }
 
-      // Paso 2: Buscar chunks relevantes
-      const results = await this.findRelevantChunks(queryEmbedding, topK);
+      // Paso 2: Buscar chunks relevantes (con filtro organizationId)
+      const results = await this.findRelevantChunks(queryEmbedding, organizationId, topK);
 
       // Logging de resultados
       if (results.length > 0) {
@@ -195,18 +213,24 @@ export class RAGService {
    * Útil para búsqueda semántica dentro de un documento
    *
    * @param query - Consulta en texto natural
+   * @param organizationId - ID de la organización (seguridad multitenancy)
    * @param documentId - ID del documento para filtrar
    * @param topK - Número de resultados a retornar
    * @returns Array de chunks relevantes del documento especificado
    */
   async searchInDocument(
     query: string,
+    organizationId: string,
     documentId: string,
     topK: number = TOP_K_RESULTS
   ): Promise<ISearchResult[]> {
     // Validar entrada
     if (!query || query.trim().length === 0) {
       throw new HttpError(400, 'Search query cannot be empty');
+    }
+
+    if (!organizationId || organizationId.trim().length === 0) {
+      throw new HttpError(400, 'Organization ID is required');
     }
 
     if (!documentId || documentId.trim().length === 0) {
@@ -222,7 +246,7 @@ export class RAGService {
       const db = await getDb();
       const collection = db.collection<IDocumentChunk>(COLLECTION_NAME);
 
-      // Búsqueda vectorial con filtro por documento
+      // Búsqueda vectorial con filtro por organización Y documento
       const results = await collection
         .aggregate([
           {
@@ -233,7 +257,11 @@ export class RAGService {
               numCandidates: topK * 20, // Más candidatos por el filtro
               limit: topK,
               filter: {
-                documentId: { $eq: documentId }
+                // 🔐 CRITICAL: Filtros obligatorios para multitenancy
+                $and: [
+          { organizationId: { $eq: organizationId } },
+                  { documentId: { $eq: documentId } }
+                ]
               }
             }
           },
@@ -246,6 +274,7 @@ export class RAGService {
             $project: {
               _id: 1,
               documentId: 1,
+              organizationId: 1,
               content: 1,
               embedding: 1,
               createdAt: 1,
@@ -255,7 +284,7 @@ export class RAGService {
             }
           },
           // Add an explicit match and limit stage for predictable pipelines
-          { $match: { documentId: documentId } },
+          { $match: { documentId: documentId, organizationId: organizationId } },
           { $limit: topK }
         ])
         .toArray();
@@ -264,6 +293,7 @@ export class RAGService {
         chunk: {
           _id: doc._id,
           documentId: doc.documentId,
+          organizationId: doc.organizationId,
           content: doc.content,
           embedding: doc.embedding,
           createdAt: doc.createdAt,
@@ -300,11 +330,16 @@ export class RAGService {
    * 5. Retorna respuesta con fuentes
    *
    * @param question - Pregunta del usuario
+   * @param organizationId - ID de la organización (filtro obligatorio multitenancy)
    * @param topK - Número de chunks a recuperar (default: 5)
    * @returns Respuesta estructurada con answer y sources
    * @throws HttpError si la pregunta está vacía o hay errores
    */
-  async answerQuestion(question: string, topK: number = TOP_K_RESULTS): Promise<IRagResponse> {
+  async answerQuestion(
+    question: string,
+    organizationId: string,
+    topK: number = TOP_K_RESULTS
+  ): Promise<IRagResponse> {
     // Validar entrada
     if (!question || question.trim().length === 0) {
       throw new HttpError(400, 'Question cannot be empty');
@@ -313,8 +348,8 @@ export class RAGService {
     try {
       console.log(`[rag] Answering question: "${question.substring(0, 50)}..."`);
 
-      // Paso 1: Buscar chunks relevantes (ya incluye generación de embedding)
-      const searchResults = await this.search(question, topK);
+      // Paso 1: Buscar chunks relevantes (ya incluye generación de embedding + filtro org)
+      const searchResults = await this.search(question, organizationId, topK);
 
       // Validar que haya resultados
       if (searchResults.length === 0) {
@@ -378,18 +413,24 @@ export class RAGService {
    * Útil para Q&A sobre documentos específicos.
    *
    * @param question - Pregunta del usuario
+   * @param organizationId - ID de la organización (seguridad multitenancy)
    * @param documentId - ID del documento para buscar
    * @param topK - Número de chunks a recuperar
    * @returns Respuesta estructurada con answer y sources
    */
   async answerQuestionInDocument(
     question: string,
+    organizationId: string,
     documentId: string,
     topK: number = TOP_K_RESULTS
   ): Promise<IRagResponse> {
     // Validar entrada
     if (!question || question.trim().length === 0) {
       throw new HttpError(400, 'Question cannot be empty');
+    }
+
+    if (!organizationId || organizationId.trim().length === 0) {
+      throw new HttpError(400, 'Organization ID is required');
     }
 
     if (!documentId || documentId.trim().length === 0) {
@@ -401,8 +442,8 @@ export class RAGService {
         `[rag] Answering question in document ${documentId}: "${question.substring(0, 50)}..."`
       );
 
-      // Buscar chunks en el documento específico
-      const searchResults = await this.searchInDocument(question, documentId, topK);
+      // Buscar chunks en el documento específico (con filtro de organización)
+      const searchResults = await this.searchInDocument(question, organizationId, documentId, topK);
 
       // Validar que haya resultados
       if (searchResults.length === 0) {

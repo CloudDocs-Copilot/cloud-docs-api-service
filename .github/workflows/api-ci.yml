@@ -1,11 +1,13 @@
 # API CI
+# Nombre del workflow (aparece en la UI de GitHub Actions)
+name: API CI
 
 # Minimal permissions to allow CodeQL and other security scanners
 permissions:
   contents: read
   id-token: write
   security-events: write
-  actions: read
+  actions: read  
 
 # CI Pipeline para CloudDocs Backend API
 #

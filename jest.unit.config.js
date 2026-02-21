@@ -44,6 +44,8 @@ module.exports = {
   // Directorio de salida para reportes de cobertura
   coverageDirectory: process.env.COVERAGE_DIR || 'coverage/unit',
 
+  // No verificar umbrales aquí - se verifican después del merge
+
   // Timeout para tests
   testTimeout: 10000,
 
@@ -65,5 +67,15 @@ module.exports = {
   // Mapear alias de import `src/*` a la carpeta real
   moduleNameMapper: {
     '^src/(.*)$': '<rootDir>/src/$1'
+  }
+  ,
+  // Evitar que ts-jest ejecute diagnósticos de TypeScript en node_modules
+  // Esto previene errores de tipos de dependencias (ej. openai) durante los tests unitarios
+  globals: {
+    'ts-jest': {
+      diagnostics: false,
+      tsconfig: 'tsconfig.json',
+      isolatedModules: true
+    }
   }
 };

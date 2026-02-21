@@ -27,6 +27,27 @@ export interface IDocument extends MongooseDocument {
   uploadedAt: Date;
   /** Usuarios con quienes se comparte el documento */
   sharedWith: Types.ObjectId[];
+  
+  // 🤖 AI Processing Metadata (RFE-AI-002)
+  /** Estado del procesamiento AI del documento */
+  aiProcessingStatus?: 'none' | 'pending' | 'processing' | 'completed' | 'failed';
+  /** Categoría del documento asignada por IA */
+  aiCategory?: string | null;
+  /** Nivel de confianza de la clasificación (0-1) */
+  aiConfidence?: number | null;
+  /** Tags generados automáticamente por IA */
+  aiTags?: string[];
+  /** Resumen del documento generado por IA */
+  aiSummary?: string | null;
+  /** Puntos clave extraídos del documento */
+  aiKeyPoints?: string[];
+  /** Texto completo extraído del documento (no incluido por defecto) */
+  extractedText?: string | null;
+  /** Fecha en que se completó el procesamiento AI */
+  aiProcessedAt?: Date | null;
+  /** Mensaje de error si el procesamiento AI falló */
+  aiError?: string | null;
+  
   /** Indica si el documento está marcado como eliminado (soft delete) */
   isDeleted: boolean;
   /** Fecha en que el documento fue marcado como eliminado */
@@ -138,6 +159,55 @@ const documentSchema = new Schema<IDocument>(
         ref: 'User'
       }
     ],
+    
+    // 🤖 AI Processing Metadata (RFE-AI-002)
+    aiProcessingStatus: {
+      type: String,
+      enum: ['none', 'pending', 'processing', 'completed', 'failed'],
+      default: 'none',
+      index: true // Para filtrar documentos pendientes de procesamiento
+    },
+    aiCategory: {
+      type: String,
+      default: null,
+      index: true // Para búsqueda y filtrado por categoría
+    },
+    aiConfidence: {
+      type: Number,
+      min: 0,
+      max: 1,
+      default: null
+    },
+    aiTags: {
+      type: [String],
+      default: [],
+      index: true // Para búsqueda por tags
+    },
+    aiSummary: {
+      type: String,
+      default: null,
+      maxlength: [2000, 'AI summary cannot exceed 2000 characters']
+    },
+    aiKeyPoints: {
+      type: [String],
+      default: []
+    },
+    extractedText: {
+      type: String,
+      default: null,
+      select: false // No incluir por defecto (puede ser muy grande)
+    },
+    aiProcessedAt: {
+      type: Date,
+      default: null,
+      index: true
+    },
+    aiError: {
+      type: String,
+      default: null,
+      maxlength: [500, 'AI error message cannot exceed 500 characters']
+    },
+    
     isDeleted: {
       type: Boolean,
       default: false,

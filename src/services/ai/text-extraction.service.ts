@@ -3,6 +3,9 @@ import path from 'path';
 import * as pdfParse from 'pdf-parse';
 import mammoth from 'mammoth';
 import HttpError from '../../models/error.model';
+// OCR configuration
+const OCR_ENABLED = process.env.OCR_ENABLED === 'true';
+const OCR_LANGUAGES = process.env.OCR_LANGUAGES || 'spa+eng';
 
 /**
  * Tipos MIME soportados para extracción de texto
@@ -17,6 +20,12 @@ export const SUPPORTED_MIME_TYPES = {
   TXT: 'text/plain',
   // Markdown
   MD: 'text/markdown'
+  ,
+  // Images
+  PNG: 'image/png',
+  JPG: 'image/jpeg',
+  TIFF: 'image/tiff',
+  BMP: 'image/bmp'
 } as const;
 
 /**
@@ -65,14 +74,21 @@ export class TextExtractionService {
    */
   async extractText(filePath: string, mimeType: string): Promise<ITextExtractionResult> {
     // Validar que el archivo existe
-    if (!fs.existsSync(filePath)) {
-      throw new HttpError(404, 'File not found');
-    }
-
-    // Validar que es un archivo (no directorio)
-    const stats = fs.statSync(filePath);
-    if (!stats.isFile()) {
-      throw new HttpError(400, 'Path is not a file');
+    try {
+      const stats = await fs.promises.stat(filePath);
+      if (!stats.isFile()) {
+        throw new HttpError(400, 'Path is not a file');
+      }
+    } catch (err: unknown) {
+      // If file does not exist, stat will throw an ENOENT error
+      // Map that to a 404 File not found to keep existing behaviour
+      // For other errors, rethrow to surface the original problem
+      const anyErr = err as any;
+      if (anyErr && anyErr.code === 'ENOENT') {
+        throw new HttpError(404, 'File not found');
+      }
+      if (err instanceof HttpError) throw err;
+      throw err;
     }
 
     console.log(`[text-extraction] Extracting text from ${path.basename(filePath)} (${mimeType})`);
@@ -83,6 +99,11 @@ export class TextExtractionService {
       switch (mimeType) {
         case SUPPORTED_MIME_TYPES.PDF:
           result = await this.extractFromPdf(filePath);
+          // If PDF returned empty text and OCR enabled, try OCR fallback
+          if (OCR_ENABLED && (!result.text || result.text.length === 0)) {
+            console.log('[text-extraction] PDF returned empty text, attempting OCR fallback');
+            result = await this.extractFromPdfWithOcr(filePath);
+          }
           break;
 
         case SUPPORTED_MIME_TYPES.DOCX:
@@ -92,13 +113,23 @@ export class TextExtractionService {
 
         case SUPPORTED_MIME_TYPES.TXT:
         case SUPPORTED_MIME_TYPES.MD:
-          result = this.extractFromText(filePath, mimeType);
+          result = await this.extractFromTextAsync(filePath, mimeType);
+          break;
+
+        case SUPPORTED_MIME_TYPES.PNG:
+        case SUPPORTED_MIME_TYPES.JPG:
+        case SUPPORTED_MIME_TYPES.TIFF:
+        case SUPPORTED_MIME_TYPES.BMP:
+          if (!OCR_ENABLED) {
+            throw new HttpError(400, 'OCR is disabled on server');
+          }
+          result = await this.extractFromImage(filePath);
           break;
 
         default:
           throw new HttpError(
             400,
-            `Unsupported file type: ${mimeType}. Supported types: PDF, DOCX, DOC, TXT, MD`
+            `Unsupported file type: ${mimeType}. Supported types: PDF, DOCX, DOC, TXT, MD, PNG, JPG, TIFF, BMP`
           );
       }
 
@@ -127,7 +158,7 @@ export class TextExtractionService {
    * @returns Resultado de la extracción
    */
   private async extractFromPdf(filePath: string): Promise<ITextExtractionResult> {
-    const dataBuffer = fs.readFileSync(filePath);
+    const dataBuffer = await fs.promises.readFile(filePath);
     // pdf-parse se importa como namespace, necesitamos usar .default
     const data = await (pdfParse as any)(dataBuffer);
 
@@ -203,8 +234,10 @@ export class TextExtractionService {
    * @param mimeType - Tipo MIME del archivo
    * @returns Resultado de la extracción
    */
-  private extractFromText(filePath: string, mimeType: string): ITextExtractionResult {
-    const text = fs.readFileSync(filePath, 'utf-8').trim();
+  // synchronous extractFromText removed in favor of async version
+
+  private async extractFromTextAsync(filePath: string, mimeType: string): Promise<ITextExtractionResult> {
+    const text = (await fs.promises.readFile(filePath, 'utf-8')).trim();
     const wordCount = this.countWords(text);
 
     return {
@@ -213,6 +246,81 @@ export class TextExtractionService {
       wordCount,
       mimeType
     };
+  }
+
+  /**
+   * Extrae texto de una imagen usando tesseract.js
+   */
+  private async extractFromImage(filePath: string): Promise<ITextExtractionResult> {
+    if (!OCR_ENABLED) {
+      throw new HttpError(400, 'OCR is not enabled on this server');
+    }
+
+    // lazy require to avoid hard dependency when OCR not used / not installed
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { createWorker } = require('tesseract.js');
+
+    const worker = createWorker({
+      logger: (m: any) => console.debug('[tesseract]', m)
+    });
+
+    try {
+      await worker.load();
+      await worker.loadLanguage(OCR_LANGUAGES);
+      await worker.initialize(OCR_LANGUAGES);
+
+      const { data } = await worker.recognize(filePath);
+      const text = (data && data.text) ? data.text.trim() : '';
+      const wordCount = this.countWords(text);
+
+      return {
+        text,
+        charCount: text.length,
+        wordCount,
+        mimeType: 'image/*'
+      };
+    } finally {
+      try {
+        await worker.terminate();
+      } catch (e) {
+        // ignore
+      }
+    }
+  }
+
+  /**
+   * Fallback OCR for PDFs: attempt to OCR the PDF file directly
+   * (best-effort — may require additional rendering logic depending on environment)
+   */
+  private async extractFromPdfWithOcr(filePath: string): Promise<ITextExtractionResult> {
+    if (!OCR_ENABLED) {
+      return {
+        text: '',
+        charCount: 0,
+        wordCount: 0,
+        mimeType: SUPPORTED_MIME_TYPES.PDF
+      };
+    }
+
+    // Best-effort: try running tesseract on the PDF path directly
+    // Note: Depending on environment, tesseract.js may require pdf rendering support.
+    try {
+      const ocrResult = await this.extractFromImage(filePath);
+      return {
+        text: ocrResult.text,
+        charCount: ocrResult.charCount,
+        wordCount: ocrResult.wordCount,
+        mimeType: SUPPORTED_MIME_TYPES.PDF
+      };
+    } catch (err) {
+      console.warn('[text-extraction] OCR fallback for PDF failed:', err instanceof Error ? err.message : err);
+      return {
+        text: '',
+        charCount: 0,
+        wordCount: 0,
+        mimeType: SUPPORTED_MIME_TYPES.PDF
+      };
+    }
   }
 
   /**

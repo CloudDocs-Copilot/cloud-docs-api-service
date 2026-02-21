@@ -501,6 +501,56 @@ export async function remove(req: AuthRequest, res: Response, next: NextFunction
   }
 }
 
+/**
+ * Controlador para obtener el estado de procesamiento AI de un documento
+ * RFE-AI-002: Auto-procesamiento
+ */
+export async function getAIStatus(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const doc = await documentService.findDocumentById(req.params.id);
+
+    if (!doc) {
+      return next(new HttpError(404, 'Document not found'));
+    }
+
+    // Verificar que el usuario tiene acceso al documento
+    if (String(doc.uploadedBy) !== req.user!.id && !doc.isSharedWith(req.user!.id)) {
+      // Si el documento pertenece a una organización, verificar membership
+      if (doc.organization) {
+        const hasMembership = await hasActiveMembership(
+          req.user!.id,
+          doc.organization.toString()
+        );
+        if (!hasMembership) {
+          return next(new HttpError(403, 'Access denied'));
+        }
+      } else {
+        return next(new HttpError(403, 'Access denied'));
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        status: doc.aiProcessingStatus || 'none',
+        category: doc.aiCategory || null,
+        confidence: doc.aiConfidence || null,
+        tags: doc.aiTags || [],
+        summary: doc.aiSummary || null,
+        keyPoints: doc.aiKeyPoints || [],
+        processedAt: doc.aiProcessedAt || null,
+        error: doc.aiError || null
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export default {
   upload,
   replaceFile,
@@ -513,5 +563,6 @@ export default {
   copy,
   download,
   preview,
-  remove
+  remove,
+  getAIStatus
 };

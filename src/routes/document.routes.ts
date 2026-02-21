@@ -105,8 +105,14 @@ router.post('/:id/move', documentController.move);
  */
 router.post('/:id/copy', documentController.copy);
 
-/**
- * @route   DELETE /api/documents/:id
+/** * @route   GET /api/documents/:id/ai-status
+ * @desc    Obtiene el estado de procesamiento AI de un documento
+ * @access  Document owner or shared users
+ * @note    RFE-AI-002: Auto-procesamiento
+ */
+router.get('/:id/ai-status', documentController.getAIStatus);
+
+/** * @route   DELETE /api/documents/:id
  * @desc    Elimina un documento
  * @access  Document owner
  */

@@ -41,8 +41,8 @@ export async function askQuestion(
       return next(new HttpError(403, 'Access denied: You are not a member of this organization'));
     }
 
-    // Ejecutar búsqueda RAG
-    const response = await ragService.answerQuestion(question);
+    // Ejecutar búsqueda RAG con filtro de organización
+    const response = await ragService.answerQuestion(question, organizationId);
 
     // Validar que los documentos fuente pertenecen a la organización
     // (por seguridad, no retornar información de otras organizaciones)
@@ -101,32 +101,41 @@ export async function askQuestionInDocument(
     }
 
     // Buscar el documento y validar permisos
-    const document = await DocumentModel.findById(documentId);
+    const document = await DocumentModel.findById(documentId).select('+extractedText');
 
     if (!document) {
       return next(new HttpError(404, 'Document not found'));
     }
+
+    // Validar que el documento tiene organización (obligatorio para seguridad)
+    if (!document.organization) {
+      return next(
+        new HttpError(
+          400,
+          'Document must belong to an organization. Legacy documents without organization cannot use AI features.'
+        )
+      );
+    }
+
+    const organizationId = String(document.organization);
 
     // Validar acceso al documento
     const userId = req.user!.id;
     const isOwner = String(document.uploadedBy) === String(userId);
     const isShared = document.sharedWith?.some(id => String(id) === String(userId));
 
-    // Si el documento está en una organización, validar membresía
-    if (document.organization) {
-      const isActiveMember = await hasActiveMembership(userId, String(document.organization));
-      if (!isActiveMember && !isOwner && !isShared) {
-        return next(new HttpError(403, 'Access denied: You do not have access to this document'));
-      }
-    } else {
-      // Para documentos personales, solo el owner o usuarios con los que se comparte
-      if (!isOwner && !isShared) {
-        return next(new HttpError(403, 'Access denied: You do not have access to this document'));
-      }
+    // Validar membresía en la organización
+    const isActiveMember = await hasActiveMembership(userId, organizationId);
+    if (!isActiveMember && !isOwner && !isShared) {
+      return next(new HttpError(403, 'Access denied: You do not have access to this document'));
     }
 
-    // Ejecutar búsqueda RAG en el documento específico
-    const response = await ragService.answerQuestionInDocument(question, documentId);
+    // Ejecutar búsqueda RAG en el documento específico (con filtro de organización)
+    const response = await ragService.answerQuestionInDocument(
+      question,
+      organizationId,
+      documentId
+    );
 
     res.json({
       success: true,
@@ -170,11 +179,23 @@ export async function processDocument(
     }
 
     // Buscar el documento y validar permisos
-    const document = await DocumentModel.findById(documentId);
+    const document = await DocumentModel.findById(documentId).select('+extractedText');
 
     if (!document) {
       return next(new HttpError(404, 'Document not found'));
     }
+
+    // Validar que el documento tiene organización (obligatorio para multitenancy)
+    if (!document.organization) {
+      return next(
+        new HttpError(
+          400,
+          'Document must belong to an organization. Legacy documents without organization cannot be processed.'
+        )
+      );
+    }
+
+    const organizationId = String(document.organization);
 
     // Validar que el usuario es el propietario del documento
     const userId = req.user!.id;
@@ -182,23 +203,19 @@ export async function processDocument(
 
     if (!isOwner) {
       // Si no es owner, verificar si es admin de la organización
-      if (document.organization) {
-        const isActiveMember = await hasActiveMembership(userId, String(document.organization));
-        if (!isActiveMember) {
-          return next(
-            new HttpError(403, 'Access denied: Only document owner can process documents')
-          );
-        }
-        // Aquí podrías agregar validación de rol admin si fuera necesario
-        // const membership = await getMembership(userId, String(document.organization));
-        // if (membership.role !== 'admin' && membership.role !== 'owner') {...}
-      } else {
-        return next(new HttpError(403, 'Access denied: Only document owner can process documents'));
+      const isActiveMember = await hasActiveMembership(userId, organizationId);
+      if (!isActiveMember) {
+        return next(
+          new HttpError(403, 'Access denied: Only document owner can process documents')
+        );
       }
+      // Aquí podrías agregar validación de rol admin si fuera necesario
+      // const membership = await getMembership(userId, organizationId);
+      // if (membership.role !== 'admin' && membership.role !== 'owner') {...}
     }
 
-    // Procesar el documento
-    const result = await documentProcessor.processDocument(documentId, text);
+    // Procesar el documento con organizationId para multitenancy
+    const result = await documentProcessor.processDocument(documentId, organizationId, text);
 
     console.log(`[ai-controller] Document ${documentId} processed: ${result.chunksCreated} chunks`);
 
@@ -235,7 +252,7 @@ export async function deleteDocumentChunks(
     }
 
     // Buscar el documento y validar permisos
-    const document = await DocumentModel.findById(documentId);
+    const document = await DocumentModel.findById(documentId).select('+extractedText');
 
     if (!document) {
       return next(new HttpError(404, 'Document not found'));
@@ -298,7 +315,7 @@ export async function extractDocumentText(
     }
 
     // Buscar el documento
-    const document = await DocumentModel.findById(documentId);
+    const document = await DocumentModel.findById(documentId).select('+extractedText');
 
     if (!document) {
       return next(new HttpError(404, 'Document not found'));
@@ -343,6 +360,169 @@ export async function extractDocumentText(
       success: true,
       message: 'Text extracted successfully',
       data: result
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Controlador para clasificar manualmente un documento
+ *
+ * Ejecuta la clasificación por demanda, útil para:
+ * - Re-clasificar documentos ya procesados
+ * - Clasificar documentos que no pasaron por el flujo automático
+ * - Testing/debugging de la clasificación
+ *
+ * @route POST /api/ai/documents/:documentId/classify
+ * @access Document owner/shared users (organization members)
+ */
+export async function classifyDocument(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { documentId } = req.params;
+
+    // Validar ID de documento
+    if (!documentId || !mongoose.Types.ObjectId.isValid(documentId)) {
+      return next(new HttpError(400, 'Invalid document ID'));
+    }
+
+    // Buscar documento
+    const document = await DocumentModel.findById(documentId).select('+extractedText');
+    if (!document) {
+      return next(new HttpError(404, 'Document not found'));
+    }
+
+    // Validar permisos
+    const userId = req.user!.id;
+    const isOwner = String(document.uploadedBy) === String(userId);
+    const isShared = document.sharedWith?.some(id => String(id) === String(userId));
+
+    if (document.organization) {
+      const isActiveMember = await hasActiveMembership(userId, String(document.organization));
+      if (!isActiveMember && !isOwner && !isShared) {
+        return next(new HttpError(403, 'Access denied: You do not have access to this document'));
+      }
+    } else {
+      if (!isOwner && !isShared) {
+        return next(new HttpError(403, 'Access denied: You do not have access to this document'));
+      }
+    }
+
+    // Verificar que el documento tenga texto extraído
+    if (!document.extractedText || document.extractedText.trim().length === 0) {
+      return next(
+        new HttpError(
+          400,
+          'Document has no extracted text. Process the document first or extract text manually.'
+        )
+      );
+    }
+
+    // Clasificar usando el proveedor de IA
+    const { getAIProvider } = await import('../services/ai/providers/provider.factory');
+    const provider = getAIProvider();
+    const classification = await provider.classifyDocument(document.extractedText);
+
+    // Actualizar documento con nueva clasificación
+    document.aiCategory = classification.category;
+    document.aiConfidence = classification.confidence;
+    document.aiTags = classification.tags;
+    await document.save();
+
+    console.log(
+      `[ai-controller] Document ${documentId} classified as "${classification.category}" (confidence: ${classification.confidence})`
+    );
+
+    res.json({
+      success: true,
+      message: 'Document classified successfully',
+      data: {
+        category: classification.category,
+        confidence: classification.confidence,
+        tags: classification.tags
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Controlador para resumir manualmente un documento
+ *
+ * Genera resumen y puntos clave por demanda.
+ *
+ * @route POST /api/ai/documents/:documentId/summarize
+ * @access Document owner/shared users (organization members)
+ */
+export async function summarizeDocument(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { documentId } = req.params;
+
+    // Validar ID de documento
+    if (!documentId || !mongoose.Types.ObjectId.isValid(documentId)) {
+      return next(new HttpError(400, 'Invalid document ID'));
+    }
+
+    // Buscar documento
+    const document = await DocumentModel.findById(documentId).select('+extractedText');
+    if (!document) {
+      return next(new HttpError(404, 'Document not found'));
+    }
+
+    // Validar permisos
+    const userId = req.user!.id;
+    const isOwner = String(document.uploadedBy) === String(userId);
+    const isShared = document.sharedWith?.some(id => String(id) === String(userId));
+
+    if (document.organization) {
+      const isActiveMember = await hasActiveMembership(userId, String(document.organization));
+      if (!isActiveMember && !isOwner && !isShared) {
+        return next(new HttpError(403, 'Access denied: You do not have access to this document'));
+      }
+    } else {
+      if (!isOwner && !isShared) {
+        return next(new HttpError(403, 'Access denied: You do not have access to this document'));
+      }
+    }
+
+    // Verificar que el documento tenga texto extraído
+    if (!document.extractedText || document.extractedText.trim().length === 0) {
+      return next(
+        new HttpError(
+          400,
+          'Document has no extracted text. Process the document first or extract text manually.'
+        )
+      );
+    }
+
+    // Resumir usando el proveedor de IA
+    const { getAIProvider } = await import('../services/ai/providers/provider.factory');
+    const provider = getAIProvider();
+    const summary = await provider.summarizeDocument(document.extractedText);
+
+    // Actualizar documento con nuevo resumen
+    document.aiSummary = summary.summary;
+    document.aiKeyPoints = summary.keyPoints;
+    await document.save();
+
+    console.log(`[ai-controller] Document ${documentId} summarized successfully`);
+
+    res.json({
+      success: true,
+      message: 'Document summarized successfully',
+      data: {
+        summary: summary.summary,
+        keyPoints: summary.keyPoints
+      }
     });
   } catch (err) {
     next(err);

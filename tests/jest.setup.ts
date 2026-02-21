@@ -1,9 +1,31 @@
 // Load environment variables from .env for integration tests
 require('dotenv').config();
 
+// Force AI provider to mock in test runs to avoid external LLM calls
+process.env.AI_PROVIDER = process.env.AI_PROVIDER || 'mock';
+
+// Ensure common storage and fixture directories exist for integration tests
+const fs = require('fs');
+const path = require('path');
+const storageBase = path.join(process.cwd(), 'storage');
+const fixturesBase = path.join(process.cwd(), 'tests', 'fixtures', 'test-files');
+try {
+  if (!fs.existsSync(storageBase)) fs.mkdirSync(storageBase, { recursive: true });
+  if (!fs.existsSync(fixturesBase)) fs.mkdirSync(fixturesBase, { recursive: true });
+} catch (e) {
+  // ignore - tests will surface file errors where appropriate
+}
+
 // Global Jest setup for tests
 // Mock pdf-parse to avoid loading native bindings in integration tests
 jest.mock('pdf-parse', () => ({ __esModule: true, default: jest.fn() }));
+// Mock mammoth to avoid loading heavy native/binary parsing code in tests
+jest.mock('mammoth', () => ({
+  __esModule: true,
+  default: {
+    extractRawText: jest.fn(async (_buffer: any) => ({ value: '' }))
+  }
+}));
 // Mock the search service so tests don't require a running Elasticsearch instance
 
 jest.mock('../src/services/search.service', () => ({

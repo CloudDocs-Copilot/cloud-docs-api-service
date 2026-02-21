@@ -15,6 +15,8 @@ import { PLAN_LIMITS } from '../models/types/organization.types';
 import * as searchService from './search.service';
 import * as notificationService from './notification.service';
 import { emitToUser } from '../socket/socket';
+import { processDocumentAI } from '../jobs/process-document-ai.job';
+import { textExtractionService } from './ai/text-extraction.service';
 
 /**
  * Valida si un string es un ObjectId válido de MongoDB
@@ -924,7 +926,8 @@ export async function uploadDocument({
     folder: effectiveFolderId,
     organization: activeOrgId,
     path: documentPath,
-    url: `/storage${documentPath}`
+    url: `/storage${documentPath}`,
+    aiProcessingStatus: 'pending' as const // 🤖 RFE-AI-002: Inicializar en pending para procesamiento AI
   };
 
   const doc = await DocumentModel.create(docData);
@@ -932,6 +935,16 @@ export async function uploadDocument({
   // Actualizar almacenamiento usado del usuario
   user.storageUsed = currentUsage + fileSize;
   await user.save();
+
+  // 🤖 RFE-AI-002: Disparar procesamiento AI asíncrono (no bloquea respuesta al usuario)
+  if (textExtractionService.isSupportedMimeType(doc.mimeType)) {
+    processDocumentAI(doc._id.toString())
+      .catch((error: any) => {
+        console.error(`[upload] Failed to process document ${doc._id} with AI:`, error.message);
+      });
+  } else {
+    console.log(`[upload] Document ${doc._id} has unsupported MIME type for AI processing: ${doc.mimeType}`);
+  }
 
   // Indexar documento en Elasticsearch
   try {
