@@ -4,11 +4,15 @@ import DeletionAuditModel, { DeletionAction, DeletionStatus } from '../../../src
 import searchService from '../../../src/services/search.service';
 import HttpError from '../../../src/models/error.model';
 import { Types } from 'mongoose';
+import User from '../../../src/models/user.model';
+import * as notificationService from '../../../src/services/notification.service';
 
 jest.mock('../../../src/models/document.model');
 jest.mock('../../../src/models/deletion-audit.model');
 jest.mock('../../../src/services/search.service');
 jest.mock('fs/promises');
+jest.mock('../../../src/models/user.model');
+jest.mock('../../../src/services/notification.service');
 
 describe('DeletionService', () => {
   const mockUserId = new Types.ObjectId().toString();
@@ -42,11 +46,16 @@ describe('DeletionService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // Default mocks to avoid unresolved promises during async flows
+    (User.findById as jest.Mock).mockImplementation(() => ({
+      select: () => ({ lean: () => Promise.resolve({ name: 'Test User', email: 'test@example.com' }) })
+    }));
+    (notificationService.notifyMembersOfOrganization as unknown as jest.Mock).mockResolvedValue(undefined);
   });
 
   describe('moveToTrash', () => {
     // FIXME: This test causes timeouts in CI (mock promise resolution issue)
-    it.skip('should move document to trash successfully', async () => {
+    it('should move document to trash successfully', async () => {
       const document = { ...mockDocument };
       document.isOwnedBy = jest.fn().mockReturnValue(true);
       document.save = jest.fn().mockResolvedValue(document);
@@ -100,7 +109,7 @@ describe('DeletionService', () => {
     });
 
     // FIXME: This test causes timeouts in CI (mock promise resolution issue)
-    it.skip('should continue when Elasticsearch fails', async () => {
+    it('should continue when Elasticsearch fails', async () => {
       const document = { ...mockDocument };
       document.isOwnedBy = jest.fn().mockReturnValue(true);
       document.save = jest.fn().mockResolvedValue(document);
@@ -123,7 +132,7 @@ describe('DeletionService', () => {
     });
 
     // FIXME: This test causes timeouts in CI (mock promise resolution issue)
-    it.skip('should create audit log with correct data', async () => {
+    it('should create audit log with correct data', async () => {
       const document = { ...mockDocument };
       document.isOwnedBy = jest.fn().mockReturnValue(true);
       document.save = jest.fn().mockResolvedValue(document);
@@ -322,7 +331,7 @@ describe('DeletionService', () => {
 
   describe('Error handling and edge cases', () => {
     // FIXME: This test causes timeouts in CI (mock promise resolution issue)
-    it.skip('should handle null context gracefully', async () => {
+    it('should handle null context gracefully', async () => {
       const document = { ...mockDocument };
       document.isOwnedBy = jest.fn().mockReturnValue(true);
       document.save = jest.fn().mockResolvedValue(document);
@@ -341,7 +350,7 @@ describe('DeletionService', () => {
     });
 
     // FIXME: This test causes timeouts in CI (mock promise resolution issue)
-    it.skip('should handle missing organization ID', async () => {
+    it('should handle missing organization ID', async () => {
       const document = { ...mockDocument };
       document.isOwnedBy = jest.fn().mockReturnValue(true);
       document.save = jest.fn().mockResolvedValue(document);
@@ -366,7 +375,7 @@ describe('DeletionService', () => {
     });
 
     // FIXME: This test causes timeouts in CI (mock promise resolution issue)
-    it.skip('should calculate scheduled deletion date correctly', async () => {
+    it('should calculate scheduled deletion date correctly', async () => {
       const document = { ...mockDocument };
       document.isOwnedBy = jest.fn().mockReturnValue(true);
       document.save = jest.fn().mockImplementation(function(this: any) {
@@ -394,7 +403,7 @@ describe('DeletionService', () => {
     });
 
     // FIXME: This test causes timeouts in CI (mock promise resolution issue)
-    it.skip('should preserve document snapshot in audit log', async () => {
+    it('should preserve document snapshot in audit log', async () => {
       const document = { ...mockDocument };
       document.isOwnedBy = jest.fn().mockReturnValue(true);
       document.save = jest.fn().mockResolvedValue(document);
