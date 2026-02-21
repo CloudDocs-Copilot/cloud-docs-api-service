@@ -16,6 +16,7 @@ import { processDocumentAI } from '../../../src/jobs/process-document-ai.job';
 import { textExtractionService } from '../../../src/services/ai/text-extraction.service';
 import path from 'path';
 import fs from 'fs';
+import { writeTestFile } from '../../helpers/fixtureBuilder';
 
 // Mock de Elasticsearch para que no falle el indexDocument
 jest.mock('../../../src/services/search.service', () => ({
@@ -32,20 +33,13 @@ describe('Auto-processing AI Integration Tests', () => {
   beforeAll(async () => {
     // Configurar Mock Provider para tests
     process.env.AI_PROVIDER = 'mock';
-
-    // Asegurar que exista el directorio de test files
-    if (!fs.existsSync(testFilesDir)) {
-      fs.mkdirSync(testFilesDir, { recursive: true });
-    }
-
-    // Crear archivo de texto de prueba si no existe
-    const testTxtPath = path.join(testFilesDir, 'test-document.txt');
-    if (!fs.existsSync(testTxtPath)) {
-      fs.writeFileSync(
-        testTxtPath,
+    // Crear archivo de texto de prueba en storage mediante helper
+    writeTestFile({
+      organization: testOrganizationId,
+      filename: 'test-document.txt',
+      content:
         'Este es un documento de prueba para el procesamiento AI.\n\nContiene múltiples párrafos.\n\nY suficiente texto para probar la extracción.'
-      );
-    }
+    });
   });
 
   afterAll(() => {
