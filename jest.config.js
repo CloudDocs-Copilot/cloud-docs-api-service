@@ -10,11 +10,13 @@ module.exports = {
 
   // Excluir tests de embedding que requieren configuración específica sin mocks globales
   // y tests de Ollama que requieren Ollama server corriendo localmente
+  // y tests/unit/** que se ejecutan por separado con jest.unit.config.js
   testPathIgnorePatterns: [
     '/node_modules/',
     '.*embedding\\.service\\.test\\.ts$',
     '.*embedding\\.service\\.error-validation\\.test\\.ts$',
-    '.*ollama\\.provider\\.test\\.ts$' // Ollama integration tests (use RUN_OLLAMA_TESTS=true to enable)
+    '.*ollama\\.provider\\.test\\.ts$', // Ollama integration tests (use RUN_OLLAMA_TESTS=true to enable)
+    'tests/unit/' // Unit tests ejecutados por separado con jest.unit.config.js
   ],
 
   // Transformación de archivos TypeScript
@@ -37,15 +39,16 @@ module.exports = {
   // Directorio de salida para reportes de cobertura
   coverageDirectory: process.env.COVERAGE_DIR || 'coverage',
 
-  // Umbrales de cobertura (opcional)
-  coverageThreshold: {
-    global: {
-      branches: 60,
-      functions: 69,
-      lines: 70,
-      statements: 70
-    }
-  },
+  // Umbrales de cobertura verificados DESPUÉS del merge en test:ci
+  // No se verifican en ejecuciones individuales para evitar falsos negativos
+  // coverageThreshold: {
+  //   global: {
+  //     branches: 60,
+  //     functions: 69,
+  //     lines: 70,
+  //     statements: 70
+  //   }
+  // },
 
   // Timeout para tests (útil para tests de integración con DB)
   testTimeout: 30000,

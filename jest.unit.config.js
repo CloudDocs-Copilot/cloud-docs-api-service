@@ -44,6 +44,8 @@ module.exports = {
   // Directorio de salida para reportes de cobertura
   coverageDirectory: process.env.COVERAGE_DIR || 'coverage/unit',
 
+  // No verificar umbrales aquí - se verifican después del merge
+
   // Timeout para tests
   testTimeout: 10000,
 
