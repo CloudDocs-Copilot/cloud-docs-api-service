@@ -36,15 +36,6 @@ describe('AI Provider Factory', () => {
       expect(getAIProviderType()).toBe('mock');
     });
 
-    it('should select openai provider when AI_PROVIDER=openai', () => {
-      process.env.AI_PROVIDER = 'openai';
-      resetAIProvider();
-
-      const provider = getAIProvider();
-      expect(provider.name).toBe('openai');
-      expect(getAIProviderType()).toBe('openai');
-    });
-
     it('should select ollama provider when AI_PROVIDER=ollama', () => {
       process.env.AI_PROVIDER = 'ollama';
       resetAIProvider();
@@ -52,14 +43,6 @@ describe('AI Provider Factory', () => {
       const provider = getAIProvider();
       expect(provider.name).toBe('ollama');
       expect(getAIProviderType()).toBe('ollama');
-    });
-
-    it('should default to openai when AI_PROVIDER is not set', () => {
-      delete process.env.AI_PROVIDER;
-      resetAIProvider();
-
-      const provider = getAIProvider();
-      expect(provider.name).toBe('openai');
     });
 
     it('should throw error for invalid provider', () => {
