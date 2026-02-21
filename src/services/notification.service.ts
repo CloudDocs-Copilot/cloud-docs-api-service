@@ -14,7 +14,9 @@ export type NotificationEmitter = (recipientUserId: string, payload: any) => voi
 export interface CreateOrgNotificationDto {
   actorUserId: string;
   type: NotificationType;
-  documentId: string;
+  documentId?: string;
+  entityKind?: 'document' | 'membership';
+  entityId?: string;
   message?: string;
   metadata?: Record<string, any>;
   emitter?: NotificationEmitter; // optional
@@ -31,33 +33,112 @@ const defaultEmitter: NotificationEmitter = (recipientUserId, payload) => {
   }
 };
 
+function toEntityFromDto(dto: CreateOrgNotificationDto): {
+  kind: 'document' | 'membership';
+  id: string;
+} {
+  if (dto.entityKind && dto.entityId) {
+    return { kind: dto.entityKind, id: dto.entityId };
+  }
+  if (dto.documentId) {
+    return { kind: 'document', id: dto.documentId };
+  }
+  throw new HttpError(400, 'Missing entityId (or documentId) for notification');
+}
+
+export interface CreateNotificationDto {
+  organizationId: string;
+  recipientUserId: string;
+  actorUserId: string;
+  type: NotificationType;
+  entityKind: 'document' | 'membership';
+  entityId: string;
+  message?: string;
+  metadata?: Record<string, any>;
+  emitter?: NotificationEmitter;
+}
+
 /**
- * Crea notificaciones para todos los miembros activos de la org (excepto el actor).
- * Persistencia en DB + emisión realtime opcional.
+ * Create a single notification for a user within an organization.
+ * Persistence in DB + optional realtime emission.
  */
-export async function notifyOrganizationMembers({
+export async function createNotificationForUser({
+  organizationId,
+  recipientUserId,
   actorUserId,
   type,
-  documentId,
+  entityKind,
+  entityId,
   message,
   metadata,
   emitter
-}: CreateOrgNotificationDto): Promise<INotification[]> {
+}: CreateNotificationDto): Promise<INotification> {
+  if (!isValidObjectId(organizationId)) throw new HttpError(400, 'Invalid organization ID');
+  if (!isValidObjectId(recipientUserId)) throw new HttpError(400, 'Invalid recipient user ID');
   if (!isValidObjectId(actorUserId)) throw new HttpError(400, 'Invalid actor user ID');
-  if (!isValidObjectId(documentId)) throw new HttpError(400, 'Invalid document ID');
+  if (!isValidObjectId(entityId)) throw new HttpError(400, 'Invalid entity ID');
 
-  const activeOrgId = await getActiveOrganization(actorUserId);
-  if (!activeOrgId) {
-    throw new HttpError(
-      403,
-      'No active organization. Please create or join an organization first.'
-    );
-  }
+  const now = new Date();
+  const doc = await NotificationModel.create({
+    organization: new mongoose.Types.ObjectId(organizationId),
+    recipient: new mongoose.Types.ObjectId(recipientUserId),
+    actor: new mongoose.Types.ObjectId(actorUserId),
+    type,
+    entity: { kind: entityKind, id: new mongoose.Types.ObjectId(entityId) },
+    message: message || '',
+    metadata: metadata || {},
+    readAt: null,
+    createdAt: now,
+    updatedAt: now
+  });
 
-  const orgObjectId = new mongoose.Types.ObjectId(activeOrgId);
+  const emitFn = emitter || defaultEmitter;
+  emitFn(recipientUserId, {
+    id: doc._id?.toString?.() || undefined,
+    organization: doc.organization.toString(),
+    recipient: doc.recipient.toString(),
+    actor: doc.actor.toString(),
+    type: doc.type,
+    entity: { kind: doc.entity.kind, id: doc.entity.id.toString() },
+    message: doc.message,
+    metadata: doc.metadata || {},
+    readAt: doc.readAt,
+    createdAt: doc.createdAt
+  });
+
+  return doc;
+}
+
+/**
+ * Notify all active members of a SPECIFIC organization (except the actor).
+ * This does NOT depend on the actor's "active organization".
+ */
+export async function notifyMembersOfOrganization({
+  organizationId,
+  actorUserId,
+  type,
+  entityKind,
+  entityId,
+  message,
+  metadata,
+  emitter
+}: {
+  organizationId: string;
+  actorUserId: string;
+  type: NotificationType;
+  entityKind: 'document' | 'membership';
+  entityId: string;
+  message?: string;
+  metadata?: Record<string, any>;
+  emitter?: NotificationEmitter;
+}): Promise<INotification[]> {
+  if (!isValidObjectId(organizationId)) throw new HttpError(400, 'Invalid organization ID');
+  if (!isValidObjectId(actorUserId)) throw new HttpError(400, 'Invalid actor user ID');
+  if (!isValidObjectId(entityId)) throw new HttpError(400, 'Invalid entity ID');
+
+  const orgObjectId = new mongoose.Types.ObjectId(organizationId);
   const actorObjectId = new mongoose.Types.ObjectId(actorUserId);
 
-  // All active memberships in org (exclude actor)
   const memberships = await Membership.find(
     {
       organization: orgObjectId,
@@ -68,10 +149,7 @@ export async function notifyOrganizationMembers({
   ).lean();
 
   const recipientIds = memberships.map((m: any) => m.user?.toString()).filter(Boolean) as string[];
-
-  if (recipientIds.length === 0) {
-    return [];
-  }
+  if (recipientIds.length === 0) return [];
 
   const now = new Date();
   const docsToInsert = recipientIds.map(recipientId => ({
@@ -79,7 +157,7 @@ export async function notifyOrganizationMembers({
     recipient: new mongoose.Types.ObjectId(recipientId),
     actor: actorObjectId,
     type,
-    entity: { kind: 'document', id: new mongoose.Types.ObjectId(documentId) },
+    entity: { kind: entityKind, id: new mongoose.Types.ObjectId(entityId) },
     message: message || '',
     metadata: metadata || {},
     readAt: null,
@@ -89,9 +167,7 @@ export async function notifyOrganizationMembers({
 
   const inserted = await NotificationModel.insertMany(docsToInsert, { ordered: false });
 
-  // Realtime emit (uses Socket.IO by default)
   const emitFn = emitter || defaultEmitter;
-
   for (const n of inserted) {
     emitFn(n.recipient.toString(), {
       id: n._id?.toString?.() || undefined,
@@ -108,6 +184,47 @@ export async function notifyOrganizationMembers({
   }
 
   return inserted as any;
+}
+
+/**
+ * Notify all active organization members (except the actor),
+ * using the actor's active organization.
+ *
+ * (Kept for existing document flows that operate within active org context.)
+ */
+export async function notifyOrganizationMembers({
+  actorUserId,
+  type,
+  documentId,
+  entityKind,
+  entityId,
+  message,
+  metadata,
+  emitter
+}: CreateOrgNotificationDto): Promise<INotification[]> {
+  if (!isValidObjectId(actorUserId)) throw new HttpError(400, 'Invalid actor user ID');
+
+  const entity = toEntityFromDto({ actorUserId, type, documentId, entityKind, entityId });
+  if (!isValidObjectId(entity.id)) throw new HttpError(400, 'Invalid entity ID');
+
+  const activeOrgId = await getActiveOrganization(actorUserId);
+  if (!activeOrgId) {
+    throw new HttpError(
+      403,
+      'No active organization. Please create or join an organization first.'
+    );
+  }
+
+  return notifyMembersOfOrganization({
+    organizationId: activeOrgId,
+    actorUserId,
+    type,
+    entityKind: entity.kind,
+    entityId: entity.id,
+    message,
+    metadata,
+    emitter
+  });
 }
 
 export interface ListNotificationsDto {
@@ -197,6 +314,8 @@ export async function markAllRead(userId: string, organizationId?: string | null
 }
 
 export default {
+  createNotificationForUser,
+  notifyMembersOfOrganization,
   notifyOrganizationMembers,
   listNotifications,
   markNotificationRead,

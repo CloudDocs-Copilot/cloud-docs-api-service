@@ -90,6 +90,28 @@ export async function shareDocument({
   // Si el documento pertenece a una organización, por defecto ya es visible para todos los miembros activos.
   // Mantener endpoint por compatibilidad, pero no es necesario para "org-wide access".
   if (doc.organization) {
+    try {
+      const actor = await User.findById(userId).select('name email').lean();
+      const actorName = (actor as any)?.name || (actor as any)?.email || 'Alguien';
+
+      await notificationService.notifyOrganizationMembers({
+        actorUserId: userId,
+        type: 'DOC_SHARED',
+        documentId: doc._id.toString(),
+        message: `${actorName} compartió "${doc.originalname || 'un documento'}"`,
+        metadata: {
+          originalname: doc.originalname,
+          folderId: doc.folder?.toString?.(),
+          actorName
+        },
+        emitter: (recipientUserId, payload) => {
+          emitToUser(recipientUserId, 'notification:new', payload);
+        }
+      });
+    } catch (e: any) {
+      console.error('Failed to create notification (DOC_SHARED):', e.message);
+    }
+
     return doc;
   }
 
@@ -136,7 +158,8 @@ export async function listSharedDocumentsToUser(userId: string): Promise<IDocume
 
   const docs = await DocumentModel.find({
     organization: orgObjectId,
-    uploadedBy: { $ne: userObjectId }
+    uploadedBy: { $ne: userObjectId },
+    isDeleted: false
   })
     .sort({ createdAt: -1 })
     .populate('folder', 'name displayName path')
@@ -304,7 +327,7 @@ export async function replaceDocumentFile({
         actorUserId: userId,
         type: 'DOC_EDITED',
         documentId: doc._id.toString(),
-        message: 'Se actualizó un documento',
+        message: `${user.name || user.email} actualizó "${doc.originalname}"`,
         metadata: {
           originalname: doc.originalname,
           folderId: doc.folder?.toString?.()
@@ -393,6 +416,31 @@ export async function deleteDocument({ id, userId }: DeleteDocumentDto): Promise
     } catch (error: any) {
       console.error('Failed to remove document from search index:', error.message);
       // No lanzar error para no bloquear la eliminación
+    }
+  }
+
+  // Notificación (persistida) a miembros de la organización (excluye al actor)
+  if (doc.organization) {
+    try {
+      const actor = await User.findById(userId).select('name email').lean();
+      const actorName = (actor as any)?.name || (actor as any)?.email || 'Alguien';
+
+      await notificationService.notifyOrganizationMembers({
+        actorUserId: userId,
+        type: 'DOC_DELETED',
+        documentId: doc._id.toString(),
+        message: `${actorName} eliminó "${doc.originalname || 'un documento'}"`,
+        metadata: {
+          originalname: doc.originalname,
+          folderId: doc.folder?.toString?.(),
+          actorName
+        },
+        emitter: (recipientUserId, payload) => {
+          emitToUser(recipientUserId, 'notification:new', payload);
+        }
+      });
+    } catch (e: any) {
+      console.error('Failed to create notification (DOC_DELETED):', e.message);
     }
   }
 
@@ -913,7 +961,7 @@ export async function uploadDocument({
         actorUserId: userId,
         type: 'DOC_UPLOADED',
         documentId: doc._id.toString(),
-        message: 'Se subió un documento',
+        message: `${user.name || user.email} subió "${doc.originalname}"`,
         metadata: {
           originalname: doc.originalname,
           folderId: doc.folder?.toString?.()

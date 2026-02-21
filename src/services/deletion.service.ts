@@ -5,7 +5,9 @@ import DeletionAuditModel, { DeletionAction, DeletionStatus } from '../models/de
 import HttpError from '../models/error.model';
 import { Types } from 'mongoose';
 import searchService from './search.service';
-
+import notificationService from './notification.service';
+import User from '../models/user.model';
+import { emitToUser } from '../socket/socket';
 /**
  * Configuración de retención de papelera (30 días por defecto - cumplimiento GDPR)
  */
@@ -103,6 +105,37 @@ class DeletionService {
       // No fallar la operación si Elasticsearch falla
     }
 
+    try {
+
+      const orgId = (document.organization?.toString?.() || context.organizationId || '').toString();
+      if (orgId) {
+        const actor = await User.findById(context.userId).select('name email').lean();
+        const actorName = (actor as any)?.name || (actor as any)?.email || 'Alguien';
+
+        await notificationService.notifyMembersOfOrganization({
+          organizationId: orgId,
+          actorUserId: context.userId,
+          type: 'DOC_DELETED',
+          entityKind: 'document',
+          entityId: document._id.toString(),
+          message: `${actorName} movió "${document.originalname || 'un documento'}" a la papelera`,
+          metadata: {
+            originalname: document.originalname,
+            filename: document.filename,
+            folderId: document.folder?.toString?.(),
+            reason: context.reason,
+            action: 'trash',
+            actorName,
+          },
+          emitter: (recipientUserId: string, payload: any) => {
+            emitToUser(recipientUserId, 'notification:new', payload);
+          },
+        });
+      }
+    } catch (e: any) {
+      console.error('Failed to create notification (DOC_DELETED on trash):', e.message);
+    }
+    
     return document;
   }
 

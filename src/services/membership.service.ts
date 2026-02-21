@@ -115,6 +115,33 @@ export async function createInvitation({
     // rootFolder se creará al aceptar
   });
 
+  // Notificación persistida + realtime al invitado
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const notificationService = require('./notification.service');
+
+    const roleLower = String(role || '').toLowerCase();
+    const roleDisplay =
+      roleLower === 'admin' ? 'Admin' : roleLower === 'viewer' ? 'Viewer' : 'Member';
+
+    await notificationService.createNotificationForUser({
+      organizationId: organizationId,
+      recipientUserId: userId,
+      actorUserId: invitedBy,
+      type: 'INVITATION_CREATED',
+      entityKind: 'membership',
+      entityId: membership._id.toString(),
+      message: `${inviter.name || inviter.email} te invitó a ${organization.name} como ${roleDisplay}`,
+      metadata: {
+        role,
+        organizationName: organization.name,
+        inviterName: inviter.name || inviter.email
+      }
+    });
+  } catch (e: any) {
+    console.error('Failed to create notification (INVITATION_CREATED):', e.message);
+  }
+
   // Enviar email de invitación
   try {
     const invitationTemplate = fs.readFileSync(
@@ -270,6 +297,29 @@ export async function acceptInvitation(membershipId: string, userId: string): Pr
       user.organization = organization._id as any;
       user.rootFolder = rootFolder._id as any;
       await user.save();
+    }
+
+    // Notificar a TODOS los miembros activos de esa organización (excluye al actor)
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const notificationService = require('./notification.service');
+
+      await notificationService.notifyMembersOfOrganization({
+        organizationId: organization._id.toString(),
+        actorUserId: userId,
+        type: 'MEMBER_JOINED',
+        entityKind: 'membership',
+        entityId: membership._id.toString(),
+        message: `${user.name || user.email} se unió a la organización`,
+        metadata: {
+          memberUserId: userId,
+          memberName: user.name || user.email,
+          role: membership.role,
+          organizationName: organization.name
+        }
+      });
+    } catch (e: any) {
+      console.error('Failed to create notification (MEMBER_JOINED):', e.message);
     }
 
     return membership.populate('organization', 'name slug plan');
@@ -722,8 +772,35 @@ export async function updateMembershipRole(
     throw new HttpError(400, 'Cannot change owner role. Transfer ownership first.');
   }
 
+  const oldRole = membership.role;
   membership.role = newRole;
   await membership.save();
+
+  // Notificación al usuario afectado
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const notificationService = require('./notification.service');
+
+    const requester = await User.findById(requestingUserId).select('name email').lean();
+    const requesterName = (requester as any)?.name || (requester as any)?.email || 'Alguien';
+
+    await notificationService.createNotificationForUser({
+      organizationId: membership.organization.toString(),
+      recipientUserId: membership.user.toString(),
+      actorUserId: requestingUserId,
+      type: 'MEMBER_ROLE_UPDATED',
+      entityKind: 'membership',
+      entityId: membership._id.toString(),
+      message: `Tu rol fue actualizado de ${oldRole} a ${newRole} por ${requesterName}`,
+      metadata: {
+        oldRole,
+        newRole,
+        requesterName
+      }
+    });
+  } catch (e: any) {
+    console.error('Failed to create notification (MEMBER_ROLE_UPDATED):', e.message);
+  }
 
   return membership.populate('user', 'name email');
 }

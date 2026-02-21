@@ -1,6 +1,14 @@
 import mongoose, { Document as MongooseDocument, Schema, Model, Types } from 'mongoose';
 
-export type NotificationType = 'DOC_UPLOADED' | 'DOC_EDITED' | 'DOC_COMMENTED';
+export type NotificationType =
+  | 'DOC_UPLOADED'
+  | 'DOC_EDITED'
+  | 'DOC_COMMENTED'
+  | 'DOC_SHARED'
+  | 'DOC_DELETED'
+  | 'INVITATION_CREATED'
+  | 'MEMBER_JOINED'
+  | 'MEMBER_ROLE_UPDATED';
 
 export interface INotification extends MongooseDocument {
   organization: Types.ObjectId;
@@ -10,7 +18,7 @@ export interface INotification extends MongooseDocument {
 
   // “what this notification is about”
   entity: {
-    kind: 'document';
+    kind: 'document' | 'membership';
     id: Types.ObjectId;
   };
 
@@ -46,14 +54,23 @@ const notificationSchema = new Schema<INotification>(
     },
     type: {
       type: String,
-      enum: ['DOC_UPLOADED', 'DOC_EDITED', 'DOC_COMMENTED'],
+      enum: [
+        'DOC_UPLOADED',
+        'DOC_EDITED',
+        'DOC_COMMENTED',
+        'DOC_SHARED',
+        'DOC_DELETED',
+        'INVITATION_CREATED',
+        'MEMBER_JOINED',
+        'MEMBER_ROLE_UPDATED'
+      ],
       required: true,
       index: true
     },
     entity: {
       kind: {
         type: String,
-        enum: ['document'],
+        enum: ['document', 'membership'],
         required: true
       },
       id: {
