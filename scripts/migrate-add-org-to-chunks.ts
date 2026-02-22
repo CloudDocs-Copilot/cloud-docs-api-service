@@ -13,12 +13,20 @@
  */
 
 import mongoose from 'mongoose';
+import path from 'path';
+import fs from 'fs';
 import { getDb, closeAtlasConnection } from '../src/configurations/database-config/mongoAtlas';
 import DocumentModel from '../src/models/document.model';
 import dotenv from 'dotenv';
 
-// Cargar variables de entorno
-dotenv.config();
+// Cargar variables de entorno (.env.example → .env → .env.local)
+const envFiles = ['.env.example', '.env', '.env.local'];
+for (const file of envFiles) {
+  const filePath = path.resolve(__dirname, '..', file);
+  if (fs.existsSync(filePath)) {
+    dotenv.config({ path: filePath, override: true });
+  }
+}
 
 const COLLECTION_NAME = 'document_chunks';
 

@@ -38,6 +38,19 @@ TESTING-*.md
 *.tsbuildinfo
 
 # -----------------------------------------------------------------------------
+# Test Output Files (should never be committed)
+# -----------------------------------------------------------------------------
+*-test-results.txt
+*-test-output.txt
+*-output.txt
+test-results.txt
+test-run-output.txt
+ci-output.txt
+ci-test-results.txt
+doc_test_result.json
+*_test_result.json
+
+# -----------------------------------------------------------------------------
 # Logs
 # -----------------------------------------------------------------------------
 logs/

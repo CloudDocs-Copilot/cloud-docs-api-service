@@ -37,7 +37,7 @@
 - ✅ Servidor Ollama corriendo en `http://localhost:11434`
 - ✅ NPM package `ollama` instalado
 
-**Configuración en .env:**
+**Configuración en .env.local:**
 
 ```bash
 AI_PROVIDER=ollama
@@ -120,12 +120,12 @@ console.log(provider.name); // 'ollama'
 
 ### 📝 Configuración Unificada
 
-**Archivo único:** Todo está en `.env` (y `.env.example` para referencia)
+**Desarrollo local:** Crear `.env.local` (git-ignored) a partir de `.env.example` para overrides locales.
 
 **Cambiar de proveedor:**
 
 ```bash
-# Desarrollo local gratis con Ollama
+# En .env.local — Desarrollo local gratis con Ollama
 AI_PROVIDER=ollama
 
 # Producción con OpenAI (requiere API key)
@@ -135,7 +135,7 @@ AI_PROVIDER=openai
 AI_PROVIDER=mock
 ```
 
-**No se requieren archivos adicionales** - `.env.local` fue eliminado.
+**Prioridad de carga:** `.env.example` → `.env` → `.env.local` → `.env.{NODE_ENV}` → `.env.{NODE_ENV}.local`
 
 ---
 
@@ -1041,7 +1041,7 @@ doc.aiKeyPoints = summary.keyPoints;
 - ✅ Sistema de providers con Factory pattern implementado
 - ✅ OpenAIProvider, OllamaProvider, MockProvider funcionando
 - ✅ 31/31 tests de integración pasando
-- ✅ Configuración unificada en .env (eliminado .env.local)
+- ✅ Configuración unificada con soporte `.env.local` para overrides locales
 
 ---
 
@@ -1145,7 +1145,7 @@ ELASTICSEARCH_NODE=http://localhost:9200
 ✅ Se puede cambiar de provider con una variable de entorno  
 ✅ Tests corren sin API keys con `AI_PROVIDER=mock`  
 ✅ 31/31 tests de integración pasando  
-✅ Configuración unificada en .env
+✅ Configuración unificada con soporte `.env.local`
 
 ### Fase 1 - PRÓXIMA 🎯
 
@@ -1186,7 +1186,7 @@ ELASTICSEARCH_NODE=http://localhost:9200
 npm test
 
 # Confirmar que AI_PROVIDER está configurado
-grep AI_PROVIDER .env
+grep AI_PROVIDER .env.local.local
 ```
 
 ---

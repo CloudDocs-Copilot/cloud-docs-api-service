@@ -22,12 +22,19 @@ El módulo de IA de CloudDocs implementa capacidades de **RAG (Retrieval-Augment
 ### Características Principales
 
 - ✅ **Extracción de texto** de múltiples formatos (PDF, DOCX, DOC, TXT, MD)
-- ✅ **Chunking inteligente** preservando límites de párrafos
-- ✅ **Embeddings vectoriales** usando OpenAI (text-embedding-3-small, 1536 dimensiones)
-- ✅ **Búsqueda vectorial** en MongoDB Atlas con $vectorSearch
-- ✅ **Generación de respuestas** con GPT-4o-mini
-- ✅ **Multi-tenancy** - Aislamiento por organización
+- ✅ **Chunking inteligente** preservando límites de párrafos (~800 palabras/chunk)
+- ✅ **Embeddings vectoriales** con abstracción de proveedor:
+  - OpenAI `text-embedding-3-small` (1536 dimensiones)
+  - Ollama `nomic-embed-text` (768 dimensiones)
+- ✅ **Búsqueda vectorial** en MongoDB Atlas con `$vectorSearch`
+- ✅ **Generación de respuestas** con abstracción de proveedor:
+  - OpenAI `gpt-4o-mini`
+  - Ollama `llama3.2:3b`
+- ✅ **Clasificación automática** de documentos (categoría, confianza, tags)
+- ✅ **Resumen automático** de documentos (resumen + puntos clave)
+- ✅ **Multi-tenancy** - Aislamiento por organización en vector search
 - ✅ **Control de acceso** - Basado en permisos de documentos
+- ✅ **Proveedor Mock** - Respuestas determinísticas para testing
 
 ---
 
@@ -56,6 +63,14 @@ El módulo de IA de CloudDocs implementa capacidades de **RAG (Retrieval-Augment
 │  │  • LLM Service                                  │   │
 │  │  • Prompt Builder                               │   │
 │  └──────────────┬──────────────────┬───────────────┘   │
+│                 │                  │                     │
+│  ┌──────────────┴──────────────────┴───────────────┐   │
+│  │         Provider Abstraction Layer              │   │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐       │   │
+│  │  │ OpenAI   │ │ Ollama   │ │  Mock    │       │   │
+│  │  │ Provider │ │ Provider │ │ Provider │       │   │
+│  │  └──────────┘ └──────────┘ └──────────┘       │   │
+│  └──────────────┬──────────────────┬───────────────┘   │
 └─────────────────┼──────────────────┼───────────────────┘
                   │                  │
                   ▼                  ▼
@@ -66,13 +81,15 @@ El módulo de IA de CloudDocs implementa capacidades de **RAG (Retrieval-Augment
     │  • Organizations    │  │  • Vector Index  │
     └─────────────────────┘  └──────────────────┘
 
-                  ▼
-         ┌──────────────────┐
-         │   OpenAI API     │
-         │  • Embeddings    │
-         │  • GPT-4o-mini   │
-         └──────────────────┘
+         ▼                          ▼
+┌──────────────────┐     ┌──────────────────┐
+│   OpenAI API     │     │  Ollama (Local)  │
+│  • Embeddings    │     │  • llama3.2:3b   │
+│  • GPT-4o-mini   │     │  • nomic-embed   │
+└──────────────────┘     └──────────────────┘
 ```
+
+> **Nota:** El proveedor se selecciona mediante la variable `AI_PROVIDER` (`openai` | `ollama` | `mock`). Ver [AI-SETUP-GUIDE.md](AI-SETUP-GUIDE.md) para instrucciones de configuración.
 
 ### Base de Datos Dual
 
@@ -85,8 +102,9 @@ El módulo de IA de CloudDocs implementa capacidades de **RAG (Retrieval-Augment
 **MongoDB Atlas (Native Driver):**
 
 - Almacena chunks de documentos
-- Embeddings vectoriales (1536 dimensiones)
+- Embeddings vectoriales (1536 dims con OpenAI, 768 dims con Ollama)
 - Índice vectorial para búsqueda semántica
+- Filtrado por `organizationId` para aislamiento multi-tenancy
 
 ### Flujo RAG Completo
 
@@ -590,7 +608,7 @@ Content-Type: application/json
 
 ### Variables de Entorno
 
-Agregar al archivo `.env`:
+Agregar al archivo `.env.local`:
 
 ```bash
 # MongoDB Atlas para búsqueda vectorial
@@ -815,7 +833,7 @@ it('should process document', async () => {
 ✅ **Variables de Entorno:**
 
 - API keys nunca en código
-- Uso de `.env` local
+- Uso de `.env.local` (git-ignored)
 - Variables separadas para test/producción
 
 ---
@@ -829,7 +847,7 @@ it('should process document', async () => {
 **Solución:**
 
 ```bash
-# .env
+# .env.local
 OPENAI_API_KEY=sk-proj-your-key-here
 ```
 
@@ -839,7 +857,7 @@ OPENAI_API_KEY=sk-proj-your-key-here
 
 **Solución:**
 
-1. Verificar `MONGO_ATLAS_URI` en `.env`
+1. Verificar `MONGO_ATLAS_URI` en `.env.local`
 2. En Atlas: Network Access → Add IP Address → Allow Access from Anywhere (0.0.0.0/0)
 3. Verificar usuario/contraseña en connection string
 

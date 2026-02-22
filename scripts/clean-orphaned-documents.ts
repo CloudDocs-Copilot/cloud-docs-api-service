@@ -1,7 +1,7 @@
 /**
  * Script para eliminar documentos huérfanos (registros en MongoDB sin archivo físico)
  *
- * Uso: npx ts-node clean-orphaned-documents.ts
+ * Uso: npx ts-node scripts/clean-orphaned-documents.ts
  */
 
 import mongoose from 'mongoose';
@@ -9,15 +9,20 @@ import path from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
 
-// Cargar variables de entorno
-dotenv.config({ path: '.env.example' });
-dotenv.config({ path: '.env' });
+// Cargar variables de entorno (.env.example → .env → .env.local)
+const envFiles = ['.env.example', '.env', '.env.local'];
+for (const file of envFiles) {
+  const filePath = path.resolve(__dirname, '..', file);
+  if (fs.existsSync(filePath)) {
+    dotenv.config({ path: filePath, override: true });
+  }
+}
 
 // Importar modelo de Document
-import DocumentModel from './src/models/document.model';
+import DocumentModel from '../src/models/document.model';
 
-const UPLOADS_BASE = path.join(__dirname, 'uploads');
-const STORAGE_BASE = path.join(__dirname, 'storage');
+const UPLOADS_BASE = path.join(__dirname, '..', 'uploads');
+const STORAGE_BASE = path.join(__dirname, '..', 'storage');
 
 interface OrphanedDocument {
   id: string;
