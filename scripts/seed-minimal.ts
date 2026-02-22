@@ -4,7 +4,7 @@
  */
 import 'dotenv/config';
 import mongoose from 'mongoose';
-import Organization, { generateSlug } from './src/models/organization.model';
+import Organization, { generateSlug } from '../src/models/organization.model';
 
 async function seed() {
   try {

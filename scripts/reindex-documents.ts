@@ -6,13 +6,14 @@
  */
 
 import mongoose from 'mongoose';
-import DocumentModel from './src/models/document.model';
-import { indexDocument } from './src/services/search.service';
+import path from 'path';
+import DocumentModel from '../src/models/document.model';
+import { indexDocument } from '../src/services/search.service';
 import dotenv from 'dotenv';
 
 // Cargar variables de entorno
-dotenv.config({ path: '.env.example' });
-dotenv.config({ path: '.env', override: true });
+dotenv.config({ path: path.join(__dirname, '..', '.env.example') });
+dotenv.config({ path: path.join(__dirname, '..', '.env'), override: true });
 
 async function reindexAllDocuments() {
   try {
