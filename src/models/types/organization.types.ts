@@ -19,29 +19,29 @@ export const PLAN_LIMITS = {
     maxStoragePerUser: 1073741824, // 1GB
     maxStorageTotal: 3221225472, // 3GB total
     allowedFileTypes: ['pdf', 'txt', 'doc', 'docx'],
-    maxFileSize: 10485760, // 10MB
+    maxFileSize: 10485760 // 10MB
   },
   [SubscriptionPlan.BASIC]: {
     maxUsers: 100,
     maxStoragePerUser: 5368709120, // 5GB
     maxStorageTotal: 53687091200, // 50GB total
     allowedFileTypes: ['*'],
-    maxFileSize: 52428800, // 50MB
+    maxFileSize: 52428800 // 50MB
   },
   [SubscriptionPlan.PREMIUM]: {
     maxUsers: 50,
     maxStoragePerUser: 10737418240, // 10GB
     maxStorageTotal: 536870912000, // 500GB total
     allowedFileTypes: ['*'],
-    maxFileSize: 104857600, // 100MB
+    maxFileSize: 104857600 // 100MB
   },
   [SubscriptionPlan.ENTERPRISE]: {
     maxUsers: -1, // ilimitado
     maxStoragePerUser: 53687091200, // 50GB
     maxStorageTotal: -1, // ilimitado
     allowedFileTypes: ['*'],
-    maxFileSize: 524288000, // 500MB
-  },
+    maxFileSize: 524288000 // 500MB
+  }
 };
 
 /**

@@ -1,4 +1,8 @@
-import Membership, { IMembership, MembershipRole, MembershipStatus } from '../models/membership.model';
+import Membership, {
+  IMembership,
+  MembershipRole,
+  MembershipStatus
+} from '../models/membership.model';
 import Organization from '../models/organization.model';
 import User from '../models/user.model';
 import Folder from '../models/folder.model';
@@ -17,7 +21,7 @@ export async function createInvitation({
   userId,
   organizationId,
   role = MembershipRole.MEMBER,
-  invitedBy,
+  invitedBy
 }: {
   userId: string;
   organizationId: string;
@@ -55,7 +59,7 @@ export async function createInvitation({
   // Verificar si ya existe membresía (activa o pendiente)
   const existingMembership = await Membership.findOne({
     user: { $eq: userId },
-    organization: { $eq: organizationId },
+    organization: { $eq: organizationId }
   });
 
   if (existingMembership) {
@@ -70,7 +74,7 @@ export async function createInvitation({
   // Verificar límite de usuarios del plan (contar solo ACTIVE + PENDING)
   const totalMembersCount = await Membership.countDocuments({
     organization: { $eq: organizationId },
-    status: { $in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING] },
+    status: { $in: [MembershipStatus.ACTIVE, MembershipStatus.PENDING] }
   });
 
   if (
@@ -89,7 +93,7 @@ export async function createInvitation({
     const adminCount = await Membership.countDocuments({
       organization: { $eq: organizationId },
       role: { $in: [MembershipRole.ADMIN, MembershipRole.OWNER] },
-      status: MembershipStatus.ACTIVE,
+      status: MembershipStatus.ACTIVE
     });
 
     // Ejemplo: plan FREE solo permite 1 admin (el owner)
@@ -107,9 +111,36 @@ export async function createInvitation({
     organization: organizationId,
     role,
     status: MembershipStatus.PENDING,
-    invitedBy,
+    invitedBy
     // rootFolder se creará al aceptar
   });
+
+  // Notificación persistida + realtime al invitado
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const notificationService = require('./notification.service');
+
+    const roleLower = String(role || '').toLowerCase();
+    const roleDisplay =
+      roleLower === 'admin' ? 'Admin' : roleLower === 'viewer' ? 'Viewer' : 'Member';
+
+    await notificationService.createNotificationForUser({
+      organizationId: organizationId,
+      recipientUserId: userId,
+      actorUserId: invitedBy,
+      type: 'INVITATION_CREATED',
+      entityKind: 'membership',
+      entityId: membership._id.toString(),
+      message: `${inviter.name || inviter.email} te invitó a ${organization.name} como ${roleDisplay}`,
+      metadata: {
+        role,
+        organizationName: organization.name,
+        inviterName: inviter.name || inviter.email
+      }
+    });
+  } catch (e: any) {
+    console.error('Failed to create notification (INVITATION_CREATED):', e.message);
+  }
 
   // Enviar email de invitación
   try {
@@ -165,10 +196,7 @@ export async function createInvitation({
  * Acepta una invitación pendiente
  * Crea el rootFolder y activa la membresía
  */
-export async function acceptInvitation(
-  membershipId: string,
-  userId: string
-): Promise<IMembership> {
+export async function acceptInvitation(membershipId: string, userId: string): Promise<IMembership> {
   const membership = await Membership.findById(membershipId).populate('organization');
 
   if (!membership) {
@@ -196,7 +224,7 @@ export async function acceptInvitation(
   // Verificar límite de usuarios activos antes de aceptar
   const activeMembersCount = await Membership.countDocuments({
     organization: { $eq: organization._id },
-    status: MembershipStatus.ACTIVE,
+    status: MembershipStatus.ACTIVE
   });
 
   if (
@@ -244,10 +272,12 @@ export async function acceptInvitation(
       owner: userId,
       parent: null,
       path: rootFolderPath,
-      permissions: [{
-        userId: userId,
-        role: 'owner'
-      }]
+      permissions: [
+        {
+          userId: userId,
+          role: 'owner'
+        }
+      ]
     });
 
     // Actualizar membresía a ACTIVE con rootFolder
@@ -269,6 +299,29 @@ export async function acceptInvitation(
       await user.save();
     }
 
+    // Notificar a TODOS los miembros activos de esa organización (excluye al actor)
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const notificationService = require('./notification.service');
+
+      await notificationService.notifyMembersOfOrganization({
+        organizationId: organization._id.toString(),
+        actorUserId: userId,
+        type: 'MEMBER_JOINED',
+        entityKind: 'membership',
+        entityId: membership._id.toString(),
+        message: `${user.name || user.email} se unió a la organización`,
+        metadata: {
+          memberUserId: userId,
+          memberName: user.name || user.email,
+          role: membership.role,
+          organizationName: organization.name
+        }
+      });
+    } catch (e: any) {
+      console.error('Failed to create notification (MEMBER_JOINED):', e.message);
+    }
+
     return membership.populate('organization', 'name slug plan');
   } catch (error) {
     // Rollback: limpiar rootFolder creado
@@ -284,7 +337,10 @@ export async function acceptInvitation(
         ? storageRoot
         : storageRoot + path.sep;
       const resolvedUserStoragePath = path.resolve(userStoragePath);
-      if (resolvedUserStoragePath.startsWith(normalizedStorageRoot) && fs.existsSync(resolvedUserStoragePath)) {
+      if (
+        resolvedUserStoragePath.startsWith(normalizedStorageRoot) &&
+        fs.existsSync(resolvedUserStoragePath)
+      ) {
         try {
           fs.rmSync(resolvedUserStoragePath, { recursive: true, force: true });
         } catch (cleanupError) {
@@ -300,10 +356,7 @@ export async function acceptInvitation(
 /**
  * Rechaza una invitación pendiente
  */
-export async function rejectInvitation(
-  membershipId: string,
-  userId: string
-): Promise<void> {
+export async function rejectInvitation(membershipId: string, userId: string): Promise<void> {
   const membership = await Membership.findById(membershipId);
 
   if (!membership) {
@@ -332,7 +385,7 @@ export async function getPendingInvitations(userId: string): Promise<IMembership
 
   return Membership.find({
     user: { $eq: userId },
-    status: MembershipStatus.PENDING,
+    status: MembershipStatus.PENDING
   })
     .populate('organization', 'name slug plan')
     .populate('invitedBy', 'name email')
@@ -347,7 +400,7 @@ export async function createMembership({
   userId,
   organizationId,
   role = MembershipRole.MEMBER,
-  invitedBy,
+  invitedBy
 }: {
   userId: string;
   organizationId: string;
@@ -376,7 +429,7 @@ export async function createMembership({
   // Verificar si ya existe membresía
   const existingMembership = await Membership.findOne({
     user: { $eq: userId },
-    organization: { $eq: organizationId },
+    organization: { $eq: organizationId }
   });
 
   if (existingMembership) {
@@ -386,7 +439,7 @@ export async function createMembership({
   // Verificar límite de usuarios del plan
   const activeMembersCount = await Membership.countDocuments({
     organization: { $eq: organizationId },
-    status: MembershipStatus.ACTIVE,
+    status: MembershipStatus.ACTIVE
   });
 
   if (
@@ -432,10 +485,12 @@ export async function createMembership({
       owner: userId,
       parent: null,
       path: rootFolderPath,
-      permissions: [{
-        userId: userId,
-        role: 'owner'
-      }]
+      permissions: [
+        {
+          userId: userId,
+          role: 'owner'
+        }
+      ]
     });
 
     const membership = await Membership.create({
@@ -444,7 +499,7 @@ export async function createMembership({
       role,
       status: MembershipStatus.ACTIVE,
       rootFolder: rootFolder._id,
-      invitedBy: invitedBy || undefined,
+      invitedBy: invitedBy || undefined
     });
 
     if (!organization.members.includes(userId as any)) {
@@ -475,7 +530,10 @@ export async function createMembership({
         ? storageRoot
         : storageRoot + path.sep;
       const resolvedUserStoragePath = path.resolve(userStoragePath);
-      if (resolvedUserStoragePath.startsWith(normalizedStorageRoot) && fs.existsSync(resolvedUserStoragePath)) {
+      if (
+        resolvedUserStoragePath.startsWith(normalizedStorageRoot) &&
+        fs.existsSync(resolvedUserStoragePath)
+      ) {
         try {
           fs.rmSync(resolvedUserStoragePath, { recursive: true, force: true });
         } catch (cleanupError) {
@@ -502,7 +560,7 @@ export async function hasActiveMembership(
   const membership = await Membership.findOne({
     user: { $eq: userId },
     organization: { $eq: organizationId },
-    status: MembershipStatus.ACTIVE,
+    status: MembershipStatus.ACTIVE
   });
   return !!membership;
 }
@@ -521,8 +579,42 @@ export async function getMembership(
   return Membership.findOne({
     user: { $eq: userId },
     organization: { $eq: organizationId },
-    status: MembershipStatus.ACTIVE,
+    status: MembershipStatus.ACTIVE
   });
+}
+
+/**
+ * NUEVO: Obtiene el rol de membresía ACTIVA del usuario en la organización.
+ * Retorna null si no hay membresía activa.
+ */
+export async function getMembershipRole(
+  userId: string,
+  organizationId: string
+): Promise<MembershipRole | null> {
+  if (typeof userId !== 'string' || !/^[a-fA-F0-9]{24}$/.test(userId)) {
+    return null;
+  }
+
+  const membership = await Membership.findOne({
+    user: { $eq: userId },
+    organization: { $eq: organizationId },
+    status: MembershipStatus.ACTIVE
+  }).select('role');
+
+  return membership?.role ?? null;
+}
+
+/**
+ * NUEVO: Verifica si el usuario tiene uno de los roles permitidos (en membresía ACTIVA).
+ */
+export async function hasAnyRole(
+  userId: string,
+  organizationId: string,
+  allowedRoles: MembershipRole[]
+): Promise<boolean> {
+  const role = await getMembershipRole(userId, organizationId);
+  if (!role) return false;
+  return allowedRoles.includes(role);
 }
 
 /**
@@ -535,15 +627,17 @@ export async function getUserMemberships(userId: string): Promise<IMembership[]>
   }
   return Membership.find({
     user: { $eq: userId },
-    status: MembershipStatus.ACTIVE,
-  }).populate({
-    path: 'organization',
-    select: 'name slug plan settings active',
-    match: { active: true }
-  }).then(memberships => 
-    // Filtrar membresías donde la organización no fue filtrada (organization null)
-    memberships.filter(membership => membership.organization !== null)
-  );
+    status: MembershipStatus.ACTIVE
+  })
+    .populate({
+      path: 'organization',
+      select: 'name slug plan settings active',
+      match: { active: true }
+    })
+    .then(memberships =>
+      // Filtrar membresías donde la organización no fue filtrada (organization null)
+      memberships.filter(membership => membership.organization !== null)
+    );
 }
 
 /**
@@ -568,7 +662,7 @@ export async function getActiveOrganization(userId: string): Promise<string | nu
   }
   const membership = await Membership.findOne({
     user: { $eq: userId },
-    status: MembershipStatus.ACTIVE,
+    status: MembershipStatus.ACTIVE
   });
 
   if (membership) {
@@ -609,12 +703,11 @@ export async function switchActiveOrganization(
 export async function getOrganizationMembers(organizationId: string): Promise<IMembership[]> {
   const memberships = await Membership.find({
     organization: { $eq: organizationId },
-    status: MembershipStatus.ACTIVE,
+    status: MembershipStatus.ACTIVE
   })
     .populate('user', 'name email avatar')
     .populate('invitedBy', 'name email');
 
- 
   return memberships;
 }
 
@@ -631,7 +724,7 @@ export async function updateMemberRole(
   }
   const membership = await Membership.findOne({
     user: { $eq: userId },
-    organization: { $eq: organizationId },
+    organization: { $eq: organizationId }
   });
 
   if (!membership) {
@@ -659,7 +752,7 @@ export async function updateMembershipRole(
   requestingUserId: string
 ): Promise<IMembership> {
   const membership = await Membership.findById(membershipId);
-  
+
   if (!membership) {
     throw new HttpError(404, 'Membership not found');
   }
@@ -679,8 +772,35 @@ export async function updateMembershipRole(
     throw new HttpError(400, 'Cannot change owner role. Transfer ownership first.');
   }
 
+  const oldRole = membership.role;
   membership.role = newRole;
   await membership.save();
+
+  // Notificación al usuario afectado
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const notificationService = require('./notification.service');
+
+    const requester = await User.findById(requestingUserId).select('name email').lean();
+    const requesterName = (requester as any)?.name || (requester as any)?.email || 'Alguien';
+
+    await notificationService.createNotificationForUser({
+      organizationId: membership.organization.toString(),
+      recipientUserId: membership.user.toString(),
+      actorUserId: requestingUserId,
+      type: 'MEMBER_ROLE_UPDATED',
+      entityKind: 'membership',
+      entityId: membership._id.toString(),
+      message: `Tu rol fue actualizado de ${oldRole} a ${newRole} por ${requesterName}`,
+      metadata: {
+        oldRole,
+        newRole,
+        requesterName
+      }
+    });
+  } catch (e: any) {
+    console.error('Failed to create notification (MEMBER_ROLE_UPDATED):', e.message);
+  }
 
   return membership.populate('user', 'name email');
 }
@@ -691,11 +811,11 @@ export async function updateMembershipRole(
 async function deleteFolderContentsRecursively(folderId: string): Promise<void> {
   // Obtener todas las subcarpetas
   const subfolders = await Folder.find({ parent: folderId });
-  
+
   for (const subfolder of subfolders) {
     // Recursión: eliminar contenido de subcarpetas
     await deleteFolderContentsRecursively(subfolder._id.toString());
-    
+
     // Eliminar documentos de esta subcarpeta
     const docs = await DocumentModel.find({ folder: subfolder._id });
     for (const doc of docs) {
@@ -710,11 +830,11 @@ async function deleteFolderContentsRecursively(folderId: string): Promise<void> 
       // Eliminar registro de documento
       await DocumentModel.findByIdAndDelete(doc._id);
     }
-    
+
     // Eliminar registro de subcarpeta
     await Folder.findByIdAndDelete(subfolder._id);
   }
-  
+
   // Eliminar documentos del folder actual
   const docs = await DocumentModel.find({ folder: folderId });
   for (const doc of docs) {
@@ -740,7 +860,7 @@ export async function removeMembershipById(
   requestingUserId: string
 ): Promise<void> {
   const membership = await Membership.findById(membershipId);
-  
+
   if (!membership) {
     throw new HttpError(404, 'Membership not found');
   }
@@ -751,10 +871,12 @@ export async function removeMembershipById(
 
   // Verificar que el usuario solicitante tenga permisos (ADMIN u OWNER)
   const requesterMembership = await getMembership(requestingUserId, organizationId);
-  
-  if (!requesterMembership || 
-      (requesterMembership.role !== MembershipRole.OWNER && 
-       requesterMembership.role !== MembershipRole.ADMIN)) {
+
+  if (
+    !requesterMembership ||
+    (requesterMembership.role !== MembershipRole.OWNER &&
+      requesterMembership.role !== MembershipRole.ADMIN)
+  ) {
     throw new HttpError(403, 'Only organization owner or admin can remove members');
   }
 
@@ -773,19 +895,19 @@ export async function removeMembershipById(
       try {
         // Eliminar recursivamente subcarpetas y documentos de la BD
         await deleteFolderContentsRecursively(rootFolderId.toString());
-        
+
         // Eliminar rootFolder de la BD
         await Folder.findByIdAndDelete(rootFolderId);
-        
+
         // Eliminar directorio físico completo
         const storageRoot = path.resolve(process.cwd(), 'storage');
         const folderPath = path.resolve(storageRoot, rootFolder.path.replace(/^\//, ''));
-        
+
         // Validación de seguridad: asegurar que está dentro de storage
         const normalizedStorageRoot = storageRoot.endsWith(path.sep)
           ? storageRoot
           : storageRoot + path.sep;
-        
+
         if (folderPath.startsWith(normalizedStorageRoot) && fs.existsSync(folderPath)) {
           fs.rmSync(folderPath, { recursive: true, force: true });
         }
@@ -827,7 +949,7 @@ export async function removeMembership(userId: string, organizationId: string): 
   }
   const membership = await Membership.findOne({
     user: { $eq: userId },
-    organization: { $eq: organizationId },
+    organization: { $eq: organizationId }
   });
 
   if (!membership) {
@@ -848,19 +970,19 @@ export async function removeMembership(userId: string, organizationId: string): 
       try {
         // Eliminar recursivamente subcarpetas y documentos de la BD
         await deleteFolderContentsRecursively(rootFolderId.toString());
-        
+
         // Eliminar rootFolder de la BD
         await Folder.findByIdAndDelete(rootFolderId);
-        
+
         // Eliminar directorio físico completo
         const storageRoot = path.resolve(process.cwd(), 'storage');
         const folderPath = path.resolve(storageRoot, rootFolder.path.replace(/^\//, ''));
-        
+
         // Validación de seguridad: asegurar que está dentro de storage
         const normalizedStorageRoot = storageRoot.endsWith(path.sep)
           ? storageRoot
           : storageRoot + path.sep;
-        
+
         if (folderPath.startsWith(normalizedStorageRoot) && fs.existsSync(folderPath)) {
           fs.rmSync(folderPath, { recursive: true, force: true });
         }
@@ -938,6 +1060,8 @@ export default {
   getPendingInvitations,
   hasActiveMembership,
   getMembership,
+  getMembershipRole,
+  hasAnyRole,
   getUserMemberships,
   getActiveOrganization,
   switchActiveOrganization,
@@ -946,5 +1070,5 @@ export default {
   updateMembershipRole,
   removeMembership,
   removeMembershipById,
-  transferOwnership,
+  transferOwnership
 };

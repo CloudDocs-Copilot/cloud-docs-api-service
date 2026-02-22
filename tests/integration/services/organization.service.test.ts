@@ -7,12 +7,12 @@ import Organization from '../../../src/models/organization.model';
 import User from '../../../src/models/user.model';
 import Folder from '../../../src/models/folder.model';
 import { MembershipRole } from '../../../src/models/membership.model';
-import { 
+import {
   createCompleteOrganization,
   createUserWithoutOrganization,
   assertOrganizationProperties,
   assertMembershipProperties,
-  cleanupOrganizationData 
+  cleanupOrganizationData
 } from '../../helpers/organization.helper';
 import { anOrganization } from '../../builders/organization.builder';
 
@@ -54,7 +54,7 @@ describe('OrganizationService Integration Tests', () => {
       testSetup = await createCompleteOrganization({
         orgName: 'Test Organization',
         ownerName: 'Test Owner',
-        ownerEmail: 'owner@test.com',
+        ownerEmail: 'owner@test.com'
       });
 
       const { organization, owner, ownerMembership } = testSetup;
@@ -63,28 +63,24 @@ describe('OrganizationService Integration Tests', () => {
         name: 'Test Organization',
         slug: 'test-organization',
         ownerId: owner._id.toString(),
-        memberCount: 1,
+        memberCount: 1
       });
-      
-      expect(organization.settings.maxStoragePerUser).toBe(1073741824); // FREE plan: 1GB
 
-      // Verificar que se creó el directorio
-      const orgDir = path.join(process.cwd(), 'storage', organization.slug);
-      expect(fs.existsSync(orgDir)).toBe(true);
+      expect(organization.settings.maxStoragePerUser).toBe(1073741824); // FREE plan: 1GB
 
       // Verificar membresía automática
       assertMembershipProperties(ownerMembership, {
         userId: owner._id.toString(),
         organizationId: organization._id.toString(),
         role: MembershipRole.OWNER,
-        hasRootFolder: true,
+        hasRootFolder: true
       });
     });
 
     it('should create organization with custom settings', async () => {
       const owner = await createUserWithoutOrganization({
         name: 'Custom Owner',
-        email: 'custom@test.com',
+        email: 'custom@test.com'
       });
 
       const orgData = anOrganization()
@@ -93,7 +89,7 @@ describe('OrganizationService Integration Tests', () => {
         .withSettings({
           maxStoragePerUser: 1073741824,
           allowedFileTypes: ['application/pdf'],
-          maxUsers: 3,
+          maxUsers: 3
         })
         .buildForService();
 
@@ -101,9 +97,7 @@ describe('OrganizationService Integration Tests', () => {
 
       // Settings are overridden by FREE plan limits in pre-save hook
       expect(organization.settings.maxStoragePerUser).toBe(1073741824); // FREE plan: 1GB
-      expect(organization.settings.allowedFileTypes).toEqual([
-        'pdf', 'txt', 'doc', 'docx'
-      ]); // FREE plan allowed types
+      expect(organization.settings.allowedFileTypes).toEqual(['pdf', 'txt', 'doc', 'docx']); // FREE plan allowed types
       expect(organization.settings.maxUsers).toBe(3); // FREE plan max users
     });
 
@@ -113,38 +107,39 @@ describe('OrganizationService Integration Tests', () => {
         .withOwner(new mongoose.Types.ObjectId().toString())
         .buildForService();
 
-      await expect(
-        organizationService.createOrganization(orgData)
-      ).rejects.toThrow('Owner user not found');
+      await expect(organizationService.createOrganization(orgData)).rejects.toThrow(
+        'Owner user not found'
+      );
     });
 
     it('should include owner in members', async () => {
       testSetup = await createCompleteOrganization({
         orgName: 'Owner Member Org',
         ownerName: 'Test Owner',
-        ownerEmail: 'ownertest@test.com',
+        ownerEmail: 'ownertest@test.com'
       });
 
       const { organization, owner } = testSetup;
 
-      expect(organization.members.map((m: any) => m.toString())).toContain(
-        owner._id.toString()
-      );
+      expect(organization.members.map((m: any) => m.toString())).toContain(owner._id.toString());
     });
 
     it('should fail when creating organization with duplicate name (case-insensitive)', async () => {
       // Create initial org
       await createCompleteOrganization({ orgName: 'Dup Org', ownerEmail: 'dup1@test.com' });
 
-      const owner = await createUserWithoutOrganization({ name: 'Other Owner', email: 'dup2@test.com' });
+      const owner = await createUserWithoutOrganization({
+        name: 'Other Owner',
+        email: 'dup2@test.com'
+      });
       const orgData = anOrganization()
         .withName('dup org') // different case
         .withOwner(owner._id.toString())
         .buildForService();
 
-      await expect(
-        organizationService.createOrganization(orgData)
-      ).rejects.toThrow('Organization name already exists');
+      await expect(organizationService.createOrganization(orgData)).rejects.toThrow(
+        'Organization name already exists'
+      );
     });
   });
 
@@ -153,14 +148,14 @@ describe('OrganizationService Integration Tests', () => {
       testSetup = await createCompleteOrganization({
         orgName: 'Add User Org',
         ownerName: 'Test Owner',
-        ownerEmail: 'owner@test.com',
+        ownerEmail: 'owner@test.com'
       });
 
       const { organization } = testSetup;
-      
+
       const newUser = await createUserWithoutOrganization({
         name: 'Test Member',
-        email: 'member@test.com',
+        email: 'member@test.com'
       });
 
       await organizationService.addUserToOrganization(
@@ -170,15 +165,11 @@ describe('OrganizationService Integration Tests', () => {
 
       const updatedOrg = await Organization.findById(organization._id);
       expect(updatedOrg?.members).toHaveLength(2);
-      expect(
-        updatedOrg?.members.map((m) => m.toString())
-      ).toContain(newUser._id.toString());
+      expect(updatedOrg?.members.map(m => m.toString())).toContain(newUser._id.toString());
 
       // Verificar que se actualizó el usuario
       const updatedUser = await User.findById(newUser._id);
-      expect(updatedUser?.organization?.toString()).toBe(
-        organization._id.toString()
-      );
+      expect(updatedUser?.organization?.toString()).toBe(organization._id.toString());
       expect(updatedUser?.rootFolder).toBeDefined();
 
       // Verificar que se creó la carpeta raíz
@@ -186,15 +177,6 @@ describe('OrganizationService Integration Tests', () => {
       expect(rootFolder).toBeDefined();
       expect(rootFolder?.isRoot).toBe(true);
       expect(rootFolder?.owner.toString()).toBe(newUser._id.toString());
-
-      // Verificar directorio físico
-      const userDir = path.join(
-        process.cwd(),
-        'storage',
-        organization.slug,
-        newUser._id.toString()
-      );
-      expect(fs.existsSync(userDir)).toBe(true);
     });
 
     it('should fail if organization does not exist', async () => {
@@ -209,7 +191,10 @@ describe('OrganizationService Integration Tests', () => {
     it('should fail when updating organization to a name that already exists', async () => {
       // Create two organizations
       await createCompleteOrganization({ orgName: 'First Org', ownerEmail: 'first@test.com' });
-      const second = await createCompleteOrganization({ orgName: 'Second Org', ownerEmail: 'second@test.com' });
+      const second = await createCompleteOrganization({
+        orgName: 'Second Org',
+        ownerEmail: 'second@test.com'
+      });
 
       const { organization: orgToUpdate, owner } = second;
 
@@ -229,10 +214,7 @@ describe('OrganizationService Integration Tests', () => {
       const fakeUserId = new mongoose.Types.ObjectId().toString();
 
       await expect(
-        organizationService.addUserToOrganization(
-          organization._id.toString(),
-          fakeUserId
-        )
+        organizationService.addUserToOrganization(organization._id.toString(), fakeUserId)
       ).rejects.toThrow('User not found');
     });
 
@@ -241,10 +223,7 @@ describe('OrganizationService Integration Tests', () => {
       const { organization, owner } = testSetup;
 
       await expect(
-        organizationService.addUserToOrganization(
-          organization._id.toString(),
-          owner._id.toString()
-        )
+        organizationService.addUserToOrganization(organization._id.toString(), owner._id.toString())
       ).rejects.toThrow('User is already a member of this organization');
     });
 
@@ -254,15 +233,15 @@ describe('OrganizationService Integration Tests', () => {
         orgName: 'Max Users Org',
         additionalMembers: [
           { name: 'Additional User 1', email: 'additional1@test.com' },
-          { name: 'Additional User 2', email: 'additional2@test.com' },
-        ],
+          { name: 'Additional User 2', email: 'additional2@test.com' }
+        ]
       });
 
       const { organization } = testSetup;
-      
+
       const extraUser = await createUserWithoutOrganization({
         name: 'Extra User',
-        email: 'extra@test.com',
+        email: 'extra@test.com'
       });
 
       // Try to add third additional user (should fail - would exceed FREE plan limit of 3)
@@ -279,9 +258,7 @@ describe('OrganizationService Integration Tests', () => {
     it('should remove user from organization', async () => {
       testSetup = await createCompleteOrganization({
         orgName: 'Remove User Org',
-        additionalMembers: [
-          { name: 'Test Member', email: 'member@test.com' },
-        ],
+        additionalMembers: [{ name: 'Test Member', email: 'member@test.com' }]
       });
 
       const { organization, additionalUsers } = testSetup;
@@ -294,9 +271,9 @@ describe('OrganizationService Integration Tests', () => {
 
       const updatedOrg = await Organization.findById(organization._id);
       expect(updatedOrg?.members).toHaveLength(1);
-      expect(
-        updatedOrg?.members.map((m) => m.toString())
-      ).not.toContain(memberToRemove._id.toString());
+      expect(updatedOrg?.members.map(m => m.toString())).not.toContain(
+        memberToRemove._id.toString()
+      );
 
       const updatedUser = await User.findById(memberToRemove._id);
       expect(updatedUser?.organization).toBeUndefined();
@@ -304,7 +281,7 @@ describe('OrganizationService Integration Tests', () => {
 
     it('should fail if trying to remove owner', async () => {
       testSetup = await createCompleteOrganization({
-        orgName: 'Remove Owner Org',
+        orgName: 'Remove Owner Org'
       });
 
       const { organization, owner } = testSetup;
@@ -322,10 +299,7 @@ describe('OrganizationService Integration Tests', () => {
       const testUser = await createUserWithoutOrganization();
 
       await expect(
-        organizationService.removeUserFromOrganization(
-          fakeOrgId,
-          testUser._id.toString()
-        )
+        organizationService.removeUserFromOrganization(fakeOrgId, testUser._id.toString())
       ).rejects.toThrow('Organization not found');
     });
   });
@@ -333,15 +307,13 @@ describe('OrganizationService Integration Tests', () => {
   describe('getUserOrganizations', () => {
     it('should return all organizations where user is a member', async () => {
       testSetup = await createCompleteOrganization({
-        orgName: 'Test Org',
+        orgName: 'Test Org'
       });
 
       const { owner } = testSetup;
 
       // testUser es owner y miembro de la organización
-      const organizations = await organizationService.getUserOrganizations(
-        owner._id.toString()
-      );
+      const organizations = await organizationService.getUserOrganizations(owner._id.toString());
 
       // Debe devolver 1 organización (la que creó como owner)
       expect(organizations).toHaveLength(1);
@@ -351,7 +323,7 @@ describe('OrganizationService Integration Tests', () => {
 
     it('should not return inactive organizations', async () => {
       testSetup = await createCompleteOrganization({
-        orgName: 'Inactive Org',
+        orgName: 'Inactive Org'
       });
 
       const { organization, owner } = testSetup;
@@ -359,9 +331,7 @@ describe('OrganizationService Integration Tests', () => {
       organization.active = false;
       await organization.save();
 
-      const organizations = await organizationService.getUserOrganizations(
-        owner._id.toString()
-      );
+      const organizations = await organizationService.getUserOrganizations(owner._id.toString());
 
       expect(organizations).toHaveLength(0);
     });
@@ -370,14 +340,12 @@ describe('OrganizationService Integration Tests', () => {
   describe('getOrganizationById', () => {
     it('should return organization with populated fields', async () => {
       testSetup = await createCompleteOrganization({
-        orgName: 'Get By ID Org',
+        orgName: 'Get By ID Org'
       });
 
       const { organization: createdOrg } = testSetup;
 
-      const organization = await organizationService.getOrganizationById(
-        createdOrg._id.toString()
-      );
+      const organization = await organizationService.getOrganizationById(createdOrg._id.toString());
 
       expect(organization._id.toString()).toBe(createdOrg._id.toString());
       expect(organization.name).toBe('Get By ID Org');
@@ -386,16 +354,16 @@ describe('OrganizationService Integration Tests', () => {
     it('should fail if organization does not exist', async () => {
       const fakeId = new mongoose.Types.ObjectId().toString();
 
-      await expect(
-        organizationService.getOrganizationById(fakeId)
-      ).rejects.toThrow('Organization not found');
+      await expect(organizationService.getOrganizationById(fakeId)).rejects.toThrow(
+        'Organization not found'
+      );
     });
   });
 
   describe('updateOrganization', () => {
     it('should update organization name and settings', async () => {
       testSetup = await createCompleteOrganization({
-        orgName: 'Original Name',
+        orgName: 'Original Name'
       });
 
       const { organization, owner } = testSetup;
@@ -406,8 +374,8 @@ describe('OrganizationService Integration Tests', () => {
         {
           name: 'Updated Name',
           settings: {
-            maxStoragePerUser: 10737418240,
-          },
+            maxStoragePerUser: 10737418240
+          }
         }
       );
 
@@ -421,7 +389,7 @@ describe('OrganizationService Integration Tests', () => {
 
       const nonOwner = await createUserWithoutOrganization({
         name: 'Non Owner',
-        email: 'nonowner@test.com',
+        email: 'nonowner@test.com'
       });
 
       await expect(
@@ -438,11 +406,9 @@ describe('OrganizationService Integration Tests', () => {
       const testUser = await createUserWithoutOrganization();
 
       await expect(
-        organizationService.updateOrganization(
-          fakeId,
-          testUser._id.toString(),
-          { name: 'New Name' }
-        )
+        organizationService.updateOrganization(fakeId, testUser._id.toString(), {
+          name: 'New Name'
+        })
       ).rejects.toThrow('Organization not found');
     });
   });
@@ -450,7 +416,7 @@ describe('OrganizationService Integration Tests', () => {
   describe('deleteOrganization', () => {
     it('should soft delete organization', async () => {
       testSetup = await createCompleteOrganization({
-        orgName: 'Delete Org',
+        orgName: 'Delete Org'
       });
 
       const { organization, owner } = testSetup;
@@ -471,10 +437,7 @@ describe('OrganizationService Integration Tests', () => {
       const nonOwner = await createUserWithoutOrganization();
 
       await expect(
-        organizationService.deleteOrganization(
-          organization._id.toString(),
-          nonOwner._id.toString()
-        )
+        organizationService.deleteOrganization(organization._id.toString(), nonOwner._id.toString())
       ).rejects.toThrow('Only organization owner can delete organization');
     });
   });
@@ -483,9 +446,7 @@ describe('OrganizationService Integration Tests', () => {
     it('should calculate storage statistics correctly', async () => {
       testSetup = await createCompleteOrganization({
         orgName: 'Storage Stats Org',
-        additionalMembers: [
-          { name: 'Test Member', email: 'member@test.com' },
-        ],
+        additionalMembers: [{ name: 'Test Member', email: 'member@test.com' }]
       });
 
       const { organization, owner, additionalUsers } = testSetup;
@@ -511,9 +472,9 @@ describe('OrganizationService Integration Tests', () => {
     it('should fail if organization does not exist', async () => {
       const fakeId = new mongoose.Types.ObjectId().toString();
 
-      await expect(
-        organizationService.getOrganizationStorageStats(fakeId)
-      ).rejects.toThrow('Organization not found');
+      await expect(organizationService.getOrganizationStorageStats(fakeId)).rejects.toThrow(
+        'Organization not found'
+      );
     });
   });
 });

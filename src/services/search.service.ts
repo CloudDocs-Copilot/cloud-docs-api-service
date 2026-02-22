@@ -2,7 +2,7 @@
 function getEsModule() {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const esMod = require('../configurations/elasticsearch-config');
-  return (esMod && esMod.getInstance) ? esMod : (esMod && esMod.default ? esMod.default : esMod);
+  return esMod && esMod.getInstance ? esMod : esMod && esMod.default ? esMod.default : esMod;
 }
 
 export let getEsClient = () => {
@@ -40,7 +40,7 @@ export interface SearchResult {
 export async function indexDocument(document: IDocument): Promise<void> {
   try {
     const client = getEsModule().getInstance();
-    
+
     await client.index({
       index: 'documents',
       id: document._id.toString(),
@@ -69,7 +69,7 @@ export async function indexDocument(document: IDocument): Promise<void> {
 export async function removeDocumentFromIndex(documentId: string): Promise<void> {
   try {
     const client = getEsModule().getInstance();
-    
+
     await client.delete({
       index: 'documents',
       id: documentId
@@ -92,15 +92,26 @@ export async function removeDocumentFromIndex(documentId: string): Promise<void>
 export async function searchDocuments(params: SearchParams): Promise<SearchResult> {
   try {
     const client = getEsModule().getInstance();
-    const { query, userId, organizationId, mimeType, fromDate, toDate, limit = 20, offset = 0 } = params;
+    const {
+      query,
+      userId,
+      organizationId,
+      mimeType,
+      fromDate,
+      toDate,
+      limit = 20,
+      offset = 0
+    } = params;
 
     // Construir filtros
-    const filters: any[] = [
-      { term: { uploadedBy: userId } }
-    ];
+    const filters: any[] = [];
 
+    // Si hay organizationId, buscar en toda la organización
+    // Si NO hay organizationId, buscar solo documentos del usuario
     if (organizationId) {
       filters.push({ term: { organization: organizationId } });
+    } else {
+      filters.push({ term: { uploadedBy: userId } });
     }
 
     if (mimeType) {
@@ -123,7 +134,7 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
             {
               multi_match: {
                 query,
-                fields: ['filename^3', 'originalname^2'],
+                fields: ['filename^3', 'originalname^2', 'extractedContent'],
                 type: 'best_fields',
                 fuzziness: 'AUTO'
               }
@@ -134,10 +145,7 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
       },
       from: offset,
       size: limit,
-      sort: [
-        { _score: { order: 'desc' } },
-        { uploadedAt: { order: 'desc' } }
-      ]
+      sort: [{ _score: { order: 'desc' } }, { uploadedAt: { order: 'desc' } }]
     });
 
     const documents = result.hits.hits.map((hit: any) => ({
@@ -148,7 +156,8 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
 
     return {
       documents,
-      total: typeof result.hits.total === 'object' ? result.hits.total.value : (result.hits.total || 0),
+      total:
+        typeof result.hits.total === 'object' ? result.hits.total.value : result.hits.total || 0,
       took: result.took
     };
   } catch (error: any) {
@@ -160,7 +169,11 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
 /**
  * Obtener sugerencias de autocompletado
  */
-export async function getAutocompleteSuggestions(query: string, userId: string, limit: number = 5): Promise<string[]> {
+export async function getAutocompleteSuggestions(
+  query: string,
+  userId: string,
+  limit: number = 5
+): Promise<string[]> {
   try {
     const client = getEsModule().getInstance();
 
@@ -177,9 +190,7 @@ export async function getAutocompleteSuggestions(query: string, userId: string, 
               }
             }
           ],
-          filter: [
-            { term: { uploadedBy: userId } }
-          ]
+          filter: [{ term: { uploadedBy: userId } }]
         }
       },
       size: limit,

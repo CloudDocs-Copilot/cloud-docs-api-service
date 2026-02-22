@@ -237,7 +237,7 @@ throw new HttpError(400, 'Invalid temporary upload path');
 // ✅ URL sanitizada
 url: `/storage/${safeSlug}${documentPath}`
 
-````
+````text
 
 ---
 
@@ -544,11 +544,11 @@ folder.path = '/org/../../../etc/passwd';
 
 ## 🔒 2. NoSQL Injection Vulnerabilities
 
-### Problema Identificado
+### Problema Identificados
 
 CodeQL detectó vulnerabilidades de **NoSQL Injection** donde datos controlados por el usuario (IDs, arrays de IDs) se pasaban directamente a queries de MongoDB sin validación ni conversión de tipos, permitiendo potenciales ataques de inyección.
 
-### Datos No Controlados Identificados
+### Datos No Controlados Identificadoss
 
 1. **`userId`** - ID de usuario desde parámetros de funciones
 2. **`organizationId`** - ID de organización desde parámetros
@@ -556,7 +556,7 @@ CodeQL detectó vulnerabilidades de **NoSQL Injection** donde datos controlados 
 4. **`userIds`** - Array de IDs de usuarios para compartir documentos
 5. **`organization.members`** - Array de IDs desde base de datos
 
-### Riesgo
+### Riesgos
 
 Un atacante podría:
 
@@ -797,7 +797,7 @@ const folders = await Folder.find({
 
 ## ✅ Validación Final
 
-### Tests Ejecutados
+### Tests Ejecutadoss
 
 ```bash
 npm test
@@ -805,7 +805,7 @@ npm test
 
 **Resultado:**
 
-```
+```text
 Test Suites: 17 passed, 17 total
 Tests:       295 passed, 295 total
 Time:        50.126 s

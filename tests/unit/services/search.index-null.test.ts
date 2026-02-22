@@ -14,7 +14,15 @@ describe('search.service - indexDocument null fields', () => {
     mockGetInstanceNull.mockReturnValue(client);
 
     const svc = require('../../../src/services/search.service');
-    const doc = { _id: 'd2', filename: 'f2', originalname: 'orig2', mimeType: 'text/plain', size: 5, uploadedBy: { toString: () => 'u2' }, uploadedAt: new Date() };
+    const doc = {
+      _id: 'd2',
+      filename: 'f2',
+      originalname: 'orig2',
+      mimeType: 'text/plain',
+      size: 5,
+      uploadedBy: { toString: () => 'u2' },
+      uploadedAt: new Date()
+    };
     await svc.indexDocument(doc as any);
     expect(client.index).toHaveBeenCalled();
   });

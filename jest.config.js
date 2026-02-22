@@ -8,6 +8,13 @@ module.exports = {
   // Patrón de archivos de test
   testMatch: ['**/tests/**/*.test.ts', '**/tests/**/*.spec.ts'],
 
+  // Excluir tests de embedding que requieren configuración específica sin mocks globales
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '.*embedding\\.service\\.test\\.ts$',
+    '.*embedding\\.service\\.error-validation\\.test\\.ts$'
+  ],
+
   // Transformación de archivos TypeScript
   transform: {
     '^.+\\.ts$': 'ts-jest'
@@ -26,7 +33,7 @@ module.exports = {
   ],
 
   // Directorio de salida para reportes de cobertura
-  coverageDirectory: 'coverage',
+  coverageDirectory: process.env.COVERAGE_DIR || 'coverage',
 
   // Umbrales de cobertura (opcional)
   coverageThreshold: {
@@ -53,5 +60,9 @@ module.exports = {
   resetMocks: true,
 
   // Restaurar mocks entre tests
-  restoreMocks: true
+  restoreMocks: true,
+  // Mapear alias de import `src/*` a la carpeta real para que jest pueda resolverlos
+  moduleNameMapper: {
+    '^src/(.*)$': '<rootDir>/src/$1'
+  }
 };

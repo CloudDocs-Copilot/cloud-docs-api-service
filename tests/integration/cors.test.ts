@@ -1,6 +1,6 @@
 /**
  * Tests de integración para configuración CORS
- * 
+ *
  * Verifica que los headers CORS estén correctamente configurados,
  * especialmente para soportar el header X-Csrf-Token requerido por
  * las operaciones de subida de documentos.
@@ -21,7 +21,7 @@ describe('CORS Configuration', () => {
 
       expect(response.status).toBe(204);
       expect(response.headers['access-control-allow-headers']).toBeDefined();
-      
+
       const allowedHeaders = response.headers['access-control-allow-headers'].toLowerCase();
       expect(allowedHeaders).toContain('x-csrf-token');
       expect(allowedHeaders).toContain('content-type');
@@ -35,7 +35,7 @@ describe('CORS Configuration', () => {
         .set('Access-Control-Request-Headers', 'Authorization, Content-Type');
 
       expect(response.status).toBe(204);
-      
+
       const allowedHeaders = response.headers['access-control-allow-headers'].toLowerCase();
       expect(allowedHeaders).toContain('authorization');
     });
@@ -47,7 +47,7 @@ describe('CORS Configuration', () => {
         .set('Access-Control-Request-Method', 'POST');
 
       expect(response.status).toBe(204);
-      
+
       const allowedMethods = response.headers['access-control-allow-methods'];
       expect(allowedMethods).toContain('GET');
       expect(allowedMethods).toContain('POST');
@@ -116,7 +116,7 @@ describe('CORS Configuration', () => {
         .set('Access-Control-Request-Method', 'GET');
 
       expect(response.status).toBe(204);
-      
+
       const exposedHeaders = response.headers['access-control-expose-headers'];
       if (exposedHeaders) {
         // Verificar headers comunes expuestos
@@ -135,7 +135,7 @@ describe('CORS Configuration', () => {
 
       expect(response.status).toBe(204);
       expect(response.headers['access-control-allow-origin']).toBe(allowedOrigin);
-      
+
       const allowedHeaders = response.headers['access-control-allow-headers'].toLowerCase();
       expect(allowedHeaders).toContain('content-type');
       expect(allowedHeaders).toContain('x-csrf-token');

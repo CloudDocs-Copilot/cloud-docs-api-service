@@ -16,14 +16,14 @@ describe('User Profile Management', () => {
   const getTokenFromCookie = (res: any) => {
     const cookies = res.headers['set-cookie'];
     if (!cookies) return null;
-    
+
     // Look for token cookie
     const tokenCookie = cookies.find((c: string) => c.startsWith('token='));
     if (!tokenCookie) return null;
-    
+
     // Extract value
     return tokenCookie.split(';')[0].split('=')[1];
-  }
+  };
 
   beforeEach(async () => {
     // 1. Crear organización válida (requerido por el registro)
@@ -43,10 +43,8 @@ describe('User Profile Management', () => {
       .build();
 
     // 3. Registrar usuario
-    const registerResponse = await request(app)
-      .post('/api/auth/register')
-      .send(userData);
-      
+    const registerResponse = await request(app).post('/api/auth/register').send(userData);
+
     // En algunos casos register devuelve user, en otros _id
     userId = registerResponse.body.user.id || registerResponse.body.user._id;
 
@@ -98,7 +96,7 @@ describe('User Profile Management', () => {
       expect(response.body.user.name).toBe(newName);
       // Preferencias deben seguir existiendo (default true)
       if (response.body.user.preferences) {
-          expect(response.body.user.preferences.documentUpdates).toBe(true);
+        expect(response.body.user.preferences.documentUpdates).toBe(true);
       }
     });
   });
@@ -106,7 +104,7 @@ describe('User Profile Management', () => {
   describe('PATCH /api/users/:id/avatar - Avatar Upload', () => {
     it('should accept an avatar URL via JSON', async () => {
       const avatarUrl = 'https://example.com/avatar.jpg';
-      
+
       const response = await request(app)
         .patch(`/api/users/${userId}/avatar`)
         .set('Authorization', `Bearer ${token}`)
@@ -118,7 +116,7 @@ describe('User Profile Management', () => {
 
     it('should accept an image file via multipart/form-data', async () => {
       const buffer = Buffer.from('fake image content');
-      
+
       const response = await request(app)
         .patch(`/api/users/${userId}/avatar`)
         .set('Authorization', `Bearer ${token}`)
@@ -141,10 +139,10 @@ describe('User Profile Management', () => {
       await request(app)
         .get(`/api/users/${userId}`)
         .set('Authorization', `Bearer ${token}`)
-        .expect((res) => {
-           if (res.status !== 401 && res.status !== 404) {
-             throw new Error(`Expected 401 or 404, got ${res.status}`);
-           }
+        .expect(res => {
+          if (res.status !== 401 && res.status !== 404) {
+            throw new Error(`Expected 401 or 404, got ${res.status}`);
+          }
         });
 
       // Verificación directa con Mongoose: El usuario ya no debe existir en la BD

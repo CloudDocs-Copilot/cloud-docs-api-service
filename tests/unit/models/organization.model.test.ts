@@ -20,7 +20,7 @@ describe('Organization Model', () => {
     const testUser = await User.create({
       name: 'Test Owner',
       email: 'owner@test.com',
-      password: 'hashedpassword123',
+      password: 'hashedpassword123'
     });
     testUserId = testUser._id;
   });
@@ -71,7 +71,7 @@ describe('Organization Model', () => {
     it('should create organization with required fields', async () => {
       const orgData = {
         name: 'Test Organization',
-        owner: testUserId,
+        owner: testUserId
       };
 
       const organization = await Organization.create(orgData);
@@ -86,7 +86,7 @@ describe('Organization Model', () => {
 
     it('should require name field', async () => {
       const orgData = {
-        owner: testUserId,
+        owner: testUserId
       };
 
       await expect(Organization.create(orgData)).rejects.toThrow();
@@ -94,7 +94,7 @@ describe('Organization Model', () => {
 
     it('should require owner field', async () => {
       const orgData = {
-        name: 'Test Organization',
+        name: 'Test Organization'
       };
 
       await expect(Organization.create(orgData)).rejects.toThrow();
@@ -103,7 +103,7 @@ describe('Organization Model', () => {
     it('should enforce minimum name length', async () => {
       const orgData = {
         name: 'A',
-        owner: testUserId,
+        owner: testUserId
       };
 
       await expect(Organization.create(orgData)).rejects.toThrow();
@@ -112,7 +112,7 @@ describe('Organization Model', () => {
     it('should enforce maximum name length', async () => {
       const orgData = {
         name: 'A'.repeat(101),
-        owner: testUserId,
+        owner: testUserId
       };
 
       await expect(Organization.create(orgData)).rejects.toThrow();
@@ -121,7 +121,7 @@ describe('Organization Model', () => {
     it('should set default values for settings', async () => {
       const organization = await Organization.create({
         name: 'Default Settings Org',
-        owner: testUserId,
+        owner: testUserId
       });
 
       expect(organization.settings.maxStoragePerUser).toBe(1073741824); // 1GB FREE plan
@@ -136,9 +136,9 @@ describe('Organization Model', () => {
         plan: 'free', // Use FREE plan which has maxStoragePerUser: 1GB
         settings: {
           maxStoragePerUser: 1073741824, // 1GB - will be overridden by plan limits
-          allowedFileTypes: ['application/pdf', 'image/jpeg'], // will be overridden by plan limits  
-          maxUsers: 3, // will be overridden by plan limits
-        },
+          allowedFileTypes: ['application/pdf', 'image/jpeg'], // will be overridden by plan limits
+          maxUsers: 3 // will be overridden by plan limits
+        }
       });
 
       // Settings are overridden by plan limits in pre-save hook
@@ -153,13 +153,13 @@ describe('Organization Model', () => {
       // Usar nombres distintos que normalicen al mismo slug
       await Organization.create({
         name: 'Unique Org',
-        owner: testUserId,
+        owner: testUserId
       });
 
       // 'Unique-Org' normaliza a 'unique-org' también, lo que causa colisión de slug
       const secondOrg = await Organization.create({
         name: 'Unique-Org',
-        owner: testUserId,
+        owner: testUserId
       });
 
       // Debe generar un slug diferente (con sufijo numérico)
@@ -181,13 +181,13 @@ describe('Organization Model', () => {
   describe('Indexes', () => {
     it('should have unique index on slug', async () => {
       const indexes = await Organization.collection.getIndexes();
-      const slugIndex = Object.keys(indexes).find((key) => key.includes('slug'));
+      const slugIndex = Object.keys(indexes).find(key => key.includes('slug'));
       expect(slugIndex).toBeDefined();
     });
 
     it('should have index on owner', async () => {
       const indexes = await Organization.collection.getIndexes();
-      const ownerIndex = Object.keys(indexes).find((key) => key.includes('owner'));
+      const ownerIndex = Object.keys(indexes).find(key => key.includes('owner'));
       expect(ownerIndex).toBeDefined();
     });
   });
@@ -196,7 +196,7 @@ describe('Organization Model', () => {
     it('should automatically add owner to members on creation', async () => {
       const organization = await Organization.create({
         name: 'Auto Member Org',
-        owner: testUserId,
+        owner: testUserId
       });
 
       expect(organization.members).toHaveLength(1);
@@ -206,28 +206,26 @@ describe('Organization Model', () => {
     it('should add member using addMember method', async () => {
       const organization = await Organization.create({
         name: 'Member Test Org',
-        owner: testUserId,
+        owner: testUserId
       });
 
       const newUser = await User.create({
         name: 'New Member',
         email: 'newmember@test.com',
-        password: 'password123',
+        password: 'password123'
       });
 
       organization.addMember(newUser._id.toString());
       await organization.save();
 
       expect(organization.members).toHaveLength(2);
-      expect(organization.members.map((m) => m.toString())).toContain(
-        newUser._id.toString()
-      );
+      expect(organization.members.map(m => m.toString())).toContain(newUser._id.toString());
     });
 
     it('should not add duplicate members', async () => {
       const organization = await Organization.create({
         name: 'No Duplicate Org',
-        owner: testUserId,
+        owner: testUserId
       });
 
       organization.addMember(testUserId.toString());
@@ -241,13 +239,13 @@ describe('Organization Model', () => {
       const newUser = await User.create({
         name: 'Removable Member',
         email: 'removable@test.com',
-        password: 'password123',
+        password: 'password123'
       });
 
       const organization = await Organization.create({
         name: 'Remove Member Org',
         owner: testUserId,
-        members: [testUserId, newUser._id],
+        members: [testUserId, newUser._id]
       });
 
       organization.removeMember(newUser._id.toString());
@@ -262,7 +260,7 @@ describe('Organization Model', () => {
     it('should calculate memberCount virtual', async () => {
       const organization = await Organization.create({
         name: 'Member Count Org',
-        owner: testUserId,
+        owner: testUserId
       });
 
       const orgJSON = organization.toJSON();
@@ -274,7 +272,7 @@ describe('Organization Model', () => {
     it('should find organization by slug', async () => {
       await Organization.create({
         name: 'Findable Org',
-        owner: testUserId,
+        owner: testUserId
       });
 
       const found = await Organization.findBySlug('findable-org');
@@ -286,7 +284,7 @@ describe('Organization Model', () => {
       await Organization.create({
         name: 'Inactive Org',
         owner: testUserId,
-        active: false,
+        active: false
       });
 
       const found = await Organization.findBySlug('inactive-org');
@@ -303,7 +301,7 @@ describe('Organization Model', () => {
     it('should automatically set createdAt and updatedAt', async () => {
       const organization = await Organization.create({
         name: 'Timestamp Org',
-        owner: testUserId,
+        owner: testUserId
       });
 
       expect(organization.createdAt).toBeInstanceOf(Date);
@@ -313,20 +311,18 @@ describe('Organization Model', () => {
     it('should update updatedAt on save', async () => {
       const organization = await Organization.create({
         name: 'Update Time Org',
-        owner: testUserId,
+        owner: testUserId
       });
 
       const originalUpdatedAt = organization.updatedAt;
 
       // Esperar un momento para asegurar que el timestamp sea diferente
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await new Promise(resolve => setTimeout(resolve, 10));
 
       organization.name = 'Updated Name';
       await organization.save();
 
-      expect(organization.updatedAt.getTime()).toBeGreaterThan(
-        originalUpdatedAt.getTime()
-      );
+      expect(organization.updatedAt.getTime()).toBeGreaterThan(originalUpdatedAt.getTime());
     });
   });
 
@@ -334,7 +330,7 @@ describe('Organization Model', () => {
     it('should regenerate slug when name changes', async () => {
       const organization = await Organization.create({
         name: 'Original Name',
-        owner: testUserId,
+        owner: testUserId
       });
 
       expect(organization.slug).toBe('original-name');

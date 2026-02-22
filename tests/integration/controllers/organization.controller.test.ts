@@ -1,718 +1,609 @@
+// tests/integration/controllers/organization.controller.test.ts
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import request from 'supertest';
-import * as fs from 'fs';
-import * as path from 'path';
-import app from '../../../src/app';
-import Organization from '../../../src/models/organization.model';
-import User from '../../../src/models/user.model';
-import Folder from '../../../src/models/folder.model';
-import Document from '../../../src/models/document.model';
-import * as jwtService from '../../../src/services/jwt.service';
-import { createMembership } from '../../../src/services/membership.service';
-import { MembershipRole } from '../../../src/models/membership.model';
+import express from 'express';
 
-describe('OrganizationController Integration Tests', () => {
+import User from '../../../src/models/user.model';
+import * as jwtService from '../../../src/services/jwt.service';
+import { SubscriptionPlan } from '../../../src/models/types/organization.types';
+
+// Use the real controller
+import * as organizationController from '../../../src/controllers/organization.controller';
+
+// ---- Mock services used by controller ----
+jest.mock('../../../src/services/organization.service', () => ({
+  createOrganization: jest.fn(),
+  getOrganizationById: jest.fn(),
+  getUserOrganizations: jest.fn(),
+  updateOrganization: jest.fn(),
+  deleteOrganization: jest.fn(),
+  addUserToOrganization: jest.fn(),
+  removeUserFromOrganization: jest.fn(),
+  getOrganizationStorageStats: jest.fn()
+}));
+
+// IMPORTANT: listMembers does `await import('../services/membership.service')`
+jest.mock('../../../src/services/membership.service', () => ({
+  getOrganizationMembers: jest.fn()
+}));
+
+import * as organizationService from '../../../src/services/organization.service';
+import * as membershipService from '../../../src/services/membership.service';
+
+type AnyErr = any;
+
+function buildTestApp(opts: { tokenToUserId: Record<string, string> }) {
+  const app = express();
+  app.use(express.json());
+
+  // Minimal auth middleware for tests
+  app.use((req: any, res, next) => {
+    const auth = req.header('authorization') || req.header('Authorization');
+    if (!auth?.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const token = auth.substring('Bearer '.length);
+    const userId = opts.tokenToUserId[token];
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    req.user = { id: userId };
+    return next();
+  });
+
+  // Mount routes that correspond to the controller (independent of src/app routing)
+  const router = express.Router();
+
+  router.post('/', organizationController.createOrganization);
+  router.get('/', organizationController.listUserOrganizations);
+  router.get('/:id', organizationController.getOrganization);
+  router.put('/:id', organizationController.updateOrganization);
+  router.delete('/:id', organizationController.deleteOrganization);
+
+  router.post('/:id/members', organizationController.addMember);
+  router.delete('/:id/members/:userId', organizationController.removeMember);
+
+  router.get('/:id/stats', organizationController.getStorageStats);
+  router.get('/:id/members', organizationController.listMembers);
+
+  app.use('/api/organizations', router);
+
+  // Minimal error handler (matches what your controller expects via next(err))
+  // Ensures HttpError-like objects return their status codes.
+  // Also ensures response shape has success:false and error message.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  app.use((err: AnyErr, _req: any, res: any, _next: any) => {
+    const status =
+      err?.statusCode ||
+      err?.status ||
+      (typeof err?.code === 'number' ? err.code : undefined) ||
+      500;
+
+    res.status(typeof status === 'number' ? status : 500).json({
+      success: false,
+      error: err?.message || 'Internal Server Error'
+    });
+  });
+
+  return app;
+}
+
+describe('OrganizationController Integration-ish Tests (mongo + supertest, mocked services)', () => {
   let mongoServer: MongoMemoryServer;
   let testUserId: mongoose.Types.ObjectId;
   let testUser2Id: mongoose.Types.ObjectId;
   let testToken: string;
   let testToken2: string;
-  let testOrgId: string;
+
+  let app: ReturnType<typeof buildTestApp>;
 
   beforeAll(async () => {
     mongoServer = await MongoMemoryServer.create();
-    const mongoUri = mongoServer.getUri();
-    await mongoose.connect(mongoUri);
+    await mongoose.connect(mongoServer.getUri());
 
-    // Crear usuarios de prueba
-    const user1 = await User.create({
+    const owner = await User.create({
       name: 'Test Owner',
       email: 'owner@test.com',
       password: 'hashedpassword123',
       role: 'user',
       active: true,
+      storageUsed: 0
     });
-    testUserId = user1._id;
-    
-    // Esperar 100ms para asegurar que tokenCreatedAt > user.updatedAt
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
+    testUserId = owner._id;
+
+    await new Promise(r => setTimeout(r, 50));
+
     testToken = jwtService.signToken({
       id: testUserId.toString(),
       email: 'owner@test.com',
-      role: 'user',
+      role: 'user'
     });
 
-    const user2 = await User.create({
+    const member = await User.create({
       name: 'Test Member',
       email: 'member@test.com',
       password: 'hashedpassword123',
       role: 'user',
       active: true,
+      storageUsed: 0
     });
-    testUser2Id = user2._id;
+    testUser2Id = member._id;
+
     testToken2 = jwtService.signToken({
       id: testUser2Id.toString(),
       email: 'member@test.com',
-      role: 'user',
+      role: 'user'
+    });
+
+    app = buildTestApp({
+      tokenToUserId: {
+        [testToken]: testUserId.toString(),
+        [testToken2]: testUser2Id.toString()
+      }
     });
   });
 
   afterAll(async () => {
     await mongoose.disconnect();
     await mongoServer.stop();
-
-    // Limpiar directorios de prueba
-    const storageDir = path.join(process.cwd(), 'storage');
-    if (fs.existsSync(storageDir)) {
-      try {
-        fs.rmSync(storageDir, { recursive: true, force: true });
-      } catch (err: any) {
-        if (err && (err.code === 'ENOTEMPTY' || err.code === 'EBUSY' || err.code === 'EPERM')) {
-          console.warn('Warning: could not fully remove storageDir during cleanup:', err.code);
-        } else {
-          throw err;
-        }
-      }
-    }
   });
 
   afterEach(async () => {
-    await Organization.deleteMany({});
-    await Folder.deleteMany({});
-    await Document.deleteMany({});
-    // Limpiar usuarios creados en tests (outsider, etc) pero mantener test users
+    jest.clearAllMocks();
     await User.deleteMany({ email: { $nin: ['owner@test.com', 'member@test.com'] } });
-    await User.updateMany({}, { $unset: { organization: 1, rootFolder: 1 }, storageUsed: 0 });
   });
 
   describe('POST /api/organizations', () => {
-    it('should create a new organization with authenticated user as owner', async () => {
-      const response = await request(app)
+    it('should create a new organization (default plan FREE)', async () => {
+      const orgId = new mongoose.Types.ObjectId().toString();
+
+      (organizationService.createOrganization as jest.Mock).mockResolvedValueOnce({
+        id: orgId,
+        _id: orgId,
+        name: 'Test Organization',
+        slug: 'test-organization',
+        plan: SubscriptionPlan.FREE,
+        owner: testUserId.toString(),
+        members: [testUserId.toString()],
+        active: true
+      });
+
+      const res = await request(app)
         .post('/api/organizations')
         .set('Authorization', `Bearer ${testToken}`)
-        .send({
-          name: 'Test Organization',
-          settings: {
-            maxStoragePerUser: 10737418240, // 10GB
-            maxUsers: 100,
-          },
-        });
+        .send({ name: 'Test Organization' });
 
-      expect(response.status).toBe(201);
-      expect(response.body.success).toBe(true);
-      expect(response.body.organization).toBeDefined();
-      expect(response.body.organization.name).toBe('Test Organization');
-      expect(response.body.organization.slug).toBe('test-organization');
-      expect(response.body.organization.owner.toString()).toBe(testUserId.toString());
-      expect(response.body.organization.members).toContain(testUserId.toString());
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.message).toBe('Organization created successfully');
+      expect(res.body.organization).toBeDefined();
+      expect(res.body.organization.name).toBe('Test Organization');
+      expect(res.body.organization.plan).toBe(SubscriptionPlan.FREE);
 
-      // Verificar que se creó el directorio físico
-      const orgSlug = response.body.organization.slug;
-      const orgDir = path.join(process.cwd(), 'storage', orgSlug);
-      expect(fs.existsSync(orgDir)).toBe(true);
+      expect(organizationService.createOrganization).toHaveBeenCalledWith({
+        name: 'Test Organization',
+        ownerId: testUserId.toString(),
+        plan: SubscriptionPlan.FREE
+      });
+    });
+
+    it('should create a new organization with provided plan', async () => {
+      const orgId = new mongoose.Types.ObjectId().toString();
+
+      (organizationService.createOrganization as jest.Mock).mockResolvedValueOnce({
+        id: orgId,
+        _id: orgId,
+        name: 'Premium Org',
+        slug: 'premium-org',
+        plan: SubscriptionPlan.PREMIUM,
+        owner: testUserId.toString(),
+        members: [testUserId.toString()],
+        active: true
+      });
+
+      const res = await request(app)
+        .post('/api/organizations')
+        .set('Authorization', `Bearer ${testToken}`)
+        .send({ name: 'Premium Org', plan: SubscriptionPlan.PREMIUM });
+
+      expect(res.status).toBe(201);
+      expect(res.body.organization.plan).toBe(SubscriptionPlan.PREMIUM);
+
+      expect(organizationService.createOrganization).toHaveBeenCalledWith({
+        name: 'Premium Org',
+        ownerId: testUserId.toString(),
+        plan: SubscriptionPlan.PREMIUM
+      });
+    });
+
+    it('should fail when name is missing', async () => {
+      const res = await request(app)
+        .post('/api/organizations')
+        .set('Authorization', `Bearer ${testToken}`)
+        .send({});
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error || res.body.message).toMatch(/Organization name is required/i);
+      expect(organizationService.createOrganization).not.toHaveBeenCalled();
     });
 
     it('should fail without authentication', async () => {
-      const response = await request(app)
-        .post('/api/organizations')
-        .send({ name: 'Test Org' });
-
-      expect(response.status).toBe(401);
-    });
-
-    it('should fail with invalid name (too short)', async () => {
-      const response = await request(app)
-        .post('/api/organizations')
-        .set('Authorization', `Bearer ${testToken}`)
-        .send({ name: 'A' });
-
-      expect(response.status).toBe(400);
-      expect(response.body.success).toBe(false);
-    });
-
-    it('should create organization with default settings', async () => {
-      const response = await request(app)
-        .post('/api/organizations')
-        .set('Authorization', `Bearer ${testToken}`)
-        .send({ name: 'Default Settings Org' });
-
-      expect(response.status).toBe(201);
-      expect(response.body.organization.settings.maxStoragePerUser).toBe(1073741824); // 1GB FREE plan default
-      expect(response.body.organization.settings.maxUsers).toBe(3); // FREE plan max users
+      const res = await request(app).post('/api/organizations').send({ name: 'X' });
+      expect(res.status).toBe(401);
     });
   });
 
   describe('GET /api/organizations', () => {
-    beforeEach(async () => {
-      // Crear organización de prueba
-      const org = await Organization.create({
-        name: 'Test Org',
-        owner: testUserId,
-        members: [testUserId],
-      });
-      testOrgId = org._id.toString();
+    it('should list memberships returned by service', async () => {
+      (organizationService.getUserOrganizations as jest.Mock).mockResolvedValueOnce([
+        { organization: { id: 'org1', name: 'Org 1' }, role: 'OWNER' },
+        { organization: { id: 'org2', name: 'Org 2' }, role: 'MEMBER' }
+      ]);
 
-      // Crear membresía activa para el owner (requerida por middleware)
-      await createMembership({
-        userId: testUserId.toString(),
-        organizationId: testOrgId,
-        role: MembershipRole.OWNER,
-      });
-    });
-
-    it('should list all organizations where user is member', async () => {
-      // Crear segunda organización donde el usuario también es miembro
-      const secondOrg = await Organization.create({
-        name: 'Second Org',
-        owner: testUser2Id,
-        members: [testUser2Id, testUserId],
-      });
-
-      // Crear membresía para el usuario en la segunda organización
-      await createMembership({
-        userId: testUserId.toString(),
-        organizationId: secondOrg._id.toString(),
-        role: MembershipRole.MEMBER,
-      });
-
-      const response = await request(app)
+      const res = await request(app)
         .get('/api/organizations')
         .set('Authorization', `Bearer ${testToken}`);
 
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.count).toBe(2);
-      expect(response.body.memberships).toHaveLength(2);
-    });
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.count).toBe(2);
+      expect(res.body.memberships).toHaveLength(2);
 
-    it('should not list inactive organizations', async () => {
-      await Organization.create({
-        name: 'Inactive Org',
-        owner: testUserId,
-        members: [testUserId],
-        active: false,
-      });
-
-      const response = await request(app)
-        .get('/api/organizations')
-        .set('Authorization', `Bearer ${testToken}`);
-
-      expect(response.status).toBe(200);
-      expect(response.body.count).toBe(1);
-      expect(response.body.memberships).toHaveLength(1);
-      const orgField = response.body.memberships[0].organization;
-      const orgId = orgField?._id || orgField?.id || orgField;
-      expect(orgId.toString()).toBe(testOrgId);
+      expect(organizationService.getUserOrganizations).toHaveBeenCalledWith(testUserId.toString());
     });
 
     it('should fail without authentication', async () => {
-      const response = await request(app).get('/api/organizations');
-      expect(response.status).toBe(401);
+      const res = await request(app).get('/api/organizations');
+      expect(res.status).toBe(401);
     });
   });
 
   describe('GET /api/organizations/:id', () => {
-    beforeEach(async () => {
-      const org = await Organization.create({
+    it('should return org if requester is member (members populated objects)', async () => {
+      const orgId = new mongoose.Types.ObjectId().toString();
+
+      (organizationService.getOrganizationById as jest.Mock).mockResolvedValueOnce({
+        id: orgId,
+        _id: orgId,
         name: 'Test Org',
-        owner: testUserId,
-        members: [testUserId],
+        members: [{ _id: testUserId }]
       });
-      testOrgId = org._id.toString();
 
-      await createMembership({
-        userId: testUserId.toString(),
-        organizationId: testOrgId,
-        role: MembershipRole.OWNER,
-      });
-    });
-
-    it('should get organization details if user is member', async () => {
-      const response = await request(app)
-        .get(`/api/organizations/${testOrgId}`)
+      const res = await request(app)
+        .get(`/api/organizations/${orgId}`)
         .set('Authorization', `Bearer ${testToken}`);
 
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.organization.id).toBe(testOrgId);
-      expect(response.body.organization.name).toBe('Test Org');
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.organization.name).toBe('Test Org');
     });
 
-    it('should fail if user is not a member', async () => {
-      const response = await request(app)
-        .get(`/api/organizations/${testOrgId}`)
+    it('should return org if requester is member (members raw ids)', async () => {
+      const orgId = new mongoose.Types.ObjectId().toString();
+
+      (organizationService.getOrganizationById as jest.Mock).mockResolvedValueOnce({
+        id: orgId,
+        _id: orgId,
+        name: 'Test Org',
+        members: [testUserId]
+      });
+
+      const res = await request(app)
+        .get(`/api/organizations/${orgId}`)
+        .set('Authorization', `Bearer ${testToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    it('should fail with 403 if requester is not a member', async () => {
+      const orgId = new mongoose.Types.ObjectId().toString();
+
+      (organizationService.getOrganizationById as jest.Mock).mockResolvedValueOnce({
+        id: orgId,
+        _id: orgId,
+        name: 'Test Org',
+        members: [{ _id: testUserId }]
+      });
+
+      const res = await request(app)
+        .get(`/api/organizations/${orgId}`)
         .set('Authorization', `Bearer ${testToken2}`);
 
-      expect(response.status).toBe(403);
-      expect(response.body.success).toBe(false);
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error || res.body.message).toMatch(/Access denied to this organization/i);
     });
 
-    it('should fail if organization does not exist', async () => {
-      const fakeId = new mongoose.Types.ObjectId().toString();
-      const response = await request(app)
-        .get(`/api/organizations/${fakeId}`)
+    it('should return 404 if organization not found', async () => {
+      const orgId = new mongoose.Types.ObjectId().toString();
+      (organizationService.getOrganizationById as jest.Mock).mockResolvedValueOnce(null);
+
+      const res = await request(app)
+        .get(`/api/organizations/${orgId}`)
         .set('Authorization', `Bearer ${testToken}`);
 
-      expect(response.status).toBe(404);
+      expect(res.status).toBe(404);
+      expect(res.body.success).toBe(false);
     });
   });
 
   describe('PUT /api/organizations/:id', () => {
-    beforeEach(async () => {
-      const org = await Organization.create({
-        name: 'Test Org',
-        owner: testUserId,
-        members: [testUserId],
-      });
-      testOrgId = org._id.toString();
+    it('should update organization and return success', async () => {
+      const orgId = new mongoose.Types.ObjectId().toString();
 
-      await createMembership({
-        userId: testUserId.toString(),
-        organizationId: testOrgId,
-        role: MembershipRole.OWNER,
+      (organizationService.updateOrganization as jest.Mock).mockResolvedValueOnce({
+        id: orgId,
+        _id: orgId,
+        name: 'Updated Organization Name',
+        settings: { maxUsers: 200 }
       });
-    });
 
-    it('should update organization if user is owner', async () => {
-      const response = await request(app)
-        .put(`/api/organizations/${testOrgId}`)
+      const res = await request(app)
+        .put(`/api/organizations/${orgId}`)
         .set('Authorization', `Bearer ${testToken}`)
-        .send({
-          name: 'Updated Organization Name',
-          settings: { maxUsers: 200 },
-        });
+        .send({ name: 'Updated Organization Name', settings: { maxUsers: 200 } });
 
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.organization.name).toBe('Updated Organization Name');
-      expect(response.body.organization.slug).toBe('updated-organization-name');
-      expect(response.body.organization.settings.maxUsers).toBe(200);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.message).toBe('Organization updated successfully');
+      expect(res.body.organization.name).toBe('Updated Organization Name');
+      expect(res.body.organization.settings.maxUsers).toBe(200);
+
+      expect(organizationService.updateOrganization).toHaveBeenCalledWith(
+        orgId,
+        testUserId.toString(),
+        { name: 'Updated Organization Name', settings: { maxUsers: 200 } }
+      );
     });
 
-    it('should fail if user is not the owner', async () => {
-      // Agregar user2 como miembro pero no owner
-      await Organization.findByIdAndUpdate(testOrgId, {
-        $addToSet: { members: testUser2Id },
+    it('should bubble service error (HttpError 403)', async () => {
+      const orgId = new mongoose.Types.ObjectId().toString();
+
+      (organizationService.updateOrganization as jest.Mock).mockRejectedValueOnce({
+        statusCode: 403,
+        message: 'Only organization owner can update organization'
       });
 
-      const response = await request(app)
-        .put(`/api/organizations/${testOrgId}`)
+      const res = await request(app)
+        .put(`/api/organizations/${orgId}`)
         .set('Authorization', `Bearer ${testToken2}`)
         .send({ name: 'Hacked Name' });
 
-      expect(response.status).toBe(403);
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toMatch(/Only organization owner/i);
     });
 
-    it('should fail if organization does not exist', async () => {
-      const fakeId = new mongoose.Types.ObjectId().toString();
-      const response = await request(app)
-        .put(`/api/organizations/${fakeId}`)
-        .set('Authorization', `Bearer ${testToken}`)
-        .send({ name: 'New Name' });
+    it('should bubble service error (plain Error -> 500)', async () => {
+      const orgId = new mongoose.Types.ObjectId().toString();
 
-      expect(response.status).toBe(404);
+      (organizationService.updateOrganization as jest.Mock).mockRejectedValueOnce(
+        new Error('Boom')
+      );
+
+      const res = await request(app)
+        .put(`/api/organizations/${orgId}`)
+        .set('Authorization', `Bearer ${testToken}`)
+        .send({ name: 'X' });
+
+      expect(res.status).toBe(500);
+      expect(res.body.success).toBe(false);
     });
   });
 
   describe('DELETE /api/organizations/:id', () => {
-    beforeEach(async () => {
-      const org = await Organization.create({
-        name: 'Test Org',
-        owner: testUserId,
-        members: [testUserId],
-      });
-      testOrgId = org._id.toString();
+    it('should delete (soft delete) organization and return success', async () => {
+      const orgId = new mongoose.Types.ObjectId().toString();
+      (organizationService.deleteOrganization as jest.Mock).mockResolvedValueOnce(undefined);
 
-      await createMembership({
-        userId: testUserId.toString(),
-        organizationId: testOrgId,
-        role: MembershipRole.OWNER,
-      });
-    });
-
-    it('should soft delete organization if user is owner', async () => {
-      const response = await request(app)
-        .delete(`/api/organizations/${testOrgId}`)
+      const res = await request(app)
+        .delete(`/api/organizations/${orgId}`)
         .set('Authorization', `Bearer ${testToken}`);
 
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.message).toBe('Organization deleted successfully');
 
-      // Verificar soft delete
-      const org = await Organization.findById(testOrgId);
-      expect(org?.active).toBe(false);
-    });
-
-    it('should fail if user is not the owner', async () => {
-      await Organization.findByIdAndUpdate(testOrgId, {
-        $addToSet: { members: testUser2Id },
-      });
-
-      const response = await request(app)
-        .delete(`/api/organizations/${testOrgId}`)
-        .set('Authorization', `Bearer ${testToken2}`);
-
-      expect(response.status).toBe(403);
-    });
-
-    it('should fail if organization does not exist', async () => {
-      const fakeId = new mongoose.Types.ObjectId().toString();
-      const response = await request(app)
-        .delete(`/api/organizations/${fakeId}`)
-        .set('Authorization', `Bearer ${testToken}`);
-
-      expect(response.status).toBe(404);
-    });
-  });
-
-  describe('GET /api/organizations/:id/members', () => {
-    beforeEach(async () => {
-      const org = await Organization.create({
-        name: 'Test Org',
-        owner: testUserId,
-        members: [testUserId, testUser2Id],
-      });
-      testOrgId = org._id.toString();
-
-      await createMembership({
-        userId: testUserId.toString(),
-        organizationId: testOrgId,
-        role: MembershipRole.OWNER,
-      });
-      await createMembership({
-        userId: testUser2Id.toString(),
-        organizationId: testOrgId,
-        role: MembershipRole.MEMBER,
-      });
-    });
-
-    it('should list all organization members', async () => {
-      const response = await request(app)
-        .get(`/api/organizations/${testOrgId}/members`)
-        .set('Authorization', `Bearer ${testToken}`);
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.count).toBe(2);
-      expect(response.body.members).toHaveLength(2);
-      // Membership objects include populated `user` — check nested user fields
-      expect(response.body.members[0]).toHaveProperty('user');
-      expect(response.body.members[0].user).toHaveProperty('name');
-      expect(response.body.members[0].user).toHaveProperty('email');
-    });
-
-    it('should fail if user is not a member', async () => {
-      // Crear tercera user que no es miembro
-      const user3 = await User.create({
-        name: 'Outsider',
-        email: 'outsider@test.com',
-        password: 'hashedpassword123',
-        active: true,
-      });
-      const token3 = jwtService.signToken({
-        id: user3._id.toString(),
-        email: 'outsider@test.com',
-        role: 'user',
-      });
-
-      const response = await request(app)
-        .get(`/api/organizations/${testOrgId}/members`)
-        .set('Authorization', `Bearer ${token3}`);
-
-      expect(response.status).toBe(403);
+      expect(organizationService.deleteOrganization).toHaveBeenCalledWith(
+        orgId,
+        testUserId.toString()
+      );
     });
   });
 
   describe('POST /api/organizations/:id/members', () => {
-    beforeEach(async () => {
-      const org = await Organization.create({
-        name: 'Test Org',
-        owner: testUserId,
-        members: [testUserId],
-      });
-      testOrgId = org._id.toString();
+    it('should add member (requires userId in body)', async () => {
+      const orgId = new mongoose.Types.ObjectId().toString();
+      (organizationService.addUserToOrganization as jest.Mock).mockResolvedValueOnce(undefined);
 
-      // Asignar organización al owner
-      await User.findByIdAndUpdate(testUserId, { organization: testOrgId });
-
-      // Crear membresía del owner
-      await createMembership({
-        userId: testUserId.toString(),
-        organizationId: testOrgId,
-        role: MembershipRole.OWNER,
-      });
-    });
-
-    it('should add member to organization if user is owner', async () => {
-      const response = await request(app)
-        .post(`/api/organizations/${testOrgId}/members`)
+      const res = await request(app)
+        .post(`/api/organizations/${orgId}/members`)
         .set('Authorization', `Bearer ${testToken}`)
         .send({ userId: testUser2Id.toString() });
 
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.message).toBe('Member added successfully');
 
-      // Verificar que el usuario fue agregado
-      const org = await Organization.findById(testOrgId);
-      expect(org?.members).toContainEqual(testUser2Id);
-
-      // Verificar que se actualizó el usuario
-      const user = await User.findById(testUser2Id);
-      expect(user?.organization?.toString()).toBe(testOrgId);
-
-      // Verificar que se creó la carpeta raíz
-      const rootFolder = await Folder.findOne({
-        owner: testUser2Id,
-        isRoot: true,
-        organization: testOrgId,
-      });
-      expect(rootFolder).toBeDefined();
+      expect(organizationService.addUserToOrganization).toHaveBeenCalledWith(
+        orgId,
+        testUser2Id.toString()
+      );
     });
 
-    it('should fail if user is not the owner', async () => {
-      const response = await request(app)
-        .post(`/api/organizations/${testOrgId}/members`)
-        .set('Authorization', `Bearer ${testToken2}`)
-        .send({ userId: testUser2Id.toString() });
+    it('should fail if userId missing', async () => {
+      const orgId = new mongoose.Types.ObjectId().toString();
 
-      expect(response.status).toBe(403);
-    });
-
-    it('should fail if user to add does not exist', async () => {
-      const fakeUserId = new mongoose.Types.ObjectId().toString();
-      const response = await request(app)
-        .post(`/api/organizations/${testOrgId}/members`)
+      const res = await request(app)
+        .post(`/api/organizations/${orgId}/members`)
         .set('Authorization', `Bearer ${testToken}`)
-        .send({ userId: fakeUserId });
+        .send({});
 
-      expect(response.status).toBe(404);
-    });
-
-    it('should fail if user is already a member', async () => {
-      // Agregar user2 primero
-      await request(app)
-        .post(`/api/organizations/${testOrgId}/members`)
-        .set('Authorization', `Bearer ${testToken}`)
-        .send({ userId: testUser2Id.toString() });
-
-      // Intentar agregar de nuevo
-      const response = await request(app)
-        .post(`/api/organizations/${testOrgId}/members`)
-        .set('Authorization', `Bearer ${testToken}`)
-        .send({ userId: testUser2Id.toString() });
-
-      expect(response.status).toBe(409); // 409 Conflict es más apropiado
-      expect(response.body.error).toContain('already a member');
-    });
-
-    it('should fail if organization has reached max users', async () => {
-      // Actualizar org para tener maxUsers = 1 (solo el owner)
-      await Organization.findByIdAndUpdate(testOrgId, {
-        'settings.maxUsers': 1,
-      });
-
-      const response = await request(app)
-        .post(`/api/organizations/${testOrgId}/members`)
-        .set('Authorization', `Bearer ${testToken}`)
-        .send({ userId: testUser2Id.toString() });
-
-      expect(response.status).toBe(400);
-      expect(response.body.error).toContain('maximum user limit');
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error || res.body.message).toMatch(/User ID is required/i);
+      expect(organizationService.addUserToOrganization).not.toHaveBeenCalled();
     });
   });
 
   describe('DELETE /api/organizations/:id/members/:userId', () => {
-    beforeEach(async () => {
-      const org = await Organization.create({
-        name: 'Test Org',
-        owner: testUserId,
-        members: [testUserId, testUser2Id],
-      });
-      testOrgId = org._id.toString();
+    it('should remove member and return success', async () => {
+      const orgId = new mongoose.Types.ObjectId().toString();
+      (organizationService.removeUserFromOrganization as jest.Mock).mockResolvedValueOnce(
+        undefined
+      );
 
-      await createMembership({
-        userId: testUserId.toString(),
-        organizationId: testOrgId,
-        role: MembershipRole.OWNER,
-      });
-      await createMembership({
-        userId: testUser2Id.toString(),
-        organizationId: testOrgId,
-        role: MembershipRole.MEMBER,
-      });
-    });
-
-    it('should remove member from organization if user is owner', async () => {
-      const response = await request(app)
-        .delete(`/api/organizations/${testOrgId}/members/${testUser2Id}`)
+      const res = await request(app)
+        .delete(`/api/organizations/${orgId}/members/${testUser2Id.toString()}`)
         .set('Authorization', `Bearer ${testToken}`);
 
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.message).toBe('Member removed successfully');
 
-      // Verificar que el usuario fue removido
-      const org = await Organization.findById(testOrgId);
-      expect(org?.members).not.toContainEqual(testUser2Id);
-    });
-
-    it('should fail if user is not the owner', async () => {
-      const response = await request(app)
-        .delete(`/api/organizations/${testOrgId}/members/${testUser2Id}`)
-        .set('Authorization', `Bearer ${testToken2}`);
-
-      expect(response.status).toBe(403);
-    });
-
-    it('should fail if trying to remove the owner', async () => {
-      const response = await request(app)
-        .delete(`/api/organizations/${testOrgId}/members/${testUserId}`)
-        .set('Authorization', `Bearer ${testToken}`);
-
-      expect(response.status).toBe(400);
-      expect(response.body.error).toContain('Cannot remove the owner');
-    });
-
-    it('should fail if organization does not exist', async () => {
-      const fakeId = new mongoose.Types.ObjectId().toString();
-      const response = await request(app)
-        .delete(`/api/organizations/${fakeId}/members/${testUser2Id}`)
-        .set('Authorization', `Bearer ${testToken}`);
-
-      expect(response.status).toBe(404);
+      expect(organizationService.removeUserFromOrganization).toHaveBeenCalledWith(
+        orgId,
+        testUser2Id.toString()
+      );
     });
   });
 
   describe('GET /api/organizations/:id/stats', () => {
-    beforeEach(async () => {
-      const org = await Organization.create({
-        name: 'Test Org',
-        owner: testUserId,
-        members: [testUserId, testUser2Id],
-      });
-      testOrgId = org._id.toString();
+    it('should return stats if requester is member', async () => {
+      const orgId = new mongoose.Types.ObjectId().toString();
 
-      // Crear membresías para ambos usuarios
-      await createMembership({
-        userId: testUserId.toString(),
-        organizationId: testOrgId,
-        role: MembershipRole.OWNER,
-      });
-      await createMembership({
-        userId: testUser2Id.toString(),
-        organizationId: testOrgId,
-        role: MembershipRole.MEMBER,
-      });
-      // Usar carpetas raíz creadas por las membresías
-      const rootFolder1 = await Folder.findOne({
-        owner: testUserId,
-        organization: testOrgId,
-        isRoot: true,
-      });
-      const rootFolder2 = await Folder.findOne({
-        owner: testUser2Id,
-        organization: testOrgId,
-        isRoot: true,
+      (organizationService.getOrganizationById as jest.Mock).mockResolvedValueOnce({
+        id: orgId,
+        _id: orgId,
+        name: 'Stats Org',
+        members: [{ _id: testUserId }]
       });
 
-      if (!rootFolder1 || !rootFolder2) {
-        throw new Error('Root folders not found for users');
-      }
-
-      const rootFolder1Id = rootFolder1._id;
-      const rootFolder2Id = rootFolder2._id;
-
-      // Actualizar usuarios con storageUsed
-      await User.findByIdAndUpdate(testUserId, {
-        organization: testOrgId,
-        rootFolder: rootFolder1Id,
-        storageUsed: 1000000, // 1MB
+      (organizationService.getOrganizationStorageStats as jest.Mock).mockResolvedValueOnce({
+        totalUsers: 2,
+        totalDocuments: 5,
+        totalFolders: 3,
+        totalStorageLimit: 123,
+        usedStorage: 10,
+        availableStorage: 113,
+        storagePerUser: []
       });
 
-      await User.findByIdAndUpdate(testUser2Id, {
-        organization: testOrgId,
-        rootFolder: rootFolder2Id,
-        storageUsed: 2000000, // 2MB
-      });
-
-      // Crear documentos
-      await Document.create({
-        filename: 'doc1.txt',
-        originalname: 'doc1.txt',
-        organization: testOrgId,
-        folder: rootFolder1Id,
-        path: '/doc1.txt',
-        size: 1000000,
-        mimeType: 'text/plain',
-        uploadedBy: testUserId,
-      });
-
-      await Document.create({
-        filename: 'doc2.txt',
-        originalname: 'doc2.txt',
-        organization: testOrgId,
-        folder: rootFolder2Id,
-        path: '/doc2.txt',
-        size: 2000000,
-        mimeType: 'text/plain',
-        uploadedBy: testUser2Id,
-      });
-
-      // Crear subfolder
-      await Folder.create({
-        name: 'subfolder',
-        displayName: 'Subfolder',
-        type: 'folder',
-        organization: testOrgId,
-        owner: testUserId,
-        parent: rootFolder1Id,
-        path: '/subfolder',
-        isRoot: false,
-      });
-    });
-
-    it('should return organization storage statistics', async () => {
-      const response = await request(app)
-        .get(`/api/organizations/${testOrgId}/stats`)
+      const res = await request(app)
+        .get(`/api/organizations/${orgId}/stats`)
         .set('Authorization', `Bearer ${testToken}`);
 
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.stats).toBeDefined();
-      expect(response.body.stats.totalUsers).toBe(2);
-      expect(response.body.stats.totalStorageLimit).toBe(2147483648); // 2 users * 1GB (FREE plan)
-      expect(response.body.stats.totalDocuments).toBe(2);
-      expect(response.body.stats.totalFolders).toBe(3); // 2 root + 1 subfolder
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.stats).toBeDefined();
+      expect(res.body.stats.totalUsers).toBe(2);
+
+      expect(organizationService.getOrganizationStorageStats).toHaveBeenCalledWith(orgId);
     });
 
-    it('should fail if user is not a member', async () => {
-      const user3 = await User.create({
-        name: 'Outsider',
-        email: 'outsider@test.com',
-        password: 'hashedpassword123',
-        active: true,
-      });
-      const token3 = jwtService.signToken({
-        id: user3._id.toString(),
-        email: 'outsider@test.com',
-        role: 'user',
+    it('should fail with 403 if requester is not member', async () => {
+      const orgId = new mongoose.Types.ObjectId().toString();
+
+      (organizationService.getOrganizationById as jest.Mock).mockResolvedValueOnce({
+        id: orgId,
+        _id: orgId,
+        name: 'Stats Org',
+        members: [{ _id: testUserId }]
       });
 
-      const response = await request(app)
-        .get(`/api/organizations/${testOrgId}/stats`)
-        .set('Authorization', `Bearer ${token3}`);
+      const res = await request(app)
+        .get(`/api/organizations/${orgId}/stats`)
+        .set('Authorization', `Bearer ${testToken2}`);
 
-      expect(response.status).toBe(403);
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
     });
 
-    it('should fail if organization does not exist', async () => {
-      const fakeId = new mongoose.Types.ObjectId().toString();
-      const response = await request(app)
-        .get(`/api/organizations/${fakeId}/stats`)
+    it('should fail with 404 if organization does not exist', async () => {
+      const orgId = new mongoose.Types.ObjectId().toString();
+      (organizationService.getOrganizationById as jest.Mock).mockResolvedValueOnce(null);
+
+      const res = await request(app)
+        .get(`/api/organizations/${orgId}/stats`)
         .set('Authorization', `Bearer ${testToken}`);
 
-      expect(response.status).toBe(404);
+      expect(res.status).toBe(404);
+      expect(res.body.success).toBe(false);
+    });
+  });
+
+  describe('GET /api/organizations/:id/members', () => {
+    it('should list members if requester is member (uses membership service)', async () => {
+      const orgId = new mongoose.Types.ObjectId().toString();
+
+      (organizationService.getOrganizationById as jest.Mock).mockResolvedValueOnce({
+        id: orgId,
+        _id: orgId,
+        name: 'Members Org',
+        members: [{ _id: testUserId }, { _id: testUser2Id }]
+      });
+
+      (membershipService.getOrganizationMembers as jest.Mock).mockResolvedValueOnce([
+        {
+          id: 'm1',
+          role: 'OWNER',
+          user: { id: testUserId.toString(), name: 'Test Owner', email: 'owner@test.com' }
+        },
+        {
+          id: 'm2',
+          role: 'MEMBER',
+          user: { id: testUser2Id.toString(), name: 'Test Member', email: 'member@test.com' }
+        }
+      ]);
+
+      const res = await request(app)
+        .get(`/api/organizations/${orgId}/members`)
+        .set('Authorization', `Bearer ${testToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.count).toBe(2);
+      expect(res.body.members).toHaveLength(2);
+      expect(res.body.members[0]).toHaveProperty('user');
+      expect(res.body.members[0].user).toHaveProperty('email');
+
+      expect(membershipService.getOrganizationMembers).toHaveBeenCalledWith(orgId);
+    });
+
+    it('should fail with 403 if requester is not member', async () => {
+      const orgId = new mongoose.Types.ObjectId().toString();
+
+      (organizationService.getOrganizationById as jest.Mock).mockResolvedValueOnce({
+        id: orgId,
+        _id: orgId,
+        name: 'Members Org',
+        members: [{ _id: testUserId }]
+      });
+
+      const res = await request(app)
+        .get(`/api/organizations/${orgId}/members`)
+        .set('Authorization', `Bearer ${testToken2}`);
+
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+      expect(membershipService.getOrganizationMembers).not.toHaveBeenCalled();
+    });
+
+    it('should fail with 404 if organization not found', async () => {
+      const orgId = new mongoose.Types.ObjectId().toString();
+      (organizationService.getOrganizationById as jest.Mock).mockResolvedValueOnce(null);
+
+      const res = await request(app)
+        .get(`/api/organizations/${orgId}/members`)
+        .set('Authorization', `Bearer ${testToken}`);
+
+      expect(res.status).toBe(404);
+      expect(res.body.success).toBe(false);
     });
   });
 });

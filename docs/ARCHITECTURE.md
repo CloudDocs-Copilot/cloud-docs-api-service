@@ -15,7 +15,7 @@ CloudDocs API is a multi-tenant document management REST API built with:
 
 ## Directory Structure
 
-```
+```test
 cloud-docs-api-service/
 ├── docs/                           # Documentation
 │   ├── ARCHITECTURE.md             # This file
@@ -109,7 +109,7 @@ cloud-docs-api-service/
 
 The application follows a layered architecture pattern:
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                        HTTP Request                          │
 └─────────────────────────────────────────────────────────────┘
@@ -154,7 +154,7 @@ The application follows a layered architecture pattern:
 
 The application supports multiple organizations with the following structure:
 
-```
+```text
 ┌──────────────┐     ┌────────────────┐     ┌──────────────────┐
 │    User      │────▶│   Membership   │◀────│   Organization   │
 │              │ N:N │                │ N:1 │                  │
@@ -227,7 +227,7 @@ OpenAPI/Swagger documentation available at:
 
 ## Testing Strategy
 
-```
+```text
 tests/
 ├── unit/           # Isolated function tests
 ├── integration/    # API endpoint tests with real DB

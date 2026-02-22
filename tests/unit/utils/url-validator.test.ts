@@ -34,7 +34,7 @@ describe('url-validator utilities', () => {
     const list = ['https://example.com', 'https://localhost'];
     const results = validateMultipleUrls(list);
     expect(results).toHaveLength(2);
-    expect(areAllUrlsValid(["https://example.com"]) ).toBe(true);
+    expect(areAllUrlsValid(['https://example.com'])).toBe(true);
   });
 
   it('sanitizeUrl removes credentials and hash', () => {

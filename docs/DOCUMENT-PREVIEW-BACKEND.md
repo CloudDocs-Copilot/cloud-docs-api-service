@@ -81,7 +81,7 @@ try {
 
 ### Flujo de Preview
 
-```
+```text
 Frontend                    Backend
 ┌─────────────┐            ┌──────────────┐
 │  Browser    │────────────▶│   Express    │

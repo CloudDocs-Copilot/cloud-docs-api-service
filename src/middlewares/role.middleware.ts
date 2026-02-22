@@ -4,7 +4,7 @@ import HttpError from '../models/error.model';
 
 /**
  * Middleware de autorización - Requiere rol de administrador
- * 
+ *
  * Verifica que el usuario autenticado tenga rol 'admin'
  * Debe usarse después del middleware de autenticación
  */

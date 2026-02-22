@@ -23,7 +23,10 @@ jest.mock('../../../src/services/jwt.service', () => ({ signToken: mockSignToken
 
 jest.mock('../../../src/utils/password-validator', () => ({ validatePasswordOrThrow: jest.fn() }));
 jest.mock('../../../src/mail/emailService', () => ({ sendConfirmationEmail: jest.fn() }));
-jest.mock('jsonwebtoken', () => ({ __esModule: true, default: { verify: jest.fn(), sign: jest.fn() } }));
+jest.mock('jsonwebtoken', () => ({
+  __esModule: true,
+  default: { verify: jest.fn(), sign: jest.fn() }
+}));
 
 afterEach(() => {
   jest.clearAllMocks();
@@ -34,15 +37,21 @@ afterEach(() => {
 describe('Auth Service (consolidated)', () => {
   it('registerUser rejects invalid name or email', async () => {
     const { registerUser } = require('../../../src/services/auth.service');
-    await expect(registerUser({ name: 'bad<>', email: 'a@b', password: 'P@ssw0rd!' } as any))
-      .rejects.toThrow();
+    await expect(
+      registerUser({ name: 'bad<>', email: 'a@b', password: 'P@ssw0rd!' } as any)
+    ).rejects.toThrow();
   });
 
   it('registerUser creates user in test env and returns sanitized object', async () => {
     process.env.NODE_ENV = 'test';
     process.env.SEND_CONFIRMATION_EMAIL = 'false';
     mockBcryptHash.mockResolvedValue('hashed');
-    const fakeUser = { _id: 'u1', email: 'x@y.com', name: 'X', toJSON: jest.fn(() => ({ _id: 'u1', email: 'x@y.com' })) };
+    const fakeUser = {
+      _id: 'u1',
+      email: 'x@y.com',
+      name: 'X',
+      toJSON: jest.fn(() => ({ _id: 'u1', email: 'x@y.com' }))
+    };
     mockUserCreate.mockResolvedValue(fakeUser);
     const { registerUser } = require('../../../src/services/auth.service');
     const res = await registerUser({ name: 'X', email: 'x@y.com', password: 'P@ssw0rd!' });
@@ -55,16 +64,41 @@ describe('Auth Service (consolidated)', () => {
     mockUserFindOne.mockResolvedValue(null);
     await expect(loginUser({ email: 'a@b.com', password: 'p' })).rejects.toThrow('User not found');
 
-    mockUserFindOne.mockResolvedValue({ _id: 'u1', email: 'a@b.com', password: 'p', active: false });
-    await expect(loginUser({ email: 'a@b.com', password: 'p' })).rejects.toThrow('User account is not active');
+    mockUserFindOne.mockResolvedValue({
+      _id: 'u1',
+      email: 'a@b.com',
+      password: 'p',
+      active: false
+    });
+    await expect(loginUser({ email: 'a@b.com', password: 'p' })).rejects.toThrow(
+      'User account is not active'
+    );
 
-    mockUserFindOne.mockResolvedValue({ _id: 'u1', email: 'a@b.com', password: 'p', active: true, role: 'user', tokenVersion: 0, toJSON: jest.fn(() => ({ email: 'a@b.com' })) });
+    mockUserFindOne.mockResolvedValue({
+      _id: 'u1',
+      email: 'a@b.com',
+      password: 'p',
+      active: true,
+      role: 'user',
+      tokenVersion: 0,
+      toJSON: jest.fn(() => ({ email: 'a@b.com' }))
+    });
     mockBcryptCompare.mockResolvedValue(false);
-    await expect(loginUser({ email: 'a@b.com', password: 'p' })).rejects.toThrow('Invalid password');
+    await expect(loginUser({ email: 'a@b.com', password: 'p' })).rejects.toThrow(
+      'Invalid password'
+    );
   });
 
   it('loginUser returns token and user on success', async () => {
-    mockUserFindOne.mockResolvedValue({ _id: 'u1', email: 'a@b.com', password: 'p', active: true, role: 'user', tokenVersion: 0, toJSON: jest.fn(() => ({ email: 'a@b.com' })) });
+    mockUserFindOne.mockResolvedValue({
+      _id: 'u1',
+      email: 'a@b.com',
+      password: 'p',
+      active: true,
+      role: 'user',
+      tokenVersion: 0,
+      toJSON: jest.fn(() => ({ email: 'a@b.com' }))
+    });
     mockBcryptCompare.mockResolvedValue(true);
     const { loginUser } = require('../../../src/services/auth.service');
     const res = await loginUser({ email: 'a@b.com', password: 'p' });
@@ -75,7 +109,13 @@ describe('Auth Service (consolidated)', () => {
   it('requestPasswordReset and resetPassword flows', async () => {
     process.env.SEND_CONFIRMATION_EMAIL = 'false';
     const saveMock = jest.fn().mockResolvedValue(true);
-    mockUserFindOne.mockResolvedValue({ _id: 'u1', name: 'X', email: 'a@b.com', active: true, save: saveMock });
+    mockUserFindOne.mockResolvedValue({
+      _id: 'u1',
+      name: 'X',
+      email: 'a@b.com',
+      active: true,
+      save: saveMock
+    });
     const { requestPasswordReset, resetPassword } = require('../../../src/services/auth.service');
     const token = await requestPasswordReset('a@b.com');
     expect(typeof token).toBe('string');
@@ -84,7 +124,9 @@ describe('Auth Service (consolidated)', () => {
     mockUserFindOne.mockResolvedValue({ _id: 'u1', tokenVersion: 0, save: saveMock });
     const bcrypt = require('bcryptjs');
     bcrypt.hash.mockResolvedValue('newhash');
-    await expect(resetPassword({ token: 't', newPassword: 'P@ssw0rd1', confirmPassword: 'P@ssw0rd1' })).resolves.toBeUndefined();
+    await expect(
+      resetPassword({ token: 't', newPassword: 'P@ssw0rd1', confirmPassword: 'P@ssw0rd1' })
+    ).resolves.toBeUndefined();
     expect(saveMock).toHaveBeenCalled();
   });
 

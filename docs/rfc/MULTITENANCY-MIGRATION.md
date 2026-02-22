@@ -183,7 +183,7 @@ interface IFolder {
 
 #### Métodos de Permisos
 
-**1. hasAccess(userId, requiredRole?)**
+##### 1. hasAccess(userId, requiredRole?)
 
 Verifica si un usuario tiene acceso con un rol específico.
 
@@ -201,7 +201,7 @@ folder.hasAccess(userId, 'editor'); // boolean
 - Si se especifica `requiredRole`, verifica jerarquía (owner > editor > viewer)
 - Retorna `true` si el usuario tiene el rol requerido o superior
 
-**2. shareWith(userId, role?)**
+### 2. shareWith(userId, role? )
 
 Comparte la carpeta con un usuario asignándole un rol.
 
@@ -220,7 +220,7 @@ folder.shareWith(userId, 'editor');
 - Default role: `'viewer'`
 - Si ya existe, actualiza el rol
 
-**3. unshareWith(userId)**
+### 3. unshareWith(userId)
 
 Remueve el acceso de un usuario.
 
@@ -637,7 +637,7 @@ Los tests del sistema anterior (folders, documents, etc.) necesitarán actualiza
 - Usar getActiveOrganization() en lugar de pasar organizationId
 - Verificar validaciones de límites de plan
   // 1. Crear membership + rootFolder físico
-  createMembership(userId, organizationId, role, invitedBy?): Promise<IMembership>
+ ''' createMembership(userId, organizationId, role, invitedBy?): Promise<IMembership>
 
 // 2. Eliminar membership (soft delete) + limpieza storage
 removeMembership(userId, organizationId): Promise<void>
@@ -666,7 +666,7 @@ updateMembershipRole(userId, organizationId, newRole): Promise<IMembership>
 // 10. Transferir ownership
 transferOwnership(currentOwnerId, newOwnerId, organizationId): Promise<void>
 
-````
+````text
 
 ---
 
@@ -737,7 +737,7 @@ await user.save();
 await document.remove();
 }
 
-````
+````test
 
 ---
 

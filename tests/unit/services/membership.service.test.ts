@@ -4,7 +4,7 @@ jest.mock('../../../src/models/membership.model', () => ({
   findOne: jest.fn(),
   countDocuments: jest.fn(),
   MembershipRole: { MEMBER: 'member' },
-  MembershipStatus: { ACTIVE: 'active', PENDING: 'pending' },
+  MembershipStatus: { ACTIVE: 'active', PENDING: 'pending' }
 }));
 
 const membershipService = require('../../../src/services/membership.service');

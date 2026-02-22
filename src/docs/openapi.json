@@ -45,17 +45,20 @@
           "id": { "type": "string", "description": "ID único de la membresía" },
           "user": { "type": "string", "description": "ID del usuario" },
           "organization": { "type": "string", "description": "ID de la organización" },
-          "role": { 
-            "type": "string", 
+          "role": {
+            "type": "string",
             "enum": ["viewer", "member", "admin", "owner"],
             "description": "Rol del usuario en la organización"
           },
-          "status": { 
-            "type": "string", 
+          "status": {
+            "type": "string",
             "enum": ["active", "suspended"],
             "description": "Estado de la membresía"
           },
-          "rootFolder": { "type": "string", "description": "ID de la carpeta raíz específica para esta organización" },
+          "rootFolder": {
+            "type": "string",
+            "description": "ID de la carpeta raíz específica para esta organización"
+          },
           "invitedBy": { "type": "string", "description": "ID del usuario que invitó" },
           "joinedAt": { "type": "string", "format": "date-time" },
           "createdAt": { "type": "string", "format": "date-time" },
@@ -66,7 +69,10 @@
         "type": "object",
         "properties": {
           "id": { "type": "string", "description": "ID único de la organización" },
-          "name": { "type": "string", "description": "Nombre de la organización (3-100 caracteres)" },
+          "name": {
+            "type": "string",
+            "description": "Nombre de la organización (3-100 caracteres)"
+          },
           "slug": { "type": "string", "description": "Identificador URL-safe único" },
           "owner": { "type": "string", "description": "ID del usuario propietario" },
           "plan": {
@@ -74,22 +80,31 @@
             "enum": ["FREE", "BASIC", "PREMIUM", "ENTERPRISE"],
             "description": "Plan de suscripción de la organización"
           },
-          "members": { 
-            "type": "array", 
+          "members": {
+            "type": "array",
             "items": { "type": "string" },
             "description": "IDs de usuarios miembros (legacy - usar Membership)"
           },
           "settings": {
             "type": "object",
             "properties": {
-              "maxStoragePerUser": { "type": "number", "description": "Límite de almacenamiento por usuario en bytes" },
-              "maxStorageTotal": { "type": "number", "description": "Límite de almacenamiento total de la organización en bytes (-1 = ilimitado)" },
-              "allowedFileTypes": { 
-                "type": "array", 
+              "maxStoragePerUser": {
+                "type": "number",
+                "description": "Límite de almacenamiento por usuario en bytes"
+              },
+              "maxStorageTotal": {
+                "type": "number",
+                "description": "Límite de almacenamiento total de la organización en bytes (-1 = ilimitado)"
+              },
+              "allowedFileTypes": {
+                "type": "array",
                 "items": { "type": "string" },
                 "description": "Extensiones de archivo permitidas"
               },
-              "maxUsers": { "type": "number", "description": "Número máximo de usuarios (-1 = ilimitado)" }
+              "maxUsers": {
+                "type": "number",
+                "description": "Número máximo de usuarios (-1 = ilimitado)"
+              }
             }
           },
           "active": { "type": "boolean", "description": "Estado de la organización" },
@@ -101,7 +116,10 @@
         "type": "object",
         "properties": {
           "totalUsers": { "type": "number" },
-          "totalStorage": { "type": "number", "description": "Almacenamiento total usado en bytes" },
+          "totalStorage": {
+            "type": "number",
+            "description": "Almacenamiento total usado en bytes"
+          },
           "totalDocuments": { "type": "number" },
           "totalFolders": { "type": "number" }
         }
@@ -113,7 +131,10 @@
           "name": { "type": "string" },
           "email": { "type": "string", "format": "email" },
           "role": { "type": "string", "enum": ["user", "admin"] },
-          "organization": { "type": "string", "description": "ID de la organización activa del usuario (opcional)" },
+          "organization": {
+            "type": "string",
+            "description": "ID de la organización activa del usuario (opcional)"
+          },
           "storageUsed": { "type": "number", "description": "Almacenamiento usado en bytes" },
           "active": { "type": "boolean" },
           "createdAt": { "type": "string", "format": "date-time" },
@@ -124,21 +145,32 @@
         "type": "object",
         "properties": {
           "id": { "type": "string" },
-          "name": { "type": "string", "description": "Identificador técnico (e.g., root_user_123)" },
+          "name": {
+            "type": "string",
+            "description": "Identificador técnico (e.g., root_user_123)"
+          },
           "displayName": { "type": "string", "description": "Nombre visible para el usuario" },
-          "type": { "type": "string", "enum": ["folder", "root"], "description": "Tipo de carpeta" },
+          "type": {
+            "type": "string",
+            "enum": ["folder", "root"],
+            "description": "Tipo de carpeta"
+          },
           "organization": { "type": "string", "description": "ID de la organización" },
           "owner": { "type": "string", "description": "ID del propietario" },
           "parent": { "type": "string", "description": "ID de la carpeta padre (null para root)" },
           "path": { "type": "string", "description": "Ruta completa de la carpeta" },
           "isRoot": { "type": "boolean", "description": "Indica si es carpeta raíz" },
-          "sharedWith": { 
-            "type": "array", 
-            "items": { 
+          "sharedWith": {
+            "type": "array",
+            "items": {
               "type": "object",
               "properties": {
                 "user": { "type": "string", "description": "ID del usuario" },
-                "role": { "type": "number", "enum": [1, 2, 3], "description": "1=viewer, 2=editor, 3=owner" }
+                "role": {
+                  "type": "number",
+                  "enum": [1, 2, 3],
+                  "description": "1=viewer, 2=editor, 3=owner"
+                }
               }
             }
           },
@@ -265,13 +297,28 @@
                 "type": "object",
                 "required": ["name"],
                 "properties": {
-                  "name": { "type": "string", "minLength": 3, "maxLength": 100, "description": "Nombre de la organización" },
+                  "name": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 100,
+                    "description": "Nombre de la organización"
+                  },
                   "settings": {
                     "type": "object",
                     "properties": {
-                      "maxStoragePerUser": { "type": "number", "description": "Bytes (default: 5GB)" },
-                      "allowedFileTypes": { "type": "array", "items": { "type": "string" }, "description": "Tipos MIME permitidos" },
-                      "maxUsers": { "type": "number", "description": "Máximo de usuarios (default: 50)" }
+                      "maxStoragePerUser": {
+                        "type": "number",
+                        "description": "Bytes (default: 5GB)"
+                      },
+                      "allowedFileTypes": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Tipos MIME permitidos"
+                      },
+                      "maxUsers": {
+                        "type": "number",
+                        "description": "Máximo de usuarios (default: 50)"
+                      }
                     }
                   }
                 }
@@ -280,7 +327,7 @@
           }
         },
         "responses": {
-          "201": { 
+          "201": {
             "description": "Organización creada exitosamente",
             "content": {
               "application/json": {
@@ -330,7 +377,13 @@
         "tags": ["Organizations"],
         "description": "Retorna información completa de la organización con miembros poblados",
         "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" }, "description": "ID de la organización" }
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "ID de la organización"
+          }
         ],
         "responses": {
           "200": {
@@ -491,8 +544,20 @@
         "tags": ["Organizations"],
         "description": "Remueve un usuario de la organización. No se puede remover al propietario",
         "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" }, "description": "ID de la organización" },
-          { "name": "userId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "ID del usuario a remover" }
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "ID de la organización"
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "ID del usuario a remover"
+          }
         ],
         "responses": {
           "200": {
@@ -552,7 +617,7 @@
                 "properties": {
                   "name": { "type": "string", "minLength": 2 },
                   "email": { "type": "string", "format": "email" },
-                  "password": { 
+                  "password": {
                     "type": "string",
                     "description": "Mínimo 8 caracteres, debe incluir mayúscula, minúscula, número y carácter especial"
                   }
@@ -562,7 +627,7 @@
           }
         },
         "responses": {
-          "201": { 
+          "201": {
             "description": "Usuario registrado exitosamente",
             "content": {
               "application/json": {
@@ -602,7 +667,7 @@
           }
         },
         "responses": {
-          "200": { 
+          "200": {
             "description": "Autenticación correcta",
             "content": {
               "application/json": {
@@ -708,7 +773,7 @@
         "summary": "Listar usuarios (admin)",
         "tags": ["Users"],
         "responses": {
-          "200": { 
+          "200": {
             "description": "Lista de usuarios",
             "content": {
               "application/json": {
@@ -729,12 +794,14 @@
       }
     },
     "/api/users/{id}/activate": {
-      "patch": { 
-        "summary": "Activar usuario (admin)", 
+      "patch": {
+        "summary": "Activar usuario (admin)",
         "tags": ["Users"],
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }], 
-        "responses": { 
-          "200": { 
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
             "description": "Usuario activado",
             "content": {
               "application/json": {
@@ -746,12 +813,14 @@
       }
     },
     "/api/users/{id}/deactivate": {
-      "patch": { 
-        "summary": "Desactivar usuario (admin)", 
+      "patch": {
+        "summary": "Desactivar usuario (admin)",
         "tags": ["Users"],
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }], 
-        "responses": { 
-          "200": { 
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
             "description": "Usuario desactivado",
             "content": {
               "application/json": {
@@ -763,26 +832,28 @@
       }
     },
     "/api/users/{id}": {
-      "put": { 
-        "summary": "Actualizar usuario", 
+      "put": {
+        "summary": "Actualizar usuario",
         "tags": ["Users"],
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }], 
-        "requestBody": { 
-          "required": true, 
-          "content": { 
-            "application/json": { 
-              "schema": { 
-                "type": "object", 
-                "properties": { 
-                  "name": { "type": "string" }, 
-                  "email": { "type": "string", "format": "email" } 
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "email": { "type": "string", "format": "email" }
                 }
               }
             }
           }
-        }, 
-        "responses": { 
-          "200": { 
+        },
+        "responses": {
+          "200": {
             "description": "Usuario actualizado",
             "content": {
               "application/json": {
@@ -798,12 +869,14 @@
           }
         }
       },
-      "delete": { 
-        "summary": "Eliminar usuario (admin)", 
+      "delete": {
+        "summary": "Eliminar usuario (admin)",
         "tags": ["Users"],
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }], 
-        "responses": { 
-          "200": { 
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
             "description": "Usuario eliminado",
             "content": {
               "application/json": {
@@ -815,27 +888,32 @@
       }
     },
     "/api/users/{id}/password": {
-      "patch": { 
-        "summary": "Cambiar contraseña", 
+      "patch": {
+        "summary": "Cambiar contraseña",
         "tags": ["Users"],
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }], 
-        "requestBody": { 
-          "required": true, 
-          "content": { 
-            "application/json": { 
-              "schema": { 
-                "type": "object", 
-                "required": ["currentPassword", "newPassword"], 
-                "properties": { 
-                  "currentPassword": { "type": "string" }, 
-                  "newPassword": { "type": "string", "description": "Debe cumplir política de contraseñas" }
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["currentPassword", "newPassword"],
+                "properties": {
+                  "currentPassword": { "type": "string" },
+                  "newPassword": {
+                    "type": "string",
+                    "description": "Debe cumplir política de contraseñas"
+                  }
                 }
               }
             }
           }
-        }, 
-        "responses": { 
-          "200": { 
+        },
+        "responses": {
+          "200": {
             "description": "Contraseña cambiada",
             "content": {
               "application/json": {
@@ -847,13 +925,13 @@
       }
     },
     "/api/folders": {
-      "get": { 
+      "get": {
         "summary": "Listar carpetas del usuario (DEPRECATED - usar /api/folders/tree)",
         "tags": ["Folders"],
         "deprecated": true,
         "description": "Endpoint legacy. Usar /api/folders/tree para estructura jerárquica",
-        "responses": { 
-          "200": { 
+        "responses": {
+          "200": {
             "description": "Lista de carpetas",
             "content": {
               "application/json": {
@@ -872,28 +950,31 @@
           }
         }
       },
-      "post": { 
-        "summary": "Crear carpeta", 
+      "post": {
+        "summary": "Crear carpeta",
         "tags": ["Folders"],
         "description": "Crea una subcarpeta dentro de una carpeta padre. El parentId es REQUERIDO",
-        "requestBody": { 
-          "required": true, 
-          "content": { 
-            "application/json": { 
-              "schema": { 
-                "type": "object", 
-                "required": ["name", "parentId", "organizationId"], 
-                "properties": { 
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "parentId", "organizationId"],
+                "properties": {
                   "name": { "type": "string", "description": "Nombre visible de la carpeta" },
-                  "parentId": { "type": "string", "description": "ID de la carpeta padre (REQUERIDO)" },
+                  "parentId": {
+                    "type": "string",
+                    "description": "ID de la carpeta padre (REQUERIDO)"
+                  },
                   "organizationId": { "type": "string", "description": "ID de la organización" }
                 }
               }
             }
           }
-        }, 
-        "responses": { 
-          "201": { 
+        },
+        "responses": {
+          "201": {
             "description": "Carpeta creada",
             "content": {
               "application/json": {
@@ -906,7 +987,7 @@
                 }
               }
             }
-          }, 
+          },
           "400": { "$ref": "#/components/responses/BadRequest" },
           "403": { "$ref": "#/components/responses/Forbidden" }
         }
@@ -918,10 +999,10 @@
         "tags": ["Folders"],
         "description": "Retorna estructura completa de carpetas del usuario en formato árbol anidado",
         "parameters": [
-          { 
-            "name": "organizationId", 
-            "in": "query", 
-            "required": true, 
+          {
+            "name": "organizationId",
+            "in": "query",
+            "required": true,
             "schema": { "type": "string" },
             "description": "ID de la organización"
           }
@@ -951,7 +1032,13 @@
         "tags": ["Folders"],
         "description": "Retorna la carpeta con sus subcarpetas inmediatas y documentos",
         "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" }, "description": "ID de la carpeta" }
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "ID de la carpeta"
+          }
         ],
         "responses": {
           "200": {
@@ -989,8 +1076,15 @@
                 "type": "object",
                 "required": ["userId", "role"],
                 "properties": {
-                  "userId": { "type": "string", "description": "ID del usuario con quien compartir" },
-                  "role": { "type": "number", "enum": [1, 2], "description": "1=viewer (solo lectura), 2=editor (lectura/escritura)" }
+                  "userId": {
+                    "type": "string",
+                    "description": "ID del usuario con quien compartir"
+                  },
+                  "role": {
+                    "type": "number",
+                    "enum": [1, 2],
+                    "description": "1=viewer (solo lectura), 2=editor (lectura/escritura)"
+                  }
                 }
               }
             }
@@ -1018,27 +1112,29 @@
       }
     },
     "/api/folders/{id}": {
-      "patch": { 
-        "summary": "Renombrar carpeta", 
+      "patch": {
+        "summary": "Renombrar carpeta",
         "tags": ["Folders"],
         "description": "Cambia el displayName de la carpeta. Las carpetas raíz no pueden cambiar su nombre técnico",
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }], 
-        "requestBody": { 
-          "required": true, 
-          "content": { 
-            "application/json": { 
-              "schema": { 
-                "type": "object", 
-                "required": ["name"], 
-                "properties": { 
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
                   "name": { "type": "string", "description": "Nuevo nombre visible" }
                 }
               }
             }
           }
-        }, 
-        "responses": { 
-          "200": { 
+        },
+        "responses": {
+          "200": {
             "description": "Carpeta renombrada",
             "content": {
               "application/json": {
@@ -1056,16 +1152,21 @@
           "403": { "$ref": "#/components/responses/Forbidden" }
         }
       },
-      "delete": { 
-        "summary": "Eliminar carpeta", 
+      "delete": {
+        "summary": "Eliminar carpeta",
         "tags": ["Folders"],
         "description": "Elimina carpeta vacía. Usar ?force=true para eliminar con contenido. No se puede eliminar carpeta raíz",
-        "parameters": [ 
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }, 
-          { "name": "force", "in": "query", "schema": { "type": "boolean" }, "description": "Forzar eliminación con contenido" }
-        ], 
-        "responses": { 
-          "200": { 
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
+          {
+            "name": "force",
+            "in": "query",
+            "schema": { "type": "boolean" },
+            "description": "Forzar eliminación con contenido"
+          }
+        ],
+        "responses": {
+          "200": {
             "description": "Carpeta eliminada",
             "content": {
               "application/json": {
@@ -1079,12 +1180,12 @@
       }
     },
     "/api/documents": {
-      "get": { 
-        "summary": "Listar documentos del usuario", 
+      "get": {
+        "summary": "Listar documentos del usuario",
         "tags": ["Documents"],
         "description": "Retorna todos los documentos del usuario autenticado",
-        "responses": { 
-          "200": { 
+        "responses": {
+          "200": {
             "description": "Lista de documentos",
             "content": {
               "application/json": {
@@ -1110,15 +1211,15 @@
         "tags": ["Documents"],
         "description": "Retorna los documentos más recientemente subidos por el usuario",
         "parameters": [
-          { 
-            "name": "organizationId", 
-            "in": "query", 
-            "required": true, 
+          {
+            "name": "organizationId",
+            "in": "query",
+            "required": true,
             "schema": { "type": "string" }
           },
-          { 
-            "name": "limit", 
-            "in": "query", 
+          {
+            "name": "limit",
+            "in": "query",
             "schema": { "type": "number", "default": 10 },
             "description": "Número máximo de documentos a retornar"
           }
@@ -1172,13 +1273,15 @@
           "404": { "$ref": "#/components/responses/NotFound" }
         }
       },
-      "delete": { 
-        "summary": "Eliminar documento", 
+      "delete": {
+        "summary": "Eliminar documento",
         "tags": ["Documents"],
         "description": "Elimina el documento del sistema de archivos y base de datos. Actualiza storageUsed del usuario",
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }], 
-        "responses": { 
-          "200": { 
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
             "description": "Documento eliminado",
             "content": {
               "application/json": {
@@ -1286,20 +1389,23 @@
           "required": true,
           "content": {
             "multipart/form-data": {
-              "schema": { 
+              "schema": {
                 "type": "object",
                 "required": ["file", "folderId", "organizationId"],
-                "properties": { 
-                  "file": { "type": "string", "format": "binary" }, 
-                  "folderId": { "type": "string", "description": "ID de la carpeta destino (REQUERIDO)" },
+                "properties": {
+                  "file": { "type": "string", "format": "binary" },
+                  "folderId": {
+                    "type": "string",
+                    "description": "ID de la carpeta destino (REQUERIDO)"
+                  },
                   "organizationId": { "type": "string", "description": "ID de la organización" }
                 }
               }
             }
           }
         },
-        "responses": { 
-          "201": { 
+        "responses": {
+          "201": {
             "description": "Documento subido exitosamente",
             "content": {
               "application/json": {
@@ -1312,28 +1418,30 @@
                 }
               }
             }
-          }, 
+          },
           "400": { "$ref": "#/components/responses/BadRequest" },
           "403": { "$ref": "#/components/responses/Forbidden" }
         }
       }
     },
     "/api/documents/{id}/share": {
-      "post": { 
-        "summary": "Compartir documento", 
+      "post": {
+        "summary": "Compartir documento",
         "tags": ["Documents"],
         "description": "Comparte el documento con otros usuarios agregándolos al array sharedWith",
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }], 
-        "requestBody": { 
-          "required": true, 
-          "content": { 
-            "application/json": { 
-              "schema": { 
-                "type": "object", 
-                "required": ["userIds"], 
-                "properties": { 
-                  "userIds": { 
-                    "type": "array", 
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["userIds"],
+                "properties": {
+                  "userIds": {
+                    "type": "array",
                     "items": { "type": "string" },
                     "description": "IDs de usuarios con quienes compartir"
                   }
@@ -1341,9 +1449,9 @@
               }
             }
           }
-        }, 
-        "responses": { 
-          "200": { 
+        },
+        "responses": {
+          "200": {
             "description": "Documento compartido",
             "content": {
               "application/json": {
@@ -1363,13 +1471,15 @@
       }
     },
     "/api/documents/download/{id}": {
-      "get": { 
-        "summary": "Descargar documento", 
+      "get": {
+        "summary": "Descargar documento",
         "tags": ["Documents"],
         "description": "Descarga el archivo físico si el usuario tiene acceso",
-        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }], 
-        "responses": { 
-          "200": { 
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
             "description": "Archivo descargado",
             "content": {
               "application/octet-stream": {
@@ -1379,7 +1489,7 @@
                 }
               }
             }
-          }, 
+          },
           "403": { "$ref": "#/components/responses/Forbidden" },
           "404": { "$ref": "#/components/responses/NotFound" }
         }
@@ -1425,7 +1535,10 @@
                 "type": "object",
                 "required": ["organizationId"],
                 "properties": {
-                  "organizationId": { "type": "string", "description": "ID de la organización a activar" }
+                  "organizationId": {
+                    "type": "string",
+                    "description": "ID de la organización a activar"
+                  }
                 }
               }
             }
@@ -1458,7 +1571,12 @@
         "tags": ["Memberships"],
         "description": "Retorna todas las membresías activas de la organización con información de usuarios",
         "parameters": [
-          { "name": "organizationId", "in": "path", "required": true, "schema": { "type": "string" } }
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
         ],
         "responses": {
           "200": {
@@ -1487,7 +1605,12 @@
         "tags": ["Memberships"],
         "description": "Crea una nueva membresía y carpeta raíz para el usuario. Solo OWNER o ADMIN pueden invitar.",
         "parameters": [
-          { "name": "organizationId", "in": "path", "required": true, "schema": { "type": "string" } }
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
         ],
         "requestBody": {
           "required": true,
@@ -1536,7 +1659,12 @@
         "tags": ["Memberships"],
         "description": "Suspende la membresía. No se puede eliminar al OWNER. Solo OWNER o ADMIN pueden eliminar miembros.",
         "parameters": [
-          { "name": "organizationId", "in": "path", "required": true, "schema": { "type": "string" } },
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
           { "name": "membershipId", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "responses": {
@@ -1558,7 +1686,12 @@
         "tags": ["Memberships"],
         "description": "Cambia el rol de un miembro. No se puede cambiar el rol del OWNER. Solo OWNER puede cambiar roles.",
         "parameters": [
-          { "name": "organizationId", "in": "path", "required": true, "schema": { "type": "string" } },
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
           { "name": "membershipId", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "requestBody": {
@@ -1614,8 +1747,8 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "token": { 
-                      "type": "string", 
+                    "token": {
+                      "type": "string",
                       "description": "Token CSRF para incluir en headers de peticiones que modifican datos"
                     }
                   }
@@ -1689,7 +1822,10 @@
                       "type": "array",
                       "items": { "$ref": "#/components/schemas/Document" }
                     },
-                    "total": { "type": "integer", "description": "Total de resultados encontrados" },
+                    "total": {
+                      "type": "integer",
+                      "description": "Total de resultados encontrados"
+                    },
                     "limit": { "type": "integer" },
                     "offset": { "type": "integer" }
                   }

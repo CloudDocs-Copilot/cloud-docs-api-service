@@ -43,7 +43,7 @@ export interface IUser extends Document {
 
 /**
  * Schema de Mongoose para el modelo de Usuario
- * 
+ *
  * Características:
  * - Email único
  * - Contraseña hasheada (nunca se expone en JSON)
@@ -58,7 +58,7 @@ const userSchema = new Schema<IUser>(
       required: [true, 'User name is required'],
       trim: true,
       minlength: [2, 'User name must be at least 2 characters'],
-      maxlength: [100, 'User name cannot exceed 100 characters'],
+      maxlength: [100, 'User name cannot exceed 100 characters']
     },
     email: {
       type: String,
@@ -69,22 +69,22 @@ const userSchema = new Schema<IUser>(
       maxlength: [255, 'Email cannot exceed 255 characters'],
       match: [
         /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
-        'Please provide a valid email address',
-      ],
+        'Please provide a valid email address'
+      ]
     },
     password: {
       type: String,
       required: [true, 'Password is required'],
       minlength: [8, 'Password must be at least 8 characters'],
-      maxlength: [128, 'Password cannot exceed 128 characters'],
+      maxlength: [128, 'Password cannot exceed 128 characters']
     },
     role: {
       type: String,
       enum: {
         values: ['user', 'admin'],
-        message: '{VALUE} is not a valid user role',
+        message: '{VALUE} is not a valid user role'
       },
-      default: 'user',
+      default: 'user'
     },
     active: { type: Boolean, default: false },
     tokenVersion: { type: Number, default: 0 },
@@ -98,28 +98,28 @@ const userSchema = new Schema<IUser>(
     organization: {
       type: Schema.Types.ObjectId,
       ref: 'Organization',
-      index: true,
+      index: true
     },
     rootFolder: {
       type: Schema.Types.ObjectId,
-      ref: 'Folder',
+      ref: 'Folder'
     },
     storageUsed: {
       type: Number,
       default: 0,
-      min: [0, 'Storage used cannot be negative'],
+      min: [0, 'Storage used cannot be negative']
     },
     avatar: {
       type: String,
       trim: true,
       maxlength: [2048, 'Avatar URL cannot exceed 2048 characters'],
-      default: null,
+      default: null
     },
     preferences: {
       emailNotifications: { type: Boolean, default: true },
       documentUpdates: { type: Boolean, default: true },
       aiAnalysis: { type: Boolean, default: true }
-    },
+    }
   },
   {
     timestamps: true,

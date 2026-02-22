@@ -25,17 +25,17 @@ describe('UserController Integration Tests', () => {
       email: 'user@test.com',
       password: await bcrypt.hash('password123', 10),
       role: 'user',
-      active: true,
+      active: true
     });
     testUserId = user1._id;
-    
+
     // Esperar para asegurar que tokenCreatedAt > user.updatedAt
     await new Promise(resolve => setTimeout(resolve, 100));
-    
+
     testToken = jwtService.signToken({
       id: testUserId.toString(),
       email: 'user@test.com',
-      role: 'user',
+      role: 'user'
     });
 
     const user2 = await User.create({
@@ -43,7 +43,7 @@ describe('UserController Integration Tests', () => {
       email: 'user2@test.com',
       password: await bcrypt.hash('password123', 10),
       role: 'user',
-      active: true,
+      active: true
     });
     testUser2Id = user2._id;
 
@@ -52,16 +52,16 @@ describe('UserController Integration Tests', () => {
       email: 'admin@test.com',
       password: await bcrypt.hash('password123', 10),
       role: 'admin',
-      active: true,
+      active: true
     });
     adminUserId = adminUser._id;
 
     await new Promise(resolve => setTimeout(resolve, 100));
-    
+
     adminToken = jwtService.signToken({
       id: adminUserId.toString(),
       email: 'admin@test.com',
-      role: 'admin',
+      role: 'admin'
     });
   });
 
@@ -75,13 +75,13 @@ describe('UserController Integration Tests', () => {
     await User.deleteMany({
       _id: { $nin: [testUserId, testUser2Id, adminUserId] }
     });
-    
+
     // Restaurar usuarios de prueba al estado original si fueron modificados
     await User.findByIdAndUpdate(testUserId, {
       name: 'Test User',
       email: 'user@test.com',
       active: true,
-      avatar: null,
+      avatar: null
     });
   });
 
@@ -89,7 +89,7 @@ describe('UserController Integration Tests', () => {
     describe('Success Cases', () => {
       it('should update own avatar successfully', async () => {
         const avatarUrl = 'https://example.com/avatar.jpg';
-        
+
         const response = await request(app)
           .patch(`/api/users/${testUserId}/avatar`)
           .set('Authorization', `Bearer ${testToken}`)
@@ -107,7 +107,7 @@ describe('UserController Integration Tests', () => {
 
       it('should NOT allow admin to update other user avatar', async () => {
         const avatarUrl = 'https://example.com/admin-updated-avatar.jpg';
-        
+
         await request(app)
           .patch(`/api/users/${testUserId}/avatar`)
           .set('Authorization', `Bearer ${adminToken}`)
@@ -116,8 +116,9 @@ describe('UserController Integration Tests', () => {
       });
 
       it('should accept valid data URLs as avatars', async () => {
-        const dataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
-        
+        const dataUrl =
+          'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
         const response = await request(app)
           .patch(`/api/users/${testUserId}/avatar`)
           .set('Authorization', `Bearer ${testToken}`)
@@ -130,7 +131,7 @@ describe('UserController Integration Tests', () => {
       it('should update avatar to empty string (remove avatar)', async () => {
         // Primero establecer un avatar
         await User.findByIdAndUpdate(testUserId, { avatar: 'https://example.com/avatar.jpg' });
-        
+
         const response = await request(app)
           .patch(`/api/users/${testUserId}/avatar`)
           .set('Authorization', `Bearer ${testToken}`)
@@ -142,7 +143,7 @@ describe('UserController Integration Tests', () => {
 
       it('should accept relative paths as avatars', async () => {
         const relativePath = '/uploads/avatars/user123.jpg';
-        
+
         const response = await request(app)
           .patch(`/api/users/${testUserId}/avatar`)
           .set('Authorization', `Bearer ${testToken}`)
@@ -166,7 +167,7 @@ describe('UserController Integration Tests', () => {
 
       it('should fail when avatar exceeds max length (2048 chars)', async () => {
         const longUrl = 'https://example.com/' + 'a'.repeat(2050);
-        
+
         const response = await request(app)
           .patch(`/api/users/${testUserId}/avatar`)
           .set('Authorization', `Bearer ${testToken}`)
@@ -179,7 +180,7 @@ describe('UserController Integration Tests', () => {
 
       it('should fail when user does not exist', async () => {
         const nonExistentId = new mongoose.Types.ObjectId();
-        
+
         // Un usuario regular no puede actualizar otro usuario (aunque no exista)
         const response = await request(app)
           .patch(`/api/users/${nonExistentId}/avatar`)
@@ -223,7 +224,7 @@ describe('UserController Integration Tests', () => {
           {
             id: testUserId.toString(),
             email: 'user@test.com',
-            role: 'user',
+            role: 'user'
           },
           { expiresIn: '-1h' } // Token expirado hace 1 hora
         );
@@ -249,7 +250,7 @@ describe('UserController Integration Tests', () => {
 
       it('should trim whitespace from avatar URL', async () => {
         const avatarUrl = '  https://example.com/avatar.jpg  ';
-        
+
         const response = await request(app)
           .patch(`/api/users/${testUserId}/avatar`)
           .set('Authorization', `Bearer ${testToken}`)
@@ -264,7 +265,7 @@ describe('UserController Integration Tests', () => {
         const urls = [
           'https://example.com/avatar1.jpg',
           'https://example.com/avatar2.jpg',
-          'https://example.com/avatar3.jpg',
+          'https://example.com/avatar3.jpg'
         ];
 
         for (const url of urls) {
@@ -294,7 +295,7 @@ describe('UserController Integration Tests', () => {
 
       it('should preserve other user fields when updating avatar', async () => {
         const originalUser = await User.findById(testUserId);
-        
+
         await request(app)
           .patch(`/api/users/${testUserId}/avatar`)
           .set('Authorization', `Bearer ${testToken}`)
@@ -312,7 +313,7 @@ describe('UserController Integration Tests', () => {
     describe('Security Tests', () => {
       it('should validate against potential XSS in avatar URL', async () => {
         const xssPayload = '<script>alert("XSS")</script>';
-        
+
         const response = await request(app)
           .patch(`/api/users/${testUserId}/avatar`)
           .set('Authorization', `Bearer ${testToken}`)
@@ -325,7 +326,7 @@ describe('UserController Integration Tests', () => {
 
       it('should not allow SQL injection attempts', async () => {
         const sqlInjection = "'; DROP TABLE users; --";
-        
+
         const response = await request(app)
           .patch(`/api/users/${testUserId}/avatar`)
           .set('Authorization', `Bearer ${testToken}`)
@@ -340,7 +341,7 @@ describe('UserController Integration Tests', () => {
     describe('Data Persistence', () => {
       it('should persist avatar across server restarts (simulated)', async () => {
         const avatarUrl = 'https://example.com/persistent-avatar.jpg';
-        
+
         await request(app)
           .patch(`/api/users/${testUserId}/avatar`)
           .set('Authorization', `Bearer ${testToken}`)
@@ -371,7 +372,7 @@ describe('UserController Integration Tests', () => {
           request(app)
             .patch(`/api/users/${testUserId}/avatar`)
             .set('Authorization', `Bearer ${testToken}`)
-            .send({ avatar: 'https://example.com/avatar3.jpg' }),
+            .send({ avatar: 'https://example.com/avatar3.jpg' })
         ];
 
         const responses = await Promise.all(promises);

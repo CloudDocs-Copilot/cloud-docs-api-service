@@ -1800,6 +1800,369 @@
         }
       }
     },
+    "/api/ai/ask": {
+      "post": {
+        "summary": "Hacer pregunta usando RAG",
+        "tags": ["AI"],
+        "description": "Busca información relevante en todos los documentos procesados de la organización y genera una respuesta usando RAG (Retrieval-Augmented Generation)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["question", "organizationId"],
+                "properties": {
+                  "question": {
+                    "type": "string",
+                    "description": "Pregunta del usuario",
+                    "example": "¿Cuáles son los principales objetivos del Q1 2026?"
+                  },
+                  "organizationId": {
+                    "type": "string",
+                    "description": "ID de la organización donde buscar",
+                    "example": "507f1f77bcf86cd799439012"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Respuesta generada exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "answer": {
+                          "type": "string",
+                          "description": "Respuesta generada por el LLM",
+                          "example": "Según los documentos encontrados, los principales objetivos del Q1 2026 son..."
+                        },
+                        "sources": {
+                          "type": "array",
+                          "items": { "type": "string" },
+                          "description": "IDs de documentos utilizados como fuente",
+                          "example": ["507f1f77bcf86cd799439011", "507f1f77bcf86cd799439013"]
+                        },
+                        "chunks": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "documentId": { "type": "string" },
+                              "content": { "type": "string" },
+                              "score": { "type": "number" }
+                            }
+                          },
+                          "description": "Chunks relevantes utilizados (opcional)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/api/ai/documents/{documentId}/ask": {
+      "post": {
+        "summary": "Hacer pregunta sobre un documento específico",
+        "tags": ["AI"],
+        "description": "Busca información relevante dentro de un documento específico y genera una respuesta usando RAG",
+        "parameters": [
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "ID del documento",
+            "example": "507f1f77bcf86cd799439011"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["question"],
+                "properties": {
+                  "question": {
+                    "type": "string",
+                    "description": "Pregunta sobre el documento",
+                    "example": "¿Cuál es el tema principal de este documento?"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Respuesta generada exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "answer": {
+                          "type": "string",
+                          "description": "Respuesta generada",
+                          "example": "El tema principal del documento es..."
+                        },
+                        "sources": {
+                          "type": "array",
+                          "items": { "type": "string" },
+                          "description": "ID del documento (siempre el mismo)",
+                          "example": ["507f1f77bcf86cd799439011"]
+                        },
+                        "chunks": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "documentId": { "type": "string" },
+                              "content": { "type": "string" },
+                              "score": { "type": "number" }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/ai/documents/{documentId}/extract-text": {
+      "get": {
+        "summary": "Extraer texto de un documento",
+        "tags": ["AI"],
+        "description": "Extrae el contenido de texto de documentos en formatos soportados (PDF, DOCX, DOC, TXT, MD). El texto extraído puede usarse para procesar el documento con embeddings",
+        "parameters": [
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "ID del documento",
+            "example": "507f1f77bcf86cd799439011"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Texto extraído exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Text extracted successfully" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "text": {
+                          "type": "string",
+                          "description": "Contenido de texto extraído",
+                          "example": "Este es el contenido del documento..."
+                        },
+                        "charCount": {
+                          "type": "integer",
+                          "description": "Número de caracteres",
+                          "example": 5420
+                        },
+                        "wordCount": {
+                          "type": "integer",
+                          "description": "Número de palabras aproximado",
+                          "example": 890
+                        },
+                        "mimeType": {
+                          "type": "string",
+                          "description": "Tipo MIME del documento",
+                          "example": "application/pdf"
+                        },
+                        "metadata": {
+                          "type": "object",
+                          "description": "Metadata adicional (PDFs incluyen páginas, autor, título, etc.)",
+                          "properties": {
+                            "pages": { "type": "integer", "example": 5 },
+                            "author": { "type": "string", "example": "John Doe" },
+                            "title": { "type": "string", "example": "Informe Anual 2025" },
+                            "subject": { "type": "string" },
+                            "creator": { "type": "string" },
+                            "producer": { "type": "string" },
+                            "creationDate": { "type": "string", "format": "date-time" },
+                            "modificationDate": { "type": "string", "format": "date-time" }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/ai/documents/{documentId}/process": {
+      "post": {
+        "summary": "Procesar documento con chunking y embeddings",
+        "tags": ["AI"],
+        "description": "Procesa el contenido de un documento dividiéndolo en chunks y generando embeddings vectoriales para búsqueda semántica. Solo el propietario puede procesar documentos",
+        "parameters": [
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "ID del documento a procesar",
+            "example": "507f1f77bcf86cd799439011"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["text"],
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "description": "Contenido de texto del documento (extraído previamente con /extract-text)",
+                    "example": "Este es el contenido completo del documento que será dividido en chunks..."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Documento procesado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Document processed successfully" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "documentId": {
+                          "type": "string",
+                          "description": "ID del documento procesado",
+                          "example": "507f1f77bcf86cd799439011"
+                        },
+                        "chunksCreated": {
+                          "type": "integer",
+                          "description": "Número de chunks generados",
+                          "example": 12
+                        },
+                        "dimensions": {
+                          "type": "integer",
+                          "description": "Dimensiones del vector de embedding",
+                          "example": 1536
+                        },
+                        "processingTimeMs": {
+                          "type": "number",
+                          "description": "Tiempo de procesamiento en milisegundos",
+                          "example": 2547.3
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/ai/documents/{documentId}/chunks": {
+      "delete": {
+        "summary": "Eliminar chunks procesados de un documento",
+        "tags": ["AI"],
+        "description": "Elimina todos los chunks y embeddings asociados a un documento. Útil para reprocesar o limpiar documentos obsoletos. Solo el propietario puede eliminar chunks",
+        "parameters": [
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "ID del documento",
+            "example": "507f1f77bcf86cd799439011"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chunks eliminados exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": {
+                      "type": "string",
+                      "example": "Document chunks deleted successfully"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "deletedCount": {
+                          "type": "integer",
+                          "description": "Número de chunks eliminados",
+                          "example": 12
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
     "/api": {
       "get": {
         "summary": "Health check",

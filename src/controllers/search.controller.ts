@@ -44,7 +44,11 @@ export async function search(req: AuthRequest, res: Response, next: NextFunction
 /**
  * Controlador para obtener sugerencias de autocompletado
  */
-export async function autocomplete(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+export async function autocomplete(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
     const { q, limit } = req.query;
 

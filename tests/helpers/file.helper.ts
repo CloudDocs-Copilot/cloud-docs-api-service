@@ -74,7 +74,7 @@ export async function uploadTestFile(
   try {
     let token = '';
     const req = request(app).post('/api/documents/upload');
-    
+
     // Usar cookies si es un array, de lo contrario usar Authorization header
     if (Array.isArray(authData)) {
       const tokenCookie = authData.find((cookie: string) => cookie.startsWith('token='));
@@ -87,11 +87,11 @@ export async function uploadTestFile(
       req.set('Authorization', `Bearer ${authData}`);
       token = authData;
     }
-    
+
     // Si no se proporciona folderId u organizationId, obtenerlos del usuario
     let folderId = options?.folderId;
     let organizationId = options?.organizationId;
-    
+
     if (!folderId || organizationId === undefined) {
       const userId = extractUserIdFromToken(token);
       if (userId) {
@@ -106,16 +106,16 @@ export async function uploadTestFile(
         }
       }
     }
-    
+
     // Construir campos del formulario
     req.attach('file', filePath);
     req.field('folderId', folderId || '');
-    
+
     // Solo enviar organizationId si existe
     if (organizationId) {
       req.field('organizationId', organizationId);
     }
-    
+
     const response = await req;
 
     return response;
@@ -176,7 +176,7 @@ export function cleanupTestFiles(directory: string): void {
     files.forEach(file => {
       const filePath = path.join(directory, file);
       const stat = fs.statSync(filePath);
-      
+
       if (stat.isFile()) {
         fs.unlinkSync(filePath);
       }

@@ -82,7 +82,8 @@ Todas las contraseñas de prueba actualizadas para cumplir con requisitos de seg
 
 ### Registro de Usuario
 
-```
+```text
+
 POST /api/auth/register
    ↓
 auth.controller.register()
@@ -98,7 +99,7 @@ user.save()
 
 ### Cambio de Contraseña
 
-```
+```text
 PATCH /api/users/:id/password
    ↓
 user.controller.changePassword()
@@ -118,7 +119,7 @@ user.save() + tokenVersion++
 
 ### Contraseña Válida ✅
 
-```
+```text
 StrongP@ss123
 MySecure#2024
 Test@1234
@@ -126,7 +127,7 @@ Test@1234
 
 ### Contraseñas Inválidas ❌
 
-```
+```text
 password123    - Sin mayúscula ni carácter especial
 PASSWORD123!   - Sin minúscula
 StrongPass!    - Sin número
@@ -172,7 +173,7 @@ npm test
 
 ### Resultados Esperados
 
-```
+```text
 Test Suites: 5 passed, 5 total
 Tests:       37 passed, 37 total
 ```

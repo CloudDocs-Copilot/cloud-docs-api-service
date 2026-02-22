@@ -87,7 +87,7 @@ export interface MoveFolderDto {
 
 /**
  * Valida que un usuario tenga acceso a una carpeta con un rol específico
- * 
+ *
  * @param folderId - ID de la carpeta
  * @param userId - ID del usuario
  * @param requiredRole - Rol mínimo requerido (opcional)
@@ -105,14 +105,14 @@ export async function validateFolderAccess(
   }
 
   const folder = await Folder.findById(folderId);
-  
+
   if (!folder) {
     throw new HttpError(404, 'Carpeta no encontrada');
   }
-  
+
   // Usar el método hasAccess del modelo
   const hasAccess = folder.hasAccess(userId, requiredRole);
-  
+
   if (!hasAccess) {
     throw new HttpError(
       403,
@@ -121,7 +121,7 @@ export async function validateFolderAccess(
         : 'El usuario no tiene acceso a esta carpeta'
     );
   }
-  
+
   return true;
 }
 
@@ -207,16 +207,16 @@ export async function createRootFolder(userId: string, organizationId: string): 
 /**
  * Crea una nueva carpeta en la base de datos y el sistema de archivos
  * Ahora requiere parentId obligatorio
- * 
+ *
  * @param CreateFolderDto - Datos de la carpeta
  * @returns Carpeta creada
  */
-export async function createFolder({ 
-  name, 
+export async function createFolder({
+  name,
   displayName,
-  owner, 
+  owner,
   organizationId,
-  parentId 
+  parentId
 }: CreateFolderDto): Promise<IFolder> {
   if (!name) throw new HttpError(400, 'El nombre de la carpeta es requerido');
   if (!owner) throw new HttpError(400, 'El propietario es requerido');
@@ -232,7 +232,7 @@ export async function createFolder({
   if (typeof parentId !== 'string' || !mongoose.Types.ObjectId.isValid(parentId)) {
     throw new HttpError(400, 'ID de carpeta padre inválido');
   }
-  
+
   // Validar que el usuario exista
   const user = await User.findById(owner);
   if (!user) throw new HttpError(404, 'Usuario propietario no encontrado');
@@ -243,7 +243,7 @@ export async function createFolder({
   
   // Validar que la carpeta padre exista y el usuario tenga permisos de editor o owner
   await validateFolderAccess(parentId, owner, 'editor');
-  
+
   const parentFolder = await Folder.findById(parentId);
   if (!parentFolder) throw new HttpError(404, 'Carpeta padre no encontrada');
   
@@ -251,7 +251,7 @@ export async function createFolder({
   const newPath = buildFolderPath(parentFolder.path, name);
   
   try {
-    const folder = await Folder.create({ 
+    const folder = await Folder.create({
       name,
       displayName: displayName || name,
       type: 'folder',
@@ -259,12 +259,14 @@ export async function createFolder({
       organization: organizationId,
       parent: parentId,
       path: newPath,
-      permissions: [{
-        userId: new mongoose.Types.ObjectId(owner),
-        role: 'owner'
-      }]
+      permissions: [
+        {
+          userId: new mongoose.Types.ObjectId(owner),
+          role: 'owner'
+        }
+      ]
     });
-    
+
     // Crear el directorio físico
     const storageRoot = path.join(process.cwd(), 'storage');
     // Sanitizar slug para prevenir path traversal
@@ -281,11 +283,11 @@ export async function createFolder({
     }
     
     const folderPath = path.join(storageRoot, safeSlug, ...pathComponents);
-    
+
     if (!fs.existsSync(folderPath)) {
       fs.mkdirSync(folderPath, { recursive: true });
     }
-    
+
     return folder;
   } catch (err: any) {
     if (err && err.code === 11000) {
@@ -297,7 +299,7 @@ export async function createFolder({
 
 /**
  * Obtiene el contenido de una carpeta (subcarpetas y documentos)
- * 
+ *
  * @param GetFolderContentsDto - Parámetros de búsqueda
  * @returns Contenido de la carpeta
  */
@@ -310,21 +312,18 @@ export async function getFolderContents({ folderId, userId }: GetFolderContentsD
   
   // Validar acceso (viewer como mínimo)
   await validateFolderAccess(folderId, userId, 'viewer');
-  
+
   const folder = await Folder.findById(folderId);
   if (!folder) throw new HttpError(404, 'Folder not found');
-  
+
   // Convertir IDs a ObjectIds para prevenir inyección NoSQL
   const folderObjectId = new mongoose.Types.ObjectId(folderId);
   const userObjectId = new mongoose.Types.ObjectId(userId);
-  
+
   // Obtener subcarpetas donde el usuario tiene acceso
   const subfolders = await Folder.find({
     parent: folderObjectId,
-    $or: [
-      { owner: userObjectId },
-      { 'permissions.userId': userObjectId }
-    ]
+    $or: [{ owner: userObjectId }, { 'permissions.userId': userObjectId }]
   }).sort({ name: 1 });
   
   console.log('[getFolderContents] Encontradas', subfolders.length, 'subcarpetas');
@@ -378,7 +377,7 @@ export async function getFolderContents({ folderId, userId }: GetFolderContentsD
 
 /**
  * Obtiene el árbol completo de carpetas de un usuario en una organización
- * 
+ *
  * @param GetUserFolderTreeDto - Parámetros
  * @returns Árbol jerárquico de carpetas
  */
@@ -388,14 +387,11 @@ export async function getUserFolderTree({ userId, organizationId }: GetUserFolde
   // Convertir IDs a ObjectIds para prevenir inyección NoSQL
   const userObjectId = new mongoose.Types.ObjectId(userId);
   const orgObjectId = new mongoose.Types.ObjectId(organizationId);
-  
+
   // Obtener todas las carpetas donde el usuario tiene acceso
   const folders = await Folder.find({
     organization: orgObjectId,
-    $or: [
-      { owner: userObjectId },
-      { 'permissions.userId': userObjectId }
-    ]
+    $or: [{ owner: userObjectId }, { 'permissions.userId': userObjectId }]
   })
   .sort({ path: 1 })
   .lean();
@@ -449,7 +445,7 @@ export async function getUserFolderTree({ userId, organizationId }: GetUserFolde
       documents: documentsByFolder.get(folder.id) || []
     });
   });
-  
+
   // Luego construir la jerarquía
   transformedFolders.forEach(folder => {
     const folderWithChildren = folderMap.get(folder.id);
@@ -469,12 +465,12 @@ export async function getUserFolderTree({ userId, organizationId }: GetUserFolde
   console.log('[getUserFolderTree] Encontradas', rootFolders.length, 'carpetas raíz');
   
   // Retornar la primera carpeta raíz (debería haber solo una por usuario)
-  return rootFolders.length > 0 ? rootFolders[0] as IFolder : null;
+  return rootFolders.length > 0 ? (rootFolders[0] as IFolder) : null;
 }
 
 /**
  * Comparte una carpeta con otro usuario
- * 
+ *
  * @param ShareFolderDto - Datos para compartir
  * @returns Carpeta actualizada
  */
@@ -486,10 +482,10 @@ export async function shareFolder({
 }: ShareFolderDto): Promise<IFolder> {
   // Validar que el usuario actual tenga permisos de owner
   await validateFolderAccess(folderId, userId, 'owner');
-  
+
   const folder = await Folder.findById(folderId);
   if (!folder) throw new HttpError(404, 'Folder not found');
-  
+
   // Validar que el usuario objetivo exista y esté en la misma organización
   const targetUser = await User.findById(targetUserId);
   if (!targetUser) throw new HttpError(404, 'Usuario objetivo no encontrado');
@@ -501,7 +497,7 @@ export async function shareFolder({
   // - Diferentes organizaciones: NO permitido
   const folderOrgId = folder.organization?.toString();
   const userOrgId = targetUser.organization?.toString();
-  
+
   if (folderOrgId !== userOrgId) {
     if (!folderOrgId && !userOrgId) {
       // Ambos son usuarios personales - OK
@@ -511,18 +507,18 @@ export async function shareFolder({
       throw new HttpError(403, 'No se puede compartir entre usuarios personales y de organización');
     }
   }
-  
+
   // Usar el método shareWith del modelo
   folder.shareWith(targetUserId, role);
   await folder.save();
-  
+
   return folder;
 }
 
 /**
  * Lista todas las carpetas de un usuario con sus documentos
  * DEPRECATED: Usar getUserFolderTree en su lugar
- * 
+ *
  * @param owner - ID del propietario
  * @returns Lista de carpetas con documentos populados
  */
@@ -532,29 +528,33 @@ export function listFolders(owner: string): Promise<IFolder[]> {
 
 /**
  * Elimina una carpeta y opcionalmente sus documentos
- * 
+ *
  * @param DeleteFolderDto - Datos de eliminación
  * @returns Resultado de la operación
  */
-export async function deleteFolder({ id, userId, force = false }: DeleteFolderDto): Promise<{ success: boolean }> {
+export async function deleteFolder({
+  id,
+  userId,
+  force = false
+}: DeleteFolderDto): Promise<{ success: boolean }> {
   // Validar que el usuario tenga permisos de owner
   await validateFolderAccess(id, userId, 'owner');
-  
+
   const folder = await Folder.findById(id);
   if (!folder) throw new HttpError(404, 'Folder not found');
-  
+
   // Validar que no sea carpeta raíz
   if (folder.type === 'root') {
     throw new HttpError(400, 'No se puede eliminar la carpeta raíz');
   }
-  
+
   if (!force) {
     // Verificar si tiene subcarpetas
     const hasSubfolders = await Folder.exists({ parent: id });
     if (hasSubfolders) {
       throw new HttpError(400, 'La carpeta contiene subcarpetas');
     }
-    
+
     // Verificar si tiene documentos
     const hasDocs = await DocumentModel.exists({ folder: id });
     if (hasDocs) {
@@ -563,7 +563,7 @@ export async function deleteFolder({ id, userId, force = false }: DeleteFolderDt
   } else {
     // Forzar: elimina subcarpetas recursivamente
     await deleteSubfoldersRecursively(id);
-    
+
     // Elimina documentos en BD y sus archivos
     const docs = await DocumentModel.find({ folder: id });
     for (const doc of docs) {
@@ -580,9 +580,9 @@ export async function deleteFolder({ id, userId, force = false }: DeleteFolderDt
       await DocumentModel.findByIdAndDelete(doc._id);
     }
   }
-  
+
   await Folder.findByIdAndDelete(id);
-  
+
   // Elimina el directorio del sistema de archivos
   try {
     const org = await Organization.findById(folder.organization);
@@ -590,11 +590,12 @@ export async function deleteFolder({ id, userId, force = false }: DeleteFolderDt
       const storageRoot = path.join(process.cwd(), 'storage');
       // Sanitizar slug y path para prevenir path traversal
       const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-      const pathComponents = folder.path.split('/').filter(p => p).map(component => 
-        component.replace(/[^a-z0-9_.-]/gi, '-')
-      );
+      const pathComponents = folder.path
+        .split('/')
+        .filter(p => p)
+        .map(component => component.replace(/[^a-z0-9_.-]/gi, '-'));
       const folderPath = path.join(storageRoot, safeSlug, ...pathComponents);
-      
+
       if (fs.existsSync(folderPath)) {
         fs.rmSync(folderPath, { recursive: true, force: true });
       }
@@ -602,7 +603,7 @@ export async function deleteFolder({ id, userId, force = false }: DeleteFolderDt
   } catch (e: any) {
     console.error('[folder-fs-delete-error]', e);
   }
-  
+
   return { success: true };
 }
 
@@ -611,11 +612,11 @@ export async function deleteFolder({ id, userId, force = false }: DeleteFolderDt
  */
 async function deleteSubfoldersRecursively(folderId: string): Promise<void> {
   const subfolders = await Folder.find({ parent: folderId });
-  
+
   for (const subfolder of subfolders) {
     // Recursión: eliminar subcarpetas de esta subcarpeta
     await deleteSubfoldersRecursively(subfolder._id.toString());
-    
+
     // Eliminar documentos de esta subcarpeta
     const docs = await DocumentModel.find({ folder: subfolder._id });
     for (const doc of docs) {
@@ -631,7 +632,7 @@ async function deleteSubfoldersRecursively(folderId: string): Promise<void> {
       }
       await DocumentModel.findByIdAndDelete(doc._id);
     }
-    
+
     // Eliminar la subcarpeta
     await Folder.findByIdAndDelete(subfolder._id);
   }
@@ -645,7 +646,7 @@ export async function renameFolder({ id, userId, name, displayName }: RenameFold
   
   // Validar que el usuario tenga permisos de editor o owner
   await validateFolderAccess(id, userId, 'editor');
-  
+
   const folder = await Folder.findById(id);
   if (!folder) throw new HttpError(404, 'Folder not found');
   
@@ -659,7 +660,7 @@ export async function renameFolder({ id, userId, name, displayName }: RenameFold
   if (!newName) {
     throw new HttpError(400, 'El nombre de la carpeta es requerido');
   }
-  
+
   const oldPath = folder.path;
   let newPath: string;
   
@@ -685,10 +686,10 @@ export async function renameFolder({ id, userId, name, displayName }: RenameFold
     }
     throw err;
   }
-  
+
   // Actualizar paths de todas las subcarpetas recursivamente
   await updateSubfolderPaths(id, oldPath, newPath);
-  
+
   // Renombrar directorio en el sistema de archivos
   try {
     const org = await Organization.findById(folder.organization);
@@ -716,7 +717,7 @@ export async function renameFolder({ id, userId, name, displayName }: RenameFold
 
       const oldFolderPath = path.join(storageRoot, safeSlug, ...oldPathComponents);
       const newFolderPath = path.join(storageRoot, safeSlug, ...newPathComponents);
-      
+
       if (fs.existsSync(oldFolderPath) && oldFolderPath !== newFolderPath) {
         fs.renameSync(oldFolderPath, newFolderPath);
       } else if (!fs.existsSync(newFolderPath)) {
@@ -726,23 +727,27 @@ export async function renameFolder({ id, userId, name, displayName }: RenameFold
   } catch (e: any) {
     console.error('[folder-fs-rename-error]', e);
   }
-  
+
   return folder;
 }
 
 /**
  * Función auxiliar para actualizar paths de subcarpetas recursivamente
  */
-async function updateSubfolderPaths(folderId: string, oldParentPath: string, newParentPath: string): Promise<void> {
+async function updateSubfolderPaths(
+  folderId: string,
+  oldParentPath: string,
+  newParentPath: string
+): Promise<void> {
   const subfolders = await Folder.find({ parent: folderId });
-  
+
   for (const subfolder of subfolders) {
     const oldPath = subfolder.path;
     const newPath = oldPath.replace(oldParentPath, newParentPath);
-    
+
     subfolder.path = newPath;
     await subfolder.save();
-    
+
     // Recursión: actualizar subcarpetas de esta subcarpeta
     await updateSubfolderPaths(subfolder._id.toString(), oldPath, newPath);
   }

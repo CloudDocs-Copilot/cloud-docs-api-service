@@ -27,7 +27,7 @@ export class OrganizationBuilder {
     name: 'Test Organization',
     ownerId: new mongoose.Types.ObjectId().toString(),
     plan: SubscriptionPlan.FREE,
-    active: true,
+    active: true
   };
 
   /**
@@ -92,10 +92,10 @@ export class OrganizationBuilder {
   withTestSettings(): OrganizationBuilder {
     this.orgData.settings = {
       maxStoragePerUser: 1048576, // 1MB para testing
-      maxStorageTotal: 3145728,   // 3MB para testing
+      maxStorageTotal: 3145728, // 3MB para testing
       allowedFileTypes: ['txt', 'pdf'],
-      maxFileSize: 524288,        // 512KB para testing
-      maxUsers: 3,
+      maxFileSize: 524288, // 512KB para testing
+      maxUsers: 3
     };
     return this;
   }
@@ -114,7 +114,7 @@ export class OrganizationBuilder {
     return {
       name: this.orgData.name,
       ownerId: this.orgData.ownerId,
-      settings: this.orgData.settings,
+      settings: this.orgData.settings
     };
   }
 
@@ -126,7 +126,7 @@ export class OrganizationBuilder {
       name: 'Test Organization',
       ownerId: new mongoose.Types.ObjectId().toString(),
       plan: SubscriptionPlan.FREE,
-      active: true,
+      active: true
     };
     return this;
   }

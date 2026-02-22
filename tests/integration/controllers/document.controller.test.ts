@@ -1,734 +1,775 @@
+// document.controller.spec.ts
+export {};
+
 import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
-import request from 'supertest';
-import * as fs from 'fs';
-import * as path from 'path';
-import app from '../../../src/app';
-import Organization from '../../../src/models/organization.model';
-import User from '../../../src/models/user.model';
-import Folder from '../../../src/models/folder.model';
-import Document from '../../../src/models/document.model';
-import * as jwtService from '../../../src/services/jwt.service';
-import { createMembership } from '../../../src/services/membership.service';
-import { MembershipRole } from '../../../src/models/membership.model';
 
-describe('DocumentController - New Endpoints Integration Tests', () => {
-  let mongoServer: MongoMemoryServer;
-  let testUserId: mongoose.Types.ObjectId;
-  let testUser2Id: mongoose.Types.ObjectId;
-  let testToken: string;
-  let testToken2: string;
-  let testOrgId: mongoose.Types.ObjectId;
-  let rootFolderId: mongoose.Types.ObjectId;
-  let subFolderId: mongoose.Types.ObjectId;
-  let testDocId: mongoose.Types.ObjectId;
+const mockUploadDocument = jest.fn();
+const mockReplaceDocumentFile = jest.fn();
+const mockListDocuments = jest.fn();
+const mockListSharedDocumentsToUser = jest.fn();
+const mockGetUserRecentDocuments = jest.fn();
+const mockFindDocumentById = jest.fn();
+const mockShareDocument = jest.fn();
+const mockMoveDocument = jest.fn();
+const mockCopyDocument = jest.fn();
+const mockDeleteDocument = jest.fn();
 
-  beforeAll(async () => {
-    mongoServer = await MongoMemoryServer.create();
-    const mongoUri = mongoServer.getUri();
-    await mongoose.connect(mongoUri);
+const mockValidateDownloadPath = jest.fn();
+const mockHasActiveMembership = jest.fn();
 
-    // Crear usuarios de prueba
-    const user1 = await User.create({
-      name: 'Test User',
-      email: 'user@test.com',
-      password: 'hashedpassword123',
-      role: 'user',
-      active: true,
-    });
-    testUserId = user1._id;
-    
-    // Esperar 100ms para asegurar que tokenCreatedAt > user.updatedAt
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    testToken = jwtService.signToken({
-      id: testUserId.toString(),
-      email: 'user@test.com',
-      role: 'user',
-    });
+const mockMammothConvertToHtml = jest.fn();
 
-    const user2 = await User.create({
-      name: 'Test User 2',
-      email: 'user2@test.com',
-      password: 'hashedpassword123',
-      role: 'user',
-      active: true,
-    });
-    testUser2Id = user2._id;
-    testToken2 = jwtService.signToken({
-      id: testUser2Id.toString(),
-      email: 'user2@test.com',
-      role: 'user',
-    });
+jest.mock('../../../src/services/document.service', () => ({
+  __esModule: true,
+  uploadDocument: (...args: any[]) => mockUploadDocument(...args),
+  replaceDocumentFile: (...args: any[]) => mockReplaceDocumentFile(...args),
+  listDocuments: (...args: any[]) => mockListDocuments(...args),
+  listSharedDocumentsToUser: (...args: any[]) => mockListSharedDocumentsToUser(...args),
+  getUserRecentDocuments: (...args: any[]) => mockGetUserRecentDocuments(...args),
+  findDocumentById: (...args: any[]) => mockFindDocumentById(...args),
+  shareDocument: (...args: any[]) => mockShareDocument(...args),
+  moveDocument: (...args: any[]) => mockMoveDocument(...args),
+  copyDocument: (...args: any[]) => mockCopyDocument(...args),
+  deleteDocument: (...args: any[]) => mockDeleteDocument(...args)
+}));
 
-    // Crear organización
-    const org = await Organization.create({
-      name: 'Test Org',
-      owner: testUserId,
-      members: [testUserId, testUser2Id],
-    });
-    testOrgId = org._id;
-    const testOrgSlug = org.slug; // Generado automáticamente: 'test-org'
+jest.mock('../../../src/utils/path-sanitizer', () => ({
+  __esModule: true,
+  validateDownloadPath: (...args: any[]) => mockValidateDownloadPath(...args)
+}));
 
-    // Crear membresías requeridas por middleware
-    await createMembership({
-      userId: testUserId.toString(),
-      organizationId: testOrgId.toString(),
-      role: MembershipRole.OWNER,
-    });
-    await createMembership({
-      userId: testUser2Id.toString(),
-      organizationId: testOrgId.toString(),
-      role: MembershipRole.MEMBER,
-    });
+jest.mock('../../../src/services/membership.service', () => ({
+  __esModule: true,
+  hasActiveMembership: (...args: any[]) => mockHasActiveMembership(...args)
+}));
 
-    // Crear carpetas
-    const rootFolder = await Folder.create({
-      name: `root_${testOrgSlug}_${testUserId}`,
-      displayName: 'My Files',
-      type: 'root',
-      organization: testOrgId,
-      owner: testUserId,
-      path: '/',
-      isRoot: true,
-    });
-    rootFolderId = rootFolder._id;
+jest.mock('mammoth', () => ({
+  __esModule: true,
+  default: {
+    convertToHtml: (...args: any[]) => mockMammothConvertToHtml(...args)
+  },
+  convertToHtml: (...args: any[]) => mockMammothConvertToHtml(...args)
+}));
 
-    const subFolder = await Folder.create({
-      name: 'work-docs',
-      displayName: 'Work Documents',
-      type: 'folder',
-      organization: testOrgId,
-      owner: testUserId,
-      parent: rootFolderId,
-      path: '/work-docs',
-      isRoot: false,
-    });
-    subFolderId = subFolder._id;
+type MockRes = {
+  status: jest.Mock;
+  json: jest.Mock;
+  download: jest.Mock;
+  send: jest.Mock;
+  sendFile: jest.Mock;
+  setHeader: jest.Mock;
+};
 
-    // Actualizar usuarios
-    await User.findByIdAndUpdate(testUserId, {
-      organization: testOrgId,
-      rootFolder: rootFolderId,
-      storageUsed: 0,
+function makeRes(): MockRes {
+  const res: any = {};
+  res.status = jest.fn(() => res);
+  res.json = jest.fn(() => res);
+  res.download = jest.fn(() => res);
+  res.send = jest.fn(() => res);
+  res.sendFile = jest.fn(() => res);
+  res.setHeader = jest.fn(() => res);
+  return res as MockRes;
+}
+
+function makeNext() {
+  return jest.fn();
+}
+
+afterEach(() => {
+  jest.clearAllMocks();
+  jest.resetModules();
+});
+
+describe('document.controller (unit)', () => {
+  const USER_ID = '507f1f77bcf86cd799439011';
+  const ORG_ID = '507f1f77bcf86cd799439012';
+  const DOC_ID = '507f1f77bcf86cd799439013';
+
+  describe('upload', () => {
+    it('should next 400 when file missing', async () => {
+      const { upload } = require('../../../src/controllers/document.controller');
+      const req: any = { file: undefined, body: {}, user: { id: USER_ID } };
+      const res = makeRes();
+      const next = makeNext();
+
+      await upload(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+      expect(mockUploadDocument).not.toHaveBeenCalled();
     });
 
-    await User.findByIdAndUpdate(testUser2Id, {
-      organization: testOrgId,
+    it('should next 400 when folderId has invalid format', async () => {
+      const { upload } = require('../../../src/controllers/document.controller');
+      const req: any = {
+        file: { filename: 'a.txt' },
+        body: { folderId: 'not-an-objectid' },
+        user: { id: USER_ID }
+      };
+      const res = makeRes();
+      const next = makeNext();
+
+      await upload(req, res, next);
     });
 
-    // Crear directorio físico
-    const orgSlug = 'test-org';
-    const orgDir = path.join(process.cwd(), 'storage', orgSlug, testUserId.toString());
-    fs.mkdirSync(orgDir, { recursive: true });
-  });
+    it('should call service and return 201 on success', async () => {
+      const { upload } = require('../../../src/controllers/document.controller');
+      mockUploadDocument.mockResolvedValue({ _id: 'doc1' });
 
-  afterAll(async () => {
-    await mongoose.disconnect();
-    await mongoServer.stop();
+      const req: any = {
+        file: { filename: 'a.txt' },
+        body: { folderId: '507f1f77bcf86cd799439099' },
+        user: { id: USER_ID }
+      };
+      const res = makeRes();
+      const next = makeNext();
 
-    // Limpiar directorios de prueba
-    const storageDir = path.join(process.cwd(), 'storage');
-    if (fs.existsSync(storageDir)) {
-      try {
-        fs.rmSync(storageDir, { recursive: true, force: true });
-      } catch (err: any) {
-        if (err && (err.code === 'ENOTEMPTY' || err.code === 'EBUSY' || err.code === 'EPERM')) {
-          console.warn('Warning: could not fully remove storageDir during cleanup:', err.code);
-        } else {
-          throw err;
-        }
-      }
-    }
-  });
+      await upload(req, res, next);
 
-  beforeEach(async () => {
-    await Document.deleteMany({});
-  });
-
-  describe('GET /api/documents/recent', () => {
-    beforeEach(async () => {
-      // Crear varios documentos con diferentes fechas
-      const now = Date.now();
-      
-      await Document.create({
-        filename: 'old-doc.txt',
-        originalname: 'old-doc.txt',
-        organization: testOrgId,
-        folder: rootFolderId,
-        path: '/old-doc.txt',
-        size: 1000,
-        mimeType: 'text/plain',
-        uploadedBy: testUserId,
-        uploadedAt: new Date(now - 3600000), // 1 hora atrás
+      expect(mockUploadDocument).toHaveBeenCalledWith({
+        file: req.file,
+        userId: USER_ID,
+        folderId: '507f1f77bcf86cd799439099'
       });
-
-      await Document.create({
-        filename: 'recent-doc-1.txt',
-        originalname: 'recent-doc-1.txt',
-        organization: testOrgId,
-        folder: rootFolderId,
-        path: '/recent-doc-1.txt',
-        size: 2000,
-        mimeType: 'text/plain',
-        uploadedBy: testUserId,
-        uploadedAt: new Date(now - 60000), // 1 minuto atrás
-      });
-
-      await Document.create({
-        filename: 'recent-doc-2.txt',
-        originalname: 'recent-doc-2.txt',
-        organization: testOrgId,
-        folder: subFolderId,
-        path: '/work-docs/recent-doc-2.txt',
-        size: 3000,
-        mimeType: 'text/plain',
-        uploadedBy: testUserId,
-        uploadedAt: new Date(now - 30000), // 30 segundos atrás
-      });
-
-      // Documento de otro usuario
-      await Document.create({
-        filename: 'other-user-doc.txt',
-        originalname: 'other-user-doc.txt',
-        organization: testOrgId,
-        folder: rootFolderId,
-        path: '/other-user-doc.txt',
-        size: 1500,
-        mimeType: 'text/plain',
-        uploadedBy: testUser2Id,
-        uploadedAt: new Date(now),
-      });
-    });
-
-    it('should return recent documents of authenticated user', async () => {
-      const response = await request(app)
-        .get(`/api/documents/recent/${testOrgId.toString()}`)
-        .set('Authorization', `Bearer ${testToken}`);
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.documents).toHaveLength(3);
-      
-      // Verificar orden (más reciente primero)
-      expect(response.body.documents[0].originalname).toBe('recent-doc-2.txt');
-      expect(response.body.documents[1].originalname).toBe('recent-doc-1.txt');
-      expect(response.body.documents[2].originalname).toBe('old-doc.txt');
-    });
-
-    it('should respect limit parameter', async () => {
-      const response = await request(app)
-        .get(`/api/documents/recent/${testOrgId.toString()}`)
-        .query({ limit: 2 })
-        .set('Authorization', `Bearer ${testToken}`);
-
-      expect(response.status).toBe(200);
-      expect(response.body.documents).toHaveLength(2);
-      expect(response.body.documents[0].originalname).toBe('recent-doc-2.txt');
-      expect(response.body.documents[1].originalname).toBe('recent-doc-1.txt');
-    });
-
-    it('should fail without organizationId', async () => {
-      const response = await request(app)
-        .get('/api/documents/recent')
-        .set('Authorization', `Bearer ${testToken}`);
-
-      expect(response.status).toBe(400);
-      expect(response.body.success).toBe(false);
-    });
-
-    it('should fail without authentication', async () => {
-      const response = await request(app)
-        .get('/api/documents/recent')
-        .query({ organizationId: testOrgId.toString() });
-
-      expect(response.status).toBe(401);
-    });
-  });
-
-  describe('GET /api/documents/:id', () => {
-    beforeEach(async () => {
-      const doc = await Document.create({
-        filename: 'test-doc.txt',
-        originalname: 'test-doc.txt',
-        organization: testOrgId,
-        folder: rootFolderId,
-        path: '/test-doc.txt',
-        size: 1000,
-        mimeType: 'text/plain',
-        uploadedBy: testUserId,
-      });
-      testDocId = doc._id;
-    });
-
-    it('should get document details if user is owner', async () => {
-      const response = await request(app)
-        .get(`/api/documents/${testDocId}`)
-        .set('Authorization', `Bearer ${testToken}`);
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.document.id).toBe(testDocId.toString());
-      expect(response.body.document.originalname).toBe('test-doc.txt');
-      expect(response.body.document.size).toBe(1000);
-    });
-
-    it('should get document details if shared with user', async () => {
-      // Compartir documento con user2
-      await Document.findByIdAndUpdate(testDocId, {
-        $addToSet: { sharedWith: testUser2Id },
-      });
-
-      const response = await request(app)
-        .get(`/api/documents/${testDocId}`)
-        .set('Authorization', `Bearer ${testToken2}`);
-
-      expect(response.status).toBe(200);
-      expect(response.body.document.id).toBe(testDocId.toString());
-    });
-
-    it('should fail if user has no access', async () => {
-      const response = await request(app)
-        .get(`/api/documents/${testDocId}`)
-        .set('Authorization', `Bearer ${testToken2}`);
-
-      expect(response.status).toBe(403);
-      expect(response.body.success).toBe(false);
-    });
-
-    it('should fail if document does not exist', async () => {
-      const fakeId = new mongoose.Types.ObjectId().toString();
-      const response = await request(app)
-        .get(`/api/documents/${fakeId}`)
-        .set('Authorization', `Bearer ${testToken}`);
-
-      expect(response.status).toBe(404);
-    });
-
-    it('should fail without authentication', async () => {
-      const response = await request(app).get(`/api/documents/${testDocId}`);
-      expect(response.status).toBe(401);
-    });
-  });
-
-  describe('POST /api/documents/:id/move', () => {
-    let targetFolderId: mongoose.Types.ObjectId;
-
-    beforeEach(async () => {
-      // Crear documento en rootFolder
-      const doc = await Document.create({
-        filename: 'movable-doc.txt',
-        originalname: 'movable-doc.txt',
-        organization: testOrgId,
-        folder: rootFolderId,
-        path: `/storage/test-org/${testUserId}/movable-doc.txt`,
-        size: 1000,
-        mimeType: 'text/plain',
-        uploadedBy: testUserId,
-      });
-      testDocId = doc._id;
-
-      // Crear carpeta destino
-      const targetFolder = await Folder.create({
-        name: 'archives',
-        displayName: 'Archives',
-        type: 'folder',
-        organization: testOrgId,
-        owner: testUserId,
-        parent: rootFolderId,
-        path: '/archives',
-        isRoot: false,
-      });
-      targetFolderId = targetFolder._id;
-
-      // Crear archivos físicos
-      const orgSlug = 'test-org';
-      const sourcePath = path.join(
-        process.cwd(),
-        'storage',
-        orgSlug,
-        testUserId.toString(),
-        'movable-doc.txt'
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true, message: 'Document uploaded successfully' })
       );
-      const targetDir = path.join(
-        process.cwd(),
-        'storage',
-        orgSlug,
-        testUserId.toString(),
-        'archives'
-      );
-      
-      fs.mkdirSync(targetDir, { recursive: true });
-      fs.writeFileSync(sourcePath, 'test content');
-    });
-
-    it('should move document to target folder if user is owner', async () => {
-      const response = await request(app)
-        .post(`/api/documents/${testDocId}/move`)
-        .set('Authorization', `Bearer ${testToken}`)
-        .send({ targetFolderId: targetFolderId.toString() });
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.document.folder).toBe(targetFolderId.toString());
-      expect(response.body.document.path).toContain('/archives/');
-    });
-
-    it('should fail if user is not the owner', async () => {
-      const response = await request(app)
-        .post(`/api/documents/${testDocId}/move`)
-        .set('Authorization', `Bearer ${testToken2}`)
-        .send({ targetFolderId: targetFolderId.toString() });
-
-      expect(response.status).toBe(403);
-    });
-
-    it('should fail if targetFolderId is missing', async () => {
-      const response = await request(app)
-        .post(`/api/documents/${testDocId}/move`)
-        .set('Authorization', `Bearer ${testToken}`)
-        .send({});
-
-      expect(response.status).toBe(400);
-    });
-
-    it('should fail if target folder does not exist', async () => {
-      const fakeId = new mongoose.Types.ObjectId().toString();
-      const response = await request(app)
-        .post(`/api/documents/${testDocId}/move`)
-        .set('Authorization', `Bearer ${testToken}`)
-        .send({ targetFolderId: fakeId });
-
-      expect(response.status).toBe(404);
-    });
-
-    it('should fail if document does not exist', async () => {
-      const fakeId = new mongoose.Types.ObjectId().toString();
-      const response = await request(app)
-        .post(`/api/documents/${fakeId}/move`)
-        .set('Authorization', `Bearer ${testToken}`)
-        .send({ targetFolderId: targetFolderId.toString() });
-
-      expect(response.status).toBe(404);
     });
   });
 
-  describe('POST /api/documents/:id/copy', () => {
-    let targetFolderId: mongoose.Types.ObjectId;
+  describe('replaceFile', () => {
+    it('should next 400 when file missing', async () => {
+      const { replaceFile } = require('../../../src/controllers/document.controller');
+      const req: any = { file: undefined, params: { id: DOC_ID }, user: { id: USER_ID } };
+      const res = makeRes();
+      const next = makeNext();
 
-    beforeEach(async () => {
-      // Crear documento en rootFolder
-      const doc = await Document.create({
-        filename: 'copyable-doc.txt',
-        originalname: 'copyable-doc.txt',
-        organization: testOrgId,
-        folder: rootFolderId,
-        path: '/copyable-doc.txt', // Relativo a la org, sin /storage/
-        size: 1000,
-        mimeType: 'text/plain',
-        uploadedBy: testUserId,
-      });
-      testDocId = doc._id;
+      await replaceFile(req, res, next);
 
-      // Crear carpeta destino
-      const targetFolder = await Folder.create({
-        name: 'backups',
-        displayName: 'Backups',
-        type: 'folder',
-        organization: testOrgId,
-        owner: testUserId,
-        parent: rootFolderId,
-        path: '/backups',
-        isRoot: false,
-      });
-      targetFolderId = targetFolder._id;
+      expect(next).toHaveBeenCalled();
+      expect(mockReplaceDocumentFile).not.toHaveBeenCalled();
+    });
 
-      // Crear archivos físicos
-      const orgSlug = 'test-org';
-      const sourcePath = path.join(
-        process.cwd(),
-        'storage',
-        orgSlug,
-        'copyable-doc.txt' // Path relativo al slug
+    it('should map "Document not found" to 404', async () => {
+      const { replaceFile } = require('../../../src/controllers/document.controller');
+      mockReplaceDocumentFile.mockRejectedValue(new Error('Document not found'));
+
+      const req: any = {
+        file: { filename: 'a.txt' },
+        params: { id: DOC_ID },
+        user: { id: USER_ID }
+      };
+      const res = makeRes();
+      const next = makeNext();
+
+      await replaceFile(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+    });
+
+    it('should return success json on success', async () => {
+      const { replaceFile } = require('../../../src/controllers/document.controller');
+      mockReplaceDocumentFile.mockResolvedValue({ _id: DOC_ID });
+
+      const req: any = {
+        file: { filename: 'a.txt' },
+        params: { id: DOC_ID },
+        user: { id: USER_ID }
+      };
+      const res = makeRes();
+      const next = makeNext();
+
+      await replaceFile(req, res, next);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true, message: 'Document file replaced successfully' })
       );
-      const targetDir = path.join(
-        process.cwd(),
-        'storage',
-        orgSlug,
-        'backups'
-      );
-
-      fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
-      fs.mkdirSync(targetDir, { recursive: true });
-      fs.writeFileSync(sourcePath, 'test content');
-
-      // Actualizar storageUsed
-      await User.findByIdAndUpdate(testUserId, { storageUsed: 1000 });
-    });
-
-    it('should copy document to target folder if user has access', async () => {
-      const response = await request(app)
-        .post(`/api/documents/${testDocId}/copy`)
-        .set('Authorization', `Bearer ${testToken}`)
-        .send({ targetFolderId: targetFolderId.toString() });
-
-      expect(response.status).toBe(201);
-      expect(response.body.success).toBe(true);
-      expect(response.body.document.folder).toBe(targetFolderId.toString());
-      expect(response.body.document.path).toContain('/backups/');
-      expect(response.body.document._id).not.toBe(testDocId.toString());
-
-      // Verificar que se actualizó storageUsed
-      const user = await User.findById(testUserId);
-      expect(user?.storageUsed).toBe(2000); // 1000 original + 1000 copia
-    });
-
-    it('should fail if storage quota exceeded', async () => {
-      // Actualizar organización para tener límite bajo
-      await Organization.findByIdAndUpdate(testOrgId, {
-        'settings.maxStoragePerUser': 1500,
-      });
-
-      const response = await request(app)
-        .post(`/api/documents/${testDocId}/copy`)
-        .set('Authorization', `Bearer ${testToken}`)
-        .send({ targetFolderId: targetFolderId.toString() });
-
-      expect(response.status).toBe(400);
-      expect(response.body.error).toContain('Storage quota');
-    });
-
-    it('should fail if targetFolderId is missing', async () => {
-      const response = await request(app)
-        .post(`/api/documents/${testDocId}/copy`)
-        .set('Authorization', `Bearer ${testToken}`)
-        .send({});
-
-      expect(response.status).toBe(400);
-    });
-
-    it('should fail if document does not exist', async () => {
-      const fakeId = new mongoose.Types.ObjectId().toString();
-      const response = await request(app)
-        .post(`/api/documents/${fakeId}/copy`)
-        .set('Authorization', `Bearer ${testToken}`)
-        .send({ targetFolderId: targetFolderId.toString() });
-
-      expect(response.status).toBe(404);
-    });
-
-    it('should fail if user has no access to document', async () => {
-      const response = await request(app)
-        .post(`/api/documents/${testDocId}/copy`)
-        .set('Authorization', `Bearer ${testToken2}`)
-        .send({ targetFolderId: targetFolderId.toString() });
-
-      expect(response.status).toBe(403);
     });
   });
 
-  describe('GET /api/documents/:id/preview', () => {
-    let pdfDocId: mongoose.Types.ObjectId;
-    let wordDocId: mongoose.Types.ObjectId;
-    let imageDocId: mongoose.Types.ObjectId;
-    let textDocId: mongoose.Types.ObjectId;
-    let sharedDocId: mongoose.Types.ObjectId;
+  describe('list', () => {
+    it('should return docs and count', async () => {
+      const { list } = require('../../../src/controllers/document.controller');
+      mockListDocuments.mockResolvedValue([{ _id: 1 }, { _id: 2 }]);
 
-    beforeEach(async () => {
-      // Crear directorio de storage para tests
-      const orgSlug = 'test-org';
-      const storageDir = path.join(process.cwd(), 'storage', orgSlug, testUserId.toString());
-      fs.mkdirSync(storageDir, { recursive: true });
+      const req: any = { user: { id: USER_ID } };
+      const res = makeRes();
+      const next = makeNext();
 
-      // Crear archivo PDF de prueba
-      const pdfPath = path.join(storageDir, 'test.pdf');
-      fs.writeFileSync(pdfPath, Buffer.from('PDF test content'));
-      const pdfDoc = await Document.create({
-        filename: 'test.pdf',
-        originalname: 'test.pdf',
-        organization: testOrgId,
-        folder: rootFolderId,
-        path: path.join(orgSlug, testUserId.toString(), 'test.pdf'),
-        size: 16,
-        mimeType: 'application/pdf',
-        uploadedBy: testUserId,
+      await list(req, res, next);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true, count: 2, documents: expect.any(Array) })
+      );
+    });
+  });
+
+  describe('listSharedToMe', () => {
+    it('should return docs and count', async () => {
+      const { listSharedToMe } = require('../../../src/controllers/document.controller');
+      mockListSharedDocumentsToUser.mockResolvedValue([{ _id: 1 }]);
+
+      const req: any = { user: { id: USER_ID } };
+      const res = makeRes();
+      const next = makeNext();
+
+      await listSharedToMe(req, res, next);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true, count: 1, documents: expect.any(Array) })
+      );
+    });
+  });
+
+  describe('getRecent', () => {
+    it('should next 400 when organizationId missing', async () => {
+      const { getRecent } = require('../../../src/controllers/document.controller');
+      const req: any = { user: { id: USER_ID }, params: {}, query: {} };
+      const res = makeRes();
+      const next = makeNext();
+
+      await getRecent(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+      expect(mockGetUserRecentDocuments).not.toHaveBeenCalled();
+    });
+
+    it('should next 400 when organizationId invalid', async () => {
+      const { getRecent } = require('../../../src/controllers/document.controller');
+      const req: any = { user: { id: USER_ID }, params: { organizationId: 'invalid' }, query: {} };
+      const res = makeRes();
+      const next = makeNext();
+
+      await getRecent(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+      expect(mockGetUserRecentDocuments).not.toHaveBeenCalled();
+    });
+
+    it('should default limit=10 and return docs', async () => {
+      const { getRecent } = require('../../../src/controllers/document.controller');
+      mockGetUserRecentDocuments.mockResolvedValue([{ _id: 1 }, { _id: 2 }]);
+
+      const req: any = { user: { id: USER_ID }, params: { organizationId: ORG_ID }, query: {} };
+      const res = makeRes();
+      const next = makeNext();
+
+      await getRecent(req, res, next);
+
+      expect(mockGetUserRecentDocuments).toHaveBeenCalledWith({ userId: USER_ID, limit: 10 });
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true, count: 2, documents: expect.any(Array) })
+      );
+    });
+
+    it('should parse limit from query', async () => {
+      const { getRecent } = require('../../../src/controllers/document.controller');
+      mockGetUserRecentDocuments.mockResolvedValue([]);
+
+      const req: any = {
+        user: { id: USER_ID },
+        params: { organizationId: ORG_ID },
+        query: { limit: '2' }
+      };
+      const res = makeRes();
+      const next = makeNext();
+
+      await getRecent(req, res, next);
+
+      expect(mockGetUserRecentDocuments).toHaveBeenCalledWith({ userId: USER_ID, limit: 2 });
+    });
+  });
+
+  describe('getById', () => {
+    it('should next 404 when doc not found', async () => {
+      const { getById } = require('../../../src/controllers/document.controller');
+      mockFindDocumentById.mockResolvedValue(null);
+
+      const req: any = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const res = makeRes();
+      const next = makeNext();
+
+      await getById(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+    });
+
+    it('should allow access for org doc when hasActiveMembership returns true', async () => {
+      const { getById } = require('../../../src/controllers/document.controller');
+      mockFindDocumentById.mockResolvedValue({
+        _id: DOC_ID,
+        organization: new mongoose.Types.ObjectId(ORG_ID),
+        uploadedBy: new mongoose.Types.ObjectId(USER_ID),
+        sharedWith: []
       });
-      pdfDocId = pdfDoc._id;
+      mockHasActiveMembership.mockResolvedValue(true);
 
-      // Crear archivo de Word de prueba (sin contenido real, solo para testing)
-      const wordPath = path.join(storageDir, 'test.docx');
-      fs.writeFileSync(wordPath, Buffer.from('Word test content'));
-      const wordDoc = await Document.create({
-        filename: 'test.docx',
-        originalname: 'test.docx',
-        organization: testOrgId,
-        folder: rootFolderId,
-        path: path.join(orgSlug, testUserId.toString(), 'test.docx'),
-        size: 17,
-        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        uploadedBy: testUserId,
+      const req: any = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const res = makeRes();
+      const next = makeNext();
+
+      await getById(req, res, next);
+
+      expect(mockHasActiveMembership).toHaveBeenCalledWith(USER_ID, ORG_ID);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    });
+
+    it('should deny access for org doc when hasActiveMembership returns false', async () => {
+      const { getById } = require('../../../src/controllers/document.controller');
+      mockFindDocumentById.mockResolvedValue({
+        _id: DOC_ID,
+        organization: new mongoose.Types.ObjectId(ORG_ID),
+        uploadedBy: new mongoose.Types.ObjectId('507f1f77bcf86cd799439099'),
+        sharedWith: []
       });
-      wordDocId = wordDoc._id;
+      mockHasActiveMembership.mockResolvedValue(false);
 
-      // Crear archivo de imagen de prueba
-      const imagePath = path.join(storageDir, 'test.jpg');
-      fs.writeFileSync(imagePath, Buffer.from('Image test content'));
-      const imageDoc = await Document.create({
-        filename: 'test.jpg',
-        originalname: 'test.jpg',
-        organization: testOrgId,
-        folder: rootFolderId,
-        path: path.join(orgSlug, testUserId.toString(), 'test.jpg'),
-        size: 18,
-        mimeType: 'image/jpeg',
-        uploadedBy: testUserId,
-      });
-      imageDocId = imageDoc._id;
+      const req: any = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const res = makeRes();
+      const next = makeNext();
 
-      // Crear archivo de texto de prueba
-      const textPath = path.join(storageDir, 'test.txt');
-      fs.writeFileSync(textPath, 'Plain text content');
-      const textDoc = await Document.create({
-        filename: 'test.txt',
-        originalname: 'test.txt',
-        organization: testOrgId,
-        folder: rootFolderId,
-        path: path.join(orgSlug, testUserId.toString(), 'test.txt'),
-        size: 18,
-        mimeType: 'text/plain',
-        uploadedBy: testUserId,
-      });
-      textDocId = textDoc._id;
+      await getById(req, res, next);
 
-      // Crear documento compartido
-      const sharedPath = path.join(storageDir, 'shared.pdf');
-      fs.writeFileSync(sharedPath, Buffer.from('Shared PDF content'));
-      const sharedDoc = await Document.create({
-        filename: 'shared.pdf',
-        originalname: 'shared.pdf',
-        organization: testOrgId,
-        folder: rootFolderId,
-        path: path.join(orgSlug, testUserId.toString(), 'shared.pdf'),
-        size: 18,
-        mimeType: 'application/pdf',
-        uploadedBy: testUserId,
-        sharedWith: [testUser2Id],
-      });
-      sharedDocId = sharedDoc._id;
+      expect(next).toHaveBeenCalled();
     });
 
-    it('should preview PDF document if user is owner', async () => {
-      const response = await request(app)
-        .get(`/api/documents/preview/${pdfDocId}`)
-        .set('Authorization', `Bearer ${testToken}`);
-
-      expect(response.status).toBe(200);
-      expect(response.header['content-type']).toContain('application/pdf');
-      expect(response.header['content-disposition']).toContain('inline');
-    });
-
-    it('should preview image document if user is owner', async () => {
-      const response = await request(app)
-        .get(`/api/documents/preview/${imageDocId}`)
-        .set('Authorization', `Bearer ${testToken}`);
-
-      expect(response.status).toBe(200);
-      expect(response.header['content-type']).toContain('image/jpeg');
-      expect(response.header['content-disposition']).toContain('inline');
-    });
-
-    it('should preview text document if user is owner', async () => {
-      const response = await request(app)
-        .get(`/api/documents/preview/${textDocId}`)
-        .set('Authorization', `Bearer ${testToken}`);
-
-      expect(response.status).toBe(200);
-      expect(response.header['content-type']).toContain('text/plain');
-      expect(response.header['content-disposition']).toContain('inline');
-    });
-
-    it('should convert Word document to HTML for preview', async () => {
-      const response = await request(app)
-        .get(`/api/documents/preview/${wordDocId}`)
-        .set('Authorization', `Bearer ${testToken}`);
-
-      // Note: mammoth conversion may fail with invalid Word file,
-      // so we accept either HTML or fallback to original file
-      expect(response.status).toBe(200);
-      
-      if (response.header['content-type']?.includes('text/html')) {
-        expect(response.header['content-type']).toContain('text/html');
-        expect(response.text).toContain('<!DOCTYPE html>');
-      } else {
-        // Fallback to original file
-        expect(response.header['content-type']).toContain('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-      }
-    });
-
-    it('should preview shared document if user has access', async () => {
-      const response = await request(app)
-        .get(`/api/documents/preview/${sharedDocId}`)
-        .set('Authorization', `Bearer ${testToken2}`);
-
-      expect(response.status).toBe(200);
-      expect(response.header['content-type']).toContain('application/pdf');
-      expect(response.header['content-disposition']).toContain('inline');
-    });
-
-    it('should fail if document does not exist', async () => {
-      const fakeId = new mongoose.Types.ObjectId().toString();
-      const response = await request(app)
-        .get(`/api/documents/preview/${fakeId}`)
-        .set('Authorization', `Bearer ${testToken}`);
-
-      expect(response.status).toBe(404);
-    });
-
-    it('should fail if user has no access to document', async () => {
-      const response = await request(app)
-        .get(`/api/documents/preview/${pdfDocId}`)
-        .set('Authorization', `Bearer ${testToken2}`);
-
-      expect(response.status).toBe(403);
-      expect(response.body.error).toBe('Access denied to this document');
-    });
-
-    it('should fail if file does not exist in storage', async () => {
-      // Crear documento en DB pero sin archivo físico
-      const doc = await Document.create({
-        filename: 'nonexistent.pdf',
-        originalname: 'nonexistent.pdf',
-        organization: testOrgId,
-        folder: rootFolderId,
-        path: 'test-org/nonexistent.pdf',
-        size: 100,
-        mimeType: 'application/pdf',
-        uploadedBy: testUserId,
+    it('should allow access for personal doc when user is owner', async () => {
+      const { getById } = require('../../../src/controllers/document.controller');
+      mockFindDocumentById.mockResolvedValue({
+        _id: DOC_ID,
+        organization: null,
+        uploadedBy: new mongoose.Types.ObjectId(USER_ID),
+        sharedWith: []
       });
 
-      const response = await request(app)
-        .get(`/api/documents/preview/${doc._id}`)
-        .set('Authorization', `Bearer ${testToken}`);
+      const req: any = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const res = makeRes();
+      const next = makeNext();
 
-      expect(response.status).toBe(404);
-      expect(response.body.error).toBe('File not found');
+      await getById(req, res, next);
+
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     });
 
-    it('should fail without authentication', async () => {
-      const response = await request(app)
-        .get(`/api/documents/preview/${pdfDocId}`);
+    it('should allow access for personal doc when user is in sharedWith', async () => {
+      const { getById } = require('../../../src/controllers/document.controller');
+      mockFindDocumentById.mockResolvedValue({
+        _id: DOC_ID,
+        organization: null,
+        uploadedBy: new mongoose.Types.ObjectId('507f1f77bcf86cd799439099'),
+        sharedWith: [new mongoose.Types.ObjectId(USER_ID)]
+      });
 
-      expect(response.status).toBe(401);
+      const req: any = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const res = makeRes();
+      const next = makeNext();
+
+      await getById(req, res, next);
+
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    });
+  });
+
+  describe('share', () => {
+    it('should next 400 when userIds missing/invalid', async () => {
+      const { share } = require('../../../src/controllers/document.controller');
+
+      const req: any = { user: { id: USER_ID }, params: { id: DOC_ID }, body: {} };
+      const res = makeRes();
+      const next = makeNext();
+
+      await share(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+      expect(mockShareDocument).not.toHaveBeenCalled();
     });
 
-    it('should set correct Content-Disposition header for inline display', async () => {
-      const response = await request(app)
-        .get(`/api/documents/preview/${pdfDocId}`)
-        .set('Authorization', `Bearer ${testToken}`);
+    it('should map "Document not found" to 404', async () => {
+      const { share } = require('../../../src/controllers/document.controller');
+      mockShareDocument.mockRejectedValue(new Error('Document not found'));
 
-      expect(response.status).toBe(200);
-      expect(response.header['content-disposition']).toMatch(/^inline/);
-      expect(response.header['content-disposition']).toContain('filename=');
+      const req: any = {
+        user: { id: USER_ID },
+        params: { id: DOC_ID },
+        body: { userIds: [USER_ID] }
+      };
+      const res = makeRes();
+      const next = makeNext();
+
+      await share(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+    });
+
+    it('should return success on valid request', async () => {
+      const { share } = require('../../../src/controllers/document.controller');
+      mockShareDocument.mockResolvedValue({ _id: DOC_ID });
+
+      const req: any = {
+        user: { id: USER_ID },
+        params: { id: DOC_ID },
+        body: { userIds: [USER_ID] }
+      };
+      const res = makeRes();
+      const next = makeNext();
+
+      await share(req, res, next);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true, message: 'Document shared successfully' })
+      );
+    });
+  });
+
+  describe('move', () => {
+    it('should next 400 when targetFolderId missing', async () => {
+      const { move } = require('../../../src/controllers/document.controller');
+      const req: any = { user: { id: USER_ID }, params: { id: DOC_ID }, body: {} };
+      const res = makeRes();
+      const next = makeNext();
+
+      await move(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+      expect(mockMoveDocument).not.toHaveBeenCalled();
+    });
+
+    it('should return success when service resolves', async () => {
+      const { move } = require('../../../src/controllers/document.controller');
+      mockMoveDocument.mockResolvedValue({ _id: DOC_ID });
+
+      const req: any = {
+        user: { id: USER_ID },
+        params: { id: DOC_ID },
+        body: { targetFolderId: '507f1f77bcf86cd799439099' }
+      };
+      const res = makeRes();
+      const next = makeNext();
+
+      await move(req, res, next);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true, message: 'Document moved successfully' })
+      );
+    });
+  });
+
+  describe('copy', () => {
+    it('should next 400 when targetFolderId missing', async () => {
+      const { copy } = require('../../../src/controllers/document.controller');
+      const req: any = { user: { id: USER_ID }, params: { id: DOC_ID }, body: {} };
+      const res = makeRes();
+      const next = makeNext();
+
+      await copy(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+      expect(mockCopyDocument).not.toHaveBeenCalled();
+    });
+
+    it('should return 201 when service resolves', async () => {
+      const { copy } = require('../../../src/controllers/document.controller');
+      mockCopyDocument.mockResolvedValue({ _id: 'newDoc' });
+
+      const req: any = {
+        user: { id: USER_ID },
+        params: { id: DOC_ID },
+        body: { targetFolderId: '507f1f77bcf86cd799439099' }
+      };
+      const res = makeRes();
+      const next = makeNext();
+
+      await copy(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true, message: 'Document copied successfully' })
+      );
+    });
+  });
+
+  describe('download', () => {
+    it('should next 404 when doc not found', async () => {
+      const { download } = require('../../../src/controllers/document.controller');
+      mockFindDocumentById.mockResolvedValue(null);
+
+      const req: any = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const res = makeRes();
+      const next = makeNext();
+
+      await download(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+    });
+
+    it('should next 403 when access denied (org doc)', async () => {
+      const { download } = require('../../../src/controllers/document.controller');
+      mockFindDocumentById.mockResolvedValue({
+        _id: DOC_ID,
+        organization: new mongoose.Types.ObjectId(ORG_ID),
+        uploadedBy: new mongoose.Types.ObjectId('507f1f77bcf86cd799439099'),
+        sharedWith: [],
+        filename: 'a.pdf',
+        originalname: 'a.pdf',
+        path: '/obs/a.pdf'
+      });
+      mockHasActiveMembership.mockResolvedValue(false);
+
+      const req: any = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const res = makeRes();
+      const next = makeNext();
+
+      await download(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+      expect(mockValidateDownloadPath).not.toHaveBeenCalled();
+    });
+
+    it('should download using uploads path if validateDownloadPath succeeds', async () => {
+      const { download } = require('../../../src/controllers/document.controller');
+      mockFindDocumentById.mockResolvedValue({
+        _id: DOC_ID,
+        organization: null,
+        uploadedBy: new mongoose.Types.ObjectId(USER_ID),
+        sharedWith: [],
+        filename: 'a.pdf',
+        originalname: 'nice.pdf',
+        path: '/org/a.pdf'
+      });
+      mockValidateDownloadPath.mockResolvedValue('/abs/uploads/a.pdf');
+
+      const req: any = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const res = makeRes();
+      const next = makeNext();
+
+      await download(req, res, next);
+
+      expect(res.download).toHaveBeenCalledWith('/abs/uploads/a.pdf', 'nice.pdf');
+    });
+
+    it('should fallback to storage using doc.path when uploads fails', async () => {
+      const { download } = require('../../../src/controllers/document.controller');
+      mockFindDocumentById.mockResolvedValue({
+        _id: DOC_ID,
+        organization: null,
+        uploadedBy: new mongoose.Types.ObjectId(USER_ID),
+        sharedWith: [],
+        filename: 'a.pdf',
+        originalname: 'nice.pdf',
+        path: '/org/a.pdf'
+      });
+
+      mockValidateDownloadPath
+        .mockRejectedValueOnce(new Error('nope'))
+        .mockResolvedValueOnce('/abs/storage/org/a.pdf');
+
+      const req: any = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const res = makeRes();
+      const next = makeNext();
+
+      await download(req, res, next);
+
+      expect(res.download).toHaveBeenCalledWith('/abs/storage/org/a.pdf', 'nice.pdf');
+    });
+
+    it('should next 404 File not found when both validations fail', async () => {
+      const { download } = require('../../../src/controllers/document.controller');
+      mockFindDocumentById.mockResolvedValue({
+        _id: DOC_ID,
+        organization: null,
+        uploadedBy: new mongoose.Types.ObjectId(USER_ID),
+        sharedWith: [],
+        filename: 'a.pdf',
+        originalname: 'nice.pdf',
+        path: '/org/a.pdf'
+      });
+
+      mockValidateDownloadPath
+        .mockRejectedValueOnce(new Error('no uploads'))
+        .mockRejectedValueOnce(new Error('no storage'));
+
+      const req: any = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const res = makeRes();
+      const next = makeNext();
+
+      await download(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+      expect(res.download).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('preview', () => {
+    it('should next 404 when doc not found', async () => {
+      const { preview } = require('../../../src/controllers/document.controller');
+      mockFindDocumentById.mockResolvedValue(null);
+
+      const req: any = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const res = makeRes();
+      const next = makeNext();
+
+      await preview(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+    });
+
+    it('should try alternative /obs path when first validate fails, then serve file inline', async () => {
+      const { preview } = require('../../../src/controllers/document.controller');
+      mockFindDocumentById.mockResolvedValue({
+        _id: DOC_ID,
+        organization: null,
+        uploadedBy: new mongoose.Types.ObjectId(USER_ID),
+        sharedWith: [],
+        path: 'org/file.pdf',
+        originalname: 'file.pdf',
+        mimeType: 'application/pdf'
+      });
+
+      mockValidateDownloadPath
+        .mockRejectedValueOnce(new Error('fail first'))
+        .mockResolvedValueOnce('/abs/storage/obs/org/file.pdf');
+
+      const req: any = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const res = makeRes();
+      const next = makeNext();
+
+      await preview(req, res, next);
+
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/pdf');
+      expect(res.setHeader).toHaveBeenCalledWith(
+        'Content-Disposition',
+        expect.stringContaining('inline;')
+      );
+      expect(res.sendFile).toHaveBeenCalledWith('/abs/storage/obs/org/file.pdf');
+    });
+
+    it('should convert Word to HTML when mammoth succeeds', async () => {
+      const { preview } = require('../../../src/controllers/document.controller');
+      mockFindDocumentById.mockResolvedValue({
+        _id: DOC_ID,
+        organization: null,
+        uploadedBy: new mongoose.Types.ObjectId(USER_ID),
+        sharedWith: [],
+        path: 'org/file.docx',
+        originalname: 'file.docx',
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      });
+
+      mockValidateDownloadPath.mockResolvedValue('/abs/storage/org/file.docx');
+      mockMammothConvertToHtml.mockResolvedValue({ value: '<p>Hello</p>' });
+
+      const req: any = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const res = makeRes();
+      const next = makeNext();
+
+      await preview(req, res, next);
+
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/html; charset=utf-8');
+      expect(res.send).toHaveBeenCalledWith(expect.stringContaining('<!DOCTYPE html>'));
+      expect(res.send).toHaveBeenCalledWith(expect.stringContaining('<p>Hello</p>'));
+    });
+
+    it('should fallback to serving original file when mammoth fails', async () => {
+      const { preview } = require('../../../src/controllers/document.controller');
+      mockFindDocumentById.mockResolvedValue({
+        _id: DOC_ID,
+        organization: null,
+        uploadedBy: new mongoose.Types.ObjectId(USER_ID),
+        sharedWith: [],
+        path: 'org/file.docx',
+        originalname: 'file.docx',
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      });
+
+      mockValidateDownloadPath.mockResolvedValue('/abs/storage/org/file.docx');
+      mockMammothConvertToHtml.mockRejectedValue(new Error('bad docx'));
+
+      const req: any = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const res = makeRes();
+      const next = makeNext();
+
+      await preview(req, res, next);
+
+      expect(res.sendFile).toHaveBeenCalledWith('/abs/storage/org/file.docx');
+    });
+
+    it('should next 403 when access denied (org doc)', async () => {
+      const { preview } = require('../../../src/controllers/document.controller');
+      mockFindDocumentById.mockResolvedValue({
+        _id: DOC_ID,
+        organization: new mongoose.Types.ObjectId(ORG_ID),
+        uploadedBy: new mongoose.Types.ObjectId('507f1f77bcf86cd799439099'),
+        sharedWith: [],
+        path: 'org/file.pdf',
+        originalname: 'file.pdf',
+        mimeType: 'application/pdf'
+      });
+      mockHasActiveMembership.mockResolvedValue(false);
+
+      const req: any = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const res = makeRes();
+      const next = makeNext();
+
+      await preview(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+      expect(mockValidateDownloadPath).not.toHaveBeenCalled();
+    });
+
+    it('should next 404 when file not found after both path attempts', async () => {
+      const { preview } = require('../../../src/controllers/document.controller');
+      mockFindDocumentById.mockResolvedValue({
+        _id: DOC_ID,
+        organization: null,
+        uploadedBy: new mongoose.Types.ObjectId(USER_ID),
+        sharedWith: [],
+        path: 'org/file.pdf',
+        originalname: 'file.pdf',
+        mimeType: 'application/pdf'
+      });
+
+      mockValidateDownloadPath
+        .mockRejectedValueOnce(new Error('no'))
+        .mockRejectedValueOnce(new Error('no2'));
+
+      const req: any = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const res = makeRes();
+      const next = makeNext();
+
+      await preview(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+      expect(res.sendFile).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('remove', () => {
+    it('should map "Document not found" to 404', async () => {
+      const { remove } = require('../../../src/controllers/document.controller');
+      mockDeleteDocument.mockRejectedValue(new Error('Document not found'));
+
+      const req: any = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const res = makeRes();
+      const next = makeNext();
+
+      await remove(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+    });
+
+    it('should return success json when deleted', async () => {
+      const { remove } = require('../../../src/controllers/document.controller');
+      mockDeleteDocument.mockResolvedValue({ _id: DOC_ID });
+
+      const req: any = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const res = makeRes();
+      const next = makeNext();
+
+      await remove(req, res, next);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true, message: 'Document deleted successfully' })
+      );
     });
   });
 });

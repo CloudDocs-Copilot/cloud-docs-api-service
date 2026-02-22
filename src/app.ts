@@ -13,11 +13,15 @@ import userRoutes from './routes/user.routes';
 import organizationRoutes from './routes/organization.routes';
 import membershipRoutes from './routes/membership.routes';
 import searchRoutes from './routes/search.routes';
+import deletionRoutes from './routes/deletion.routes';
+import commentRoutes from './routes/comment.routes';
+import aiRoutes from './routes/ai.routes';
 import HttpError from './models/error.model';
 import { errorHandler } from './middlewares/error.middleware';
 import { generalRateLimiter } from './middlewares/rate-limit.middleware';
 import { getCorsOptions } from './configurations/cors-config';
 import { csrfProtectionMiddleware, generateCsrfToken } from './middlewares/csrf.middleware';
+import notificationRoutes from './routes/notification.routes';
 
 const app = express();
 
@@ -108,6 +112,10 @@ app.use('/api/documents', documentRoutes);
 app.use('/api/folders', folderRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/deletion', deletionRoutes);
+app.use('/api/comments', commentRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Documentación Swagger/OpenAPI
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec, { explorer: true }));

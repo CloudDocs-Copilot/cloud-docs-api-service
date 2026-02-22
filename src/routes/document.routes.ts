@@ -27,6 +27,25 @@ router.post(
 );
 
 /**
+ * @route   POST /api/documents/:id/replace
+ * @desc    Reemplaza (sobrescribe) el archivo de un documento existente
+ * @access  Document editor (owner/admin or document owner)
+ */
+router.post(
+  '/:id/replace',
+  uploadRateLimiter,
+  upload.single('file'),
+  documentController.replaceFile
+);
+
+/**
+ * @route   GET /api/documents/shared
+ * @desc    Lista documentos compartidos al usuario (por otros usuarios)
+ * @access  Authenticated users
+ */
+router.get('/shared', documentController.listSharedToMe);
+
+/**
  * @route   GET /api/documents
  * @desc    Lista todos los documentos del usuario
  * @access  Authenticated users
@@ -38,7 +57,11 @@ router.get('/', documentController.list);
  * @desc    Obtiene documentos recientes del usuario en una organización
  * @access  Authenticated users (organization members)
  */
-router.get('/recent/:organizationId', validateOrganizationMembership('params'), documentController.getRecent);
+router.get(
+  '/recent/:organizationId',
+  validateOrganizationMembership('params'),
+  documentController.getRecent
+);
 
 /**
  * @route   GET /api/documents/download/:id
@@ -96,7 +119,5 @@ router.post('/:id/copy', documentController.copy);
  * @access  Document owner
  */
 router.delete('/:id', documentController.remove);
-
-
 
 export default router;
