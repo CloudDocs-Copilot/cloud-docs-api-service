@@ -823,7 +823,10 @@ export async function getUserRecentDocuments({
 
   const documents = await DocumentModel.find({
     organization: orgObjectId,
-    deletedAt: null, // Excluir documentos en papelera
+    $or: [
+      { isDeleted: { $exists: false } },
+      { isDeleted: false }
+    ]
   })
     .sort({ createdAt: -1 })
     .limit(limit)
@@ -1135,7 +1138,10 @@ export async function listDocuments(userId: string): Promise<IDocument[]> {
   const userObjectId = new mongoose.Types.ObjectId(userId);
   return DocumentModel.find({ 
     uploadedBy: userObjectId,
-    deletedAt: null // Excluir documentos en papelera
+    $or: [
+      { isDeleted: { $exists: false } },
+      { isDeleted: false }
+    ]
   }).populate('folder');
   
 }

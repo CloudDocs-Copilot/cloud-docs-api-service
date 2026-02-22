@@ -358,9 +358,13 @@ export async function getFolderContents({ folderId, userId }: GetFolderContentsD
     };
   });
   
-  // Obtener documentos de la carpeta
+  // Obtener documentos de la carpeta (excluir eliminados)
   const documents = await DocumentModel.find({
-    folder: folderObjectId
+    folder: folderObjectId,
+    $or: [
+      { isDeleted: { $exists: false } },
+      { isDeleted: false }
+    ]
   })
   .sort({ createdAt: -1 })
   .select('-__v');
@@ -411,9 +415,13 @@ export async function getUserFolderTree({ userId, organizationId }: GetUserFolde
     };
   });
   
-  // Obtener todos los documentos de estas carpetas
+  // Obtener todos los documentos de estas carpetas (excluir eliminados)
   const documents = await DocumentModel.find({
-    folder: { $in: folders.map(f => f._id) }
+    folder: { $in: folders.map(f => f._id) },
+    $or: [
+      { isDeleted: { $exists: false } },
+      { isDeleted: false }
+    ]
   })
   .sort({ originalname: 1 })
   .select('-__v')
