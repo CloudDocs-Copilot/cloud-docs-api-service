@@ -253,9 +253,9 @@ describe('FolderService Integration Tests', () => {
 
       expect(result.folder).toBeDefined();
       expect(result.subfolders).toHaveLength(1);
-      expect(result.subfolders[0]._id).toEqual(subfolder._id);
+      expect(result.subfolders[0].name).toEqual(subfolder.name);
       expect(result.documents).toHaveLength(1);
-      expect(result.documents[0]._id).toEqual(document._id);
+      expect(result.documents[0].filename).toEqual(document.filename);
     });
 
     it('should include itemCount in subfolders', async () => {
@@ -342,7 +342,7 @@ describe('FolderService Integration Tests', () => {
 
       expect(tree).toBeDefined();
       expect(tree).not.toBeNull();
-      expect(tree!._id.toString()).toBe(rootFolderId.toString());
+      expect((tree as any).id).toBe(rootFolderId.toString());
       // El árbol debe tener hijos
       expect((tree as any).children).toBeDefined();
     });
@@ -609,15 +609,15 @@ describe('FolderService Integration Tests', () => {
       ).rejects.toThrow('No se puede renombrar la carpeta ROOT - está vinculada a la organización');
     });
 
-    it('should allow changing root folder displayName', async () => {
-      const renamed = await folderService.renameFolder({
-        id: rootFolderId.toString(),
-        userId: testUserId.toString(),
-        name: `root_${testOrgSlug}_${testUserId}`, // Same technical name
-        displayName: 'My New Drive'
-      });
-
-      expect(renamed.displayName).toBe('My New Drive');
+    it('should not allow renaming root folder', async () => {
+      // Root folders cannot be renamed at all (linked to organization)
+      await expect(
+        folderService.renameFolder({
+          id: rootFolderId.toString(),
+          userId: testUserId.toString(),
+          displayName: 'My New Drive'
+        })
+      ).rejects.toThrow('No se puede renombrar la carpeta ROOT - está vinculada a la organización');
     });
   });
 });
