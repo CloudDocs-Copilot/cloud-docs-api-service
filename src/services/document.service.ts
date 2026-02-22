@@ -517,13 +517,32 @@ export async function moveDocument({
   const safeFilename = sanitizePathOrThrow(doc.filename || '', storageRoot);
   const newDocPath = `${targetFolder.path}/${safeFilename}`;
 
-  const oldRelativePath = (doc.path || '').startsWith('/')
-    ? (doc.path || '').substring(1)
-    : doc.path || '';
-  const newRelativePath = newDocPath.startsWith('/') ? newDocPath.substring(1) : newDocPath;
-
-  const oldPhysicalPath = path.join(storageRoot, oldRelativePath);
-  const newPhysicalPath = path.join(storageRoot, newRelativePath);
+  // Construir paths físicos SANITIZADOS (igual que en uploadDocument)
+  const safeSlug = org ? org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '') : '';
+  
+  // Path actual del documento (sanitizado)
+  const oldPathComponents = (doc.path || '').split('/').filter(p => p).map(component =>
+    component.replace(/[^a-z0-9_.-]/gi, '-')
+  );
+  // Eliminar slug si ya está al inicio
+  if (oldPathComponents.length > 0 && oldPathComponents[0] === safeSlug && safeSlug) {
+    oldPathComponents.shift();
+  }
+  const oldPhysicalPath = safeSlug 
+    ? path.join(storageRoot, safeSlug, ...oldPathComponents)
+    : path.join(storageRoot, ...oldPathComponents);
+  
+  // Nuevo path del documento (sanitizado)
+  const newPathComponents = targetFolder.path.split('/').filter(p => p).map(component =>
+    component.replace(/[^a-z0-9_.-]/gi, '-')
+  );
+  // Eliminar slug si ya está al inicio
+  if (newPathComponents.length > 0 && newPathComponents[0] === safeSlug && safeSlug) {
+    newPathComponents.shift();
+  }
+  const newPhysicalPath = safeSlug
+    ? path.join(storageRoot, safeSlug, ...newPathComponents, safeFilename)
+    : path.join(storageRoot, ...newPathComponents, safeFilename);
 
   // Mover archivo físico
   try {
