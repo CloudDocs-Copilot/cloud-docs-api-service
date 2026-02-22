@@ -140,7 +140,7 @@ describe('FolderService Integration Tests', () => {
 
       await expect(
         folderService.validateFolderAccess(rootFolderId.toString(), testUser2Id.toString(), 'owner')
-      ).rejects.toThrow('User does not have owner access to this folder');
+      ).rejects.toThrow('El usuario no tiene acceso de owner a esta carpeta');
     });
 
     it('should fail if folder does not exist', async () => {
@@ -148,7 +148,7 @@ describe('FolderService Integration Tests', () => {
 
       await expect(
         folderService.validateFolderAccess(fakeId.toString(), testUserId.toString())
-      ).rejects.toThrow('Folder not found');
+      ).rejects.toThrow('Carpeta no encontrada');
     });
   });
 
@@ -192,7 +192,7 @@ describe('FolderService Integration Tests', () => {
           organizationId: testOrgId.toString(),
           parentId: ''
         })
-      ).rejects.toThrow('Parent folder ID is required');
+      ).rejects.toThrow('El ID de carpeta padre es requerido');
     });
 
     it('should fail if parent folder does not exist', async () => {
@@ -205,7 +205,7 @@ describe('FolderService Integration Tests', () => {
           organizationId: testOrgId.toString(),
           parentId: fakeParentId.toString()
         })
-      ).rejects.toThrow('Folder not found');
+      ).rejects.toThrow('Carpeta no encontrada');
     });
 
     it('should fail if user does not have editor access to parent', async () => {
@@ -217,7 +217,7 @@ describe('FolderService Integration Tests', () => {
           organizationId: testOrgId.toString(),
           parentId: rootFolderId.toString()
         })
-      ).rejects.toThrow('User does not have editor access to this folder');
+      ).rejects.toThrow('El usuario no tiene acceso de editor a esta carpeta');
     });
   });
 
@@ -308,7 +308,7 @@ describe('FolderService Integration Tests', () => {
           folderId: rootFolderId.toString(),
           userId: testUser2Id.toString()
         })
-      ).rejects.toThrow('User does not have viewer access to this folder');
+      ).rejects.toThrow('El usuario no tiene acceso de viewer a esta carpeta');
     });
   });
 
@@ -430,7 +430,7 @@ describe('FolderService Integration Tests', () => {
           targetUserId: testUserId.toString(),
           role: 'viewer'
         })
-      ).rejects.toThrow('User does not have owner access to this folder');
+      ).rejects.toThrow('El usuario no tiene acceso de owner a esta carpeta');
     });
 
     it('should fail if target user does not exist', async () => {
@@ -443,7 +443,7 @@ describe('FolderService Integration Tests', () => {
           targetUserId: fakeUserId.toString(),
           role: 'viewer'
         })
-      ).rejects.toThrow('Target user not found');
+      ).rejects.toThrow('Usuario objetivo no encontrado');
     });
   });
 
@@ -497,7 +497,7 @@ describe('FolderService Integration Tests', () => {
           id: folder._id.toString(),
           userId: testUserId.toString()
         })
-      ).rejects.toThrow('Folder is not empty');
+      ).rejects.toThrow('La carpeta no está vacía');
     });
 
     it('should delete folder with documents when force is true', async () => {
@@ -540,7 +540,7 @@ describe('FolderService Integration Tests', () => {
           id: rootFolderId.toString(),
           userId: testUserId.toString()
         })
-      ).rejects.toThrow('Cannot delete root folder');
+      ).rejects.toThrow('No se puede eliminar la carpeta raíz');
     });
   });
 
@@ -606,7 +606,7 @@ describe('FolderService Integration Tests', () => {
           userId: testUserId.toString(),
           name: 'NewRootName'
         })
-      ).rejects.toThrow('Cannot rename root folder technical name');
+      ).rejects.toThrow('No se puede renombrar la carpeta ROOT - está vinculada a la organización');
     });
 
     it('should allow changing root folder displayName', async () => {
