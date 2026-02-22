@@ -18,7 +18,7 @@ export const PLAN_LIMITS = {
     maxUsers: 3,
     maxStoragePerUser: 1073741824, // 1GB
     maxStorageTotal: 3221225472, // 3GB total
-    allowedFileTypes: ['pdf', 'txt', 'doc', 'docx'],
+    allowedFileTypes: ['pdf', 'txt', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'],
     maxFileSize: 10485760 // 10MB
   },
   [SubscriptionPlan.BASIC]: {
