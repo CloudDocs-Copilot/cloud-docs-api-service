@@ -12,7 +12,7 @@
 
 **CSRF (Cross-Site Request Forgery)** es un ataque donde un sitio malicioso engaña al navegador del usuario para que realice acciones no autorizadas en una aplicación web en la que el usuario está autenticado.
 
-### Ejemplo de Ataque:
+### Ejemplo de Ataque
 
 1. Usuario está logueado en `https://clouddocs.com`
 2. Visita un sitio malicioso `https://evil.com`

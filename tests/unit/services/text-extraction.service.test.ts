@@ -100,11 +100,13 @@ describe('TextExtractionService', () => {
       expect(textExtractionService.isSupportedMimeType(SUPPORTED_MIME_TYPES.DOC)).toBe(true);
       expect(textExtractionService.isSupportedMimeType(SUPPORTED_MIME_TYPES.TXT)).toBe(true);
       expect(textExtractionService.isSupportedMimeType(SUPPORTED_MIME_TYPES.MD)).toBe(true);
+      // Images supported via OCR
+      expect(textExtractionService.isSupportedMimeType('image/png')).toBe(true);
     });
 
     it('should return false for unsupported MIME types', () => {
       expect(textExtractionService.isSupportedMimeType('application/json')).toBe(false);
-      expect(textExtractionService.isSupportedMimeType('image/png')).toBe(false);
+      expect(textExtractionService.isSupportedMimeType('image/webp')).toBe(false);
       expect(textExtractionService.isSupportedMimeType('video/mp4')).toBe(false);
     });
   });
@@ -119,7 +121,8 @@ describe('TextExtractionService', () => {
       expect(types).toContain(SUPPORTED_MIME_TYPES.DOC);
       expect(types).toContain(SUPPORTED_MIME_TYPES.TXT);
       expect(types).toContain(SUPPORTED_MIME_TYPES.MD);
-      expect(types.length).toBe(5);
+      // Added 4 image types (png/jpg/tiff/bmp)
+      expect(types.length).toBe(9);
     });
   });
 

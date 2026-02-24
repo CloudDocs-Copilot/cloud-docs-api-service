@@ -44,11 +44,10 @@ async function start(): Promise<void> {
     } else {
       console.log('ℹ️  Elasticsearch disabled. Search functionality will be limited.');
     }
-    
+
     // Iniciar job de eliminación automática
     startAutoDeletionJob();
-    
-    
+
     // Create HTTP server (required for Socket.IO)
     const server = http.createServer(app);
 

@@ -30,21 +30,12 @@ router.post(
 );
 
 // POST /api/deletion/:id/restore - Restaurar documento de la papelera
-router.post(
-  '/:id/restore',
-  deletionController.restoreFromTrash
-);
+router.post('/:id/restore', deletionController.restoreFromTrash);
 
 // DELETE /api/deletion/:id/permanent - Eliminación permanente con sobrescritura segura
-router.delete(
-  '/:id/permanent',
-  deletionController.permanentDelete
-);
+router.delete('/:id/permanent', deletionController.permanentDelete);
 
 // GET /api/deletion/:id/history - Historial de eliminaciones de un documento
-router.get(
-  '/:id/history',
-  deletionController.getDocumentDeletionHistory
-);
+router.get('/:id/history', deletionController.getDocumentDeletionHistory);
 
 export default router;

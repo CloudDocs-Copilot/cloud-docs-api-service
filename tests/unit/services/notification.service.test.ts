@@ -82,7 +82,7 @@ describe('notification.service (unit)', () => {
     const actor = overrides.actor ?? new mongoose.Types.ObjectId();
 
     const baseEntityId =
-      overrides.entity?.id ?? overrides.entity?.id === undefined
+      (overrides.entity?.id ?? overrides.entity?.id === undefined)
         ? overrides?.entity?.id
         : new mongoose.Types.ObjectId();
 
@@ -536,7 +536,7 @@ describe('notification.service (unit)', () => {
         })
       ).rejects.toThrow('Invalid actor user ID');
     });
-    
+
     it('throws 400 for invalid entityId when using entityKind+entityId', async () => {
       await expect(
         notificationService.notifyOrganizationMembers({
@@ -798,7 +798,9 @@ describe('notification.service (unit)', () => {
       expect(NotificationModel.insertMany).toHaveBeenCalledTimes(1);
       const [docsToInsert] = NotificationModel.insertMany.mock.calls[0];
       expect(docsToInsert[0].entity.kind).toBe('membership');
-      expect(docsToInsert[0].entity.id.toString()).toBe(new mongoose.Types.ObjectId(entityId).toString());
+      expect(docsToInsert[0].entity.id.toString()).toBe(
+        new mongoose.Types.ObjectId(entityId).toString()
+      );
     });
   });
 

@@ -16,7 +16,7 @@ describe('Deletion Routes', () => {
       email: 'deletion-test@example.com',
       password: 'TestPass123!'
     });
-    
+
     authCookies = auth.cookies;
     userId = auth.userId;
 
@@ -25,14 +25,14 @@ describe('Deletion Routes', () => {
       filename: 'test-deletion.pdf',
       content: 'Test content for deletion'
     });
-    
+
     document = uploadResponse.body.document;
   });
 
   describe('POST /api/deletion/:id/trash', () => {
     it('should move document to trash successfully', async () => {
       const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
-      
+
       const response = await request(app)
         .post(`/api/deletion/${document.id}/trash`)
         .set('Cookie', tokenCookie?.split(';')[0] || '')
@@ -55,7 +55,7 @@ describe('Deletion Routes', () => {
     it('should return 404 for non-existent document', async () => {
       const fakeId = '507f1f77bcf86cd799439011';
       const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
-      
+
       await request(app)
         .post(`/api/deletion/${fakeId}/trash`)
         .set('Cookie', tokenCookie?.split(';')[0] || '')
@@ -65,7 +65,7 @@ describe('Deletion Routes', () => {
 
     it('should return 400 if document already in trash', async () => {
       const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
-      
+
       // Mover primero a papelera
       await request(app)
         .post(`/api/deletion/${document.id}/trash`)
@@ -85,7 +85,7 @@ describe('Deletion Routes', () => {
   describe('POST /api/deletion/:id/restore', () => {
     beforeEach(async () => {
       const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
-      
+
       // Mover documento a papelera primero
       await request(app)
         .post(`/api/deletion/${document.id}/trash`)
@@ -95,7 +95,7 @@ describe('Deletion Routes', () => {
 
     it('should restore document from trash successfully', async () => {
       const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
-      
+
       const response = await request(app)
         .post(`/api/deletion/${document.id}/restore`)
         .set('Cookie', tokenCookie?.split(';')[0] || '')
@@ -117,7 +117,7 @@ describe('Deletion Routes', () => {
 
     it('should return 400 if document is not in trash', async () => {
       const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
-      
+
       // Restaurar primero
       await request(app)
         .post(`/api/deletion/${document.id}/restore`)
@@ -137,7 +137,7 @@ describe('Deletion Routes', () => {
   describe('GET /api/deletion/trash', () => {
     beforeEach(async () => {
       const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
-      
+
       // Mover documento a papelera
       await request(app)
         .post(`/api/deletion/${document.id}/trash`)
@@ -147,7 +147,7 @@ describe('Deletion Routes', () => {
 
     it('should return documents in trash', async () => {
       const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
-      
+
       const response = await request(app)
         .get('/api/deletion/trash')
         .set('Cookie', tokenCookie?.split(';')[0] || '')
@@ -162,7 +162,7 @@ describe('Deletion Routes', () => {
     it('should return empty array when trash is empty', async () => {
       // Restaurar documento
       const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
-      
+
       await request(app)
         .post(`/api/deletion/${document.id}/restore`)
         .set('Cookie', tokenCookie?.split(';')[0] || '')
@@ -179,7 +179,7 @@ describe('Deletion Routes', () => {
 
     it('should support pagination', async () => {
       const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
-      
+
       const response = await request(app)
         .get('/api/deletion/trash?page=1&limit=10')
         .set('Cookie', tokenCookie?.split(';')[0] || '')
@@ -194,7 +194,7 @@ describe('Deletion Routes', () => {
   describe('DELETE /api/deletion/:id/permanent', () => {
     beforeEach(async () => {
       const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
-      
+
       // Mover documento a papelera primero
       await request(app)
         .post(`/api/deletion/${document.id}/trash`)
@@ -204,7 +204,7 @@ describe('Deletion Routes', () => {
 
     it('should permanently delete document', async () => {
       const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
-      
+
       const response = await request(app)
         .delete(`/api/deletion/${document.id}/permanent`)
         .set('Cookie', tokenCookie?.split(';')[0] || '')
@@ -228,7 +228,7 @@ describe('Deletion Routes', () => {
 
     it('should return 400 if document is not in trash', async () => {
       const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
-      
+
       // Restaurar primero
       await request(app)
         .post(`/api/deletion/${document.id}/restore`)
@@ -246,7 +246,7 @@ describe('Deletion Routes', () => {
   describe('DELETE /api/deletion/trash', () => {
     beforeEach(async () => {
       const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
-      
+
       // Mover documento a papelera
       await request(app)
         .post(`/api/deletion/${document.id}/trash`)
@@ -256,7 +256,7 @@ describe('Deletion Routes', () => {
 
     it('should empty trash successfully', async () => {
       const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
-      
+
       const response = await request(app)
         .delete('/api/deletion/trash')
         .set('Cookie', tokenCookie?.split(';')[0] || '')
@@ -267,16 +267,16 @@ describe('Deletion Routes', () => {
       expect(response.body.data.deletedCount).toBe(1);
 
       // Verificar que no hay documentos en papelera
-      const remainingDocs = await DocumentModel.find({ 
-        uploadedBy: userId, 
-        isDeleted: true 
+      const remainingDocs = await DocumentModel.find({
+        uploadedBy: userId,
+        isDeleted: true
       });
       expect(remainingDocs).toHaveLength(0);
     });
 
     it('should return 0 deleted count when trash is empty', async () => {
       const tokenCookie = authCookies.find((cookie: string) => cookie.startsWith('token='));
-      
+
       // Vaciar papelera primero
       await request(app)
         .delete('/api/deletion/trash')
@@ -296,10 +296,7 @@ describe('Deletion Routes', () => {
 
   describe('Authorization', () => {
     it('should return 401 without auth token', async () => {
-      await request(app)
-        .post(`/api/deletion/${document.id}/trash`)
-        .send()
-        .expect(401);
+      await request(app).post(`/api/deletion/${document.id}/trash`).send().expect(401);
     });
 
     it('should return 403 for unauthorized user', async () => {
@@ -309,8 +306,10 @@ describe('Deletion Routes', () => {
         email: 'other-deletion@example.com',
         password: 'OtherPass123!'
       });
-      
-      const otherTokenCookie = otherAuth.cookies.find((cookie: string) => cookie.startsWith('token='));
+
+      const otherTokenCookie = otherAuth.cookies.find((cookie: string) =>
+        cookie.startsWith('token=')
+      );
 
       await request(app)
         .post(`/api/deletion/${document.id}/trash`)

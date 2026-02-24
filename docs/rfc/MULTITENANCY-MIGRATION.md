@@ -637,7 +637,7 @@ Los tests del sistema anterior (folders, documents, etc.) necesitarán actualiza
 - Usar getActiveOrganization() en lugar de pasar organizationId
 - Verificar validaciones de límites de plan
   // 1. Crear membership + rootFolder físico
- ''' createMembership(userId, organizationId, role, invitedBy?): Promise<IMembership>
+  ''' createMembership(userId, organizationId, role, invitedBy?): Promise<IMembership>
 
 // 2. Eliminar membership (soft delete) + limpieza storage
 removeMembership(userId, organizationId): Promise<void>

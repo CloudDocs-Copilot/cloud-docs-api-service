@@ -33,7 +33,7 @@ The easiest way to get started is using Docker Compose from the project root:
 
 ```bash
 # From the workspace root (parent of cloud-docs-api-service)
-cp .env.example .env
+cp .env.example .env.local
 docker-compose up -d
 
 # Backend available at http://localhost:4000
@@ -52,8 +52,8 @@ docker-compose up -d
 2. **Set up environment:**
 
    ```bash
-   cp .env.example .env
-   # Edit .env with your local settings
+   cp .env.example .env.local
+   # Edit .env.local with your local settings
    ```
 
 3. **Start MongoDB (Docker):**

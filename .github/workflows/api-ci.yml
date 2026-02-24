@@ -1,4 +1,6 @@
 # API CI
+# Nombre del workflow (aparece en la UI de GitHub Actions)
+name: API CI
 
 # Minimal permissions to allow CodeQL and other security scanners
 permissions:

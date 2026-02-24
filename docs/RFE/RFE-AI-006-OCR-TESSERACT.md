@@ -2,15 +2,15 @@
 
 ## 📋 Resumen
 
-| Campo | Valor |
-|-------|-------|
-| **Fecha** | Febrero 16, 2026 |
-| **Estado** | 📋 Propuesto |
+| Campo                   | Valor                                                                            |
+| ----------------------- | -------------------------------------------------------------------------------- |
+| **Fecha**               | Febrero 16, 2026                                                                 |
+| **Estado**              | 📋 Propuesto                                                                     |
 | **Issues relacionadas** | [#47 (US-202)](https://github.com/CloudDocs-Copilot/cloud-docs-web-ui/issues/47) |
-| **Épica** | Inteligencia Artificial (Core MVP) |
-| **Prioridad** | 🟠 Alta (P1 — desbloquea documentos imagen) |
-| **Estimación** | 5h |
-| **Repositorio** | `cloud-docs-api-service` |
+| **Épica**               | Inteligencia Artificial (Core MVP)                                               |
+| **Prioridad**           | 🟠 Alta (P1 — desbloquea documentos imagen)                                      |
+| **Estimación**          | 5h                                                                               |
+| **Repositorio**         | `cloud-docs-api-service`                                                         |
 
 ---
 
@@ -27,17 +27,19 @@
 ### Servicio de extracción actual (`src/services/ai/text-extraction.service.ts`)
 
 **Formatos soportados:**
-| Formato | Soporte | Implementación |
-|---------|---------|---------------|
-| PDF (texto) | ✅ | `pdf-parse` |
-| DOCX | ✅ | `mammoth` |
-| DOC | ✅ | `mammoth` (con limitaciones) |
-| TXT | ✅ | `readFileSync` |
-| MD | ✅ | `readFileSync` |
-| **Imágenes (PNG, JPG)** | **❌** | **No soportado** |
-| **PDF escaneados** | **❌** | **pdf-parse extrae "" vacío** |
+
+| Formato                 | Soporte | Implementación                |
+| ----------------------- | ------- | ----------------------------- |
+| PDF (texto)             | ✅      | `pdf-parse`                   |
+| DOCX                    | ✅      | `mammoth`                     |
+| DOC                     | ✅      | `mammoth` (con limitaciones)  |
+| TXT                     | ✅      | `readFileSync`                |
+| MD                      | ✅      | `readFileSync`                |
+| **Imágenes (PNG, JPG)** | **❌**  | **No soportado**              |
+| **PDF escaneados**      | **❌**  | **pdf-parse extrae "" vacío** |
 
 **Bugs existentes:**
+
 1. **I/O síncrono:** Usa `readFileSync` y `existsSync` — bloquea event loop de Node.js
 2. **Sin OCR:** Imágenes y PDFs escaneados devuelven texto vacío sin error
 3. **Sin detección de PDF escaneado:** No distingue PDF con texto de PDF imagen
@@ -66,7 +68,7 @@ export interface ExtractionResult {
   text: string;
   method: 'pdf-parse' | 'mammoth' | 'plaintext' | 'ocr' | 'pdf-ocr';
   pages?: number;
-  confidence?: number;  // OCR confidence (0-100)
+  confidence?: number; // OCR confidence (0-100)
   language?: string;
 }
 
@@ -95,16 +97,16 @@ class TextExtractionService {
     switch (mimeType) {
       case 'application/pdf':
         return this.extractFromPdf(filePath);
-      
+
       case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
       case 'application/msword':
         return this.extractFromWord(filePath);
-      
+
       case 'text/plain':
       case 'text/markdown':
       case 'text/csv':
         return this.extractFromPlaintext(filePath);
-      
+
       case 'image/png':
       case 'image/jpeg':
       case 'image/jpg':
@@ -112,7 +114,7 @@ class TextExtractionService {
       case 'image/bmp':
       case 'image/webp':
         return this.extractFromImage(filePath);
-      
+
       default:
         // Intentar como texto plano
         try {
@@ -127,39 +129,39 @@ class TextExtractionService {
 
   private async extractFromPdf(filePath: string): Promise<ExtractionResult> {
     const pdfParse = require('pdf-parse');
-    const buffer = await fs.readFile(filePath);  // ✅ Async
+    const buffer = await fs.readFile(filePath); // ✅ Async
     const data = await pdfParse(buffer);
-    
+
     const text = data.text?.trim() || '';
-    
+
     // Detectar PDF escaneado: si tiene páginas pero poco/ningún texto
     if (data.numpages > 0 && text.length < 50) {
       // PDF escaneado — intentar OCR si habilitado
       if (this.ocrEnabled) {
         return this.extractFromPdfWithOcr(filePath, data.numpages);
       }
-      return { 
-        text: '', 
-        method: 'pdf-parse', 
-        pages: data.numpages,
+      return {
+        text: '',
+        method: 'pdf-parse',
+        pages: data.numpages
       };
     }
-    
-    return { 
-      text, 
-      method: 'pdf-parse', 
-      pages: data.numpages,
+
+    return {
+      text,
+      method: 'pdf-parse',
+      pages: data.numpages
     };
   }
 
   private async extractFromPdfWithOcr(
-    filePath: string, 
+    filePath: string,
     pageCount: number
   ): Promise<ExtractionResult> {
     // Para PDFs escaneados, convertir cada página a imagen y hacer OCR
     // pdf-parse no soporta esto directamente, usar pdf2pic o similar
     // Por ahora, OCR directo del PDF (tesseract soporta PDFs con --psm)
-    
+
     // Nota: tesseract.js no soporta PDFs directamente.
     // Alternativa: extraer primera imagen del PDF con pdf-parse o usar
     // la librería pdf-to-img. Para MVP, solo hacemos OCR de imágenes.
@@ -167,7 +169,7 @@ class TextExtractionService {
       text: '[PDF escaneado detectado — OCR de PDFs requiere conversor de imágenes adicional]',
       method: 'pdf-ocr',
       pages: pageCount,
-      confidence: 0,
+      confidence: 0
     };
   }
 
@@ -175,21 +177,21 @@ class TextExtractionService {
 
   private async extractFromWord(filePath: string): Promise<ExtractionResult> {
     const mammoth = require('mammoth');
-    const buffer = await fs.readFile(filePath);  // ✅ Async
+    const buffer = await fs.readFile(filePath); // ✅ Async
     const result = await mammoth.extractRawText({ buffer });
-    return { 
+    return {
       text: result.value || '',
-      method: 'mammoth',
+      method: 'mammoth'
     };
   }
 
   // --- Texto plano ---
 
   private async extractFromPlaintext(filePath: string): Promise<ExtractionResult> {
-    const text = await fs.readFile(filePath, 'utf-8');  // ✅ Async
-    return { 
+    const text = await fs.readFile(filePath, 'utf-8'); // ✅ Async
+    return {
       text,
-      method: 'plaintext',
+      method: 'plaintext'
     };
   }
 
@@ -200,34 +202,34 @@ class TextExtractionService {
       return {
         text: '',
         method: 'ocr',
-        confidence: 0,
+        confidence: 0
       };
     }
 
     try {
       const Tesseract = require('tesseract.js');
-      
+
       const { data } = await Tesseract.recognize(filePath, this.ocrLanguages, {
         logger: (m: any) => {
           // Opcional: log progreso para debugging
           if (m.status === 'recognizing text' && m.progress === 1) {
             console.log(`OCR complete: ${path.basename(filePath)}`);
           }
-        },
+        }
       });
 
       return {
         text: data.text?.trim() || '',
         method: 'ocr',
         confidence: data.confidence,
-        language: data.language || this.ocrLanguages,
+        language: data.language || this.ocrLanguages
       };
     } catch (error) {
       console.error(`OCR failed for ${filePath}:`, error);
       return {
         text: '',
         method: 'ocr',
-        confidence: 0,
+        confidence: 0
       };
     }
   }
@@ -248,7 +250,7 @@ class TextExtractionService {
       'image/jpg',
       'image/tiff',
       'image/bmp',
-      'image/webp',
+      'image/webp'
     ];
     return supported.includes(mimeType);
   }
@@ -268,10 +270,13 @@ import { Worker, isMainThread, workerData, parentPort } from 'worker_threads';
 import path from 'path';
 
 // Solo si se quiere procesar OCR en un thread separado
-export async function extractTextWithOcrWorker(filePath: string, languages: string): Promise<string> {
+export async function extractTextWithOcrWorker(
+  filePath: string,
+  languages: string
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const worker = new Worker(__filename, {
-      workerData: { filePath, languages },
+      workerData: { filePath, languages }
     });
     worker.on('message', resolve);
     worker.on('error', reject);
@@ -281,7 +286,7 @@ export async function extractTextWithOcrWorker(filePath: string, languages: stri
 if (!isMainThread) {
   const Tesseract = require('tesseract.js');
   const { filePath, languages } = workerData;
-  
+
   Tesseract.recognize(filePath, languages)
     .then(({ data }: any) => parentPort?.postMessage(data.text))
     .catch((err: Error) => parentPort?.postMessage(''));
@@ -300,28 +305,25 @@ OCR_LANGUAGES=spa+eng            # Idiomas de Tesseract (ISO 639-3)
 
 ### Idiomas de OCR disponibles
 
-| Idioma | Código Tesseract | Notas |
-|--------|-----------------|-------|
-| Español | `spa` | Default para proyecto CloudDocs |
-| Inglés | `eng` | Siempre incluir como fallback |
-| Francés | `fra` | Opcional |
-| Alemán | `deu` | Opcional |
-| Multi | `spa+eng` | Formato para múltiples idiomas |
+| Idioma  | Código Tesseract | Notas                           |
+| ------- | ---------------- | ------------------------------- |
+| Español | `spa`            | Default para proyecto CloudDocs |
+| Inglés  | `eng`            | Siempre incluir como fallback   |
+| Francés | `fra`            | Opcional                        |
+| Alemán  | `deu`            | Opcional                        |
+| Multi   | `spa+eng`        | Formato para múltiples idiomas  |
 
 ---
 
 ## 🔄 Integración con Pipeline AI
 
-### En RFE-AI-002 (ai-pipeline.service.ts), el paso 1 ya llama a `textExtractionService.extractText()`:
+### En RFE-AI-002 (ai-pipeline.service.ts), el paso 1 ya llama a `textExtractionService.extractText()`
 
 ```typescript
 // ai-pipeline.service.ts → processDocument() — PASO 1
 
 // Ahora, si el documento es una imagen, extractText() hará OCR automáticamente
-const extraction = await textExtractionService.extractText(
-  document.path,
-  document.mimeType
-);
+const extraction = await textExtractionService.extractText(document.path, document.mimeType);
 
 // extraction.method será 'ocr' para imágenes
 // extraction.confidence indicará calidad del OCR
@@ -363,7 +365,7 @@ describe('TextExtractionService', () => {
         'tests/fixtures/files/sample-text-image.png',
         'image/png'
       );
-      
+
       expect(result.method).toBe('ocr');
       expect(result.text.length).toBeGreaterThan(0);
       expect(result.confidence).toBeGreaterThan(50);
@@ -374,31 +376,29 @@ describe('TextExtractionService', () => {
         'tests/fixtures/files/sample-receipt.jpg',
         'image/jpeg'
       );
-      
+
       expect(result.method).toBe('ocr');
       expect(result.text).toContain('Total'); // Si la imagen tiene "Total"
     });
 
     it('should return empty text when OCR is disabled', async () => {
       process.env.OCR_ENABLED = 'false';
-      
+
       const result = await textExtractionService.extractText(
         'tests/fixtures/files/sample-text-image.png',
         'image/png'
       );
-      
+
       expect(result.text).toBe('');
       expect(result.confidence).toBe(0);
-      
+
       process.env.OCR_ENABLED = 'true'; // Restore
     });
   });
 
   describe('Async I/O (regression)', () => {
     it('should not use readFileSync', async () => {
-      const code = await fs.readFile(
-        'src/services/ai/text-extraction.service.ts', 'utf-8'
-      );
+      const code = await fs.readFile('src/services/ai/text-extraction.service.ts', 'utf-8');
       expect(code).not.toContain('readFileSync');
       expect(code).not.toContain('existsSync');
     });
@@ -408,7 +408,7 @@ describe('TextExtractionService', () => {
         'tests/fixtures/files/sample.pdf',
         'application/pdf'
       );
-      
+
       expect(result.method).toBe('pdf-parse');
       expect(result.text.length).toBeGreaterThan(0);
     });
@@ -418,7 +418,7 @@ describe('TextExtractionService', () => {
         'tests/fixtures/files/sample.docx',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
       );
-      
+
       expect(result.method).toBe('mammoth');
       expect(result.text.length).toBeGreaterThan(0);
     });
@@ -430,7 +430,7 @@ describe('TextExtractionService', () => {
         'tests/fixtures/files/scanned-document.pdf',
         'application/pdf'
       );
-      
+
       // Con OCR habilitado, debería intentar OCR
       expect(result.method).toBe('pdf-ocr');
     });
@@ -440,7 +440,7 @@ describe('TextExtractionService', () => {
 
 ### Fixtures necesarias
 
-```
+```text
 tests/fixtures/files/
 ├── sample-text-image.png     ← Imagen con texto claro para OCR
 ├── sample-receipt.jpg        ← Foto de recibo/factura
@@ -453,17 +453,17 @@ tests/fixtures/files/
 
 ## ✅ Criterios de Aceptación
 
-| # | Criterio | Estado |
-|---|----------|--------|
-| 1 | OCR extrae texto de PNG con confianza > 50% | ⬜ |
-| 2 | OCR extrae texto de JPG con confianza > 50% | ⬜ |
-| 3 | Con `OCR_ENABLED=false`, OCR retorna texto vacío (no error) | ⬜ |
-| 4 | PDFs escaneados se detectan (>0 páginas, <50 chars texto) | ⬜ |
-| 5 | I/O es 100% asíncrono: `readFileSync` eliminado | ⬜ |
-| 6 | `existsSync` reemplazado por `fs.access()` async | ⬜ |
-| 7 | Soporta idiomas español + inglés (`spa+eng`) | ⬜ |
-| 8 | `ExtractionResult` incluye `method`, `confidence`, `language` | ⬜ |
-| 9 | Coste de dependencia: $0 (tesseract.js es local/gratuito) | ⬜ |
+| #   | Criterio                                                      | Estado |
+| --- | ------------------------------------------------------------- | ------ |
+| 1   | OCR extrae texto de PNG con confianza > 50%                   | ⬜     |
+| 2   | OCR extrae texto de JPG con confianza > 50%                   | ⬜     |
+| 3   | Con `OCR_ENABLED=false`, OCR retorna texto vacío (no error)   | ⬜     |
+| 4   | PDFs escaneados se detectan (>0 páginas, <50 chars texto)     | ⬜     |
+| 5   | I/O es 100% asíncrono: `readFileSync` eliminado               | ⬜     |
+| 6   | `existsSync` reemplazado por `fs.access()` async              | ⬜     |
+| 7   | Soporta idiomas español + inglés (`spa+eng`)                  | ⬜     |
+| 8   | `ExtractionResult` incluye `method`, `confidence`, `language` | ⬜     |
+| 9   | Coste de dependencia: $0 (tesseract.js es local/gratuito)     | ⬜     |
 
 ---
 
@@ -483,7 +483,7 @@ tests/fixtures/files/
 
 ## 📁 Archivos Afectados
 
-```
+```text
 src/services/ai/text-extraction.service.ts  ← REESCRIBIR: async + OCR
 package.json                                 ← MODIFICAR: añadir tesseract.js
 .env.example                                 ← MODIFICAR: OCR_ENABLED, OCR_LANGUAGES
@@ -496,13 +496,14 @@ tests/fixtures/files/                        ← CREAR: fixtures de imágenes pa
 
 ### Performance de OCR
 
-| Formato | Tiempo estimado (por archivo) | CPU | RAM |
-|---------|-------------------------------|-----|-----|
-| PNG simple | 2-5s | Alto | ~200MB |
-| JPG recibo | 3-8s | Alto | ~200MB |
-| PDF escaneado (multi-page) | 10-30s | Muy alto | ~500MB |
+| Formato                    | Tiempo estimado (por archivo) | CPU      | RAM    |
+| -------------------------- | ----------------------------- | -------- | ------ |
+| PNG simple                 | 2-5s                          | Alto     | ~200MB |
+| JPG recibo                 | 3-8s                          | Alto     | ~200MB |
+| PDF escaneado (multi-page) | 10-30s                        | Muy alto | ~500MB |
 
 **Mitigación:**
+
 - OCR corre en el AI Pipeline (async, en background)
 - No bloquea el upload ni la respuesta HTTP
 - `AI_MAX_CONCURRENT=2` evita saturar CPU
@@ -522,8 +523,8 @@ Los modelos de idioma de tesseract.js se descargan automáticamente desde CDN la
 ```typescript
 // Configurar caché local en Docker
 const worker = await Tesseract.createWorker({
-  langPath: '/app/tessdata',  // Path local en container
-  cachePath: '/app/tessdata',
+  langPath: '/app/tessdata', // Path local en container
+  cachePath: '/app/tessdata'
 });
 ```
 
@@ -531,7 +532,7 @@ const worker = await Tesseract.createWorker({
 
 ## 🔗 RFEs Relacionadas
 
-| RFE | Relación |
-|-----|----------|
+| RFE        | Relación                                                          |
+| ---------- | ----------------------------------------------------------------- |
 | RFE-AI-002 | El pipeline llama `textExtractionService.extractText()` en paso 1 |
-| RFE-AI-004 | El texto extraído (incluido OCR) se indexa en ES |
+| RFE-AI-004 | El texto extraído (incluido OCR) se indexa en ES                  |

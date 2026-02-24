@@ -3,10 +3,10 @@ import { deletionService } from '../services/deletion.service';
 
 /**
  * Configuración de Jobs Programados para Eliminación Automática
- * 
+ *
  * Este módulo configura cron jobs para:
  * - Eliminación automática de documentos expirados en papelera (30 días)
- * 
+ *
  * GDPR Compliance:
  * - Cumple con el derecho al olvido (Artículo 17)
  * - Retención de datos limitada (Artículo 5)
@@ -19,7 +19,7 @@ import { deletionService } from '../services/deletion.service';
 export const startAutoDeletionJob = (): void => {
   // Cron expresión: '0 2 * * *' = Todos los días a las 2:00 AM
   // Para testing: '*/5 * * * *' = Cada 5 minutos
-  
+
   const cronExpression = process.env.AUTO_DELETE_CRON || '0 2 * * *';
 
   cron.schedule(cronExpression, async () => {

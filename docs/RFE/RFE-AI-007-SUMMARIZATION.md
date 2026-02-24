@@ -2,15 +2,15 @@
 
 ## 📋 Resumen
 
-| Campo | Valor |
-|-------|-------|
-| **Fecha** | Febrero 16, 2026 |
-| **Estado** | 📋 Propuesto |
+| Campo                   | Valor                                                                            |
+| ----------------------- | -------------------------------------------------------------------------------- |
+| **Fecha**               | Febrero 16, 2026                                                                 |
+| **Estado**              | 📋 Propuesto                                                                     |
 | **Issues relacionadas** | [#48 (US-203)](https://github.com/CloudDocs-Copilot/cloud-docs-web-ui/issues/48) |
-| **Épica** | Inteligencia Artificial (Core MVP) |
-| **Prioridad** | 🟡 Media (P2 — UX, no bloqueante) |
-| **Estimación** | 3h |
-| **Repositorio** | `cloud-docs-api-service` |
+| **Épica**               | Inteligencia Artificial (Core MVP)                                               |
+| **Prioridad**           | 🟡 Media (P2 — UX, no bloqueante)                                                |
+| **Estimación**          | 3h                                                                               |
+| **Repositorio**         | `cloud-docs-api-service`                                                         |
 
 ---
 
@@ -36,12 +36,14 @@ El prompt existe en el código pero está completamente desconectado. Nadie lo u
 ### Campos en Document Model
 
 Con RFE-AI-002, el modelo ya tendrá:
+
 - `aiSummary: String` — resumen de 2-3 frases
 - `aiKeyPoints: [String]` — 3-5 puntos clave
 
 ### AI Provider
 
 Con RFE-AI-001, el provider ya expone:
+
 - `summarizeDocument(text): Promise<SummarizationResult>` — devuelve `{ summary, keyPoints }`
 
 ---
@@ -138,7 +140,7 @@ async regenerateSummary(req: AuthRequest, res: Response) {
 
     // Verificar que hay texto extraído
     if (!document.extractedText || document.extractedText.trim().length < 10) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'El documento no tiene texto extraído. Necesita re-procesamiento completo.',
         suggestion: 'POST /api/ai/process/' + documentId,
       });
@@ -174,16 +176,12 @@ async regenerateSummary(req: AuthRequest, res: Response) {
 ```typescript
 // Añadir a ai.routes.ts
 
-router.get(
-  '/documents/:documentId/summary',
-  authMiddleware,
-  aiController.getDocumentSummary
-);
+router.get('/documents/:documentId/summary', authMiddleware, aiController.getDocumentSummary);
 
 router.post(
   '/documents/:documentId/summarize',
   authMiddleware,
-  rateLimitMiddleware({ windowMs: 60000, max: 10 }),  // 10 por minuto
+  rateLimitMiddleware({ windowMs: 60000, max: 10 }), // 10 por minuto
   aiController.regenerateSummary
 );
 ```
@@ -194,7 +192,7 @@ router.post(
 
 ### Resumen Automático (via Pipeline)
 
-```
+```text
 Upload documento
     │
     └→ AI Pipeline (RFE-AI-002)
@@ -223,7 +221,7 @@ Frontend:
 
 ### Resumen Manual (bajo demanda)
 
-```
+```text
 Usuario ve resumen antiguo o fallido
     │
     └→ POST /api/ai/documents/:id/summarize
@@ -304,11 +302,13 @@ describe('Summarization', () => {
       const doc = await createProcessedDocument(authToken);
 
       // Hacer 11 requests rápidas
-      const requests = Array(11).fill(null).map(() =>
-        request(app)
-          .post(`/api/ai/documents/${doc._id}/summarize`)
-          .set('Authorization', `Bearer ${authToken}`)
-      );
+      const requests = Array(11)
+        .fill(null)
+        .map(() =>
+          request(app)
+            .post(`/api/ai/documents/${doc._id}/summarize`)
+            .set('Authorization', `Bearer ${authToken}`)
+        );
 
       const results = await Promise.all(requests);
       const rateLimited = results.filter(r => r.status === 429);
@@ -322,16 +322,16 @@ describe('Summarization', () => {
 
 ## ✅ Criterios de Aceptación
 
-| # | Criterio | Estado |
-|---|----------|--------|
-| 1 | GET /api/ai/documents/:id/summary devuelve resumen + keyPoints + metadata | ⬜ |
-| 2 | Devuelve estado correcto: not_processed, processing, completed, failed | ⬜ |
-| 3 | POST /api/ai/documents/:id/summarize regenera el resumen | ⬜ |
-| 4 | Filtro de organización: no se puede ver resumen de otro org | ⬜ |
-| 5 | Rate limit en endpoint de regeneración (10/min) | ⬜ |
-| 6 | El resumen se genera automáticamente en el pipeline (paso 3) | ⬜ |
-| 7 | Si no hay texto extraído, POST devuelve 400 con sugerencia | ⬜ |
-| 8 | Si IA está deshabilitada, POST devuelve 503 | ⬜ |
+| #   | Criterio                                                                  | Estado |
+| --- | ------------------------------------------------------------------------- | ------ |
+| 1   | GET /api/ai/documents/:id/summary devuelve resumen + keyPoints + metadata | ⬜     |
+| 2   | Devuelve estado correcto: not_processed, processing, completed, failed    | ⬜     |
+| 3   | POST /api/ai/documents/:id/summarize regenera el resumen                  | ⬜     |
+| 4   | Filtro de organización: no se puede ver resumen de otro org               | ⬜     |
+| 5   | Rate limit en endpoint de regeneración (10/min)                           | ⬜     |
+| 6   | El resumen se genera automáticamente en el pipeline (paso 3)              | ⬜     |
+| 7   | Si no hay texto extraído, POST devuelve 400 con sugerencia                | ⬜     |
+| 8   | Si IA está deshabilitada, POST devuelve 503                               | ⬜     |
 
 ---
 
@@ -347,7 +347,7 @@ describe('Summarization', () => {
 
 ## 📁 Archivos Afectados
 
-```
+```text
 src/controllers/ai.controller.ts  ← MODIFICAR: añadir getDocumentSummary, regenerateSummary
 src/routes/ai.routes.ts           ← MODIFICAR: añadir rutas GET y POST
 ```
@@ -356,7 +356,7 @@ src/routes/ai.routes.ts           ← MODIFICAR: añadir rutas GET y POST
 
 ## 🔗 RFEs Relacionadas
 
-| RFE | Relación |
-|-----|----------|
-| RFE-AI-001 | Provee `provider.summarizeDocument()` |
+| RFE        | Relación                                             |
+| ---------- | ---------------------------------------------------- |
+| RFE-AI-001 | Provee `provider.summarizeDocument()`                |
 | RFE-AI-002 | El pipeline genera resumen automáticamente en paso 3 |

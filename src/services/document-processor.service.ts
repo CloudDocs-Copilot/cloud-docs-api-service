@@ -28,16 +28,25 @@ export class DocumentProcessor {
    * y los almacena en MongoDB Atlas para búsqueda semántica.
    *
    * @param documentId - ID del documento original (desde MongoDB local)
+   * @param organizationId - ID de la organización propietaria del documento
    * @param text - Texto completo del documento
    * @returns Resultado del procesamiento con estadísticas
    * @throws HttpError si el texto está vacío o hay errores de procesamiento
    */
-  async processDocument(documentId: string, text: string): Promise<IProcessingResult> {
+  async processDocument(
+    documentId: string,
+    organizationId: string,
+    text: string
+  ): Promise<IProcessingResult> {
     const startTime = Date.now();
 
     // Validar entrada
     if (!documentId || documentId.trim().length === 0) {
       throw new HttpError(400, 'Document ID is required');
+    }
+
+    if (!organizationId || organizationId.trim().length === 0) {
+      throw new HttpError(400, 'Organization ID is required');
     }
 
     if (!text || text.trim().length === 0) {
@@ -79,6 +88,7 @@ export class DocumentProcessor {
 
         return {
           documentId,
+          organizationId, // 🔐 Multitenancy: obligatorio para filtrado
           content,
           embedding: embeddings[index],
           createdAt: now,
@@ -146,7 +156,11 @@ export class DocumentProcessor {
       return result.deletedCount || 0;
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[processor] Error deleting chunks for document %s: %s', documentId, errorMessage);
+      console.error(
+        '[processor] Error deleting chunks for document %s: %s',
+        documentId,
+        errorMessage
+      );
 
       throw new HttpError(500, `Failed to delete document chunks: ${errorMessage}`);
     }
@@ -183,15 +197,20 @@ export class DocumentProcessor {
    * Elimina chunks antiguos y genera nuevos
    *
    * @param documentId - ID del documento
+   * @param organizationId - ID de la organización propietaria
    * @param newText - Nuevo texto del documento
    * @returns Resultado del procesamiento
    */
-  async updateDocument(documentId: string, newText: string): Promise<IProcessingResult> {
+  async updateDocument(
+    documentId: string,
+    organizationId: string,
+    newText: string
+  ): Promise<IProcessingResult> {
     // Eliminar chunks antiguos primero
     await this.deleteDocumentChunks(documentId);
 
     // Procesar el nuevo texto
-    return this.processDocument(documentId, newText);
+    return this.processDocument(documentId, organizationId, newText);
   }
 
   /**

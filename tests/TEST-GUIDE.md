@@ -4,7 +4,7 @@ Este directorio contiene los tests del proyecto CloudDocs Backend con fixtures, 
 
 ## 📁 Estructura
 
-```schema
+```text
 tests/
 ├── builders/          # Builders (patrón Builder) para construir objetos de prueba
 │   ├── user.builder.ts
@@ -490,7 +490,6 @@ Prueban funciones y servicios individuales:
 7. **Tests independientes** que no dependan del orden de ejecución
 
    ```typescript
-
    beforeEach(async () => {
      // Reset state before each test
    });

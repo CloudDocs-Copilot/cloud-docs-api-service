@@ -83,7 +83,7 @@ class DeletionService {
         size: document.size,
         mimeType: document.mimeType,
         path: document.path,
-        organization: document.organization,
+        organization: document.organization
       },
       performedBy: context.userId,
       organization: context.organizationId || document.organization,
@@ -92,7 +92,7 @@ class DeletionService {
       reason: context.reason,
       ipAddress: context.ipAddress,
       userAgent: context.userAgent,
-      completedAt: now,
+      completedAt: now
     };
 
     await DeletionAuditModel.create(auditData);
@@ -106,8 +106,11 @@ class DeletionService {
     }
 
     try {
-
-      const orgId = (document.organization?.toString?.() || context.organizationId || '').toString();
+      const orgId = (
+        document.organization?.toString?.() ||
+        context.organizationId ||
+        ''
+      ).toString();
       if (orgId) {
         const actor = await User.findById(context.userId).select('name email').lean();
         const actorName = (actor as any)?.name || (actor as any)?.email || 'Alguien';
@@ -125,17 +128,17 @@ class DeletionService {
             folderId: document.folder?.toString?.(),
             reason: context.reason,
             action: 'trash',
-            actorName,
+            actorName
           },
           emitter: (recipientUserId: string, payload: any) => {
             emitToUser(recipientUserId, 'notification:new', payload);
-          },
+          }
         });
       }
     } catch (e: any) {
       console.error('Failed to create notification (DOC_DELETED on trash):', e.message);
     }
-    
+
     return document;
   }
 
@@ -178,7 +181,7 @@ class DeletionService {
         size: document.size,
         mimeType: document.mimeType,
         path: document.path,
-        organization: document.organization,
+        organization: document.organization
       },
       performedBy: context.userId,
       organization: context.organizationId || document.organization,
@@ -187,7 +190,7 @@ class DeletionService {
       reason: context.reason,
       ipAddress: context.ipAddress,
       userAgent: context.userAgent,
-      completedAt: new Date(),
+      completedAt: new Date()
     };
 
     await DeletionAuditModel.create(auditData);
@@ -237,7 +240,7 @@ class DeletionService {
         size: document.size,
         mimeType: document.mimeType,
         path: document.path,
-        organization: document.organization,
+        organization: document.organization
       },
       performedBy: context.userId,
       organization: context.organizationId || document.organization,
@@ -245,7 +248,7 @@ class DeletionService {
       status: DeletionStatus.PENDING,
       reason: context.reason,
       ipAddress: context.ipAddress,
-      userAgent: context.userAgent,
+      userAgent: context.userAgent
     });
 
     try {
@@ -254,7 +257,10 @@ class DeletionService {
 
       // Actualizar auditoría con detalles de sobrescritura
       auditEntry.overwriteMethod = options.method || 'simple';
-      auditEntry.overwritePasses = this.getPassesForMethod(options.method || 'simple', options.passes);
+      auditEntry.overwritePasses = this.getPassesForMethod(
+        options.method || 'simple',
+        options.passes
+      );
       auditEntry.status = DeletionStatus.COMPLETED;
       auditEntry.completedAt = new Date();
       await auditEntry.save();
@@ -268,7 +274,6 @@ class DeletionService {
       } catch (error) {
         console.error('Failed to remove from search index:', error);
       }
-
     } catch (error: any) {
       // Actualizar auditoría con el error
       auditEntry.status = DeletionStatus.FAILED;
@@ -305,7 +310,6 @@ class DeletionService {
 
       // Eliminar el archivo
       await fs.unlink(filePath);
-
     } catch (error: any) {
       if (error.code === 'ENOENT') {
         // El archivo ya no existe, continuar
@@ -324,7 +328,7 @@ class DeletionService {
       case 'DoD 5220.22-M':
         // DoD 5220.22-M: 3 pasadas (0x00, 0xFF, random)
         if (pass === 0) return Buffer.alloc(size, 0x00);
-        if (pass === 1) return Buffer.alloc(size, 0xFF);
+        if (pass === 1) return Buffer.alloc(size, 0xff);
         return crypto.randomBytes(size);
 
       case 'Gutmann':
@@ -332,8 +336,10 @@ class DeletionService {
         if (pass < 4) return crypto.randomBytes(size);
         if (pass >= 31) return crypto.randomBytes(size);
         // Pasadas intermedias con patrones específicos
-        const patterns = [0x55, 0xAA, 0x92, 0x49, 0x24, 0x00, 0x11, 0x22, 0x33, 0x44,
-                         0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF];
+        const patterns = [
+          0x55, 0xaa, 0x92, 0x49, 0x24, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99,
+          0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff
+        ];
         return Buffer.alloc(size, patterns[pass % patterns.length]);
 
       case 'simple':
@@ -366,16 +372,14 @@ class DeletionService {
   async getTrash(userId: string, organizationId?: string): Promise<IDocument[]> {
     const query: any = {
       uploadedBy: userId,
-      isDeleted: true,
+      isDeleted: true
     };
 
     if (organizationId) {
       query.organization = organizationId;
     }
 
-    return DocumentModel.find(query)
-      .populate('folder', 'name type')
-      .sort({ deletedAt: -1 });
+    return DocumentModel.find(query).populate('folder', 'name type').sort({ deletedAt: -1 });
   }
 
   /**
@@ -409,7 +413,7 @@ class DeletionService {
     // Buscar documentos que han excedido el período de retención
     const expiredDocuments = await DocumentModel.find({
       isDeleted: true,
-      scheduledDeletionDate: { $lte: now },
+      scheduledDeletionDate: { $lte: now }
     });
 
     let deletedCount = 0;
@@ -419,13 +423,12 @@ class DeletionService {
         const context: DeletionContext = {
           userId: document.deletedBy?.toString() || document.uploadedBy.toString(),
           organizationId: document.organization?.toString(),
-          reason: 'Automatic deletion after retention period',
+          reason: 'Automatic deletion after retention period'
         };
 
         // Usar sobrescritura simple para eliminaciones automáticas (balance entre seguridad y rendimiento)
         await this.permanentDelete(document.id, context, { method: 'simple' });
         deletedCount++;
-
       } catch (error) {
         console.error(`Auto-delete failed for document ${document.id}:`, error);
         // Continuar con los demás documentos

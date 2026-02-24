@@ -4,6 +4,7 @@ import DocumentModel from '../../src/models/document.model';
 import User from '../../src/models/user.model';
 import path from 'path';
 import fs from 'fs';
+import { createDocumentModel } from '../builders/document.builder';
 
 // Integration AI tests - use global mocks from jest.setup.ts
 const describeOrSkip = describe;
@@ -41,40 +42,33 @@ describeOrSkip('AI Endpoints', () => {
     organizationId = auth.organizationId!;
     userId = auth.userId;
 
-    // Crear un documento de prueba en el filesystem
+    // Crear un documento de prueba usando el builder (crea archivo en storage + registro en DB)
     const user = await User.findById(userId);
     const rootFolderId = user?.rootFolder?.toString();
 
-    // Crear archivo de texto de prueba
     const testContent =
       'Este es un documento de prueba para testing de IA. Contiene información sobre proyectos y objetivos del Q1 2026.';
-    const testFilePath = path.join(process.cwd(), 'storage', 'test-org', 'test-ai-doc.txt');
 
-    // Asegurar que existe el directorio
-    const dir = path.dirname(testFilePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(testFilePath, testContent);
-
-    // Crear documento en la base de datos
-    const doc = await DocumentModel.create({
+    const created = await createDocumentModel(DocumentModel, {
+      organization: organizationId,
       filename: 'test-ai-doc.txt',
-      originalname: 'test-ai-doc.txt',
-      path: testFilePath,
-      size: Buffer.byteLength(testContent),
+      content: testContent,
       mimeType: 'text/plain',
       uploadedBy: userId,
-      organization: organizationId,
       folder: rootFolderId
     });
 
-    documentId = doc._id.toString();
+    documentId = created._id.toString();
   });
 
   afterEach(async () => {
     // Limpiar archivos de prueba
-    const testFilePath = path.join(process.cwd(), 'storage', 'test-org', 'test-ai-doc.txt');
+    const testFilePath = path.join(
+      process.cwd(),
+      'storage',
+      organizationId?.toString() || 'test-org',
+      'test-ai-doc.txt'
+    );
     if (fs.existsSync(testFilePath)) {
       fs.unlinkSync(testFilePath);
     }

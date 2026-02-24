@@ -2,15 +2,15 @@
 
 ## 📋 Resumen
 
-| Campo | Valor |
-|-------|-------|
-| **Fecha** | Febrero 16, 2026 |
-| **Estado** | 📋 Propuesto |
+| Campo                   | Valor                                                                                                                                                                                                                                                                                                                                  |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Fecha**               | Febrero 16, 2026                                                                                                                                                                                                                                                                                                                       |
+| **Estado**              | 📋 Propuesto                                                                                                                                                                                                                                                                                                                           |
 | **Issues relacionadas** | [#46 (US-201)](https://github.com/CloudDocs-Copilot/cloud-docs-web-ui/issues/46), [#47 (US-202)](https://github.com/CloudDocs-Copilot/cloud-docs-web-ui/issues/47), [#48 (US-203)](https://github.com/CloudDocs-Copilot/cloud-docs-web-ui/issues/48), [#52 (US-205)](https://github.com/CloudDocs-Copilot/cloud-docs-web-ui/issues/52) |
-| **Épica** | Inteligencia Artificial (Core MVP) |
-| **Prioridad** | 🔴 Crítica (bloquea todas las US de IA) |
-| **Estimación** | 8h |
-| **Repositorio** | `cloud-docs-api-service` |
+| **Épica**               | Inteligencia Artificial (Core MVP)                                                                                                                                                                                                                                                                                                     |
+| **Prioridad**           | 🔴 Crítica (bloquea todas las US de IA)                                                                                                                                                                                                                                                                                                |
+| **Estimación**          | 8h                                                                                                                                                                                                                                                                                                                                     |
+| **Repositorio**         | `cloud-docs-api-service`                                                                                                                                                                                                                                                                                                               |
 
 ---
 
@@ -28,7 +28,7 @@
 
 El modelo actual tiene estos campos (sin ningún campo AI):
 
-```typescript
+````typescript
 {
   filename: String,
   originalname: String,
@@ -40,7 +40,7 @@ El modelo actual tiene estos campos (sin ningún campo AI):
   folder: ObjectId (ref: Folder),
   // timestamps: createdAt, updatedAt
 }
-```
+```typescript
 
 **No hay:** `aiProcessingStatus`, `aiCategory`, `aiTags`, `aiSummary`, `extractedText`, etc.
 
@@ -129,11 +129,11 @@ const documentSchema = new Schema({
 documentSchema.index({ organization: 1, aiProcessingStatus: 1 });
 documentSchema.index({ organization: 1, aiCategory: 1 });
 documentSchema.index({ aiTags: 1 });
-```
+````
 
 ### Diagrama de campos
 
-```
+```text
 Document
 ├── filename              (existente)
 ├── originalname          (existente)
@@ -161,7 +161,7 @@ Document
 
 ### Flujo Completo
 
-```
+```text
 POST /api/documents/upload
          │
     ┌────┴────────────────────────────────────┐
@@ -250,17 +250,12 @@ export class AIPipelineService {
       const provider = aiService.getProvider();
 
       // PASO 1: Extraer texto
-      const extraction = await textExtractionService.extractText(
-        document.path,
-        document.mimeType
-      );
+      const extraction = await textExtractionService.extractText(document.path, document.mimeType);
       document.extractedText = extraction.text;
 
       // PASO 2: Clasificar + Etiquetar
       const classification = await provider.classifyDocument(extraction.text);
-      document.aiCategory = classification.confidence >= 0.5 
-        ? classification.category 
-        : 'Otro';
+      document.aiCategory = classification.confidence >= 0.5 ? classification.category : 'Otro';
       document.aiConfidence = classification.confidence;
       document.aiTags = classification.tags;
 
@@ -273,7 +268,7 @@ export class AIPipelineService {
       await searchService.updateDocumentIndex(documentId, {
         content: extraction.text,
         aiCategory: document.aiCategory,
-        aiTags: document.aiTags,
+        aiTags: document.aiTags
       });
 
       // PASO 5: Chunking + Embeddings (para RAG)
@@ -288,7 +283,6 @@ export class AIPipelineService {
       document.aiProcessedAt = new Date();
       document.aiError = null;
       await document.save();
-
     } catch (error) {
       document.aiProcessingStatus = 'failed';
       document.aiError = error instanceof Error ? error.message : 'Error desconocido';
@@ -303,7 +297,7 @@ export class AIPipelineService {
   async reprocessDocument(documentId: string): Promise<void> {
     const document = await Document.findById(documentId);
     if (!document) throw new Error(`Document ${documentId} not found`);
-    
+
     // Reset estado
     document.aiProcessingStatus = 'pending';
     document.aiError = null;
@@ -328,7 +322,7 @@ if (process.env.AI_ENABLED !== 'false' && process.env.AI_AUTO_PROCESS !== 'false
   // Marcar como pending
   document.aiProcessingStatus = 'pending';
   await document.save();
-  
+
   // Lanzar en background (no bloquea la respuesta HTTP)
   setImmediate(async () => {
     try {
@@ -348,19 +342,19 @@ return res.status(201).json(document);
 
 ### Endpoints existentes que cambian
 
-| Endpoint | Cambio necesario |
-|----------|-----------------|
-| `POST /api/documents/upload` | Añadir trigger AI pipeline |
-| `GET /api/documents/:id` | Ahora devuelve campos AI (automático con Mongoose) |
-| `GET /api/documents` | Ahora incluye campos AI en listado |
-| `GET /api/search` | Re-indexar con contenido (RFE-AI-004) |
+| Endpoint                     | Cambio necesario                                   |
+| ---------------------------- | -------------------------------------------------- |
+| `POST /api/documents/upload` | Añadir trigger AI pipeline                         |
+| `GET /api/documents/:id`     | Ahora devuelve campos AI (automático con Mongoose) |
+| `GET /api/documents`         | Ahora incluye campos AI en listado                 |
+| `GET /api/search`            | Re-indexar con contenido (RFE-AI-004)              |
 
 ### Endpoints nuevos sugeridos
 
-| Endpoint | Propósito |
-|----------|-----------|
+| Endpoint                           | Propósito                            |
+| ---------------------------------- | ------------------------------------ |
 | `POST /api/ai/process/:documentId` | Re-procesar un documento manualmente |
-| `GET /api/ai/status/:documentId` | Consultar estado de procesamiento |
+| `GET /api/ai/status/:documentId`   | Consultar estado de procesamiento    |
 
 ---
 
@@ -369,6 +363,7 @@ return res.status(201).json(document);
 ### Para documentos existentes
 
 Los documentos ya existentes en la base de datos **no se ven afectados**:
+
 - Los nuevos campos tienen `default: null` o `default: 'none'`
 - Mongoose maneja la ausencia de campos gracefully
 - `aiProcessingStatus: 'none'` indica "nunca procesado"
@@ -382,7 +377,7 @@ Para procesar documentos existentes:
 async function migrateExistingDocuments() {
   const docs = await Document.find({ aiProcessingStatus: 'none' });
   console.log(`Procesando ${docs.length} documentos existentes...`);
-  
+
   for (const doc of docs) {
     try {
       await aiPipelineService.processDocument(doc._id.toString());
@@ -400,19 +395,19 @@ async function migrateExistingDocuments() {
 
 ## ✅ Criterios de Aceptación
 
-| # | Criterio | Estado |
-|---|----------|--------|
-| 1 | Document model tiene los 9 campos AI descritos | ⬜ |
-| 2 | Al subir un documento con AI_ENABLED=true, se dispara pipeline automáticamente | ⬜ |
-| 3 | La respuesta HTTP del upload NO se retrasa por el procesamiento AI | ⬜ |
-| 4 | El documento creado tiene `aiProcessingStatus: 'pending'` inmediatamente | ⬜ |
-| 5 | Tras completar el pipeline, el status cambia a `'completed'` | ⬜ |
-| 6 | Si el pipeline falla, status = `'failed'` y `aiError` contiene el mensaje | ⬜ |
-| 7 | Con AI_ENABLED=false, el upload funciona como antes (sin campos AI) | ⬜ |
-| 8 | Los campos AI se devuelven en GET /api/documents/:id automáticamente | ⬜ |
-| 9 | `extractedText` NO se incluye en queries normales (select: false) | ⬜ |
-| 10 | Se puede re-procesar un documento via POST /api/ai/process/:id | ⬜ |
-| 11 | Documentos existentes mantienen `aiProcessingStatus: 'none'` sin errores | ⬜ |
+| #   | Criterio                                                                       | Estado |
+| --- | ------------------------------------------------------------------------------ | ------ |
+| 1   | Document model tiene los 9 campos AI descritos                                 | ⬜     |
+| 2   | Al subir un documento con AI_ENABLED=true, se dispara pipeline automáticamente | ⬜     |
+| 3   | La respuesta HTTP del upload NO se retrasa por el procesamiento AI             | ⬜     |
+| 4   | El documento creado tiene `aiProcessingStatus: 'pending'` inmediatamente       | ⬜     |
+| 5   | Tras completar el pipeline, el status cambia a `'completed'`                   | ⬜     |
+| 6   | Si el pipeline falla, status = `'failed'` y `aiError` contiene el mensaje      | ⬜     |
+| 7   | Con AI_ENABLED=false, el upload funciona como antes (sin campos AI)            | ⬜     |
+| 8   | Los campos AI se devuelven en GET /api/documents/:id automáticamente           | ⬜     |
+| 9   | `extractedText` NO se incluye en queries normales (select: false)              | ⬜     |
+| 10  | Se puede re-procesar un documento via POST /api/ai/process/:id                 | ⬜     |
+| 11  | Documentos existentes mantienen `aiProcessingStatus: 'none'` sin errores       | ⬜     |
 
 ---
 
@@ -453,7 +448,7 @@ async function migrateExistingDocuments() {
 
 ## 📁 Archivos Afectados
 
-```
+```text
 src/models/document.model.ts          ← MODIFICAR: añadir 9 campos AI
 src/controllers/document.controller.ts ← MODIFICAR: trigger pipeline post-upload
 src/services/ai/ai-pipeline.service.ts ← CREAR: orquestador del pipeline
@@ -468,6 +463,7 @@ src/controllers/ai.controller.ts      ← MODIFICAR: añadir processDocument, ge
 ### `select: false` en extractedText
 
 El campo `extractedText` puede ser muy grande (>100KB para documentos largos). Con `select: false`:
+
 - No se incluye en `find()`, `findOne()` por defecto
 - Para acceder, hacer `.select('+extractedText')` explícitamente
 - Esto evita overhead en listados de documentos
@@ -475,6 +471,7 @@ El campo `extractedText` puede ser muy grande (>100KB para documentos largos). C
 ### Concurrencia del pipeline
 
 Con `setImmediate()` y `AI_MAX_CONCURRENT`, limitar procesamientos simultáneos:
+
 ```typescript
 // Semáforo simple para concurrencia
 let activeProcesses = 0;
@@ -505,10 +502,10 @@ async function processDocumentAsync(docId: string) {
 
 ## 🔗 RFEs Relacionadas
 
-| RFE | Relación |
-|-----|----------|
-| RFE-AI-001 | Provee el `aiService` que usa el pipeline |
+| RFE        | Relación                                                |
+| ---------- | ------------------------------------------------------- |
+| RFE-AI-001 | Provee el `aiService` que usa el pipeline               |
 | RFE-AI-003 | Define la lógica de clasificación que el pipeline llama |
-| RFE-AI-004 | La re-indexación en ES tras procesamiento |
-| RFE-AI-006 | Extracción OCR que se usa en paso 1 |
-| RFE-AI-007 | Resumen que se genera en paso 3 |
+| RFE-AI-004 | La re-indexación en ES tras procesamiento               |
+| RFE-AI-006 | Extracción OCR que se usa en paso 1                     |
+| RFE-AI-007 | Resumen que se genera en paso 3                         |

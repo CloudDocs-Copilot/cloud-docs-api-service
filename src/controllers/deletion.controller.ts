@@ -11,7 +11,11 @@ import { AuthRequest } from '../middlewares/auth.middleware';
  * Mueve un documento a la papelera (soft delete)
  * POST /api/documents/:id/trash
  */
-export const moveToTrash = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const moveToTrash = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     if (!req.user) {
       return next(new HttpError(401, 'Unauthorized'));
@@ -27,7 +31,7 @@ export const moveToTrash = async (req: AuthRequest, res: Response, next: NextFun
       organizationId,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
-      reason,
+      reason
     };
 
     const document = await deletionService.moveToTrash(id, context);
@@ -35,7 +39,7 @@ export const moveToTrash = async (req: AuthRequest, res: Response, next: NextFun
     res.status(200).json({
       success: true,
       message: 'Document moved to trash successfully',
-      data: document,
+      data: document
     });
   } catch (error) {
     next(error);
@@ -46,7 +50,11 @@ export const moveToTrash = async (req: AuthRequest, res: Response, next: NextFun
  * Restaura un documento de la papelera
  * POST /api/documents/:id/restore
  */
-export const restoreFromTrash = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const restoreFromTrash = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     if (!req.user) {
       return next(new HttpError(401, 'Unauthorized'));
@@ -62,7 +70,7 @@ export const restoreFromTrash = async (req: AuthRequest, res: Response, next: Ne
       organizationId,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
-      reason,
+      reason
     };
 
     const document = await deletionService.restoreFromTrash(id, context);
@@ -70,7 +78,7 @@ export const restoreFromTrash = async (req: AuthRequest, res: Response, next: Ne
     res.status(200).json({
       success: true,
       message: 'Document restored successfully',
-      data: document,
+      data: document
     });
   } catch (error) {
     next(error);
@@ -81,7 +89,11 @@ export const restoreFromTrash = async (req: AuthRequest, res: Response, next: Ne
  * Elimina permanentemente un documento con sobrescritura segura
  * DELETE /api/documents/:id/permanent
  */
-export const permanentDelete = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const permanentDelete = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     if (!req.user) {
       return next(new HttpError(401, 'Unauthorized'));
@@ -97,25 +109,28 @@ export const permanentDelete = async (req: AuthRequest, res: Response, next: Nex
       organizationId,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
-      reason,
+      reason
     };
 
     const options: SecureDeleteOptions = {
       method: secureDeleteMethod || 'simple',
-      passes: overwritePasses,
+      passes: overwritePasses
     };
 
     // Validar método de sobrescritura
     const validMethods = ['simple', 'DoD 5220.22-M', 'Gutmann'];
     if (options.method && !validMethods.includes(options.method)) {
-      throw new HttpError(400, `Invalid secure delete method. Valid options: ${validMethods.join(', ')}`);
+      throw new HttpError(
+        400,
+        `Invalid secure delete method. Valid options: ${validMethods.join(', ')}`
+      );
     }
 
     await deletionService.permanentDelete(id, context, options);
 
     res.status(200).json({
       success: true,
-      message: 'Document permanently deleted',
+      message: 'Document permanently deleted'
     });
   } catch (error) {
     next(error);
@@ -126,7 +141,11 @@ export const permanentDelete = async (req: AuthRequest, res: Response, next: Nex
  * Obtiene documentos en la papelera
  * GET /api/documents/trash
  */
-export const getTrash = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const getTrash = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     if (!req.user) {
       return next(new HttpError(401, 'Unauthorized'));
@@ -161,7 +180,7 @@ export const getTrash = async (req: AuthRequest, res: Response, next: NextFuncti
           totalItems: total,
           totalPages: Math.ceil(total / limit)
         },
-        data: documents,
+        data: documents
       });
       return;
     }
@@ -171,7 +190,7 @@ export const getTrash = async (req: AuthRequest, res: Response, next: NextFuncti
     res.status(200).json({
       success: true,
       count: documents.length,
-      data: documents,
+      data: documents
     });
   } catch (error) {
     next(error);
@@ -182,7 +201,11 @@ export const getTrash = async (req: AuthRequest, res: Response, next: NextFuncti
  * Vacía toda la papelera del usuario
  * DELETE /api/documents/trash
  */
-export const emptyTrash = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const emptyTrash = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     if (!req.user) {
       return next(new HttpError(401, 'Unauthorized'));
@@ -197,12 +220,12 @@ export const emptyTrash = async (req: AuthRequest, res: Response, next: NextFunc
       organizationId,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
-      reason: 'Empty trash',
+      reason: 'Empty trash'
     };
 
     const options: SecureDeleteOptions = {
       method: secureDeleteMethod || 'simple',
-      passes: overwritePasses,
+      passes: overwritePasses
     };
 
     const deletedCount = await deletionService.emptyTrash(context, options);
@@ -210,7 +233,7 @@ export const emptyTrash = async (req: AuthRequest, res: Response, next: NextFunc
     res.status(200).json({
       success: true,
       message: `Successfully deleted ${deletedCount} documents`,
-      data: { deletedCount },
+      data: { deletedCount }
     });
   } catch (error) {
     next(error);
@@ -221,7 +244,11 @@ export const emptyTrash = async (req: AuthRequest, res: Response, next: NextFunc
  * Obtiene el historial de auditoría de eliminaciones de un documento
  * GET /api/documents/:id/deletion-history
  */
-export const getDocumentDeletionHistory = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const getDocumentDeletionHistory = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const { id } = req.params;
 
@@ -230,7 +257,7 @@ export const getDocumentDeletionHistory = async (req: AuthRequest, res: Response
     res.status(200).json({
       success: true,
       count: history.length,
-      data: history,
+      data: history
     });
   } catch (error) {
     next(error);
@@ -242,7 +269,11 @@ export const getDocumentDeletionHistory = async (req: AuthRequest, res: Response
  * GET /api/organizations/:id/deletion-audit
  * Solo accesible por admins/owners
  */
-export const getOrganizationDeletionAudit = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+export const getOrganizationDeletionAudit = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const organizationId = req.activeOrganization?.toString();
     const limit = parseInt(req.query.limit as string) || 100;
@@ -256,7 +287,7 @@ export const getOrganizationDeletionAudit = async (req: AuthRequest, res: Respon
     res.status(200).json({
       success: true,
       count: audit.length,
-      data: audit,
+      data: audit
     });
   } catch (error) {
     next(error);

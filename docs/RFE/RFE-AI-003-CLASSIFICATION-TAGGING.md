@@ -2,15 +2,15 @@
 
 ## 📋 Resumen
 
-| Campo | Valor |
-|-------|-------|
-| **Fecha** | Febrero 16, 2026 |
-| **Estado** | 📋 Propuesto |
+| Campo                   | Valor                                                                                                                                                              |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Fecha**               | Febrero 16, 2026                                                                                                                                                   |
+| **Estado**              | 📋 Propuesto                                                                                                                                                       |
 | **Issues relacionadas** | [#46 (US-201)](https://github.com/CloudDocs-Copilot/cloud-docs-web-ui/issues/46), [#52 (US-205)](https://github.com/CloudDocs-Copilot/cloud-docs-web-ui/issues/52) |
-| **Épica** | Inteligencia Artificial (Core MVP) |
-| **Prioridad** | 🟠 Alta (P1 — Core) |
-| **Estimación** | 6h |
-| **Repositorio** | `cloud-docs-api-service` |
+| **Épica**               | Inteligencia Artificial (Core MVP)                                                                                                                                 |
+| **Prioridad**           | 🟠 Alta (P1 — Core)                                                                                                                                                |
+| **Estimación**          | 6h                                                                                                                                                                 |
+| **Repositorio**         | `cloud-docs-api-service`                                                                                                                                           |
 
 ---
 
@@ -28,15 +28,15 @@ Este servicio es llamado por el AI Pipeline (RFE-AI-002) como paso 2 del procesa
 
 ## 📡 Estado Actual
 
-| Componente | Estado |
-|---|---|
-| Servicio de clasificación | ❌ No existe en ningún archivo |
-| Prompt de clasificación | ❌ No existe (`prompt.builder.ts` tiene RAG y resumen, no clasificación) |
-| Campo `aiCategory` en modelo | ❌ No existe (ver RFE-AI-002) |
-| Campo `aiTags` en modelo | ❌ No existe (ver RFE-AI-002) |
-| Endpoint `/api/ai/categories` | ❌ No existe |
-| Endpoint `/api/ai/tags` | ❌ No existe |
-| Tests de clasificación | ❌ No existen |
+| Componente                    | Estado                                                                   |
+| ----------------------------- | ------------------------------------------------------------------------ |
+| Servicio de clasificación     | ❌ No existe en ningún archivo                                           |
+| Prompt de clasificación       | ❌ No existe (`prompt.builder.ts` tiene RAG y resumen, no clasificación) |
+| Campo `aiCategory` en modelo  | ❌ No existe (ver RFE-AI-002)                                            |
+| Campo `aiTags` en modelo      | ❌ No existe (ver RFE-AI-002)                                            |
+| Endpoint `/api/ai/categories` | ❌ No existe                                                             |
+| Endpoint `/api/ai/tags`       | ❌ No existe                                                             |
+| Tests de clasificación        | ❌ No existen                                                            |
 
 ---
 
@@ -44,7 +44,7 @@ Este servicio es llamado por el AI Pipeline (RFE-AI-002) como paso 2 del procesa
 
 ### Posicionamiento en el Pipeline
 
-```
+```text
 AI Pipeline (RFE-AI-002)
     │
     ├── PASO 1: Extraer texto (text-extraction.service.ts)
@@ -72,7 +72,7 @@ AI Pipeline (RFE-AI-002)
 
 ### Diagrama de Componentes
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────────┐
 │                  Classification Service                           │
 │                                                                   │
@@ -99,18 +99,18 @@ AI Pipeline (RFE-AI-002)
 
 ### Catálogo de Categorías
 
-| ID | Categoría | Palabras clave esperadas | Color sugerido (frontend) |
-|----|-----------|-------------------------|---------------------------|
-| 1 | Factura | factura, invoice, recibo, cobro, pago, IVA, total | `#FF6B6B` (rojo) |
-| 2 | Contrato | contrato, acuerdo, convenio, partes, cláusula | `#4ECDC4` (teal) |
-| 3 | Informe | informe, reporte, análisis, estudio, conclusiones | `#45B7D1` (azul) |
-| 4 | Presentación | presentación, diapositiva, agenda, objetivo | `#96CEB4` (verde) |
-| 5 | Correspondencia | carta, estimado, atentamente, por medio de la presente | `#FFEAA7` (amarillo) |
-| 6 | Manual técnico | manual, guía, tutorial, instrucciones, configuración | `#DDA0DD` (púrpura) |
-| 7 | Imagen / Fotografía | (OCR text from images) | `#FFB347` (naranja) |
-| 8 | Hoja de cálculo | tabla, columna, total, promedio, datos | `#87CEEB` (celeste) |
-| 9 | Documento personal | CV, currículum, DNI, certificado, título | `#98D8C8` (menta) |
-| 10 | Otro | (fallback si confianza < 0.5) | `#BDC3C7` (gris) |
+| ID  | Categoría           | Palabras clave esperadas                               | Color sugerido (frontend) |
+| --- | ------------------- | ------------------------------------------------------ | ------------------------- |
+| 1   | Factura             | factura, invoice, recibo, cobro, pago, IVA, total      | `#FF6B6B` (rojo)          |
+| 2   | Contrato            | contrato, acuerdo, convenio, partes, cláusula          | `#4ECDC4` (teal)          |
+| 3   | Informe             | informe, reporte, análisis, estudio, conclusiones      | `#45B7D1` (azul)          |
+| 4   | Presentación        | presentación, diapositiva, agenda, objetivo            | `#96CEB4` (verde)         |
+| 5   | Correspondencia     | carta, estimado, atentamente, por medio de la presente | `#FFEAA7` (amarillo)      |
+| 6   | Manual técnico      | manual, guía, tutorial, instrucciones, configuración   | `#DDA0DD` (púrpura)       |
+| 7   | Imagen / Fotografía | (OCR text from images)                                 | `#FFB347` (naranja)       |
+| 8   | Hoja de cálculo     | tabla, columna, total, promedio, datos                 | `#87CEEB` (celeste)       |
+| 9   | Documento personal  | CV, currículum, DNI, certificado, título               | `#98D8C8` (menta)         |
+| 10  | Otro                | (fallback si confianza < 0.5)                          | `#BDC3C7` (gris)          |
 
 ### Constante en código
 
@@ -127,22 +127,22 @@ export const AI_CATEGORIES = [
   'Imagen/Fotografía',
   'Hoja de cálculo',
   'Documento personal',
-  'Otro',
+  'Otro'
 ] as const;
 
-export type AICategory = typeof AI_CATEGORIES[number];
+export type AICategory = (typeof AI_CATEGORIES)[number];
 
 export const CATEGORY_COLORS: Record<AICategory, string> = {
-  'Factura': '#FF6B6B',
-  'Contrato': '#4ECDC4',
-  'Informe': '#45B7D1',
-  'Presentación': '#96CEB4',
-  'Correspondencia': '#FFEAA7',
+  Factura: '#FF6B6B',
+  Contrato: '#4ECDC4',
+  Informe: '#45B7D1',
+  Presentación: '#96CEB4',
+  Correspondencia: '#FFEAA7',
   'Manual técnico': '#DDA0DD',
   'Imagen/Fotografía': '#FFB347',
   'Hoja de cálculo': '#87CEEB',
   'Documento personal': '#98D8C8',
-  'Otro': '#BDC3C7',
+  Otro: '#BDC3C7'
 };
 
 export const MIN_CONFIDENCE_THRESHOLD = 0.5;
@@ -161,8 +161,13 @@ export const MAX_TAGS = 7;
 
 import { aiService } from '../ai.service';
 import { ClassificationResult } from '../providers/ai-provider.interface';
-import { AI_CATEGORIES, AICategory, MIN_CONFIDENCE_THRESHOLD, 
-         MIN_TAGS, MAX_TAGS } from './categories';
+import {
+  AI_CATEGORIES,
+  AICategory,
+  MIN_CONFIDENCE_THRESHOLD,
+  MIN_TAGS,
+  MAX_TAGS
+} from './categories';
 import Document from '../../../models/document.model';
 import { Types } from 'mongoose';
 
@@ -179,7 +184,7 @@ export interface AggregatedTag {
 class ClassificationService {
   /**
    * Clasifica un documento y genera tags en una sola llamada LLM.
-   * 
+   *
    * @param text Texto extraído del documento
    * @returns Clasificación con categoría, confianza y tags validados
    */
@@ -188,7 +193,7 @@ class ClassificationService {
       return {
         category: 'Otro',
         confidence: 0,
-        tags: [],
+        tags: []
       };
     }
 
@@ -203,25 +208,25 @@ class ClassificationService {
    */
   async getCategoriesForOrganization(organizationId: string): Promise<AggregatedCategory[]> {
     const results = await Document.aggregate([
-      { 
-        $match: { 
+      {
+        $match: {
           organization: new Types.ObjectId(organizationId),
           aiCategory: { $ne: null },
-          aiProcessingStatus: 'completed',
-        } 
+          aiProcessingStatus: 'completed'
+        }
       },
-      { 
-        $group: { 
-          _id: '$aiCategory', 
-          count: { $sum: 1 } 
-        } 
+      {
+        $group: {
+          _id: '$aiCategory',
+          count: { $sum: 1 }
+        }
       },
-      { $sort: { count: -1 } },
+      { $sort: { count: -1 } }
     ]);
 
     return results.map(r => ({
       category: r._id,
-      count: r.count,
+      count: r.count
     }));
   }
 
@@ -229,31 +234,31 @@ class ClassificationService {
    * Obtiene los tags AI más frecuentes en una organización con conteo.
    */
   async getTagsForOrganization(
-    organizationId: string, 
+    organizationId: string,
     limit: number = 50
   ): Promise<AggregatedTag[]> {
     const results = await Document.aggregate([
-      { 
-        $match: { 
+      {
+        $match: {
           organization: new Types.ObjectId(organizationId),
           aiTags: { $exists: true, $ne: [] },
-          aiProcessingStatus: 'completed',
-        } 
+          aiProcessingStatus: 'completed'
+        }
       },
       { $unwind: '$aiTags' },
-      { 
-        $group: { 
-          _id: '$aiTags', 
-          count: { $sum: 1 } 
-        } 
+      {
+        $group: {
+          _id: '$aiTags',
+          count: { $sum: 1 }
+        }
       },
       { $sort: { count: -1 } },
-      { $limit: limit },
+      { $limit: limit }
     ]);
 
     return results.map(r => ({
       tag: r._id,
-      count: r.count,
+      count: r.count
     }));
   }
 
@@ -270,22 +275,20 @@ class ClassificationService {
     const [statusCounts, categories, tags] = await Promise.all([
       Document.aggregate([
         { $match: { organization: new Types.ObjectId(organizationId) } },
-        { $group: { _id: '$aiProcessingStatus', count: { $sum: 1 } } },
+        { $group: { _id: '$aiProcessingStatus', count: { $sum: 1 } } }
       ]),
       this.getCategoriesForOrganization(organizationId),
-      this.getTagsForOrganization(organizationId, 20),
+      this.getTagsForOrganization(organizationId, 20)
     ]);
 
-    const statusMap = Object.fromEntries(
-      statusCounts.map(s => [s._id || 'none', s.count])
-    );
+    const statusMap = Object.fromEntries(statusCounts.map(s => [s._id || 'none', s.count]));
 
     return {
       totalProcessed: statusMap['completed'] || 0,
       totalFailed: statusMap['failed'] || 0,
       totalPending: (statusMap['pending'] || 0) + (statusMap['processing'] || 0),
       categoryCounts: categories,
-      topTags: tags,
+      topTags: tags
     };
   }
 
@@ -296,9 +299,7 @@ class ClassificationService {
     let category = result.category;
     if (!AI_CATEGORIES.includes(category as AICategory)) {
       // Intentar match parcial case-insensitive
-      const match = AI_CATEGORIES.find(
-        c => c.toLowerCase() === category.toLowerCase()
-      );
+      const match = AI_CATEGORIES.find(c => c.toLowerCase() === category.toLowerCase());
       category = match || 'Otro';
     }
 
@@ -352,6 +353,7 @@ async getCategories(req: AuthRequest, res: Response) {
 ```
 
 **Response:**
+
 ```json
 {
   "categories": [
@@ -389,6 +391,7 @@ async getTags(req: AuthRequest, res: Response) {
 ```
 
 **Response:**
+
 ```json
 {
   "tags": [
@@ -436,7 +439,7 @@ describe('ClassificationService', () => {
     it('should classify an invoice document', async () => {
       const text = 'Factura #12345\nFecha: 01/02/2026\nTotal: 1.500,00€\nIVA: 21%';
       const result = await classificationService.classifyAndTag(text);
-      
+
       expect(result.category).toBeDefined();
       expect(result.confidence).toBeGreaterThanOrEqual(0);
       expect(result.confidence).toBeLessThanOrEqual(1);
@@ -457,9 +460,9 @@ describe('ClassificationService', () => {
       mockProvider.classifyResponse = {
         category: 'Factura',
         confidence: 0.3,
-        tags: ['test'],
+        tags: ['test']
       };
-      
+
       const result = await classificationService.classifyAndTag('some text');
       expect(result.category).toBe('Otro');
     });
@@ -469,9 +472,9 @@ describe('ClassificationService', () => {
       mockProvider.classifyResponse = {
         category: 'CategoríaInválida',
         confidence: 0.9,
-        tags: ['test'],
+        tags: ['test']
       };
-      
+
       const result = await classificationService.classifyAndTag('some text');
       expect(result.category).toBe('Otro');
     });
@@ -481,9 +484,9 @@ describe('ClassificationService', () => {
       mockProvider.classifyResponse = {
         category: 'Factura',
         confidence: 0.9,
-        tags: [' Finanzas ', 'IVA', '  2026  '],
+        tags: [' Finanzas ', 'IVA', '  2026  ']
       };
-      
+
       const result = await classificationService.classifyAndTag('some text');
       expect(result.tags).toEqual(['finanzas', 'iva', '2026']);
     });
@@ -493,9 +496,9 @@ describe('ClassificationService', () => {
       mockProvider.classifyResponse = {
         category: 'Factura',
         confidence: 0.9,
-        tags: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
+        tags: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j']
       };
-      
+
       const result = await classificationService.classifyAndTag('some text');
       expect(result.tags.length).toBeLessThanOrEqual(7);
     });
@@ -504,9 +507,8 @@ describe('ClassificationService', () => {
   describe('getCategoriesForOrganization', () => {
     it('should aggregate categories with counts', async () => {
       // Requires test DB with seeded documents
-      const categories = await classificationService
-        .getCategoriesForOrganization(testOrgId);
-      
+      const categories = await classificationService.getCategoriesForOrganization(testOrgId);
+
       expect(Array.isArray(categories)).toBe(true);
       categories.forEach(c => {
         expect(c).toHaveProperty('category');
@@ -516,9 +518,8 @@ describe('ClassificationService', () => {
     });
 
     it('should sort by count descending', async () => {
-      const categories = await classificationService
-        .getCategoriesForOrganization(testOrgId);
-      
+      const categories = await classificationService.getCategoriesForOrganization(testOrgId);
+
       for (let i = 1; i < categories.length; i++) {
         expect(categories[i].count).toBeLessThanOrEqual(categories[i - 1].count);
       }
@@ -527,9 +528,8 @@ describe('ClassificationService', () => {
 
   describe('getTagsForOrganization', () => {
     it('should aggregate tags with counts', async () => {
-      const tags = await classificationService
-        .getTagsForOrganization(testOrgId);
-      
+      const tags = await classificationService.getTagsForOrganization(testOrgId);
+
       expect(Array.isArray(tags)).toBe(true);
       tags.forEach(t => {
         expect(t).toHaveProperty('tag');
@@ -538,9 +538,8 @@ describe('ClassificationService', () => {
     });
 
     it('should respect limit parameter', async () => {
-      const tags = await classificationService
-        .getTagsForOrganization(testOrgId, 5);
-      
+      const tags = await classificationService.getTagsForOrganization(testOrgId, 5);
+
       expect(tags.length).toBeLessThanOrEqual(5);
     });
   });
@@ -585,9 +584,7 @@ describe('Classification Integration', () => {
   });
 
   it('GET /api/ai/tags returns aggregated data', async () => {
-    const res = await request(app)
-      .get('/api/ai/tags')
-      .set('Authorization', `Bearer ${authToken}`);
+    const res = await request(app).get('/api/ai/tags').set('Authorization', `Bearer ${authToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('tags');
@@ -600,19 +597,19 @@ describe('Classification Integration', () => {
 
 ## ✅ Criterios de Aceptación
 
-| # | Criterio | Estado |
-|---|----------|--------|
-| 1 | `classifyAndTag(text)` devuelve categoría válida del catálogo | ⬜ |
-| 2 | Categorías inválidas se normalizan a "Otro" | ⬜ |
-| 3 | Confianza < 0.5 fuerza categoría "Otro" | ⬜ |
-| 4 | Tags se normalizan (lowercase, trim, máximo 7) | ⬜ |
-| 5 | Texto vacío o muy corto devuelve "Otro" con confianza 0 | ⬜ |
-| 6 | `GET /api/ai/categories` devuelve agregación correcta por org | ⬜ |
-| 7 | `GET /api/ai/tags` devuelve top tags con conteo por org | ⬜ |
-| 8 | `GET /api/ai/stats` devuelve estadísticas completas | ⬜ |
-| 9 | El servicio funciona con OllamaProvider (local) | ⬜ |
-| 10 | El servicio funciona con OpenAIProvider (cloud) | ⬜ |
-| 11 | Los tests usan MockAIProvider sin LLM real | ⬜ |
+| #   | Criterio                                                      | Estado |
+| --- | ------------------------------------------------------------- | ------ |
+| 1   | `classifyAndTag(text)` devuelve categoría válida del catálogo | ⬜     |
+| 2   | Categorías inválidas se normalizan a "Otro"                   | ⬜     |
+| 3   | Confianza < 0.5 fuerza categoría "Otro"                       | ⬜     |
+| 4   | Tags se normalizan (lowercase, trim, máximo 7)                | ⬜     |
+| 5   | Texto vacío o muy corto devuelve "Otro" con confianza 0       | ⬜     |
+| 6   | `GET /api/ai/categories` devuelve agregación correcta por org | ⬜     |
+| 7   | `GET /api/ai/tags` devuelve top tags con conteo por org       | ⬜     |
+| 8   | `GET /api/ai/stats` devuelve estadísticas completas           | ⬜     |
+| 9   | El servicio funciona con OllamaProvider (local)               | ⬜     |
+| 10  | El servicio funciona con OpenAIProvider (cloud)               | ⬜     |
+| 11  | Los tests usan MockAIProvider sin LLM real                    | ⬜     |
 
 ---
 
@@ -630,7 +627,7 @@ describe('Classification Integration', () => {
 
 ## 📁 Archivos Nuevos
 
-```
+```text
 src/services/ai/classification/
 ├── categories.ts              ← NUEVO: constantes y tipos de categorías
 └── classification.service.ts  ← NUEVO: servicio de clasificación + agregaciones
@@ -643,8 +640,8 @@ src/routes/ai.routes.ts           ← MODIFICAR: añadir rutas GET
 
 ## 🔗 RFEs Relacionadas
 
-| RFE | Relación |
-|-----|----------|
-| RFE-AI-001 | Provee el `AIProvider.classifyDocument()` que este servicio consume |
+| RFE        | Relación                                                               |
+| ---------- | ---------------------------------------------------------------------- |
+| RFE-AI-001 | Provee el `AIProvider.classifyDocument()` que este servicio consume    |
 | RFE-AI-002 | El pipeline llama a `classificationService.classifyAndTag()` en paso 2 |
-| RFE-AI-004 | `aiCategory` y `aiTags` se indexan en ES para filtros de búsqueda |
+| RFE-AI-004 | `aiCategory` y `aiTags` se indexan en ES para filtros de búsqueda      |

@@ -2,15 +2,15 @@
 
 ## 📋 Resumen
 
-| Campo | Valor |
-|-------|-------|
-| **Fecha** | Febrero 16, 2026 |
-| **Estado** | 📋 Propuesto |
+| Campo                   | Valor                                                                            |
+| ----------------------- | -------------------------------------------------------------------------------- |
+| **Fecha**               | Febrero 16, 2026                                                                 |
+| **Estado**              | 📋 Propuesto                                                                     |
 | **Issues relacionadas** | [#51 (US-204)](https://github.com/CloudDocs-Copilot/cloud-docs-web-ui/issues/51) |
-| **Épica** | Inteligencia Artificial (Core MVP) |
-| **Prioridad** | 🔴 Crítica (vulnerabilidad de seguridad) |
-| **Estimación** | 5h |
-| **Repositorio** | `cloud-docs-api-service` |
+| **Épica**               | Inteligencia Artificial (Core MVP)                                               |
+| **Prioridad**           | 🔴 Crítica (vulnerabilidad de seguridad)                                         |
+| **Estimación**          | 5h                                                                               |
+| **Repositorio**         | `cloud-docs-api-service`                                                         |
 
 ---
 
@@ -40,7 +40,7 @@ const pipeline = [
       path: 'embedding',
       queryVector: embedding,
       numCandidates: 100,
-      limit: 5,
+      limit: 5
       // ❌ NO HAY filter por organizationId
       // Un usuario de org A puede ver documentos de org B y C
     }
@@ -72,7 +72,7 @@ try {
 
 ```typescript
 // Múltiples lugares en rag.service.ts
-embedding = new Array(1536).fill(0);  // ❌ Hardcoded
+embedding = new Array(1536).fill(0); // ❌ Hardcoded
 //                     ^^^^
 // Si se cambia a Ollama (768 dims), esto se rompe silenciosamente
 ```
@@ -109,7 +109,7 @@ interface IDocumentChunk {
 
 export interface IDocumentChunk {
   documentId: string;
-  organizationId: string;  // ← NUEVO: para filtro de seguridad
+  organizationId: string; // ← NUEVO: para filtro de seguridad
   content: string;
   embedding: number[];
   chunkIndex: number;
@@ -117,7 +117,7 @@ export interface IDocumentChunk {
     filename: string;
     pageNumber?: number;
     totalChunks: number;
-    organizationId: string;  // ← Redundante pero útil para queries
+    organizationId: string; // ← Redundante pero útil para queries
   };
   createdAt: Date;
 }
@@ -134,10 +134,10 @@ async processDocument(
   organizationId: string  // ← NUEVO parámetro
 ): Promise<void> {
   const chunks = this.createChunks(text);
-  
+
   for (let i = 0; i < chunks.length; i++) {
     const embedding = await aiService.getProvider().generateEmbedding(chunks[i]);
-    
+
     await this.documentChunksCollection.insertOne({
       documentId,
       organizationId,   // ← NUEVO
@@ -165,7 +165,7 @@ async searchSimilarChunks(
   organizationId: string,  // ← NUEVO: parámetro obligatorio
   limit: number = 5
 ): Promise<IDocumentChunk[]> {
-  
+
   // Generar embedding — SIN fallback de ceros
   let embeddingResult;
   try {
@@ -246,7 +246,7 @@ async askQuestion(req: AuthRequest, res: Response) {
   try {
     const { question } = req.body;
     const organizationId = req.user?.organizationId;
-    
+
     if (!organizationId) {
       return res.status(400).json({ error: 'Organization context required' });
     }
@@ -283,7 +283,7 @@ async askQuestion(req: AuthRequest, res: Response) {
     });
   } catch (error) {
     // ✅ Error claro en vez de respuesta basura
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: 'Error al procesar la pregunta',
       details: error instanceof Error ? error.message : 'Unknown error',
     });
@@ -300,10 +300,14 @@ async askQuestion(req: AuthRequest, res: Response) {
 export function getEmbeddingDimensions(): number {
   const provider = process.env.AI_PROVIDER || 'local';
   switch (provider) {
-    case 'local': return 768;   // nomic-embed-text
-    case 'openai': return 1536; // text-embedding-3-small
-    case 'mock': return 768;    // match local dims
-    default: return 768;
+    case 'local':
+      return 768; // nomic-embed-text
+    case 'openai':
+      return 1536; // text-embedding-3-small
+    case 'mock':
+      return 768; // match local dims
+    default:
+      return 768;
   }
 }
 
@@ -326,19 +330,19 @@ import Document from '../src/models/document.model';
 async function migrateChunksWithOrgId() {
   const client = new MongoClient(process.env.MONGO_ATLAS_URI!);
   await client.connect();
-  
+
   const chunksCollection = client.db('cloud_docs_ia').collection('document_chunks');
-  
+
   // Buscar chunks sin organizationId
   const orphanChunks = await chunksCollection
     .find({ organizationId: { $exists: false } })
     .toArray();
-  
+
   console.log(`Migrando ${orphanChunks.length} chunks...`);
-  
+
   // Agrupar por documentId para reducir queries
   const docIds = [...new Set(orphanChunks.map(c => c.documentId))];
-  
+
   for (const docId of docIds) {
     const doc = await Document.findById(docId).select('organization');
     if (!doc) {
@@ -346,7 +350,7 @@ async function migrateChunksWithOrgId() {
       await chunksCollection.deleteMany({ documentId: docId });
       continue;
     }
-    
+
     const orgId = doc.organization.toString();
     const result = await chunksCollection.updateMany(
       { documentId: docId },
@@ -354,7 +358,7 @@ async function migrateChunksWithOrgId() {
     );
     console.log(`✅ Doc ${docId} → org ${orgId}: ${result.modifiedCount} chunks`);
   }
-  
+
   await client.close();
   console.log('Migration complete');
 }
@@ -370,7 +374,7 @@ async function migrateChunksWithOrgId() {
 describe('RAG Security - Cross-Org Isolation', () => {
   let orgA_token: string;
   let orgB_token: string;
-  
+
   beforeAll(async () => {
     // Crear dos organizaciones con documentos distintos
     orgA_token = await createOrgWithDocument('Org A', 'Contrato de Org A con datos sensibles');
@@ -388,16 +392,16 @@ describe('RAG Security - Cross-Org Isolation', () => {
 
     expect(res.status).toBe(200);
     // No debe encontrar el documento de Org B
-    expect(res.body.sources.every(
-      (s: any) => !s.filename.includes('Org B')
-    )).toBe(true);
+    expect(res.body.sources.every((s: any) => !s.filename.includes('Org B'))).toBe(true);
   });
 
   it('should return error instead of random results on embedding failure', async () => {
     // Simular fallo de embedding
     const mockProvider = aiService.getProvider() as MockAIProvider;
     const original = mockProvider.generateEmbedding.bind(mockProvider);
-    mockProvider.generateEmbedding = async () => { throw new Error('API down'); };
+    mockProvider.generateEmbedding = async () => {
+      throw new Error('API down');
+    };
 
     const res = await request(app)
       .post('/api/ai/ask')
@@ -413,11 +417,7 @@ describe('RAG Security - Cross-Org Isolation', () => {
 
   it('should correctly filter chunks by organization in vector search', async () => {
     // Búsqueda directa de chunks para Org A
-    const chunks = await ragService.searchSimilarChunks(
-      'contrato datos',
-      orgA_id,
-      10
-    );
+    const chunks = await ragService.searchSimilarChunks('contrato datos', orgA_id, 10);
 
     chunks.forEach(chunk => {
       expect(chunk.organizationId).toBe(orgA_id);
@@ -443,17 +443,17 @@ describe('Embedding Dimensions', () => {
 
 ## ✅ Criterios de Aceptación
 
-| # | Criterio | Estado |
-|---|----------|--------|
-| 1 | `$vectorSearch` filtra por `organizationId` | ⬜ |
-| 2 | `IDocumentChunk` incluye campo `organizationId` | ⬜ |
-| 3 | Chunks nuevos se crean con `organizationId` del documento padre | ⬜ |
-| 4 | Script migra chunks existentes añadiendo `organizationId` | ⬜ |
-| 5 | Si embedding falla, se retorna error (no vector de ceros) | ⬜ |
-| 6 | No queda `1536` hardcoded — se usa dimensión del provider o constante | ⬜ |
-| 7 | Vector search index en Atlas incluye `organizationId` como filter | ⬜ |
-| 8 | Test de seguridad cross-org pasa | ⬜ |
-| 9 | Test de fallo de embedding pasa (error, no basura) | ⬜ |
+| #   | Criterio                                                              | Estado |
+| --- | --------------------------------------------------------------------- | ------ |
+| 1   | `$vectorSearch` filtra por `organizationId`                           | ⬜     |
+| 2   | `IDocumentChunk` incluye campo `organizationId`                       | ⬜     |
+| 3   | Chunks nuevos se crean con `organizationId` del documento padre       | ⬜     |
+| 4   | Script migra chunks existentes añadiendo `organizationId`             | ⬜     |
+| 5   | Si embedding falla, se retorna error (no vector de ceros)             | ⬜     |
+| 6   | No queda `1536` hardcoded — se usa dimensión del provider o constante | ⬜     |
+| 7   | Vector search index en Atlas incluye `organizationId` como filter     | ⬜     |
+| 8   | Test de seguridad cross-org pasa                                      | ⬜     |
+| 9   | Test de fallo de embedding pasa (error, no basura)                    | ⬜     |
 
 ---
 
@@ -474,7 +474,7 @@ describe('Embedding Dimensions', () => {
 
 ## 📁 Archivos Afectados
 
-```
+```text
 src/models/types/ai.types.ts                    ← MODIFICAR: añadir organizationId
 src/services/ai/rag.service.ts                   ← MODIFICAR: filter, eliminar zero-vector
 src/services/document-processor.service.ts       ← MODIFICAR: guardar organizationId en chunks
@@ -486,7 +486,7 @@ scripts/migrate-chunks-org.ts                    ← CREAR: migración de chunks
 
 ## 🔗 RFEs Relacionadas
 
-| RFE | Relación |
-|-----|----------|
+| RFE        | Relación                                                            |
+| ---------- | ------------------------------------------------------------------- |
 | RFE-AI-001 | Provee `generateEmbedding()` con dimensiones correctas del provider |
-| RFE-AI-002 | El pipeline pasa `organizationId` al crear chunks |
+| RFE-AI-002 | El pipeline pasa `organizationId` al crear chunks                   |

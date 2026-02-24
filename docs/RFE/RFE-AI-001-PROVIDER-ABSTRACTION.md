@@ -2,15 +2,15 @@
 
 ## 📋 Resumen
 
-| Campo | Valor |
-|-------|-------|
-| **Fecha** | Febrero 16, 2026 |
-| **Estado** | 📋 Propuesto |
+| Campo                   | Valor                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Fecha**               | Febrero 16, 2026                                                                                                                                                                                                                                                                                                                                                                                                         |
+| **Estado**              | 📋 Propuesto                                                                                                                                                                                                                                                                                                                                                                                                             |
 | **Issues relacionadas** | [#46 (US-201)](https://github.com/CloudDocs-Copilot/cloud-docs-web-ui/issues/46), [#47 (US-202)](https://github.com/CloudDocs-Copilot/cloud-docs-web-ui/issues/47), [#48 (US-203)](https://github.com/CloudDocs-Copilot/cloud-docs-web-ui/issues/48), [#51 (US-204)](https://github.com/CloudDocs-Copilot/cloud-docs-web-ui/issues/51), [#52 (US-205)](https://github.com/CloudDocs-Copilot/cloud-docs-web-ui/issues/52) |
-| **Épica** | Inteligencia Artificial (Core MVP) |
-| **Prioridad** | 🔴 Crítica (bloquea todas las US de IA) |
-| **Estimación** | 10h |
-| **Repositorio** | `cloud-docs-api-service` |
+| **Épica**               | Inteligencia Artificial (Core MVP)                                                                                                                                                                                                                                                                                                                                                                                       |
+| **Prioridad**           | 🔴 Crítica (bloquea todas las US de IA)                                                                                                                                                                                                                                                                                                                                                                                  |
+| **Estimación**          | 10h                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| **Repositorio**         | `cloud-docs-api-service`                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 ---
 
@@ -29,13 +29,13 @@ Crear una capa de abstracción que permita intercambiar el proveedor de IA (Open
 
 ### Lo que existe
 
-| Servicio | Archivo | Estado | Problema |
-|----------|---------|--------|----------|
-| `llm.service.ts` | `src/services/ai/llm.service.ts` | Hardcoded OpenAI | `require('openai')` directo, sin abstracción |
-| `embedding.service.ts` | `src/services/ai/embedding.service.ts` | Hardcoded OpenAI | `text-embedding-3-small` hardcoded |
-| `openai-config.ts` | `src/configurations/openai-config.ts` | Singleton OpenAI | No contempla otro proveedor |
-| `rag.service.ts` | `src/services/ai/rag.service.ts` | Usa llm + embedding | Acoplado indirectamente a OpenAI |
-| Mock en tests | `llm.service.ts` línea ~10 | `(global as any).__OPENAI_CREATE__` | Anti-pattern: mock global en código de producción |
+| Servicio               | Archivo                                | Estado                              | Problema                                          |
+| ---------------------- | -------------------------------------- | ----------------------------------- | ------------------------------------------------- |
+| `llm.service.ts`       | `src/services/ai/llm.service.ts`       | Hardcoded OpenAI                    | `require('openai')` directo, sin abstracción      |
+| `embedding.service.ts` | `src/services/ai/embedding.service.ts` | Hardcoded OpenAI                    | `text-embedding-3-small` hardcoded                |
+| `openai-config.ts`     | `src/configurations/openai-config.ts`  | Singleton OpenAI                    | No contempla otro proveedor                       |
+| `rag.service.ts`       | `src/services/ai/rag.service.ts`       | Usa llm + embedding                 | Acoplado indirectamente a OpenAI                  |
+| Mock en tests          | `llm.service.ts` línea ~10             | `(global as any).__OPENAI_CREATE__` | Anti-pattern: mock global en código de producción |
 
 ### Problema actual
 
@@ -53,7 +53,7 @@ Todo el código de IA está **acoplado directamente a OpenAI**:
 
 ### Diagrama de Componentes
 
-```
+```text
 ┌────────────────────────────────────────────────────────────────────┐
 │                         AI Service Layer                            │
 │                                                                     │
@@ -88,10 +88,10 @@ Todo el código de IA está **acoplado directamente a OpenAI**:
 
 ### Relación con Servicios Existentes
 
-```
+```text
                     Servicios Actuales (se mantienen)
                     ─────────────────────────────────
-                    
+
   ai.controller.ts ──→ rag.service.ts ──→ AIService (NUEVO)
                         │                      │
                         │                      ├─→ generateEmbedding()
@@ -118,31 +118,31 @@ Todo el código de IA está **acoplado directamente a OpenAI**:
 // src/services/ai/providers/ai-provider.interface.ts
 
 export interface ClassificationResult {
-  category: string;        // Categoría del documento
-  confidence: number;      // 0-1
-  tags: string[];          // Tags descriptivos (3-7)
+  category: string; // Categoría del documento
+  confidence: number; // 0-1
+  tags: string[]; // Tags descriptivos (3-7)
 }
 
 export interface SummarizationResult {
-  summary: string;         // Resumen de 2-3 frases
-  keyPoints: string[];     // 3-5 puntos clave
+  summary: string; // Resumen de 2-3 frases
+  keyPoints: string[]; // 3-5 puntos clave
 }
 
 export interface QAResult {
-  answer: string;          // Respuesta a la pregunta
-  sources: string[];       // Fragmentos del contexto usados
+  answer: string; // Respuesta a la pregunta
+  sources: string[]; // Fragmentos del contexto usados
 }
 
 export interface EmbeddingResult {
-  embedding: number[];     // Vector de embedding
-  dimensions: number;      // Dimensión del vector
-  model: string;           // Modelo usado
+  embedding: number[]; // Vector de embedding
+  dimensions: number; // Dimensión del vector
+  model: string; // Modelo usado
 }
 
 export interface AIProviderConfig {
-  temperature?: number;    // 0-1, default 0.3
-  maxTokens?: number;      // Tokens máximos de respuesta
-  model?: string;          // Override del modelo
+  temperature?: number; // 0-1, default 0.3
+  maxTokens?: number; // Tokens máximos de respuesta
+  model?: string; // Override del modelo
 }
 
 export interface AIProvider {
@@ -159,11 +159,7 @@ export interface AIProvider {
   summarizeDocument(text: string, config?: AIProviderConfig): Promise<SummarizationResult>;
 
   /** Responde una pregunta con contexto (RAG) */
-  answerQuestion(
-    question: string,
-    context: string,
-    config?: AIProviderConfig
-  ): Promise<QAResult>;
+  answerQuestion(question: string, context: string, config?: AIProviderConfig): Promise<QAResult>;
 
   /** Genera embedding vectorial de un texto */
   generateEmbedding(text: string): Promise<EmbeddingResult>;
@@ -196,7 +192,7 @@ export function getAIConfig(): AIServiceConfig {
     autoProcess: process.env.AI_AUTO_PROCESS !== 'false',
     maxConcurrent: parseInt(process.env.AI_MAX_CONCURRENT || '2'),
     cooldownMs: parseInt(process.env.AI_COOLDOWN_MS || '1000'),
-    maxTextLength: parseInt(process.env.MAX_TEXT_LENGTH || '50000'),
+    maxTextLength: parseInt(process.env.MAX_TEXT_LENGTH || '50000')
   };
 }
 ```
@@ -210,16 +206,22 @@ export function getAIConfig(): AIServiceConfig {
 ```typescript
 // src/services/ai/providers/ollama.provider.ts
 
-import { AIProvider, ClassificationResult, SummarizationResult, 
-         QAResult, EmbeddingResult, AIProviderConfig } from './ai-provider.interface';
+import {
+  AIProvider,
+  ClassificationResult,
+  SummarizationResult,
+  QAResult,
+  EmbeddingResult,
+  AIProviderConfig
+} from './ai-provider.interface';
 
 export class OllamaProvider implements AIProvider {
   readonly name = 'ollama';
-  
+
   private baseUrl: string;
   private chatModel: string;
   private embeddingModel: string;
-  
+
   constructor() {
     this.baseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
     this.chatModel = process.env.OLLAMA_MODEL || 'llama3.2';
@@ -248,7 +250,9 @@ export class OllamaProvider implements AIProvider {
   }
 
   async answerQuestion(
-    question: string, context: string, config?: AIProviderConfig
+    question: string,
+    context: string,
+    config?: AIProviderConfig
   ): Promise<QAResult> {
     const prompt = this.buildQAPrompt(question, context);
     const response = await this.chat(prompt, config);
@@ -259,18 +263,18 @@ export class OllamaProvider implements AIProvider {
     const res = await fetch(`${this.baseUrl}/api/embed`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: this.embeddingModel, input: text }),
+      body: JSON.stringify({ model: this.embeddingModel, input: text })
     });
-    
+
     if (!res.ok) throw new Error(`Ollama embedding error: ${res.statusText}`);
-    
+
     const data = await res.json();
     const embedding = data.embeddings[0];
-    
+
     return {
       embedding,
       dimensions: embedding.length,
-      model: this.embeddingModel,
+      model: this.embeddingModel
     };
   }
 
@@ -279,16 +283,16 @@ export class OllamaProvider implements AIProvider {
     const res = await fetch(`${this.baseUrl}/api/embed`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: this.embeddingModel, input: texts }),
+      body: JSON.stringify({ model: this.embeddingModel, input: texts })
     });
-    
+
     if (!res.ok) throw new Error(`Ollama embedding error: ${res.statusText}`);
-    
+
     const data = await res.json();
     return data.embeddings.map((emb: number[]) => ({
       embedding: emb,
       dimensions: emb.length,
-      model: this.embeddingModel,
+      model: this.embeddingModel
     }));
   }
 
@@ -304,13 +308,13 @@ export class OllamaProvider implements AIProvider {
         stream: false,
         options: {
           temperature: config?.temperature ?? 0.3,
-          num_predict: config?.maxTokens ?? 1000,
-        },
-      }),
+          num_predict: config?.maxTokens ?? 1000
+        }
+      })
     });
 
     if (!res.ok) throw new Error(`Ollama chat error: ${res.statusText}`);
-    
+
     const data = await res.json();
     return data.response;
   }
@@ -379,7 +383,7 @@ Responde de forma clara y cita qué documento(s) usaste.`;
       return {
         category: parsed.category || 'Otro',
         confidence: Math.min(1, Math.max(0, parsed.confidence || 0)),
-        tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 7) : [],
+        tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 7) : []
       };
     } catch {
       return { category: 'Otro', confidence: 0, tags: [] };
@@ -393,7 +397,7 @@ Responde de forma clara y cita qué documento(s) usaste.`;
       const parsed = JSON.parse(jsonMatch[0]);
       return {
         summary: parsed.summary || 'No se pudo generar resumen.',
-        keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints : [],
+        keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints : []
       };
     } catch {
       return { summary: 'No se pudo generar resumen.', keyPoints: [] };
@@ -403,7 +407,7 @@ Responde de forma clara y cita qué documento(s) usaste.`;
   private parseQAResponse(response: string): QAResult {
     return {
       answer: response,
-      sources: [], // Ollama no devuelve fuentes estructuradas, el prompt invita a citarlas
+      sources: [] // Ollama no devuelve fuentes estructuradas, el prompt invita a citarlas
     };
   }
 }
@@ -415,21 +419,27 @@ Responde de forma clara y cita qué documento(s) usaste.`;
 // src/services/ai/providers/openai.provider.ts
 
 import OpenAI from 'openai';
-import { AIProvider, ClassificationResult, SummarizationResult,
-         QAResult, EmbeddingResult, AIProviderConfig } from './ai-provider.interface';
+import {
+  AIProvider,
+  ClassificationResult,
+  SummarizationResult,
+  QAResult,
+  EmbeddingResult,
+  AIProviderConfig
+} from './ai-provider.interface';
 
 export class OpenAIProvider implements AIProvider {
   readonly name = 'openai';
-  
+
   private client: OpenAI;
   private chatModel: string;
   private embeddingModel: string;
-  
+
   constructor() {
     this.client = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
       timeout: 60000,
-      maxRetries: 3,
+      maxRetries: 3
     });
     this.chatModel = process.env.OPENAI_MODEL || 'gpt-4o-mini';
     this.embeddingModel = process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small';
@@ -481,7 +491,9 @@ ${truncated}
   }
 
   async answerQuestion(
-    question: string, context: string, config?: AIProviderConfig
+    question: string,
+    context: string,
+    config?: AIProviderConfig
   ): Promise<QAResult> {
     const response = await this.chat(
       `Eres un asistente que responde preguntas basándose ÚNICAMENTE en los documentos proporcionados. Si la respuesta no está en los documentos, di "No encontré esa información en tus documentos."`,
@@ -494,25 +506,25 @@ ${truncated}
   async generateEmbedding(text: string): Promise<EmbeddingResult> {
     const response = await this.client.embeddings.create({
       model: this.embeddingModel,
-      input: text,
+      input: text
     });
     const embedding = response.data[0].embedding;
     return {
       embedding,
       dimensions: embedding.length,
-      model: this.embeddingModel,
+      model: this.embeddingModel
     };
   }
 
   async generateEmbeddings(texts: string[]): Promise<EmbeddingResult[]> {
     const response = await this.client.embeddings.create({
       model: this.embeddingModel,
-      input: texts,
+      input: texts
     });
-    return response.data.map((item) => ({
+    return response.data.map(item => ({
       embedding: item.embedding,
       dimensions: item.embedding.length,
-      model: this.embeddingModel,
+      model: this.embeddingModel
     }));
   }
 
@@ -525,8 +537,8 @@ ${truncated}
       max_tokens: config?.maxTokens ?? 1000,
       messages: [
         { role: 'system', content: system },
-        { role: 'user', content: user },
-      ],
+        { role: 'user', content: user }
+      ]
     });
     return response.choices[0]?.message?.content || '';
   }
@@ -539,7 +551,7 @@ ${truncated}
       return {
         category: parsed.category || 'Otro',
         confidence: Math.min(1, Math.max(0, parsed.confidence || 0)),
-        tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 7) : [],
+        tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 7) : []
       };
     } catch {
       return { category: 'Otro', confidence: 0, tags: [] };
@@ -553,7 +565,7 @@ ${truncated}
       const parsed = JSON.parse(jsonMatch[0]);
       return {
         summary: parsed.summary || 'No se pudo generar resumen.',
-        keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints : [],
+        keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints : []
       };
     } catch {
       return { summary: 'No se pudo generar resumen.', keyPoints: [] };
@@ -567,8 +579,14 @@ ${truncated}
 ```typescript
 // src/services/ai/providers/mock.provider.ts
 
-import { AIProvider, ClassificationResult, SummarizationResult,
-         QAResult, EmbeddingResult, AIProviderConfig } from './ai-provider.interface';
+import {
+  AIProvider,
+  ClassificationResult,
+  SummarizationResult,
+  QAResult,
+  EmbeddingResult,
+  AIProviderConfig
+} from './ai-provider.interface';
 
 export class MockAIProvider implements AIProvider {
   readonly name = 'mock';
@@ -583,17 +601,17 @@ export class MockAIProvider implements AIProvider {
   public classifyResponse: ClassificationResult = {
     category: 'Documento General',
     confidence: 0.95,
-    tags: ['test', 'mock', 'documento'],
+    tags: ['test', 'mock', 'documento']
   };
-  
+
   public summarizeResponse: SummarizationResult = {
     summary: 'Este es un documento de prueba utilizado en tests automatizados.',
-    keyPoints: ['Punto clave 1', 'Punto clave 2', 'Punto clave 3'],
+    keyPoints: ['Punto clave 1', 'Punto clave 2', 'Punto clave 3']
   };
 
   public qaResponse: QAResult = {
     answer: 'Respuesta mock para testing.',
-    sources: ['Documento de prueba'],
+    sources: ['Documento de prueba']
   };
 
   async checkAvailability(): Promise<boolean> {
@@ -611,7 +629,9 @@ export class MockAIProvider implements AIProvider {
   }
 
   async answerQuestion(
-    _question: string, _context: string, _config?: AIProviderConfig
+    _question: string,
+    _context: string,
+    _config?: AIProviderConfig
   ): Promise<QAResult> {
     this.questionCalls++;
     return { ...this.qaResponse };
@@ -783,19 +803,19 @@ docker exec clouddocs-ollama ollama pull nomic-embed-text
 ### Backend docker-compose — variables de entorno
 
 ```yaml
-  backend:
-    environment:
-      AI_ENABLED: ${AI_ENABLED:-true}
-      AI_PROVIDER: ${AI_PROVIDER:-local}
-      OLLAMA_BASE_URL: http://ollama:11434
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
-      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
-    depends_on:
-      ollama:
-        condition: service_healthy
-        required: false  # No bloquea si no se usa perfil ai
+backend:
+  environment:
+    AI_ENABLED: ${AI_ENABLED:-true}
+    AI_PROVIDER: ${AI_PROVIDER:-local}
+    OLLAMA_BASE_URL: http://ollama:11434
+    OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+    OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+    OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+  depends_on:
+    ollama:
+      condition: service_healthy
+      required: false # No bloquea si no se usa perfil ai
 ```
 
 ---
@@ -834,7 +854,7 @@ docker exec clouddocs-ollama ollama pull nomic-embed-text
 
 ## 📁 Árbol de Archivos Resultante
 
-```
+```text
 src/services/ai/
 ├── ai.service.ts                    ← NUEVO: Facade + factory
 ├── providers/
@@ -857,13 +877,14 @@ src/services/ai/
 
 ### Dimensiones de embedding entre proveedores
 
-| Proveedor | Modelo | Dimensiones |
-|-----------|--------|-------------|
-| OpenAI | `text-embedding-3-small` | 1536 |
-| Ollama | `nomic-embed-text` | 768 |
-| Mock | N/A | 768 |
+| Proveedor | Modelo                   | Dimensiones |
+| --------- | ------------------------ | ----------- |
+| OpenAI    | `text-embedding-3-small` | 1536        |
+| Ollama    | `nomic-embed-text`       | 768         |
+| Mock      | N/A                      | 768         |
 
 **Implicación:** Si se cambia de proveedor, los chunks existentes en MongoDB Atlas tienen embeddings de dimensión distinta. Opciones:
+
 1. Re-procesar todos los documentos (recomendado al cambiar proveedor)
 2. Almacenar dimensión por chunk y normalizar en búsqueda (más complejo)
 3. Usar OpenAI `text-embedding-3-small` con `dimensions: 768` para compatibilizar
@@ -871,6 +892,7 @@ src/services/ai/
 ### Fallback graceful
 
 Si `AI_ENABLED=false` o el provider no está disponible:
+
 - Upload funciona normalmente (sin procesamiento AI)
 - `aiProcessingStatus` se queda en `'none'`
 - Búsqueda funciona por nombre de archivo (como ahora)
@@ -885,9 +907,9 @@ Los servicios existentes (`llm.service.ts`, `embedding.service.ts`) pueden mante
 
 ## 🔗 RFEs Relacionadas
 
-| RFE | Relación |
-|-----|----------|
-| RFE-AI-002 | Usa los providers para el pipeline automático |
-| RFE-AI-003 | `classifyDocument()` definido aquí |
+| RFE        | Relación                                                       |
+| ---------- | -------------------------------------------------------------- |
+| RFE-AI-002 | Usa los providers para el pipeline automático                  |
+| RFE-AI-003 | `classifyDocument()` definido aquí                             |
 | RFE-AI-005 | `generateEmbedding()` del provider reemplaza embedding directo |
-| RFE-AI-007 | `summarizeDocument()` definido aquí |
+| RFE-AI-007 | `summarizeDocument()` definido aquí                            |

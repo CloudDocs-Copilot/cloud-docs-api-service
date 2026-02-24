@@ -1,10 +1,21 @@
 /* Para crear un idOrganization ejecuta este archivo con los siguientes comandos
- **** MONGO_URI=mongodb://localhost:27017/tu_base_de_datos*****
- **** npx ts-node seed-minimal.ts ****
+ **** npx ts-node scripts/seed-minimal.ts ****
  */
-import 'dotenv/config';
+import path from 'path';
+import fs from 'fs';
+import dotenv from 'dotenv';
+
+// Cargar variables de entorno (.env.example → .env → .env.local)
+const envFiles = ['.env.example', '.env', '.env.local'];
+for (const file of envFiles) {
+  const filePath = path.resolve(__dirname, '..', file);
+  if (fs.existsSync(filePath)) {
+    dotenv.config({ path: filePath, override: true });
+  }
+}
+
 import mongoose from 'mongoose';
-import Organization, { generateSlug } from './src/models/organization.model';
+import Organization, { generateSlug } from '../src/models/organization.model';
 
 async function seed() {
   try {

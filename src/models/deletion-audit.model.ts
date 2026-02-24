@@ -4,22 +4,22 @@ import mongoose, { Document as MongooseDocument, Schema, Model, Types } from 'mo
  * Tipo de acción de eliminación
  */
 export enum DeletionAction {
-  SOFT_DELETE = 'move_to_trash',      // Mover a papelera (compatibilidad legacy)
-  RESTORE = 'restore_from_trash',     // Recuperar de papelera (compatibilidad legacy)
+  SOFT_DELETE = 'move_to_trash', // Mover a papelera (compatibilidad legacy)
+  RESTORE = 'restore_from_trash', // Recuperar de papelera (compatibilidad legacy)
   PERMANENT_DELETE = 'permanent_delete', // Eliminación definitiva
   SECURE_OVERWRITE = 'secure_overwrite', // Sobrescritura segura del archivo
-  AUTO_DELETE = 'auto_delete'        // Eliminación automática (30 días)
+  AUTO_DELETE = 'auto_delete' // Eliminación automática (30 días)
 }
 
 /**
  * Estado de la eliminación
  */
 export enum DeletionStatus {
-  PENDING = 'pending',      // Pendiente de confirmación
-  CONFIRMED = 'confirmed',  // Confirmado por el usuario
-  COMPLETED = 'completed',  // Eliminación completada
-  FAILED = 'failed',        // Falló la eliminación
-  CANCELLED = 'cancelled'   // Cancelado por el usuario
+  PENDING = 'pending', // Pendiente de confirmación
+  CONFIRMED = 'confirmed', // Confirmado por el usuario
+  COMPLETED = 'completed', // Eliminación completada
+  FAILED = 'failed', // Falló la eliminación
+  CANCELLED = 'cancelled' // Cancelado por el usuario
 }
 
 /**
@@ -70,7 +70,7 @@ export interface IDeletionAudit extends MongooseDocument {
 
 /**
  * Schema de Mongoose para Auditoría de Eliminación
- * 
+ *
  * Características:
  * - Registro completo de todas las acciones de eliminación
  * - Snapshot del documento para cumplimiento GDPR
@@ -83,7 +83,7 @@ const deletionAuditSchema = new Schema<IDeletionAudit>(
       type: Schema.Types.ObjectId,
       ref: 'Document',
       required: [true, 'Document reference is required'],
-      index: true,
+      index: true
     },
     // Legacy alias to support older queries that used `documentId`
     documentId: {
@@ -91,85 +91,85 @@ const deletionAuditSchema = new Schema<IDeletionAudit>(
       ref: 'Document',
       required: false,
       index: true,
-      default: null,
+      default: null
     },
     documentSnapshot: {
       filename: {
         type: String,
-        required: true,
+        required: true
       },
       originalname: {
         type: String,
-        required: true,
+        required: true
       },
       size: {
         type: Number,
-        required: true,
+        required: true
       },
       mimeType: {
         type: String,
-        required: true,
+        required: true
       },
       path: {
         type: String,
-        required: true,
+        required: true
       },
       organization: {
         type: Schema.Types.ObjectId,
         ref: 'Organization',
-        default: null,
-      },
+        default: null
+      }
     },
     performedBy: {
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: [true, 'User who performed the action is required'],
-      index: true,
+      index: true
     },
     organization: {
       type: Schema.Types.ObjectId,
       ref: 'Organization',
       index: true,
-      default: null,
+      default: null
     },
     action: {
       type: String,
       enum: Object.values(DeletionAction),
       required: [true, 'Deletion action is required'],
-      index: true,
+      index: true
     },
     status: {
       type: String,
       enum: Object.values(DeletionStatus),
       required: [true, 'Deletion status is required'],
       default: DeletionStatus.PENDING,
-      index: true,
+      index: true
     },
     reason: {
       type: String,
       trim: true,
-      maxlength: [500, 'Reason cannot exceed 500 characters'],
+      maxlength: [500, 'Reason cannot exceed 500 characters']
     },
     ipAddress: {
       type: String,
-      trim: true,
+      trim: true
     },
     userAgent: {
       type: String,
-      trim: true,
+      trim: true
     },
     confirmedAt: {
       type: Date,
-      default: null,
+      default: null
     },
     completedAt: {
       type: Date,
       default: null,
-      index: true,
+      index: true
     },
     errorMessage: {
       type: String,
-      trim: true,
+      trim: true
     },
     overwriteMethod: {
       type: String,
@@ -178,15 +178,15 @@ const deletionAuditSchema = new Schema<IDeletionAudit>(
         message: '{VALUE} is not a valid overwrite method'
       },
       required: false,
-      default: undefined,
+      default: undefined
     },
     overwritePasses: {
       type: Number,
       min: [0, 'Overwrite passes cannot be negative'],
       max: [35, 'Maximum 35 passes (Gutmann method)'],
       required: false,
-      default: undefined,
-    },
+      default: undefined
+    }
   },
   {
     timestamps: true,
@@ -197,7 +197,7 @@ const deletionAuditSchema = new Schema<IDeletionAudit>(
         delete ret._id;
         return ret;
       }
-    },
+    }
   }
 );
 
@@ -207,6 +207,9 @@ deletionAuditSchema.index({ performedBy: 1, action: 1 }); // Acciones por usuari
 deletionAuditSchema.index({ status: 1, createdAt: -1 }); // Por estado
 deletionAuditSchema.index({ document: 1, action: 1 }); // Historial de un documento
 
-const DeletionAuditModel: Model<IDeletionAudit> = mongoose.model<IDeletionAudit>('DeletionAudit', deletionAuditSchema);
+const DeletionAuditModel: Model<IDeletionAudit> = mongoose.model<IDeletionAudit>(
+  'DeletionAudit',
+  deletionAuditSchema
+);
 
 export default DeletionAuditModel;

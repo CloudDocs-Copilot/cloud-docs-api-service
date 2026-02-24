@@ -13,6 +13,14 @@ require('dotenv').config();
 // Mock pdf-parse to avoid loading native bindings in tests
 jest.mock('pdf-parse', () => ({ __esModule: true, default: jest.fn() }));
 
+// Mock mammoth to avoid loading heavy native/binary parsing code in unit tests
+jest.mock('mammoth', () => ({
+  __esModule: true,
+  default: {
+    extractRawText: jest.fn(async (_buffer: any) => ({ value: '' }))
+  }
+}));
+
 // Mock the search service so tests don't require a running Elasticsearch instance
 jest.mock('../src/services/search.service', () => ({
   indexDocument: jest.fn().mockResolvedValue(undefined),

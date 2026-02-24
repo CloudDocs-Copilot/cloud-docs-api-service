@@ -54,7 +54,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-function assertHasAccessFields(value: unknown): asserts value is { accessType: unknown; isOwned: unknown } {
+function assertHasAccessFields(
+  value: unknown
+): asserts value is { accessType: unknown; isOwned: unknown } {
   if (!isRecord(value)) throw new Error('Expected object');
   if (!('accessType' in value)) throw new Error('Expected accessType');
   if (!('isOwned' in value)) throw new Error('Expected isOwned');
@@ -198,17 +200,22 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
     ensureDir(path.join(storageRoot, testOrgSlug, testUserId.toString(), 'Documents'));
 
     // Default membership mocks for "active org"
-    (membershipService.getActiveOrganization as jest.Mock).mockImplementation(async (uid: string) => {
-      if (uid === testUserId.toString() || uid === testUser2Id.toString()) return testOrgId.toString();
-      return null;
-    });
+    (membershipService.getActiveOrganization as jest.Mock).mockImplementation(
+      async (uid: string) => {
+        if (uid === testUserId.toString() || uid === testUser2Id.toString())
+          return testOrgId.toString();
+        return null;
+      }
+    );
 
-    (membershipService.getMembership as jest.Mock).mockImplementation(async (uid: string, orgId: string) => {
-      if (orgId !== testOrgId.toString()) return null;
-      if (uid === testUserId.toString()) return { rootFolder: rootFolderId };
-      if (uid === testUser2Id.toString()) return { rootFolder: rootFolderId };
-      return null;
-    });
+    (membershipService.getMembership as jest.Mock).mockImplementation(
+      async (uid: string, orgId: string) => {
+        if (orgId !== testOrgId.toString()) return null;
+        if (uid === testUserId.toString()) return { rootFolder: rootFolderId };
+        if (uid === testUser2Id.toString()) return { rootFolder: rootFolderId };
+        return null;
+      }
+    );
 
     (folderService.validateFolderAccess as jest.Mock).mockResolvedValue(undefined);
     (membershipService.hasAnyRole as jest.Mock).mockResolvedValue(false);
