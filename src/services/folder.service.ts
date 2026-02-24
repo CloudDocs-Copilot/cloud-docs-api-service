@@ -328,11 +328,12 @@ export async function getFolderContents({ folderId, userId }: GetFolderContentsD
   
   console.log('[getFolderContents] Encontradas', subfolders.length, 'subcarpetas');
   
-  // Obtener conteo de documentos por subcarpeta
+  // Obtener conteo de documentos por subcarpeta (excluir eliminados)
   const documentCounts = await DocumentModel.aggregate([
     {
       $match: {
-        folder: { $in: subfolders.map(f => f._id) }
+        folder: { $in: subfolders.map(f => f._id) },
+        isDeleted: false // Excluir documentos en papelera
       }
     },
     {
