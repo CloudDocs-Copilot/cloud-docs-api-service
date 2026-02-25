@@ -248,20 +248,38 @@ export async function listNotifications({
   if (!orgId) {
     orgId = await getActiveOrganization(userId);
   }
-  if (!orgId || !isValidObjectId(orgId)) {
-    throw new HttpError(
-      403,
-      'No active organization. Please create or join an organization first.'
-    );
-  }
 
-  const query: any = {
-    recipient: new mongoose.Types.ObjectId(userId),
-    organization: new mongoose.Types.ObjectId(orgId)
+  /**
+   * Behavior:
+   * - If the user has an active org (or orgId was provided), return:
+   *     (notifications in that org) OR (INVITATION_CREATED for the user)
+   * - If the user has NO active org, still allow returning INVITATION_CREATED (global invitations),
+   *   instead of throwing 403.
+   */
+  const baseQuery: any = {
+    recipient: new mongoose.Types.ObjectId(userId)
   };
 
   if (unreadOnly) {
-    query.readAt = null;
+    baseQuery.readAt = null;
+  }
+
+  let query: any;
+
+  if (orgId && isValidObjectId(orgId)) {
+    query = {
+      ...baseQuery,
+      $or: [
+        { organization: new mongoose.Types.ObjectId(orgId) },
+        { type: 'INVITATION_CREATED' }
+      ]
+    };
+  } else {
+    // No org context available -> only show global invitation notifications
+    query = {
+      ...baseQuery,
+      type: 'INVITATION_CREATED'
+    };
   }
 
   const [items, total] = await Promise.all([
@@ -296,21 +314,35 @@ export async function markAllRead(userId: string, organizationId?: string | null
   if (!orgId) {
     orgId = await getActiveOrganization(userId);
   }
-  if (!orgId || !isValidObjectId(orgId)) {
-    throw new HttpError(
-      403,
-      'No active organization. Please create or join an organization first.'
-    );
+
+  const baseQuery: any = {
+    recipient: new mongoose.Types.ObjectId(userId),
+    readAt: null
+  };
+
+  /**
+   * Match the same visibility rules as listNotifications():
+   * - If org context exists: mark read for (org notifications) OR (INVITATION_CREATED)
+   * - If no org context: mark read only for INVITATION_CREATED
+   */
+  let query: any;
+
+  if (orgId && isValidObjectId(orgId)) {
+    query = {
+      ...baseQuery,
+      $or: [
+        { organization: new mongoose.Types.ObjectId(orgId) },
+        { type: 'INVITATION_CREATED' }
+      ]
+    };
+  } else {
+    query = {
+      ...baseQuery,
+      type: 'INVITATION_CREATED'
+    };
   }
 
-  await NotificationModel.updateMany(
-    {
-      recipient: new mongoose.Types.ObjectId(userId),
-      organization: new mongoose.Types.ObjectId(orgId),
-      readAt: null
-    },
-    { $set: { readAt: new Date() } }
-  );
+  await NotificationModel.updateMany(query, { $set: { readAt: new Date() } });
 }
 
 export default {

@@ -811,7 +811,7 @@ describe('notification.service (unit)', () => {
       );
     });
 
-    it('uses provided organizationId when valid', async () => {
+    it('uses provided organizationId when valid (org notifications OR INVITATION_CREATED)', async () => {
       const userId = oid();
       const orgId = oid();
 
@@ -836,8 +836,11 @@ describe('notification.service (unit)', () => {
       const queryArg = NotificationModel.find.mock.calls[0][0];
 
       expect(queryArg.recipient.toString()).toBe(new mongoose.Types.ObjectId(userId).toString());
-      expect(queryArg.organization.toString()).toBe(new mongoose.Types.ObjectId(orgId).toString());
       expect(queryArg.readAt).toBeUndefined();
+
+      expect(queryArg.$or).toHaveLength(2);
+      expect(queryArg.$or[0].organization.toString()).toBe(new mongoose.Types.ObjectId(orgId).toString());
+      expect(queryArg.$or[1]).toEqual({ type: 'INVITATION_CREATED' });
 
       expect(sort).toHaveBeenCalledWith({ createdAt: -1 });
       expect(skip).toHaveBeenCalledWith(5);
@@ -847,7 +850,7 @@ describe('notification.service (unit)', () => {
       expect(res).toEqual({ notifications: [{ id: 1 }], total: 99 });
     });
 
-    it('falls back to active organization when organizationId not provided', async () => {
+    it('falls back to active organization when organizationId not provided (org notifications OR INVITATION_CREATED)', async () => {
       const userId = oid();
       const activeOrgId = oid();
       getActiveOrganization.mockResolvedValue(activeOrgId);
@@ -863,21 +866,55 @@ describe('notification.service (unit)', () => {
       const res = await notificationService.listNotifications({ userId });
 
       expect(getActiveOrganization).toHaveBeenCalledWith(userId);
+
+      const queryArg = NotificationModel.find.mock.calls[0][0];
+      expect(queryArg.$or).toHaveLength(2);
+      expect(queryArg.$or[0].organization.toString()).toBe(new mongoose.Types.ObjectId(activeOrgId).toString());
+      expect(queryArg.$or[1]).toEqual({ type: 'INVITATION_CREATED' });
+
       expect(res).toEqual({ notifications: [], total: 0 });
     });
 
-    it('throws 403 when no org (provided null or active org missing/invalid)', async () => {
+    it('when no org context (active org missing): returns only INVITATION_CREATED (does not throw)', async () => {
       const userId = oid();
-
       getActiveOrganization.mockResolvedValue(null);
 
-      await expect(notificationService.listNotifications({ userId })).rejects.toThrow(
-        'No active organization. Please create or join an organization first.'
-      );
+      const lean = jest.fn().mockResolvedValue([{ id: 'inv' }]);
+      const limit = jest.fn().mockReturnValue({ lean });
+      const skip = jest.fn().mockReturnValue({ limit });
+      const sort = jest.fn().mockReturnValue({ skip });
 
-      await expect(
-        notificationService.listNotifications({ userId, organizationId: 'bad' })
-      ).rejects.toThrow('No active organization. Please create or join an organization first.');
+      NotificationModel.find.mockReturnValue({ sort });
+      NotificationModel.countDocuments.mockResolvedValue(1);
+
+      const res = await notificationService.listNotifications({ userId });
+
+      const queryArg = NotificationModel.find.mock.calls[0][0];
+      expect(queryArg.recipient.toString()).toBe(new mongoose.Types.ObjectId(userId).toString());
+      expect(queryArg.type).toBe('INVITATION_CREATED');
+      expect(queryArg.$or).toBeUndefined();
+
+      expect(res).toEqual({ notifications: [{ id: 'inv' }], total: 1 });
+    });
+
+    it('when organizationId provided but invalid: treats as no org context and returns only INVITATION_CREATED', async () => {
+      const userId = oid();
+
+      const lean = jest.fn().mockResolvedValue([]);
+      const limit = jest.fn().mockReturnValue({ lean });
+      const skip = jest.fn().mockReturnValue({ limit });
+      const sort = jest.fn().mockReturnValue({ skip });
+
+      NotificationModel.find.mockReturnValue({ sort });
+      NotificationModel.countDocuments.mockResolvedValue(0);
+
+      const res = await notificationService.listNotifications({ userId, organizationId: 'bad' });
+
+      const queryArg = NotificationModel.find.mock.calls[0][0];
+      expect(queryArg.type).toBe('INVITATION_CREATED');
+      expect(queryArg.$or).toBeUndefined();
+
+      expect(res).toEqual({ notifications: [], total: 0 });
     });
 
     it('adds readAt=null filter when unreadOnly is true', async () => {
@@ -900,6 +937,7 @@ describe('notification.service (unit)', () => {
 
       const queryArg = NotificationModel.find.mock.calls[0][0];
       expect(queryArg.readAt).toBeNull();
+      expect(queryArg.$or).toBeDefined();
     });
   });
 
@@ -946,7 +984,30 @@ describe('notification.service (unit)', () => {
       await expect(notificationService.markAllRead('bad')).rejects.toThrow('Invalid user ID');
     });
 
-    it('falls back to active organization when organizationId not provided', async () => {
+    it('with org context (provided): marks read for (org notifications) OR (INVITATION_CREATED)', async () => {
+      const userId = oid();
+      const orgId = oid();
+
+      NotificationModel.updateMany.mockResolvedValue({ acknowledged: true });
+
+      await notificationService.markAllRead(userId, orgId);
+
+      expect(getActiveOrganization).not.toHaveBeenCalled();
+
+      const [filter, update] = NotificationModel.updateMany.mock.calls[0];
+
+      expect(filter.recipient.toString()).toBe(new mongoose.Types.ObjectId(userId).toString());
+      expect(filter.readAt).toBeNull();
+
+      expect(filter.$or).toHaveLength(2);
+      expect(filter.$or[0].organization.toString()).toBe(new mongoose.Types.ObjectId(orgId).toString());
+      expect(filter.$or[1]).toEqual({ type: 'INVITATION_CREATED' });
+
+      expect(update).toHaveProperty('$set.readAt');
+      expect(update.$set.readAt).toBeInstanceOf(Date);
+    });
+
+    it('falls back to active organization when organizationId not provided (org notifications OR INVITATION_CREATED)', async () => {
       const userId = oid();
       const orgId = oid();
 
@@ -960,39 +1021,43 @@ describe('notification.service (unit)', () => {
       const [filter, update] = NotificationModel.updateMany.mock.calls[0];
 
       expect(filter.recipient.toString()).toBe(new mongoose.Types.ObjectId(userId).toString());
-      expect(filter.organization.toString()).toBe(new mongoose.Types.ObjectId(orgId).toString());
       expect(filter.readAt).toBeNull();
+      expect(filter.$or).toHaveLength(2);
+      expect(filter.$or[0].organization.toString()).toBe(new mongoose.Types.ObjectId(orgId).toString());
+      expect(filter.$or[1]).toEqual({ type: 'INVITATION_CREATED' });
 
       expect(update).toHaveProperty('$set.readAt');
       expect(update.$set.readAt).toBeInstanceOf(Date);
     });
 
-    it('throws 403 when orgId missing/invalid', async () => {
+    it('when no org context: marks read only for INVITATION_CREATED (does not throw)', async () => {
       const userId = oid();
-
       getActiveOrganization.mockResolvedValue(null);
-
-      await expect(notificationService.markAllRead(userId)).rejects.toThrow(
-        'No active organization. Please create or join an organization first.'
-      );
-
-      await expect(notificationService.markAllRead(userId, 'bad')).rejects.toThrow(
-        'No active organization. Please create or join an organization first.'
-      );
-    });
-
-    it('uses provided valid organizationId', async () => {
-      const userId = oid();
-      const orgId = oid();
 
       NotificationModel.updateMany.mockResolvedValue({ acknowledged: true });
 
-      await notificationService.markAllRead(userId, orgId);
+      await notificationService.markAllRead(userId);
 
-      expect(getActiveOrganization).not.toHaveBeenCalled();
+      expect(getActiveOrganization).toHaveBeenCalledWith(userId);
 
       const [filter] = NotificationModel.updateMany.mock.calls[0];
-      expect(filter.organization.toString()).toBe(new mongoose.Types.ObjectId(orgId).toString());
+
+      expect(filter.recipient.toString()).toBe(new mongoose.Types.ObjectId(userId).toString());
+      expect(filter.readAt).toBeNull();
+      expect(filter.type).toBe('INVITATION_CREATED');
+      expect(filter.$or).toBeUndefined();
+    });
+
+    it('when organizationId provided but invalid: treats as no org context and marks only INVITATION_CREATED', async () => {
+      const userId = oid();
+
+      NotificationModel.updateMany.mockResolvedValue({ acknowledged: true });
+
+      await notificationService.markAllRead(userId, 'bad');
+
+      const [filter] = NotificationModel.updateMany.mock.calls[0];
+      expect(filter.type).toBe('INVITATION_CREATED');
+      expect(filter.$or).toBeUndefined();
     });
   });
 });
