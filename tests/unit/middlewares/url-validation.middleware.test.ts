@@ -59,10 +59,8 @@ describe('URL Validation Middleware', () => {
           return { isValid: false, errors: ['Suspicious domain'] };
         }
       } catch {
-        // Fallback to substring check if URL parsing fails
-        if (url.includes('evil.com')) {
-          return { isValid: false, errors: ['Suspicious domain'] };
-        }
+        // If URL parsing fails, treat the URL as invalid rather than relying on substring checks.
+        return { isValid: false, errors: ['Invalid URL format'] };
       }
 
       return { isValid: false, errors: ['invalid'] };
