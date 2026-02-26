@@ -33,10 +33,21 @@ describe('URL Validation Middleware', () => {
         return { isValid: false, errors: ['Invalid URL format'] };
       }
 
+      let hostname: string | null = null;
+      let parsed: URL;
+      try {
+        parsed = new URL(url);
+        hostname = parsed.hostname.toLowerCase();
+      } catch {
+        // If URL parsing fails, treat the URL as invalid rather than relying on substring checks.
+        return { isValid: false, errors: ['Invalid URL format'] };
+      }
+
       if (
-        url.startsWith('https://ok.com') ||
-        url.startsWith('https://cdn.example.com') ||
-        url.startsWith('https://trusted.com')
+        parsed.protocol === 'https:' &&
+        (hostname === 'ok.com' ||
+          hostname === 'trusted.com' ||
+          hostname === 'cdn.example.com')
       ) {
         return { isValid: true, errors: [] };
       }
@@ -49,7 +60,10 @@ describe('URL Validation Middleware', () => {
         return { isValid: false, errors: ['Unsupported protocol'] };
       }
 
-      if (url.includes('evil.com')) {
+      if (
+        hostname === 'evil.com' ||
+        hostname.endsWith('.evil.com')
+      ) {
         return { isValid: false, errors: ['Suspicious domain'] };
       }
 
