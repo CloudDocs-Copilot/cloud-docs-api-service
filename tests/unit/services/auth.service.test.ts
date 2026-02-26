@@ -46,11 +46,13 @@ describe('Auth Service (consolidated)', () => {
     process.env.NODE_ENV = 'test';
     process.env.SEND_CONFIRMATION_EMAIL = 'false';
     mockBcryptHash.mockResolvedValue('hashed');
+    const mongoose = require('mongoose');
+    const id = new mongoose.Types.ObjectId().toString();
     const fakeUser = {
-      _id: 'u1',
+      _id: id,
       email: 'x@y.com',
       name: 'X',
-      toJSON: jest.fn(() => ({ _id: 'u1', email: 'x@y.com' }))
+      toJSON: jest.fn(() => ({ _id: id, email: 'x@y.com' }))
     };
     mockUserCreate.mockResolvedValue(fakeUser);
     const { registerUser } = require('../../../src/services/auth.service');
@@ -65,7 +67,7 @@ describe('Auth Service (consolidated)', () => {
     await expect(loginUser({ email: 'a@b.com', password: 'p' })).rejects.toThrow('User not found');
 
     mockUserFindOne.mockResolvedValue({
-      _id: 'u1',
+      _id: new (require('mongoose').Types.ObjectId)().toString(),
       email: 'a@b.com',
       password: 'p',
       active: false
@@ -75,7 +77,7 @@ describe('Auth Service (consolidated)', () => {
     );
 
     mockUserFindOne.mockResolvedValue({
-      _id: 'u1',
+      _id: new (require('mongoose').Types.ObjectId)().toString(),
       email: 'a@b.com',
       password: 'p',
       active: true,
@@ -110,7 +112,7 @@ describe('Auth Service (consolidated)', () => {
     process.env.SEND_CONFIRMATION_EMAIL = 'false';
     const saveMock = jest.fn().mockResolvedValue(true);
     mockUserFindOne.mockResolvedValue({
-      _id: 'u1',
+      _id: new (require('mongoose').Types.ObjectId)().toString(),
       name: 'X',
       email: 'a@b.com',
       active: true,
@@ -121,7 +123,7 @@ describe('Auth Service (consolidated)', () => {
     expect(typeof token).toBe('string');
     expect(saveMock).toHaveBeenCalled();
 
-    mockUserFindOne.mockResolvedValue({ _id: 'u1', tokenVersion: 0, save: saveMock });
+    mockUserFindOne.mockResolvedValue({ _id: new (require('mongoose').Types.ObjectId)().toString(), tokenVersion: 0, save: saveMock });
     const bcrypt = require('bcryptjs');
     bcrypt.hash.mockResolvedValue('newhash');
     await expect(

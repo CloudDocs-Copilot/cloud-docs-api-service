@@ -38,7 +38,7 @@ export class LlmService {
     try {
       const provider = getAIProvider();
 
-      console.log(`[llm] Generating response with provider ${provider.name}...`);
+      console.warn(`[llm] Generating response with provider ${provider.name}...`);
 
       // Delegar al provider - maneja toda la lógica de generación
       const result = await provider.generateResponse(prompt, options);
@@ -89,7 +89,7 @@ export class LlmService {
     try {
       const provider = getAIProvider();
 
-      console.log(`[llm] Generating streaming response with provider ${provider.name}...`);
+      console.warn(`[llm] Generating streaming response with provider ${provider.name}...`);
 
       // NOTA: No todos los providers implementan streaming
       // Si el provider no lo soporta, generamos la respuesta completa y simulamos streaming

@@ -150,4 +150,10 @@ describe('User Profile Management', () => {
       expect(deletedUser).toBeNull();
     });
   });
+
+  // Small delay after each test to allow background async jobs/logs to settle
+  // Prevents "Cannot log after tests are done" when other modules emit logs
+  afterEach(async () => {
+    await new Promise((r) => setTimeout(r, 200));
+  });
 });

@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
+import { FilterQuery } from 'mongoose';
 import User, { IUser, IUserPreferences } from '../models/user.model';
 import HttpError from '../models/error.model';
 import { validatePasswordOrThrow } from '../utils/password-validator';
@@ -169,7 +170,7 @@ export async function findUsersByEmail(
 
   const normalized = email.trim().toLowerCase();
 
-  const filter: any = { email: normalized };
+  const filter: FilterQuery<IUser> = { email: normalized };
 
   // Validar y sanitizar excludeUserId para prevenir NoSQL injection
   if (options.excludeUserId) {

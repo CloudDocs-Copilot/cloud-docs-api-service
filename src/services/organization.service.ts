@@ -3,6 +3,7 @@ import Organization from '../models/organization.model';
 import User from '../models/user.model';
 import Folder from '../models/folder.model';
 import Document from '../models/document.model';
+import { IMembership } from '../models/membership.model';
 import {
   IOrganization,
   SubscriptionPlan,
@@ -140,12 +141,12 @@ export async function removeUserFromOrganization(
  * @param userId - ID del usuario
  * @returns Lista de organizaciones del usuario
  */
-export async function getUserOrganizations(userId: string): Promise<any[]> {
+export async function getUserOrganizations(userId: string): Promise<IMembership[]> {
   // 🆕 Usar membership service y devolver las membresías completas
   const { getUserMemberships } = await import('./membership.service');
   const memberships = await getUserMemberships(userId);
   // Devolver las memberships con la organización poblada (consistencia con getOrganizationMembers)
-  return memberships as any[];
+  return memberships;
 }
 
 /**
@@ -263,7 +264,7 @@ export async function getOrganizationStorageStats(organizationId: string): Promi
   }
 
   // Convertir members a ObjectIds para prevenir inyección NoSQL
-  const memberObjectIds = organization.members.map((id: any) => new mongoose.Types.ObjectId(id));
+  const memberObjectIds = organization.members.map(id => new mongoose.Types.ObjectId(id.toString()));
 
   // Obtener usuarios de la organización
   const users = await User.find({
@@ -281,7 +282,7 @@ export async function getOrganizationStorageStats(organizationId: string): Promi
   const availableStorage = totalStorageLimit - usedStorage;
 
   const storagePerUser = users.map(user => ({
-    userId: user._id.toString(),
+    userId: String(user._id),
     userName: user.name,
     storageUsed: user.storageUsed,
     percentage: (user.storageUsed / organization.settings.maxStoragePerUser) * 100

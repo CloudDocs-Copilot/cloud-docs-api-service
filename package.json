@@ -6,7 +6,6 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "nodemon --exec ts-node src/index.ts",
-    "dev:watch": "ts-node src/index.ts",
     "format": "npx prettier --write .",
     "lint": "eslint src tests --ext .ts",
     "lint:fix": "eslint src tests --ext .ts --fix",

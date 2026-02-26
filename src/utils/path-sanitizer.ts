@@ -57,6 +57,7 @@ export const PATH_SANITIZATION_CONFIG = {
   ],
 
   // Caracteres peligrosos en nombres de archivo
+  // eslint-disable-next-line no-control-regex
   dangerousChars: /[<>:"|?*\x00-\x1f]/g,
 
   // Patrones de Path Traversal
@@ -272,16 +273,9 @@ export async function validateDownloadPath(filePath: string, baseDir: string): P
   }
 
   // Verificar que el archivo existe
-  try {
-    const stats = await fs.stat(absolutePath);
-    if (!stats.isFile()) {
-      throw new Error('Path does not point to a file');
-    }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      throw new Error('File does not exist');
-    }
-    throw error;
+  const stats = await fs.stat(absolutePath);
+  if (!stats.isFile()) {
+    throw new Error('Path does not point to a file');
   }
 
   return absolutePath;

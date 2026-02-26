@@ -11,6 +11,28 @@ import type {
   SummarizationResult
 } from './ai-provider.interface';
 
+function parseJsonRecord(value: string): Record<string, unknown> | null {
+  try {
+    const parsed: unknown = JSON.parse(value);
+
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function parseStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((item): item is string => typeof item === 'string');
+}
+
 /**
  * Implementación del proveedor OpenAI
  *
@@ -139,7 +161,7 @@ export class OpenAIProvider implements AIProvider {
         content: prompt.trim()
       });
 
-      console.log(`[openai-provider] Generating response with ${model}...`);
+      console.warn(`[openai-provider] Generating response with ${model}...`);
 
       const response = await this.client.chat.completions.create({
         model,
@@ -193,21 +215,27 @@ Responde ÚNICAMENTE con un objeto JSON válido (sin markdown, sin explicaciones
       maxTokens: 200
     });
 
-    try {
-      const parsed = JSON.parse(result.response);
+    const parsed = parseJsonRecord(result.response);
+
+    if (parsed) {
+      const category = typeof parsed.category === 'string' ? parsed.category : 'Otro';
+      const confidence = typeof parsed.confidence === 'number' ? parsed.confidence : 0.5;
+      const tags = parseStringArray(parsed.tags);
+
       return {
-        category: parsed.category || 'Otro',
-        confidence: parsed.confidence || 0.5,
-        tags: parsed.tags || []
-      };
-    } catch (error) {
-      console.error('[openai-provider] Failed to parse classification:', result.response);
-      return {
-        category: 'Otro',
-        confidence: 0.3,
-        tags: []
+        category,
+        confidence,
+        tags
       };
     }
+
+      console.error('[openai-provider] Failed to parse classification:', result.response);
+
+    return {
+      category: 'Otro',
+      confidence: 0.3,
+      tags: []
+    };
   }
 
   /**
@@ -230,19 +258,25 @@ Responde ÚNICAMENTE con un objeto JSON válido (sin markdown, sin explicaciones
       maxTokens: 500
     });
 
-    try {
-      const parsed = JSON.parse(result.response);
+    const parsed = parseJsonRecord(result.response);
+
+    if (parsed) {
+      const summary =
+        typeof parsed.summary === 'string' ? parsed.summary : 'No se pudo generar resumen';
+      const keyPoints = parseStringArray(parsed.keyPoints);
+
       return {
-        summary: parsed.summary || 'No se pudo generar resumen',
-        keyPoints: parsed.keyPoints || []
-      };
-    } catch (error) {
-      console.error('[openai-provider] Failed to parse summary:', result.response);
-      return {
-        summary: 'Error al generar resumen',
-        keyPoints: []
+        summary,
+        keyPoints
       };
     }
+
+      console.error('[openai-provider] Failed to parse summary:', result.response);
+
+    return {
+      summary: 'Error al generar resumen',
+      keyPoints: []
+    };
   }
 
   /**
@@ -252,9 +286,10 @@ Responde ÚNICAMENTE con un objeto JSON válido (sin markdown, sin explicaciones
     try {
       await this.client.models.list();
       return true;
-    } catch (error) {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      throw new Error(`OpenAI connection failed: ${errorMessage}`);
+      console.error(`[openai-provider] OpenAI connection failed: ${errorMessage}`);
+      return false;
     }
   }
 

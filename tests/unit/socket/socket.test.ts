@@ -1,3 +1,161 @@
+import { jest } from '@jest/globals';
+
+// Instrumentation used by multiple mocked Server implementations
+let lastServerInstance: any = null;
+let lastCtorArgs: [unknown, unknown] | null = null;
+
+describe('socket module', () => {
+  let FakeServer: any;
+  beforeEach(() => {
+    jest.resetModules();
+
+    FakeServer = class {
+      public opts: any;
+      public middlewares: Array<(s: any, next: any) => void> = [];
+      public handlers: Record<string, (s: any) => void> = {};
+      public lastEmit: any = null;
+      public _use: any = null;
+      public _onConnection: any = null;
+
+      constructor(_server: unknown, opts: any) {
+        this.opts = opts;
+        lastCtorArgs = [_server, opts];
+        lastServerInstance = this;
+      }
+
+      use(fn: any) {
+        this.middlewares.push(fn);
+        this._use = fn;
+      }
+
+      on(ev: string, cb: any) {
+        this.handlers[ev] = cb;
+        if (ev === 'connection') this._onConnection = cb;
+      }
+
+      to = jest.fn().mockImplementation((room: string) => {
+        const inst = this;
+        return {
+          emit: (event: string, payload: unknown) => {
+            inst.lastEmit = { room, event, payload };
+            serverToEmitMock(event, payload);
+          }
+        };
+      });
+    };
+
+    jest.doMock('socket.io', () => ({ Server: FakeServer }));
+  });
+
+  it('emitToUser is no-op when io not initialized', async () => {
+    const mod = await import('../../../src/socket/socket');
+    // ensure io is not initialized
+    mod.emitToUser('u1', 'e', { a: 1 });
+    // no throw
+  });
+
+  it('initSocket returns server and emitToUser emits to room', async () => {
+    const http = await import('http');
+    const mod = await import('../../../src/socket/socket');
+    const server = http.createServer();
+    const io = mod.initSocket(server as any);
+    expect(io).toBeInstanceOf(FakeServer);
+
+    // call emitToUser
+    mod.emitToUser('user42', 'hello', { ok: true });
+    expect((io as any).lastEmit).toEqual({ room: 'user:user42', event: 'hello', payload: { ok: true } });
+  });
+
+  it('emitToOrg emits to org room', async () => {
+    const http = await import('http');
+    const mod = await import('../../../src/socket/socket');
+    const server = http.createServer();
+    const io = mod.initSocket(server as any);
+    mod.emitToOrg('org1', 'ev', { x: 1 });
+    expect((io as any).lastEmit).toEqual({ room: 'org:org1', event: 'ev', payload: { x: 1 } });
+  });
+
+  it('initSocket returns same instance on subsequent calls', async () => {
+    const http = await import('http');
+    const mod = await import('../../../src/socket/socket');
+    const server = http.createServer();
+    const a = mod.initSocket(server as any);
+    const b = mod.initSocket(server as any);
+    expect(a).toBe(b);
+  });
+
+  it('auth middleware accepts valid JWT token provided in auth.token', async () => {
+    const jwt = await import('jsonwebtoken');
+    process.env.JWT_SECRET = 'test-secret';
+    const mod = await import('../../../src/socket/socket');
+    const http = await import('http');
+    const server = http.createServer();
+    const io = mod.initSocket(server as any) as any;
+
+    // create token with userId
+    const token = jwt.sign({ userId: 'u1' }, process.env.JWT_SECRET as string);
+
+    // fake socket object
+    const fakeSocket = { handshake: { auth: { token }, headers: {} }, data: {} };
+
+    // run the middleware stored in FakeServer
+    const middleware = io._use;
+    let nextCalled = false;
+    middleware(fakeSocket, (err?: any) => {
+      if (err) throw err;
+      nextCalled = true;
+    });
+
+    // simulate connection callback registration and invocation
+    expect(nextCalled).toBe(true);
+  });
+
+  it('auth middleware rejects invalid JWT', async () => {
+    process.env.JWT_SECRET = 's';
+    const mod = await import('../../../src/socket/socket');
+    const http = await import('http');
+    const server = http.createServer();
+    const io = mod.initSocket(server as any) as any;
+    const fakeSocket = { handshake: { auth: { token: 'badtoken' }, headers: {} }, data: {} };
+    const middleware = io._use;
+    let thrown = false;
+    try {
+      middleware(fakeSocket, (err?: any) => {
+        if (err) throw err;
+      });
+    } catch (e) {
+      thrown = true;
+    }
+    expect(thrown).toBe(true);
+  });
+
+  it('on connection emits socket:connected to client (via emit in connection handler)', async () => {
+    process.env.JWT_SECRET = 't';
+    const jwt = await import('jsonwebtoken');
+    const mod = await import('../../../src/socket/socket');
+    const http = await import('http');
+    const server = http.createServer();
+    const io = mod.initSocket(server as any) as any;
+    const token = jwt.sign({ userId: 'u2' }, process.env.JWT_SECRET as string);
+    const fakeSocket = {
+      handshake: { auth: { token }, headers: {} },
+      data: {},
+      join: jest.fn(),
+      emit: jest.fn(),
+      on: jest.fn()
+    } as any;
+
+    // run middleware
+    io._use(fakeSocket, (err?: any) => {
+      if (err) throw err;
+    });
+
+    // call connection handler to simulate a new connection
+    io._onConnection(fakeSocket);
+    expect(fakeSocket.join).toHaveBeenCalled();
+    expect(fakeSocket.emit).toHaveBeenCalledWith('socket:connected', { userId: 'u2' });
+  });
+});
 // Note: these are unit tests for the socket module, not integration tests. We mock socket.io and jsonwebtoken to test socket.ts logic in isolation without needing a real server or real JWTs.
 import http from 'http';
 
@@ -63,8 +221,8 @@ describe('socket module - basic safety', () => {
 
 const serverToEmitMock = jest.fn();
 
-let lastServerInstance: ServerMock | null = null;
-let lastCtorArgs: [unknown, unknown] | null = null;
+lastServerInstance = null;
+lastCtorArgs = null;
 
 interface ServerMock {
   opts: unknown;
@@ -108,11 +266,21 @@ jest.mock('socket.io', () => {
 
 // ✅ Mock BOTH jsonwebtoken.verify and jsonwebtoken.default.verify (same function)
 jest.mock('jsonwebtoken', () => {
-  const verify = jest.fn();
+  const sign = jest.fn((payload: unknown) => Buffer.from(JSON.stringify(payload)).toString('base64'));
+  const verify = jest.fn((token: string) => {
+    try {
+      const s = Buffer.from(token, 'base64').toString();
+      return JSON.parse(s);
+    } catch (e) {
+      throw new Error('bad token');
+    }
+  });
+
   return {
     __esModule: true,
     verify,
-    default: { verify }
+    sign,
+    default: { verify, sign }
   };
 });
 

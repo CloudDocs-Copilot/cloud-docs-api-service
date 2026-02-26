@@ -125,9 +125,11 @@ async function migrateChunks() {
         const organizationId = document.organization.toString();
 
         // Actualizar todos los chunks de este documento
+        // Type assertion needed due to BSON ObjectId version mismatch between mongoose and mongodb driver
         const chunkIds = documentChunks.map(c => c._id);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const result = await chunksCollection.updateMany(
-          { _id: { $in: chunkIds } },
+          { _id: { $in: chunkIds as any } },
           { $set: { organizationId } }
         );
 

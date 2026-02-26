@@ -1,3 +1,126 @@
+import { jest } from '@jest/globals';
+
+describe('emailService', () => {
+  const sendMailMock = jest.fn();
+  const createTransportMock = jest.fn(() => ({ sendMail: sendMailMock }));
+
+  beforeEach(() => {
+    jest.resetModules();
+    process.env.EMAIL_USER = 'me@example.com';
+    process.env.EMAIL_HOST = 'smtp.example.com';
+    process.env.EMAIL_PORT = '587';
+    process.env.EMAIL_SECURE = 'false';
+    process.env.EMAIL_ALLOW_INSECURE_TLS = 'false';
+    sendMailMock.mockReset();
+  });
+
+  it('sends an email using nodemailer transport', async () => {
+    jest.resetModules();
+    jest.mock('nodemailer', () => ({
+      default: { createTransport: jest.fn(() => ({ sendMail: sendMailMock })) },
+      createTransport: jest.fn(() => ({ sendMail: sendMailMock }))
+    }));
+    const { sendConfirmationEmail } = require('../../../src/mail/emailService');
+
+    sendMailMock.mockResolvedValueOnce({ messageId: 'ok' });
+
+    const res = await sendConfirmationEmail('to@example.com', 'subj', '<b>hi</b>');
+    expect(res).toEqual({ messageId: 'ok' });
+    expect((require('nodemailer') as any).createTransport).toHaveBeenCalled();
+    expect(sendMailMock).toHaveBeenCalledWith({ from: 'me@example.com', to: 'to@example.com', subject: 'subj', html: '<b>hi</b>' });
+  });
+
+  it('respects EMAIL_ALLOW_INSECURE_TLS=true', async () => {
+    process.env.EMAIL_ALLOW_INSECURE_TLS = 'true';
+    jest.resetModules();
+    jest.mock('nodemailer', () => ({
+      default: { createTransport: jest.fn((cfg: any) => ({ sendMail: sendMailMock })) },
+      createTransport: jest.fn((cfg: any) => ({ sendMail: sendMailMock }))
+    }));
+    const { sendConfirmationEmail } = require('../../../src/mail/emailService');
+    sendMailMock.mockResolvedValueOnce({ messageId: 'x' });
+    await sendConfirmationEmail('a@b', 's', 'h');
+    const cfg = (require('nodemailer').createTransport as jest.Mock).mock.calls[0][0];
+    expect(cfg.tls.rejectUnauthorized).toBe(false);
+  });
+
+  it('uses secure=true when EMAIL_SECURE=true', async () => {
+    process.env.EMAIL_SECURE = 'true';
+    jest.resetModules();
+    jest.mock('nodemailer', () => ({
+      default: { createTransport: jest.fn((cfg: any) => ({ sendMail: sendMailMock })) },
+      createTransport: jest.fn((cfg: any) => ({ sendMail: sendMailMock }))
+    }));
+    const { sendConfirmationEmail } = require('../../../src/mail/emailService');
+    sendMailMock.mockResolvedValueOnce({});
+    await sendConfirmationEmail('a@b', 's', 'h');
+    const cfg = (require('nodemailer').createTransport as jest.Mock).mock.calls[0][0];
+    expect(cfg.secure).toBe(true);
+  });
+
+  it('uses secure=true when port is 465', async () => {
+    process.env.EMAIL_PORT = '465';
+    process.env.EMAIL_SECURE = 'false';
+    jest.resetModules();
+    jest.mock('nodemailer', () => ({
+      default: { createTransport: jest.fn((cfg: any) => ({ sendMail: sendMailMock })) },
+      createTransport: jest.fn((cfg: any) => ({ sendMail: sendMailMock }))
+    }));
+    const { sendConfirmationEmail } = require('../../../src/mail/emailService');
+    sendMailMock.mockResolvedValueOnce({});
+    await sendConfirmationEmail('a@b', 's', 'h');
+    const cfg = (require('nodemailer').createTransport as jest.Mock).mock.calls[0][0];
+    expect(cfg.secure).toBe(true);
+  });
+
+  it('throws when transporter.sendMail rejects', async () => {
+    jest.resetModules();
+    jest.mock('nodemailer', () => ({
+      __esModule: true,
+      default: { createTransport: () => ({ sendMail: sendMailMock }) },
+      createTransport: () => ({ sendMail: sendMailMock })
+    }));
+    const { sendConfirmationEmail } = await import('../../../src/mail/emailService');
+    sendMailMock.mockRejectedValueOnce(new Error('fail'));
+    await expect(sendConfirmationEmail('x', 'y', 'z')).rejects.toThrow('fail');
+  });
+
+  it('passes correct auth credentials from env', async () => {
+    process.env.EMAIL_USER = 'user1';
+    process.env.EMAIL_PASS = 'pass1';
+    jest.resetModules();
+    let capturedCfg: any = null;
+    jest.mock('nodemailer', () => ({
+      __esModule: true,
+      default: { createTransport: (cfg: any) => { capturedCfg = cfg; return { sendMail: sendMailMock }; } },
+      createTransport: (cfg: any) => { capturedCfg = cfg; return { sendMail: sendMailMock }; }
+    }));
+    const { sendConfirmationEmail } = await import('../../../src/mail/emailService');
+    sendMailMock.mockResolvedValueOnce({});
+    await sendConfirmationEmail('to', 's', 'h');
+    const cfg = capturedCfg;
+    expect(cfg.auth.user).toBe('user1');
+    expect(cfg.auth.pass).toBe('pass1');
+  });
+
+  it('supports different ports and host settings', async () => {
+    process.env.EMAIL_PORT = '2525';
+    process.env.EMAIL_HOST = 'mail.test';
+    jest.resetModules();
+    let capturedCfg: any = null;
+    jest.mock('nodemailer', () => ({
+      __esModule: true,
+      default: { createTransport: (cfg: any) => { capturedCfg = cfg; return { sendMail: sendMailMock }; } },
+      createTransport: (cfg: any) => { capturedCfg = cfg; return { sendMail: sendMailMock }; }
+    }));
+    const { sendConfirmationEmail } = await import('../../../src/mail/emailService');
+    sendMailMock.mockResolvedValueOnce({});
+    await sendConfirmationEmail('to', 's', 'h');
+    const cfg = capturedCfg;
+    expect(cfg.port).toBe(2525);
+    expect(cfg.host).toBe('mail.test');
+  });
+});
 jest.resetModules();
 jest.unmock('../../../src/mail/emailService');
 
@@ -23,6 +146,12 @@ describe('Email Service', () => {
     it('should send email successfully and return message info', async () => {
       // Arrange
       jest.mock('nodemailer', () => ({
+        default: { createTransport: () => ({
+          sendMail: jest.fn().mockResolvedValue({
+            accepted: ['recipient@example.com'],
+            messageId: '<test-id@example.com>'
+          })
+        }) },
         createTransport: () => ({
           sendMail: jest.fn().mockResolvedValue({
             accepted: ['recipient@example.com'],
@@ -43,6 +172,7 @@ describe('Email Service', () => {
       // Arrange
       const mockSendMail = jest.fn().mockResolvedValue({ accepted: [], messageId: 'test' });
       jest.mock('nodemailer', () => ({
+        default: { createTransport: () => ({ sendMail: mockSendMail }) },
         createTransport: () => ({ sendMail: mockSendMail })
       }));
 
@@ -64,6 +194,10 @@ describe('Email Service', () => {
       // Arrange
       let capturedConfig: unknown;
       jest.mock('nodemailer', () => ({
+        default: { createTransport: (config: unknown) => {
+          capturedConfig = config;
+          return {sendMail: jest.fn().mockResolvedValue({}) };
+        } },
         createTransport: (config: unknown) => {
           capturedConfig = config;
           return {sendMail: jest.fn().mockResolvedValue({}) };
@@ -87,6 +221,10 @@ describe('Email Service', () => {
 
       let capturedConfig: unknown;
       jest.mock('nodemailer', () => ({
+        default: { createTransport: (config: unknown) => {
+          capturedConfig = config;
+          return { sendMail: jest.fn().mockResolvedValue({}) };
+        } },
         createTransport: (config: unknown) => {
           capturedConfig = config;
           return { sendMail: jest.fn().mockResolvedValue({}) };
@@ -110,6 +248,10 @@ describe('Email Service', () => {
 
       let capturedConfig: unknown;
       jest.mock('nodemailer', () => ({
+        default: { createTransport: (config: unknown) => {
+          capturedConfig = config;
+          return { sendMail: jest.fn().mockResolvedValue({}) };
+        } },
         createTransport: (config: unknown) => {
           capturedConfig = config;
           return { sendMail: jest.fn().mockResolvedValue({}) };
@@ -130,6 +272,9 @@ describe('Email Service', () => {
     it('should propagate transporter errors', async () => {
       // Arrange
       jest.mock('nodemailer', () => ({
+        default: { createTransport: () => ({
+          sendMail: jest.fn().mockRejectedValue(new Error('SMTP failed'))
+        }) },
         createTransport: () => ({
           sendMail: jest.fn().mockRejectedValue(new Error('SMTP failed'))
         })
@@ -150,6 +295,10 @@ describe('Email Service', () => {
 
       let capturedConfig: unknown;
       jest.mock('nodemailer', () => ({
+        default: { createTransport: (config: unknown) => {
+          capturedConfig = config;
+          return { sendMail: jest.fn().mockResolvedValue({}) };
+        } },
         createTransport: (config: unknown) => {
           capturedConfig = config;
           return { sendMail: jest.fn().mockResolvedValue({}) };
@@ -192,6 +341,11 @@ describe('Email Service', () => {
     it('should handle authentication errors', async () => {
       // Arrange
       jest.mock('nodemailer', () => ({
+        default: { createTransport: () => ({
+          sendMail: jest.fn().mockRejectedValue(
+            new Error('Invalid login: 535 Authentication failed')
+          )
+        }) },
         createTransport: () => ({
           sendMail: jest.fn().mockRejectedValue(
             new Error('Invalid login: 535 Authentication failed')
@@ -215,6 +369,7 @@ describe('Email Service', () => {
       });
 
       jest.mock('nodemailer', () => ({
+        default: { createTransport: () => ({ sendMail: mockSendMail }) },
         createTransport: () => ({ sendMail: mockSendMail })
       }));
 
@@ -241,6 +396,7 @@ describe('Email Service', () => {
       });
 
       jest.mock('nodemailer', () => ({
+        default: { createTransport: () => ({ sendMail: mockSendMail }) },
         createTransport: () => ({ sendMail: mockSendMail })
       }));
 

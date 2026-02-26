@@ -41,18 +41,21 @@ export function fileFilter(
   cb: multer.FileFilterCallback
 ): void {
   if (!ALLOWED.includes(file.mimetype)) {
-    return cb(new HttpError(400, 'Unsupported file type') as any);
+    return cb(new HttpError(400, 'Unsupported file type'));
   }
   cb(null, true);
 }
 
-function generateFilename(file: Express.Multer.File, cb: (err: any, filename: string) => void) {
+function generateFilename(
+  file: Express.Multer.File,
+  cb: (err: Error | null, filename: string) => void
+): void {
   // Extraer extensión de forma segura
   const ext = path.extname(file.originalname || '').toLowerCase();
 
   // Validar que la extensión solo contiene caracteres permitidos
   if (ext && !/^\.[\w-]+$/.test(ext)) {
-    return cb(new Error('Invalid file extension') as any, '');
+    return cb(new Error('Invalid file extension'), '');
   }
 
   // Generar nombre aleatorio seguro (solo UUID + extensión validada)

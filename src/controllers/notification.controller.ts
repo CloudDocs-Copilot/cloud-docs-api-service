@@ -13,10 +13,15 @@ import HttpError from '../models/error.model';
  */
 export async function list(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const unreadOnly = String(req.query.unread || 'false').toLowerCase() === 'true';
+    const unreadValue = req.query?.unread;
+    const unreadStr = typeof unreadValue === 'string' ? unreadValue : 'false';
+    const unreadOnly = unreadStr.toLowerCase() === 'true';
+    
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
     const skip = req.query.skip ? parseInt(req.query.skip as string, 10) : 0;
-    const organizationId = req.query.organizationId ? String(req.query.organizationId) : undefined;
+    
+    const orgIdValue = req.query?.organizationId;
+    const organizationId = typeof orgIdValue === 'string' ? orgIdValue : undefined;
 
     const result = await notificationService.listNotifications({
       userId: req.user!.id,
@@ -32,7 +37,7 @@ export async function list(req: AuthRequest, res: Response, next: NextFunction):
       total: result.total,
       notifications: result.notifications
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -51,7 +56,7 @@ export async function markRead(req: AuthRequest, res: Response, next: NextFuncti
       success: true,
       message: 'Notification marked as read'
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -65,7 +70,8 @@ export async function markAllRead(
   next: NextFunction
 ): Promise<void> {
   try {
-    const organizationId = req.body?.organizationId ? String(req.body.organizationId) : undefined;
+    const body = req.body as Record<string, unknown>;
+    const organizationId = typeof body?.organizationId === 'string' ? body.organizationId : undefined;
 
     await notificationService.markAllRead(req.user!.id, organizationId);
 
@@ -73,7 +79,7 @@ export async function markAllRead(
       success: true,
       message: 'All notifications marked as read'
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }

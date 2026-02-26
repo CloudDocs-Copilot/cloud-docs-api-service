@@ -10,6 +10,17 @@ import type { IDocumentChunk, IProcessingResult, IChunkStatistics } from '../mod
  */
 const COLLECTION_NAME = 'document_chunks';
 
+function getEmbeddingDimensionsSafe(): number {
+  const dimensionsRaw =
+    typeof embeddingService.getDimensions === 'function'
+      ? embeddingService.getDimensions()
+      : EMBEDDING_DIMENSIONS;
+
+  return typeof dimensionsRaw === 'number' && Number.isFinite(dimensionsRaw)
+    ? dimensionsRaw
+    : EMBEDDING_DIMENSIONS;
+}
+
 /**
  * Servicio para procesar documentos y generar embeddings vectoriales
  *
@@ -55,27 +66,23 @@ export class DocumentProcessor {
 
     try {
       // Paso 1: Dividir en chunks
-      console.log(`[processor] Splitting document ${documentId} into chunks...`);
+      console.warn(`[processor] Splitting document ${documentId} into chunks...`);
       const chunks = splitIntoChunks(text);
 
       if (chunks.length === 0) {
         throw new HttpError(400, 'No valid chunks generated from document text');
       }
 
-      console.log(`[processor] Created ${chunks.length} chunks for document ${documentId}`);
+      console.warn(`[processor] Created ${chunks.length} chunks for document ${documentId}`);
 
       // Paso 2: Generar embeddings para todos los chunks (batch processing)
-      console.log(`[processor] Generating embeddings for ${chunks.length} chunks...`);
+      console.warn(`[processor] Generating embeddings for ${chunks.length} chunks...`);
       let embeddings = await embeddingService.generateEmbeddings(chunks);
 
       // In test environments or when mocks misbehave, ensure we have a fallback
       if (!embeddings || embeddings.length !== chunks.length) {
-        const dim =
-          typeof embeddingService.getDimensions === 'function'
-            ? embeddingService.getDimensions()
-            : EMBEDDING_DIMENSIONS;
-        const fallback = new Array(dim).fill(0.01);
-        embeddings = chunks.map(() => fallback);
+        const dim = getEmbeddingDimensionsSafe();
+        embeddings = chunks.map(() => Array<number>(dim).fill(0.01));
       }
 
       // Paso 3: Preparar documentos para inserción
@@ -98,7 +105,7 @@ export class DocumentProcessor {
       });
 
       // Paso 4: Guardar en MongoDB Atlas
-      console.log(`[processor] Saving ${chunkDocuments.length} chunks to Atlas...`);
+      console.warn(`[processor] Saving ${chunkDocuments.length} chunks to Atlas...`);
       const db = await getDb();
       const collection = db.collection<IDocumentChunk>(COLLECTION_NAME);
 
@@ -106,21 +113,18 @@ export class DocumentProcessor {
 
       const processingTime = Date.now() - startTime;
 
-      console.log(
+      console.warn(
         `[processor] Successfully processed document ${documentId}: ${chunks.length} chunks in ${processingTime}ms`
       );
 
-      const dimensions =
-        typeof embeddingService.getDimensions === 'function'
-          ? embeddingService.getDimensions()
-          : 1536;
+      const dimensions = getEmbeddingDimensionsSafe();
 
       return {
         documentId,
         chunksCreated: result.insertedCount,
         totalWords,
         processingTime,
-        dimensions: dimensions || 1536 // Fallback if undefined
+        dimensions
       };
     } catch (error: unknown) {
       // Si es un HttpError de embedding service, propagarlo
@@ -153,7 +157,7 @@ export class DocumentProcessor {
 
       const result = await collection.deleteMany({ documentId });
 
-      console.log(`[processor] Deleted ${result.deletedCount} chunks for document ${documentId}`);
+      console.warn(`[processor] Deleted ${result.deletedCount} chunks for document ${documentId}`);
 
       return result.deletedCount || 0;
     } catch (error: unknown) {

@@ -14,9 +14,20 @@ export async function createOrganization(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { name, plan } = req.body;
+    const body = req.body as Record<string, unknown>;
+    const name = body.name;
+    
+    // Validar plan si se proporciona
+    const planValue = body.plan;
+    let plan: SubscriptionPlan | undefined = undefined;
+    if (typeof planValue === 'string') {
+      const validPlans = Object.values(SubscriptionPlan);
+      if (validPlans.includes(planValue as SubscriptionPlan)) {
+        plan = planValue as SubscriptionPlan;
+      }
+    }
 
-    if (!name) {
+    if (typeof name !== 'string' || !name) {
       return next(new HttpError(400, 'Organization name is required'));
     }
 
@@ -31,7 +42,7 @@ export async function createOrganization(
       message: 'Organization created successfully',
       organization
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -54,9 +65,13 @@ export async function getOrganization(
 
     // Verificar que el usuario pertenece a la organización
     // members está populated, así que accedemos a member._id o member.id
-    const isMember = organization.members.some(
-      (member: any) => (member._id || member).toString() === req.user!.id
-    );
+    const userIdStr = req.user!.id;
+    const isMember = organization.members.some((member) => {
+      if (typeof member === 'object' && member !== null && '_id' in member) {
+        return String(member._id) === userIdStr;
+      }
+      return String(member) === userIdStr;
+    });
 
     if (!isMember) {
       return next(new HttpError(403, 'Access denied to this organization'));
@@ -66,7 +81,7 @@ export async function getOrganization(
       success: true,
       organization
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -88,7 +103,7 @@ export async function listUserOrganizations(
       count: memberships.length,
       memberships
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -103,7 +118,36 @@ export async function updateOrganization(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { name, settings } = req.body;
+    const body = req.body as Record<string, unknown>;
+    const name = typeof body.name === 'string' ? body.name : undefined;
+    
+    // Validar settings si se proporciona
+    const settingsValue = body.settings;
+    let settings: organizationService.UpdateOrganizationDto['settings'] = undefined;
+    
+    if (typeof settingsValue === 'object' && settingsValue !== null && !Array.isArray(settingsValue)) {
+      const validSettings: NonNullable<organizationService.UpdateOrganizationDto['settings']> = {};
+      
+      if ('maxStoragePerUser' in settingsValue && typeof settingsValue.maxStoragePerUser === 'number') {
+        validSettings.maxStoragePerUser = settingsValue.maxStoragePerUser;
+      }
+      
+      if ('allowedFileTypes' in settingsValue && Array.isArray(settingsValue.allowedFileTypes)) {
+        const validTypes = settingsValue.allowedFileTypes.filter((t): t is string => typeof t === 'string');
+        if (validTypes.length > 0) {
+          validSettings.allowedFileTypes = validTypes;
+        }
+      }
+      
+      if ('maxUsers' in settingsValue && typeof settingsValue.maxUsers === 'number') {
+        validSettings.maxUsers = settingsValue.maxUsers;
+      }
+      
+      // Solo asignar settings si tiene al menos una propiedad válida
+      if (Object.keys(validSettings).length > 0) {
+        settings = validSettings;
+      }
+    }
 
     const organization = await organizationService.updateOrganization(
       String(req.params.id),
@@ -116,7 +160,7 @@ export async function updateOrganization(
       message: 'Organization updated successfully',
       organization
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -137,7 +181,7 @@ export async function deleteOrganization(
       success: true,
       message: 'Organization deleted successfully'
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -152,9 +196,10 @@ export async function addMember(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { userId } = req.body;
+    const body = req.body as Record<string, unknown>;
+    const userId = body.userId;
 
-    if (!userId) {
+    if (typeof userId !== 'string' || !userId) {
       return next(new HttpError(400, 'User ID is required'));
     }
 
@@ -168,7 +213,7 @@ export async function addMember(
       message: 'Member added successfully',
       organization
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -193,7 +238,7 @@ export async function removeMember(
       message: 'Member removed successfully',
       organization
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -216,9 +261,13 @@ export async function getStorageStats(
     }
 
     // Verificar membership (members está populated)
-    const isMember = organization.members.some(
-      (member: any) => (member._id || member).toString() === req.user!.id
-    );
+    const userIdStr = req.user!.id;
+    const isMember = organization.members.some((member) => {
+      if (typeof member === 'object' && member !== null && '_id' in member) {
+        return String(member._id) === userIdStr;
+      }
+      return String(member) === userIdStr;
+    });
 
     if (!isMember) {
       return next(new HttpError(403, 'Access denied to this organization'));
@@ -253,9 +302,13 @@ export async function listMembers(
 
     // Verificar que el usuario pertenece a la organización
     // members está populated, así que accedemos a member._id o member.id
-    const isMember = organization.members.some(
-      (member: any) => (member._id || member).toString() === req.user!.id
-    );
+    const userIdStr = req.user!.id;
+    const isMember = organization.members.some((member) => {
+      if (typeof member === 'object' && member !== null && '_id' in member) {
+        return String(member._id) === userIdStr;
+      }
+      return String(member) === userIdStr;
+    });
 
     if (!isMember) {
       return next(new HttpError(403, 'Access denied to this organization'));

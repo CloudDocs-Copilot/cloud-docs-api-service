@@ -105,7 +105,7 @@ export async function getDb(): Promise<Db> {
     client = null;
     database = null;
 
-    throw new Error(`Failed to connect to MongoDB Atlas: ${errorMessage}`);
+    throw error;
   }
 }
 

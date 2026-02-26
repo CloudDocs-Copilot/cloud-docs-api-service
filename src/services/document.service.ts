@@ -28,6 +28,23 @@ function isValidObjectId(id: string): boolean {
   return mongoose.Types.ObjectId.isValid(id);
 }
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
+}
+
+interface NotificationActor {
+  name?: string;
+  email?: string;
+}
+
+interface UserIdOnly {
+  _id: mongoose.Types.ObjectId;
+}
+
 export interface ShareDocumentDto {
   id: string;
   userId: string;
@@ -91,8 +108,8 @@ export async function shareDocument({
   // Mantener endpoint por compatibilidad, pero no es necesario para "org-wide access".
   if (doc.organization) {
     try {
-      const actor = await User.findById(userId).select('name email').lean();
-      const actorName = (actor as any)?.name || (actor as any)?.email || 'Alguien';
+      const actor = await User.findById(userId).select('name email').lean<NotificationActor>();
+      const actorName = actor?.name || actor?.email || 'Alguien';
 
       await notificationService.notifyOrganizationMembers({
         actorUserId: userId,
@@ -108,8 +125,8 @@ export async function shareDocument({
           emitToUser(recipientUserId, 'notification:new', payload);
         }
       });
-    } catch (e: any) {
-      console.error('Failed to create notification (DOC_SHARED):', e.message);
+    } catch (error: unknown) {
+      console.error('Failed to create notification (DOC_SHARED):', getErrorMessage(error));
     }
 
     return doc;
@@ -124,8 +141,10 @@ export async function shareDocument({
   const filteredObjectIds = filteredIds.map(id => new mongoose.Types.ObjectId(id));
 
   // Opcionalmente, filtra solo usuarios existentes
-  const existingUsers = await User.find({ _id: { $in: filteredObjectIds } }, { _id: 1 }).lean();
-  const existingIds = existingUsers.map(u => u._id);
+  const existingUsers = await User.find({ _id: { $in: filteredObjectIds } }, { _id: 1 }).lean<
+    UserIdOnly[]
+  >();
+  const existingIds = existingUsers.map(user => user._id);
   if (existingIds.length === 0) throw new HttpError(400, 'No valid users found to share with');
 
   const updated = await DocumentModel.findByIdAndUpdate(
@@ -166,7 +185,7 @@ export async function listSharedDocumentsToUser(userId: string): Promise<IDocume
     .select('-__v')
     .lean();
 
-  return docs as any;
+  return docs as unknown as IDocument[];
 }
 
 /**
@@ -294,14 +313,14 @@ export async function replaceDocumentFile({
     }
 
     fs.renameSync(tempPath, physicalPath);
-  } catch (error: any) {
-    console.error('File replace error:', error.message);
+  } catch (error: unknown) {
+    console.error('File replace error:', getErrorMessage(error));
     try {
       if (fs.existsSync(tempPath)) {
         fs.unlinkSync(tempPath);
       }
-    } catch (e: any) {
-      console.error('Temp file cleanup error:', e.message);
+    } catch (cleanupError: unknown) {
+      console.error('Temp file cleanup error:', getErrorMessage(cleanupError));
     }
     throw new HttpError(500, 'Failed to replace file in storage');
   }
@@ -316,8 +335,8 @@ export async function replaceDocumentFile({
 
   try {
     await searchService.indexDocument(doc);
-  } catch (error: any) {
-    console.error('Failed to index document in search:', error.message);
+  } catch (error: unknown) {
+    console.error('Failed to index document in search:', getErrorMessage(error));
   }
 
   // Notificación (persistida) a miembros de la organización (excluye al actor)
@@ -336,8 +355,8 @@ export async function replaceDocumentFile({
           emitToUser(recipientUserId, 'notification:new', payload);
         }
       });
-    } catch (e: any) {
-      console.error('Failed to create notification (DOC_EDITED):', e.message);
+    } catch (error: unknown) {
+      console.error('Failed to create notification (DOC_EDITED):', getErrorMessage(error));
     }
   }
 
@@ -396,8 +415,8 @@ export async function deleteDocument({ id, userId }: DeleteDocumentDto): Promise
         fs.unlinkSync(uploadsPath);
       }
     }
-  } catch (e: any) {
-    console.error('File deletion error:', e.message);
+  } catch (error: unknown) {
+    console.error('File deletion error:', getErrorMessage(error));
   }
 
   // Actualizar almacenamiento usado del usuario
@@ -413,8 +432,8 @@ export async function deleteDocument({ id, userId }: DeleteDocumentDto): Promise
   if (deleted) {
     try {
       await searchService.removeDocumentFromIndex(id);
-    } catch (error: any) {
-      console.error('Failed to remove document from search index:', error.message);
+    } catch (error: unknown) {
+      console.error('Failed to remove document from search index:', getErrorMessage(error));
       // No lanzar error para no bloquear la eliminación
     }
   }
@@ -422,8 +441,8 @@ export async function deleteDocument({ id, userId }: DeleteDocumentDto): Promise
   // Notificación (persistida) a miembros de la organización (excluye al actor)
   if (doc.organization) {
     try {
-      const actor = await User.findById(userId).select('name email').lean();
-      const actorName = (actor as any)?.name || (actor as any)?.email || 'Alguien';
+      const actor = await User.findById(userId).select('name email').lean<NotificationActor>();
+      const actorName = actor?.name || actor?.email || 'Alguien';
 
       await notificationService.notifyOrganizationMembers({
         actorUserId: userId,
@@ -439,8 +458,8 @@ export async function deleteDocument({ id, userId }: DeleteDocumentDto): Promise
           emitToUser(recipientUserId, 'notification:new', payload);
         }
       });
-    } catch (e: any) {
-      console.error('Failed to create notification (DOC_DELETED):', e.message);
+    } catch (error: unknown) {
+      console.error('Failed to create notification (DOC_DELETED):', getErrorMessage(error));
     }
   }
 
@@ -486,11 +505,10 @@ export async function moveDocument({
     }
   }
 
-  // Obtener organización si existe
-  let org = null;
+  // Validar existencia de organización si aplica
   if (doc.organization) {
-    org = await Organization.findById(doc.organization);
-    if (!org) throw new HttpError(404, 'Organization not found');
+    const organization = await Organization.findById(doc.organization);
+    if (!organization) throw new HttpError(404, 'Organization not found');
   }
 
   // Construir nuevo path
@@ -524,13 +542,13 @@ export async function moveDocument({
 
       fs.renameSync(oldPhysicalPath, newPhysicalPath);
     }
-  } catch (e: any) {
-    console.error('File move error:', e.message);
+  } catch (error: unknown) {
+    console.error('File move error:', getErrorMessage(error));
     throw new HttpError(500, 'Failed to move file in storage');
   }
 
   // Actualizar documento en BD
-  doc.folder = targetFolder._id as mongoose.Types.ObjectId;
+  doc.folder = targetFolder._id;
   doc.path = newDocPath;
   doc.url = `/storage${newDocPath}`;
   await doc.save();
@@ -637,8 +655,8 @@ export async function copyDocument({
     } else {
       throw new HttpError(500, 'Source file not found in storage');
     }
-  } catch (e: any) {
-    console.error('File copy error:', e.message);
+  } catch (error: unknown) {
+    console.error('File copy error:', getErrorMessage(error));
     throw new HttpError(500, 'Failed to copy file in storage');
   }
 
@@ -703,7 +721,7 @@ export async function getUserRecentDocuments({
     isOwned: doc.uploadedBy.toString() === userId.toString()
   }));
 
-  return documentsWithAccessType as any;
+  return documentsWithAccessType as unknown as IDocument[];
 }
 
 /**
@@ -790,7 +808,7 @@ export async function uploadDocument({
   }
 
   // Validar almacenamiento total de la organización
-  const totalOrgStorage = await User.aggregate([
+  const totalOrgStorage = await User.aggregate<{ _id: null; total: number }>([
     { $match: { organization: new mongoose.Types.ObjectId(activeOrgId) } },
     { $group: { _id: null, total: { $sum: '$storageUsed' } } }
   ]);
@@ -852,8 +870,8 @@ export async function uploadDocument({
     candidatePaths.push(tempPath);
 
     // Sanitizar y validar file.path si existe
-    if ((file as any).path) {
-      const filePath = (file as any).path.toString();
+    if (file.path) {
+      const filePath = file.path.toString();
       const resolvedPath = path.resolve(filePath);
       // Validar que está dentro de uploads o temp
       if (
@@ -865,9 +883,9 @@ export async function uploadDocument({
     }
 
     // Sanitizar destination + filename si existen
-    if ((file as any).destination && (file as any).filename) {
-      const destination = (file as any).destination.toString();
-      const filename = (file as any).filename.toString();
+    if (file.destination && file.filename) {
+      const destination = file.destination.toString();
+      const filename = file.filename.toString();
       const combined = path.join(destination, filename);
       const resolvedCombined = path.resolve(combined);
       // Validar que está dentro de uploads
@@ -903,16 +921,16 @@ export async function uploadDocument({
     }
 
     // If not moved and buffer is present (memory storage), write buffer to destination
-    if (!moved && (file as any).buffer) {
-      fs.writeFileSync(physicalPath, (file as any).buffer as Buffer);
+    if (!moved && file.buffer) {
+      fs.writeFileSync(physicalPath, file.buffer);
       moved = true;
     }
 
     if (!moved) {
       throw new HttpError(500, 'Uploaded file not found in temp directory');
     }
-  } catch (error: any) {
-    console.error('File move error:', error.message);
+  } catch (error: unknown) {
+    console.error('File move error:', getErrorMessage(error));
     throw new HttpError(500, 'Failed to move file to storage');
   }
 
@@ -938,20 +956,23 @@ export async function uploadDocument({
 
   // 🤖 RFE-AI-002: Disparar procesamiento AI asíncrono (no bloquea respuesta al usuario)
   if (textExtractionService.isSupportedMimeType(doc.mimeType)) {
-    processDocumentAI(doc._id.toString()).catch((error: any) => {
-      console.error(`[upload] Failed to process document ${doc._id} with AI:`, error.message);
+    processDocumentAI(doc._id.toString()).catch((error: unknown) => {
+      console.error(
+        `[upload] Failed to process document ${String(doc._id)} with AI:`,
+        getErrorMessage(error)
+      );
     });
   } else {
-    console.log(
-      `[upload] Document ${doc._id} has unsupported MIME type for AI processing: ${doc.mimeType}`
+    console.warn(
+      `[upload] Document ${String(doc._id)} has unsupported MIME type for AI processing: ${doc.mimeType}`
     );
   }
 
   // Indexar documento en Elasticsearch
   try {
     await searchService.indexDocument(doc);
-  } catch (error: any) {
-    console.error('Failed to index document in search:', error.message);
+  } catch (error: unknown) {
+    console.error('Failed to index document in search:', getErrorMessage(error));
     // No lanzar error para no bloquear la creación del documento
   }
 
@@ -971,8 +992,8 @@ export async function uploadDocument({
           emitToUser(recipientUserId, 'notification:new', payload);
         }
       });
-    } catch (e: any) {
-      console.error('Failed to create notification (DOC_UPLOADED):', e.message);
+    } catch (error: unknown) {
+      console.error('Failed to create notification (DOC_UPLOADED):', getErrorMessage(error));
     }
   }
 

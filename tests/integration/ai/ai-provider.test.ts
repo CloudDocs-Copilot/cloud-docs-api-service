@@ -41,7 +41,9 @@ describe('AI Provider Factory', () => {
       resetAIProvider();
 
       const provider = getAIProvider();
-      expect(provider.name).toBe('ollama');
+      // In test runs the Ollama provider may be globally mocked (jest.setup),
+      // accept either the real name or the mocked variant used by tests.
+      expect(['ollama', 'ollama-mock']).toContain(provider.name);
       expect(getAIProviderType()).toBe('ollama');
     });
 

@@ -35,9 +35,10 @@ export async function search(req: AuthRequest, res: Response, next: NextFunction
       limit: searchParams.limit,
       offset: searchParams.offset
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Error searching documents';
     console.error('Error in search controller:', err);
-    next(new HttpError(500, 'Error searching documents'));
+    next(new HttpError(500, msg));
   }
 }
 
@@ -66,9 +67,10 @@ export async function autocomplete(
       success: true,
       suggestions
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Error getting autocomplete suggestions';
     console.error('Error in autocomplete controller:', err);
-    next(new HttpError(500, 'Error getting autocomplete suggestions'));
+    next(new HttpError(500, msg));
   }
 }
 

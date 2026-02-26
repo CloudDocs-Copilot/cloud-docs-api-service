@@ -8,6 +8,67 @@ import HttpError from '../../models/error.model';
 const OCR_ENABLED = process.env.OCR_ENABLED === 'true';
 const OCR_LANGUAGES = process.env.OCR_LANGUAGES || 'spa+eng';
 
+interface PdfInfoRecord {
+  Author?: string;
+  Title?: string;
+  Subject?: string;
+  Creator?: string;
+  Producer?: string;
+  CreationDate?: string;
+  ModDate?: string;
+}
+
+interface OcrRecognizeResult {
+  data?: { text?: string };
+}
+
+interface OcrWorker {
+  load(): Promise<void>;
+  loadLanguage(language: string): Promise<void>;
+  initialize(language: string): Promise<void>;
+  recognize(imagePath: string): Promise<OcrRecognizeResult>;
+  terminate(): Promise<void>;
+}
+
+interface TesseractModule {
+  createWorker(options?: { logger?: (message: unknown) => void }): OcrWorker;
+}
+
+function toRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+
+  return null;
+}
+
+function toPdfInfoRecord(value: unknown): PdfInfoRecord {
+  const info = toRecord(value);
+
+  if (!info) {
+    return {};
+  }
+
+  const getString = (key: keyof PdfInfoRecord): string | undefined => {
+    const candidate = info[key];
+    return typeof candidate === 'string' ? candidate : undefined;
+  };
+
+  return {
+    Author: getString('Author'),
+    Title: getString('Title'),
+    Subject: getString('Subject'),
+    Creator: getString('Creator'),
+    Producer: getString('Producer'),
+    CreationDate: getString('CreationDate'),
+    ModDate: getString('ModDate')
+  };
+}
+
+function isTesseractModule(value: unknown): value is TesseractModule {
+  return typeof value === 'object' && value !== null && 'createWorker' in value;
+}
+
 /**
  * Tipos MIME soportados para extracción de texto
  */
@@ -83,15 +144,18 @@ export class TextExtractionService {
       // If file does not exist, stat will throw an ENOENT error
       // Map that to a 404 File not found to keep existing behaviour
       // For other errors, rethrow to surface the original problem
-      const anyErr = err as any;
-      if (anyErr && anyErr.code === 'ENOENT') {
+      const code =
+        typeof err === 'object' && err !== null && 'code' in err
+          ? (err as { code?: unknown }).code
+          : undefined;
+      if (code === 'ENOENT') {
         throw new HttpError(404, 'File not found');
       }
       if (err instanceof HttpError) throw err;
       throw err;
     }
 
-    console.log(`[text-extraction] Extracting text from ${path.basename(filePath)} (${mimeType})`);
+    console.warn(`[text-extraction] Extracting text from ${path.basename(filePath)} (${mimeType})`);
 
     try {
       let result: ITextExtractionResult;
@@ -101,7 +165,7 @@ export class TextExtractionService {
           result = await this.extractFromPdf(filePath);
           // If PDF returned empty text and OCR enabled, try OCR fallback
           if (OCR_ENABLED && (!result.text || result.text.length === 0)) {
-            console.log('[text-extraction] PDF returned empty text, attempting OCR fallback');
+            console.warn('[text-extraction] PDF returned empty text, attempting OCR fallback');
             result = await this.extractFromPdfWithOcr(filePath);
           }
           break;
@@ -133,7 +197,7 @@ export class TextExtractionService {
           );
       }
 
-      console.log(
+      console.warn(
         `[text-extraction] Extracted ${result.charCount} chars (${result.wordCount} words)`
       );
 
@@ -168,16 +232,18 @@ export class TextExtractionService {
 
     // pdf-parse incluye info en data.info
     if (data.info) {
-      if (data.info.Author) metadata.author = data.info.Author;
-      if (data.info.Title) metadata.title = data.info.Title;
-      if (data.info.Subject) metadata.subject = data.info.Subject;
-      if (data.info.Creator) metadata.creator = data.info.Creator;
-      if (data.info.Producer) metadata.producer = data.info.Producer;
-      if (data.info.CreationDate) {
-        metadata.creationDate = this.parsePdfDate(data.info.CreationDate);
+      const info = toPdfInfoRecord(data.info);
+
+      if (info.Author) metadata.author = info.Author;
+      if (info.Title) metadata.title = info.Title;
+      if (info.Subject) metadata.subject = info.Subject;
+      if (info.Creator) metadata.creator = info.Creator;
+      if (info.Producer) metadata.producer = info.Producer;
+      if (info.CreationDate) {
+        metadata.creationDate = this.parsePdfDate(info.CreationDate);
       }
-      if (data.info.ModDate) {
-        metadata.modificationDate = this.parsePdfDate(data.info.ModDate);
+      if (info.ModDate) {
+        metadata.modificationDate = this.parsePdfDate(info.ModDate);
       }
     }
 
@@ -258,12 +324,14 @@ export class TextExtractionService {
       throw new HttpError(400, 'OCR is not enabled on this server');
     }
 
-    // lazy require to avoid hard dependency when OCR not used / not installed
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { createWorker } = require('tesseract.js');
+    const tesseractModuleUnknown: unknown = await import('tesseract.js');
 
-    const worker = createWorker({
-      logger: (m: any) => console.debug('[tesseract]', m)
+    if (!isTesseractModule(tesseractModuleUnknown)) {
+      throw new HttpError(500, 'Invalid tesseract module shape');
+    }
+
+    const worker = tesseractModuleUnknown.createWorker({
+      logger: (m: unknown) => console.warn('[tesseract]', m)
     });
 
     try {
@@ -271,8 +339,8 @@ export class TextExtractionService {
       await worker.loadLanguage(OCR_LANGUAGES);
       await worker.initialize(OCR_LANGUAGES);
 
-      const { data } = await worker.recognize(filePath);
-      const text = data && data.text ? data.text.trim() : '';
+      const recognizeResult = await worker.recognize(filePath);
+      const text = recognizeResult.data?.text?.trim() || '';
       const wordCount = this.countWords(text);
 
       return {
@@ -284,7 +352,7 @@ export class TextExtractionService {
     } finally {
       try {
         await worker.terminate();
-      } catch (e) {
+      } catch {
         // ignore
       }
     }
@@ -362,7 +430,7 @@ export class TextExtractionService {
       const second = parseInt(dateStr.substring(12, 14), 10);
 
       return new Date(year, month, day, hour, minute, second);
-    } catch (error) {
+    } catch {
       console.warn('[text-extraction] Failed to parse PDF date:', pdfDate);
       return undefined;
     }
@@ -375,7 +443,8 @@ export class TextExtractionService {
    * @returns true si es soportado
    */
   isSupportedMimeType(mimeType: string): boolean {
-    return Object.values(SUPPORTED_MIME_TYPES).includes(mimeType as any);
+    const supportedMimeTypes = new Set<string>(Object.values(SUPPORTED_MIME_TYPES));
+    return supportedMimeTypes.has(mimeType);
   }
 
   /**

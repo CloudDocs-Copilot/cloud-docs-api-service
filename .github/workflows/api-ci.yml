@@ -153,6 +153,9 @@ jobs:
         run: npm run format -- --check
         continue-on-error: true
 
+      - name: Run ESLint (lint:check)
+        run: npm run lint:check
+
   # Job de resumen - solo pasa si ambos anteriores pasaron
   ci-success:
     name: CI Success

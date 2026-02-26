@@ -24,14 +24,16 @@ export async function askQuestion(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { question, organizationId } = req.body;
+    const body = req.body as Record<string, unknown>;
+    const question = body.question;
+    const organizationId = body.organizationId;
 
     // Validar campos requeridos
-    if (!question || typeof question !== 'string' || question.trim().length === 0) {
+    if (typeof question !== 'string' || question.trim().length === 0) {
       return next(new HttpError(400, 'Question is required and must be a non-empty string'));
     }
 
-    if (!organizationId) {
+    if (typeof organizationId !== 'string' || !organizationId) {
       return next(new HttpError(400, 'Organization ID is required'));
     }
 
@@ -47,14 +49,20 @@ export async function askQuestion(
     // Validar que los documentos fuente pertenecen a la organización
     // (por seguridad, no retornar información de otras organizaciones)
     if (response.sources.length > 0) {
+      const sourceIds = response.sources
+        .filter((id): id is string => typeof id === 'string')
+        .map(id => new mongoose.Types.ObjectId(id));
+      
       const documents = await DocumentModel.find({
-        _id: { $in: response.sources.map(id => new mongoose.Types.ObjectId(id)) },
+        _id: { $in: sourceIds },
         organization: new mongoose.Types.ObjectId(organizationId)
       }).lean();
 
       // Filtrar solo los documentos que pertenecen a la organización
-      const validSourceIds = documents.map(doc => doc._id.toString());
-      response.sources = response.sources.filter(id => validSourceIds.includes(id));
+      const validSourceIds = documents.map(doc => String(doc._id));
+      response.sources = response.sources.filter((id): id is string => 
+        typeof id === 'string' && validSourceIds.includes(id)
+      );
 
       // Si hay chunks, también filtrarlos
       if (response.chunks) {
@@ -68,7 +76,7 @@ export async function askQuestion(
       success: true,
       data: response
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -89,10 +97,11 @@ export async function askQuestionInDocument(
 ): Promise<void> {
   try {
     const { documentId } = req.params;
-    const { question } = req.body;
+    const body = req.body as Record<string, unknown>;
+    const question = body.question;
 
     // Validar campos requeridos
-    if (!question || typeof question !== 'string' || question.trim().length === 0) {
+    if (typeof question !== 'string' || question.trim().length === 0) {
       return next(new HttpError(400, 'Question is required and must be a non-empty string'));
     }
 
@@ -141,7 +150,7 @@ export async function askQuestionInDocument(
       success: true,
       data: response
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -162,14 +171,15 @@ export async function processDocument(
 ): Promise<void> {
   try {
     const { documentId } = req.params;
-    const { text } = req.body;
+    const body = req.body as Record<string, unknown>;
+    const text = body.text;
 
     // Validar campos requeridos
     if (!documentId || !mongoose.Types.ObjectId.isValid(documentId)) {
       return next(new HttpError(400, 'Invalid document ID'));
     }
 
-    if (!text || typeof text !== 'string' || text.trim().length === 0) {
+    if (typeof text !== 'string' || text.trim().length === 0) {
       return next(
         new HttpError(
           400,
@@ -215,7 +225,7 @@ export async function processDocument(
     // Procesar el documento con organizationId para multitenancy
     const result = await documentProcessor.processDocument(documentId, organizationId, text);
 
-    console.log(`[ai-controller] Document ${documentId} processed: ${result.chunksCreated} chunks`);
+    console.warn(`[ai-controller] Document ${documentId} processed: ${result.chunksCreated} chunks`);
 
     res.json({
       success: true,
@@ -225,7 +235,7 @@ export async function processDocument(
         dimensions: result.dimensions || 1536 // Ensure dimensions is always present
       }
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -281,14 +291,14 @@ export async function deleteDocumentChunks(
     // Eliminar chunks
     const deletedCount = await documentProcessor.deleteDocumentChunks(documentId);
 
-    console.log(`[ai-controller] Deleted ${deletedCount} chunks from document ${documentId}`);
+    console.warn(`[ai-controller] Deleted ${deletedCount} chunks from document ${documentId}`);
 
     res.json({
       success: true,
       message: 'Document chunks deleted successfully',
       data: { deletedCount }
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -358,7 +368,7 @@ export async function extractDocumentText(
     // Extraer texto del documento
     const result = await textExtractionService.extractText(absolutePath, document.mimeType);
 
-    console.log(
+    console.warn(
       `[ai-controller] Extracted text from document ${documentId}: ${result.charCount} chars`
     );
 
@@ -367,7 +377,7 @@ export async function extractDocumentText(
       message: 'Text extracted successfully',
       data: result
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -439,7 +449,7 @@ export async function classifyDocument(
     document.aiTags = classification.tags;
     await document.save();
 
-    console.log(
+    console.warn(
       `[ai-controller] Document ${documentId} classified as "${classification.category}" (confidence: ${classification.confidence})`
     );
 
@@ -452,7 +462,7 @@ export async function classifyDocument(
         tags: classification.tags
       }
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -520,7 +530,7 @@ export async function summarizeDocument(
     document.aiKeyPoints = summary.keyPoints;
     await document.save();
 
-    console.log(`[ai-controller] Document ${documentId} summarized successfully`);
+    console.warn(`[ai-controller] Document ${documentId} summarized successfully`);
 
     res.json({
       success: true,
@@ -530,7 +540,7 @@ export async function summarizeDocument(
         keyPoints: summary.keyPoints
       }
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }

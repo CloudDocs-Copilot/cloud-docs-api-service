@@ -289,7 +289,7 @@ describe('Membership Endpoints', () => {
       const response = await request(app)
         .post(`/api/memberships/organization/${organizationId}/members`)
         .set('Cookie', ownerCookies.join('; '))
-        .send({ role: 'MEMBER' })
+        .send({ role: 'member' })
         .expect(400);
 
       expect(response.body).toHaveProperty('error');
@@ -369,7 +369,7 @@ describe('Membership Endpoints', () => {
       const response = await request(app)
         .patch(`/api/memberships/organization/${organizationId}/members/${memberMembershipId}`)
         .set('Cookie', adminCookies.join('; '))
-        .send({ role: 'MEMBER' })
+        .send({ role: 'member' })
         .expect(403);
 
       expect(response.body).toHaveProperty('error');
@@ -380,7 +380,7 @@ describe('Membership Endpoints', () => {
       const response = await request(app)
         .patch(`/api/memberships/organization/${organizationId}/members/${invalidId}`)
         .set('Cookie', ownerCookies.join('; '))
-        .send({ role: 'MEMBER' })
+        .send({ role: 'member' })
         .expect(404);
 
       expect(response.body).toHaveProperty('error');
@@ -389,7 +389,7 @@ describe('Membership Endpoints', () => {
     it('should fail without authentication', async () => {
       const response = await request(app)
         .patch(`/api/memberships/organization/${organizationId}/members/${memberMembershipId}`)
-        .send({ role: 'MEMBER' })
+        .send({ role: 'member' })
         .expect(401);
 
       expect(response.body).toHaveProperty('error');

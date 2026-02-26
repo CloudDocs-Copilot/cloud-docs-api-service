@@ -1,3 +1,65 @@
+import { splitIntoChunks, addChunkMetadata, truncateContext, countWords } from '../../../src/utils/chunking.util';
+
+describe('chunking.util', () => {
+  it('countWords returns 0 for empty or whitespace', () => {
+    expect(countWords('')).toBe(0);
+    expect(countWords('   ')).toBe(0);
+  });
+
+  it('countWords counts words correctly', () => {
+    expect(countWords('one two three')).toBe(3);
+    expect(countWords(' multiple   spaces ')).toBe(2);
+  });
+
+  it('splitIntoChunks returns single chunk for short text', () => {
+    const text = 'short text here';
+    const chunks = splitIntoChunks(text, 100);
+    expect(chunks.length).toBe(1);
+    expect(chunks[0]).toBe(text);
+  });
+
+  it('splitIntoChunks splits by paragraphs preserving paragraphs', () => {
+    const p1 = 'a '.repeat(60).trim();
+    const p2 = 'b '.repeat(60).trim();
+    const text = `${p1}\n\n${p2}`;
+    const chunks = splitIntoChunks(text, 50);
+    expect(chunks.length).toBeGreaterThanOrEqual(1);
+    expect(chunks.join('\n\n')).toContain('a');
+  });
+
+  it('splitLargeParagraph is exercised for long paragraph', () => {
+    const long = ('sentence. ').repeat(300); // long paragraph
+    const chunks = splitIntoChunks(long, 50);
+    expect(chunks.length).toBeGreaterThan(1);
+    // Each chunk should not be empty
+    expect(chunks.every(c => c.trim().length > 0)).toBe(true);
+  });
+
+  it('addChunkMetadata returns metadata with correct counts', () => {
+    const chunks = ['one two three', 'four five'];
+    const meta = addChunkMetadata(chunks as any);
+    expect(meta.length).toBe(2);
+    expect(meta[0].wordCount).toBe(3);
+    expect(meta[1].wordCount).toBe(2);
+  });
+
+  it('truncateContext respects maxTokens and returns at least one', () => {
+    const c = ['a'.repeat(400), 'b'.repeat(400), 'c'.repeat(400)];
+    // estimateTokens ~ chars/4 -> 100 tokens each
+    const out = truncateContext(c, 150);
+    expect(out.length).toBeGreaterThanOrEqual(1);
+    // total tokens used should be <= 150
+    const totalTokens = out.reduce((sum, s) => sum + Math.ceil(s.length / 4), 0);
+    expect(totalTokens).toBeLessThanOrEqual(150);
+  });
+
+  it('truncateContext returns first chunk when maxTokens too small', () => {
+    const c = ['hello world', 'x y z'];
+    const out = truncateContext(c, 1);
+    expect(out.length).toBe(1);
+    expect(out[0]).toBe('hello world');
+  });
+});
 import { splitIntoChunks, countWords, addChunkMetadata, CHUNK_CONFIG, truncateContext } from '../../../src/utils/chunking.util';
 
 describe('chunking.util', () => {

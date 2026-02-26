@@ -1,7 +1,9 @@
 import { Response, NextFunction } from 'express';
+import type { Types } from 'mongoose';
 import { AuthRequest } from './auth.middleware';
 import HttpError from '../models/error.model';
 import Organization from '../models/organization.model';
+import type { IOrganization } from '../models/types/organization.types';
 import {
   hasActiveMembership,
   getActiveOrganization,
@@ -21,11 +23,25 @@ import { MembershipRole } from '../models/membership.model';
 export function validateOrganizationMembership(source: 'body' | 'params' | 'query' = 'body') {
   return async (req: AuthRequest, _res: Response, next: NextFunction): Promise<void> => {
     try {
-      // En params buscar :id u :organizationId
-      const organizationId =
-        source === 'params'
-          ? req.params.organizationId || req.params.id
-          : req[source]?.organizationId;
+      let organizationId: string | undefined;
+
+      if (source === 'params') {
+        const organizationIdParam = req.params.organizationId;
+        const idParam = req.params.id;
+        organizationId = organizationIdParam ?? idParam;
+      } else if (source === 'body') {
+        const body = req.body as Record<string, unknown>;
+        const value = body.organizationId;
+        if (typeof value === 'string') {
+          organizationId = value;
+        }
+      } else {
+        const query = req.query as Record<string, unknown>;
+        const value = query.organizationId;
+        if (typeof value === 'string') {
+          organizationId = value;
+        }
+      }
 
       if (!organizationId) {
         return next(new HttpError(400, 'Organization ID is required'));
@@ -220,7 +236,7 @@ export function validateMinimumRole(minimumRole: MembershipRole) {
 // Extender el tipo AuthRequest para incluir organization
 declare module './auth.middleware' {
   interface AuthRequest {
-    organization?: any;
-    activeOrganization?: any;
+    organization?: IOrganization;
+    activeOrganization?: Types.ObjectId | string;
   }
 }

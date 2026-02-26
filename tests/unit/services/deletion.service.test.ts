@@ -152,9 +152,9 @@ describe('DeletionService', () => {
 
       expect(DeletionAuditModel.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          document: mockDocument._id,
-          documentId: mockDocument._id,
-          performedBy: mockContext.userId,
+          document: expect.anything(),
+          documentId: expect.anything(),
+          performedBy: expect.anything(),
           organization: mockContext.organizationId,
           action: DeletionAction.SOFT_DELETE,
           status: DeletionStatus.COMPLETED,

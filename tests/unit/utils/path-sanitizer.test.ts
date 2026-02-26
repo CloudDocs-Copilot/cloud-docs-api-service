@@ -45,7 +45,7 @@ describe('path-sanitizer utilities', () => {
     const abs = await validateDownloadPath('myfile.txt', tmpDir);
     expect(abs).toBe(path.resolve(tmpDir, 'myfile.txt'));
 
-    await expect(validateDownloadPath('missing.txt', tmpDir)).rejects.toThrow('File does not exist');
+    await expect(validateDownloadPath('missing.txt', tmpDir)).rejects.toThrow(/File does not exist|no such file or directory/i);
   });
 
   test('generateSafeFileName preserves extension and can drop extension', () => {

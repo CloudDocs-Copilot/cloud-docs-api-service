@@ -27,7 +27,7 @@ export class MockAIProvider implements AIProvider {
   /**
    * Genera un embedding mock (vector de números determinísticos)
    */
-  async generateEmbedding(text: string): Promise<EmbeddingResult> {
+  generateEmbedding(text: string): Promise<EmbeddingResult> {
     if (!text || text.trim().length === 0) {
       throw new HttpError(400, 'Text cannot be empty for embedding generation');
     }
@@ -38,17 +38,17 @@ export class MockAIProvider implements AIProvider {
       return Math.sin((hash + i) * 0.01) * 0.1;
     });
 
-    return {
+    return Promise.resolve({
       embedding,
       dimensions: this.embeddingDimensions,
       model: this.embeddingModel
-    };
+    });
   }
 
   /**
    * Genera embeddings para múltiples textos
    */
-  async generateEmbeddings(texts: string[]): Promise<EmbeddingResult[]> {
+  generateEmbeddings(texts: string[]): Promise<EmbeddingResult[]> {
     if (!texts || texts.length === 0) {
       throw new HttpError(400, 'Texts array cannot be empty');
     }
@@ -63,7 +63,7 @@ export class MockAIProvider implements AIProvider {
   /**
    * Genera una respuesta mock
    */
-  async generateResponse(prompt: string, _options?: GenerationOptions): Promise<ChatResult> {
+  generateResponse(prompt: string, _options?: GenerationOptions): Promise<ChatResult> {
     if (!prompt || prompt.trim().length === 0) {
       throw new HttpError(400, 'Prompt cannot be empty');
     }
@@ -100,7 +100,7 @@ export class MockAIProvider implements AIProvider {
       response = `Mock AI response for prompt: "${prompt.substring(0, 50)}${prompt.length > 50 ? '...' : ''}"`;
     }
 
-    return {
+    return Promise.resolve({
       response,
       model: this.chatModel,
       tokens: {
@@ -108,13 +108,13 @@ export class MockAIProvider implements AIProvider {
         completion: Math.floor(response.length / 4),
         total: Math.floor((prompt.length + response.length) / 4)
       }
-    };
+    });
   }
 
   /**
    * Clasifica un documento (respuesta mock)
    */
-  async classifyDocument(text: string): Promise<ClassificationResult> {
+  classifyDocument(text: string): Promise<ClassificationResult> {
     // Clasificación determinística basada en palabras clave
     const lowerText = text.toLowerCase();
 
@@ -140,20 +140,20 @@ export class MockAIProvider implements AIProvider {
       tags.push('documentation', 'guide');
     }
 
-    return {
+    return Promise.resolve({
       category,
       confidence,
       tags
-    };
+    });
   }
 
   /**
    * Resume un documento (respuesta mock)
    */
-  async summarizeDocument(text: string): Promise<SummarizationResult> {
+  summarizeDocument(text: string): Promise<SummarizationResult> {
     const wordCount = text.split(/\s+/).length;
 
-    return {
+    return Promise.resolve({
       summary: `Este documento contiene aproximadamente ${wordCount} palabras. Es un documento mock generado para pruebas. En un escenario real, la IA analizaría el contenido y generaría un resumen detallado.`,
       keyPoints: [
         `El documento tiene ${wordCount} palabras`,
@@ -161,15 +161,15 @@ export class MockAIProvider implements AIProvider {
         'Punto clave 3 identificado automáticamente',
         'Conclusión principal del documento'
       ]
-    };
+    });
   }
 
   /**
    * Verifica conexión (siempre exitosa para mock)
    */
-  async checkConnection(): Promise<boolean> {
+  checkConnection(): Promise<boolean> {
     // Mock provider siempre está disponible
-    return true;
+    return Promise.resolve(true);
   }
 
   getEmbeddingDimensions(): number {

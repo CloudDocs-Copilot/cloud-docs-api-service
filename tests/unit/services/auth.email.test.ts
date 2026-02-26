@@ -32,11 +32,13 @@ describe('Auth Service - email branches', () => {
     process.env.SEND_CONFIRMATION_EMAIL = 'true';
     process.env.NODE_ENV = 'production';
     mockBcryptHashEmail.mockResolvedValue('h');
+    const mongoose = require('mongoose');
+    const id = new mongoose.Types.ObjectId().toString();
     const fakeUser = {
-      _id: 'u1',
+      _id: id,
       email: 'x@y.com',
       name: 'X',
-      toJSON: jest.fn(() => ({ _id: 'u1', email: 'x@y.com' }))
+      toJSON: jest.fn(() => ({ _id: id, email: 'x@y.com' }))
     };
     mockUserCreateEmail.mockResolvedValue(fakeUser);
 
@@ -52,11 +54,13 @@ describe('Auth Service - email branches', () => {
     process.env.SEND_CONFIRMATION_EMAIL = 'true';
     process.env.NODE_ENV = 'production';
     mockBcryptHashEmail.mockResolvedValue('h');
+    const mongoose = require('mongoose');
+    const id2 = new mongoose.Types.ObjectId().toString();
     const fakeUser = {
-      _id: 'u2',
+      _id: id2,
       email: 'y@z.com',
       name: 'Y',
-      toJSON: jest.fn(() => ({ _id: 'u2', email: 'y@z.com' }))
+      toJSON: jest.fn(() => ({ _id: id2, email: 'y@z.com' }))
     };
     mockUserCreateEmail.mockResolvedValue(fakeUser);
     mockSendEmail.mockRejectedValue(new Error('SMTP fail'));
@@ -65,6 +69,6 @@ describe('Auth Service - email branches', () => {
     const res = await registerUser({ name: 'Y', email: 'y@z.com', password: 'P@ssw0rd!' } as any);
 
     expect(mockUserCreateEmail).toHaveBeenCalled();
-    expect(res._id).toBe('u2');
+    expect(String(res._id)).toBe(id2);
   });
 });

@@ -4,8 +4,29 @@ import Folder, { IFolder, FolderPermissionRole } from '../models/folder.model';
 import User from '../models/user.model';
 import Organization from '../models/organization.model';
 import DocumentModel from '../models/document.model';
+import type { IDocument } from '../models/document.model';
 import HttpError from '../models/error.model';
 import mongoose from 'mongoose';
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
+function getMongoErrorCode(error: unknown): number | undefined {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    const code = (error as { code?: unknown }).code;
+    return typeof code === 'number' ? code : undefined;
+  }
+  return undefined;
+}
+
+interface FolderTreeNode {
+  _id: mongoose.Types.ObjectId;
+  parent?: mongoose.Types.ObjectId | null;
+  children: FolderTreeNode[];
+  [key: string]: unknown;
+}
 
 /**
  * DTO para creación de carpeta
@@ -33,7 +54,7 @@ export interface DeleteFolderDto {
 export interface RenameFolderDto {
   id: string;
   userId: string;
-  name: string;
+  name?: string;
   displayName?: string;
 }
 
@@ -182,8 +203,8 @@ export async function createFolder({
     }
 
     return folder;
-  } catch (err: any) {
-    if (err && err.code === 11000) {
+  } catch (err: unknown) {
+    if (getMongoErrorCode(err) === 11000) {
       throw new HttpError(409, 'Folder name already exists in this location');
     }
     throw err;
@@ -199,7 +220,7 @@ export async function createFolder({
 export async function getFolderContents({ folderId, userId }: GetFolderContentsDto): Promise<{
   folder: IFolder;
   subfolders: IFolder[];
-  documents: any[];
+  documents: IDocument[];
 }> {
   // Validar acceso (viewer como mínimo)
   await validateFolderAccess(folderId, userId, 'viewer');
@@ -251,35 +272,42 @@ export async function getUserFolderTree({
     organization: orgObjectId,
     $or: [{ owner: userObjectId }, { 'permissions.userId': userObjectId }]
   })
-    .sort({ path: 1 })
-    .lean();
+    .sort({ path: 1 });
 
   if (folders.length === 0) {
     return null;
   }
 
   // Construir árbol jerárquico
-  const folderMap = new Map<string, any>();
-  const rootFolders: any[] = [];
+  const folderMap = new Map<string, FolderTreeNode>();
+  const rootFolders: FolderTreeNode[] = [];
 
   // Primero crear el mapa con todos los folders
   folders.forEach(folder => {
-    folderMap.set(folder._id.toString(), {
-      ...folder,
+    const folderObject = folder.toObject() as Record<string, unknown>;
+
+    folderMap.set(String(folder._id), {
+      ...folderObject,
+      _id: new mongoose.Types.ObjectId(String(folder._id)),
+      parent: folder.parent ? new mongoose.Types.ObjectId(String(folder.parent)) : null,
       children: []
     });
   });
 
   // Luego construir la jerarquía
   folders.forEach(folder => {
-    const folderWithChildren = folderMap.get(folder._id.toString());
+    const folderWithChildren = folderMap.get(String(folder._id));
+
+    if (!folderWithChildren) {
+      return;
+    }
 
     if (!folder.parent) {
       // Carpeta raíz
       rootFolders.push(folderWithChildren);
     } else {
       // Carpeta hija
-      const parent = folderMap.get(folder.parent.toString());
+      const parent = folderMap.get(String(folder.parent));
       if (parent) {
         parent.children.push(folderWithChildren);
       }
@@ -287,7 +315,7 @@ export async function getUserFolderTree({
   });
 
   // Retornar la primera carpeta raíz (debería haber solo una por usuario)
-  return rootFolders.length > 0 ? (rootFolders[0] as IFolder) : null;
+  return rootFolders.length > 0 ? (rootFolders[0] as unknown as IFolder) : null;
 }
 
 /**
@@ -396,8 +424,8 @@ export async function deleteFolder({
             fs.unlinkSync(filePath);
           }
         }
-      } catch (e: any) {
-        console.error('[force-delete-doc-file-error]', { id: doc._id, err: e.message });
+      } catch (e: unknown) {
+        console.error('[force-delete-doc-file-error]', { id: String(doc._id), err: getErrorMessage(e) });
       }
       await DocumentModel.findByIdAndDelete(doc._id);
     }
@@ -422,7 +450,7 @@ export async function deleteFolder({
         fs.rmSync(folderPath, { recursive: true, force: true });
       }
     }
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('[folder-fs-delete-error]', e);
   }
 
@@ -437,7 +465,7 @@ async function deleteSubfoldersRecursively(folderId: string): Promise<void> {
 
   for (const subfolder of subfolders) {
     // Recursión: eliminar subcarpetas de esta subcarpeta
-    await deleteSubfoldersRecursively(subfolder._id.toString());
+    await deleteSubfoldersRecursively(String(subfolder._id));
 
     // Eliminar documentos de esta subcarpeta
     const docs = await DocumentModel.find({ folder: subfolder._id });
@@ -449,8 +477,8 @@ async function deleteSubfoldersRecursively(folderId: string): Promise<void> {
             fs.unlinkSync(filePath);
           }
         }
-      } catch (e: any) {
-        console.error('[recursive-delete-doc-error]', { id: doc._id, err: e.message });
+      } catch (e: unknown) {
+        console.error('[recursive-delete-doc-error]', { id: String(doc._id), err: getErrorMessage(e) });
       }
       await DocumentModel.findByIdAndDelete(doc._id);
     }
@@ -466,7 +494,9 @@ export async function renameFolder({
   name,
   displayName
 }: RenameFolderDto): Promise<IFolder> {
-  if (!name) throw new HttpError(400, 'Folder name is required');
+  if (!name && !displayName) {
+    throw new HttpError(400, 'At least one of name or displayName is required');
+  }
 
   // Validar que el usuario tenga permisos de editor o owner
   await validateFolderAccess(id, userId, 'editor');
@@ -475,25 +505,29 @@ export async function renameFolder({
   if (!folder) throw new HttpError(404, 'Folder not found');
 
   // Validar que no sea carpeta raíz (solo se puede cambiar displayName)
-  if (folder.type === 'root' && name !== folder.name) {
+  if (folder.type === 'root' && name !== undefined && name !== folder.name) {
     throw new HttpError(400, 'Cannot rename root folder technical name, use displayName instead');
   }
 
+  // Usar el nombre actual si no se proporciona uno nuevo
+  const newName = name ?? folder.name;
   const oldPath = folder.path;
   const newPath = folder.parent
-    ? `${oldPath.substring(0, oldPath.lastIndexOf('/'))}/${name}`
-    : `/${name}`;
+    ? `${oldPath.substring(0, oldPath.lastIndexOf('/'))}/${newName}`
+    : `/${newName}`;
 
   try {
     // Actualizar primero en BD para validar unicidad
-    folder.name = name;
+    if (name !== undefined) {
+      folder.name = name;
+    }
     if (displayName !== undefined) {
       folder.displayName = displayName;
     }
     folder.path = newPath;
     await folder.save();
-  } catch (err: any) {
-    if (err && err.code === 11000) {
+  } catch (err: unknown) {
+    if (getMongoErrorCode(err) === 11000) {
       throw new HttpError(409, 'Folder name already exists in this location');
     }
     throw err;
@@ -526,7 +560,7 @@ export async function renameFolder({
         fs.mkdirSync(newFolderPath, { recursive: true });
       }
     }
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('[folder-fs-rename-error]', e);
   }
 
@@ -551,7 +585,7 @@ async function updateSubfolderPaths(
     await subfolder.save();
 
     // Recursión: actualizar subcarpetas de esta subcarpeta
-    await updateSubfolderPaths(subfolder._id.toString(), oldPath, newPath);
+    await updateSubfolderPaths(String(subfolder._id), oldPath, newPath);
   }
 }
 

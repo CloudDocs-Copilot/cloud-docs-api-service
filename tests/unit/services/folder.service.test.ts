@@ -17,12 +17,14 @@ jest.mock('../../../src/models/document.model', () => ({
   findByIdAndDelete: jest.fn()
 }));
 
-const folderService = require('../../../src/services/folder.service');
+// Do not require the service module at top-level; require inside each test
+// after configuring model mocks to ensure fresh module state per test.
 
 describe('folder.service (unit)', () => {
   afterEach(() => jest.restoreAllMocks());
 
   it('validateFolderAccess throws 400 for invalid id', async () => {
+    const folderService = require('../../../src/services/folder.service');
     await expect(folderService.validateFolderAccess('bad-id', 'user')).rejects.toThrow(
       'Invalid folder ID'
     );
@@ -33,6 +35,7 @@ describe('folder.service (unit)', () => {
     Folder.findById = jest.fn().mockResolvedValue(null);
 
     const id = new mongoose.Types.ObjectId().toString();
+    const folderService = require('../../../src/services/folder.service');
     await expect(folderService.validateFolderAccess(id, 'user')).rejects.toThrow(
       'Folder not found'
     );
@@ -43,6 +46,7 @@ describe('folder.service (unit)', () => {
     Folder.findById = jest.fn().mockResolvedValue({ hasAccess: () => false });
 
     const id = new mongoose.Types.ObjectId().toString();
+    const folderService = require('../../../src/services/folder.service');
     await expect(folderService.validateFolderAccess(id, 'user')).rejects.toThrow(
       'User does not have access to this folder'
     );
@@ -53,13 +57,16 @@ describe('folder.service (unit)', () => {
     Folder.findById = jest.fn().mockResolvedValue({ hasAccess: () => true });
 
     const id = new mongoose.Types.ObjectId().toString();
+    const folderService = require('../../../src/services/folder.service');
     const res = await folderService.validateFolderAccess(id, 'user');
     expect(res).toBe(true);
   });
 
   it('getUserFolderTree returns null when no folders', async () => {
     const Folder = require('../../../src/models/folder.model');
-    Folder.find = jest.fn().mockReturnValue({ sort: () => ({ lean: () => Promise.resolve([]) }) });
+    Folder.find = jest.fn().mockReturnValue({ sort: jest.fn().mockResolvedValue([]) });
+
+    const folderService = require('../../../src/services/folder.service');
 
     const res = await folderService.getUserFolderTree({
       userId: new mongoose.Types.ObjectId().toString(),
@@ -73,12 +80,28 @@ describe('folder.service (unit)', () => {
     const rootId = new mongoose.Types.ObjectId();
     const childId = new mongoose.Types.ObjectId();
     const folders = [
-      { _id: rootId, parent: null, path: '/root', name: 'root' },
-      { _id: childId, parent: rootId, path: '/root/child', name: 'child' }
+      {
+        _id: rootId,
+        parent: null,
+        path: '/root',
+        name: 'root',
+        toObject() {
+          return { _id: rootId, parent: null, path: '/root', name: 'root' };
+        }
+      },
+      {
+        _id: childId,
+        parent: rootId,
+        path: '/root/child',
+        name: 'child',
+        toObject() {
+          return { _id: childId, parent: rootId, path: '/root/child', name: 'child' };
+        }
+      }
     ];
-    Folder.find = jest
-      .fn()
-      .mockReturnValue({ sort: () => ({ lean: () => Promise.resolve(folders) }) });
+    Folder.find = jest.fn().mockReturnValue({ sort: jest.fn().mockResolvedValue(folders) });
+
+    const folderService = require('../../../src/services/folder.service');
 
     const res = await folderService.getUserFolderTree({
       userId: new mongoose.Types.ObjectId().toString(),
@@ -90,6 +113,7 @@ describe('folder.service (unit)', () => {
   });
 
   it('createFolder validates required fields', async () => {
+    const folderService = require('../../../src/services/folder.service');
     await expect(
       folderService.createFolder({ name: '', owner: '', organizationId: '', parentId: '' } as any)
     ).rejects.toThrow('Folder name is required');

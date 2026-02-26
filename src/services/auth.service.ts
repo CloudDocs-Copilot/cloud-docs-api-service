@@ -5,6 +5,7 @@ import { validatePasswordOrThrow } from '../utils/password-validator';
 import HttpError from '../models/error.model';
 import { sendConfirmationEmail } from '../mail/emailService';
 import { randomBytes, createHash } from 'crypto';
+import { Types } from 'mongoose';
 const BCRYPT_SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS || '10', 10);
 
 /**
@@ -37,7 +38,7 @@ export interface AuthResponse {
  * Escapa caracteres especiales para uso seguro en HTML
  */
 function escapeHtml(value: string): string {
-  return value.replace(/[&<>"'\/]/g, s => {
+  return value.replace(/[&<>"'/]/g, s => {
     const entityMap: { [key: string]: string } = {
       '&': '&amp;',
       '<': '&lt;',
@@ -55,6 +56,26 @@ const PASSWORD_RESET_TOKEN_EXPIRY_MS = 60 * 60 * 1000; // 1 hora
 
 function hashResetToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
+}
+
+function extractUserIdFromJwtPayload(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') {
+    throw new HttpError(401, 'Invalid confirmation token');
+  }
+
+  const payloadRecord = payload as Record<string, unknown>;
+  if (typeof payloadRecord.userId !== 'string') {
+    throw new HttpError(401, 'Invalid confirmation token');
+  }
+
+  return payloadRecord.userId;
+}
+
+function ensureString(value: unknown, message: string): string {
+  if (typeof value !== 'string') {
+    throw new HttpError(500, message);
+  }
+  return value;
 }
 
 /**
@@ -97,60 +118,67 @@ export async function registerUser({
   // En entorno de test, activar usuarios automáticamente (sin confirmación de email)
   const isTestEnv = process.env.NODE_ENV === 'test';
 
-  try {
-    // Crear usuario sin organización ni rootFolder
-    const user = await User.create({
-      name,
-      email,
-      password: hashed,
-      role,
-      organization: undefined,
-      rootFolder: undefined,
-      storageUsed: 0,
-      active: isTestEnv // Activo en tests, inactivo en producción hasta confirmar email
-    });
+  // Crear usuario sin organización ni rootFolder
+  const user = await User.create({
+    name,
+    email,
+    password: hashed,
+    role,
+    organization: undefined,
+    rootFolder: undefined,
+    storageUsed: 0,
+    active: isTestEnv // Activo en tests, inactivo en producción hasta confirmar email
+  });
 
-    // --- Envío de email de confirmación ---
-    const sendEmail = String(process.env.SEND_CONFIRMATION_EMAIL).toLowerCase() === 'true';
-    if (sendEmail) {
-      try {
-        const fs = await import('fs');
-        const path = await import('path');
-        const jwt = await import('jsonwebtoken');
-        // Generar token de confirmación (JWT simple)
-        const token = jwt.default.sign({ userId: user._id }, process.env.JWT_SECRET || 'secret', {
+  // --- Envío de email de confirmación ---
+  const sendEmail = String(process.env.SEND_CONFIRMATION_EMAIL).toLowerCase() === 'true';
+  if (sendEmail) {
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+      const jwt = await import('jsonwebtoken');
+      // Generar token de confirmación (JWT simple)
+      const rawToken: unknown = jwt.default.sign(
+        { userId: String(user._id) },
+        process.env.JWT_SECRET || 'secret',
+        {
           expiresIn: '1d'
-        });
-        // Usar variable de entorno para la URL base de confirmación
-        const baseUrl =
-          process.env.CONFIRMATION_URL_BASE || `http://localhost:${process.env.PORT || 4000}`;
-        const confirmationUrl = `${baseUrl}/api/auth/confirm/${token}`;
-        // Leer y personalizar el template HTML
-        const templatePath = path.default.join(
-          process.cwd(),
-          'src',
-          'mail',
-          'confirmationTemplate.html'
-        );
-        let html = fs.default.readFileSync(templatePath, 'utf8');
-        const safeName = escapeHtml(name);
-        html = html.replace('{{name}}', safeName).replace('{{confirmationUrl}}', confirmationUrl);
-        await sendConfirmationEmail(email, 'Confirma tu cuenta en CloudDocs Copilot', html);
-      } catch (emailErr) {
-        // Silent fail - user can still use the account
-      }
+        }
+      );
+      const token = ensureString(rawToken, 'Invalid confirmation token generation');
+      // Usar variable de entorno para la URL base de confirmación
+      const baseUrl =
+        process.env.CONFIRMATION_URL_BASE || `http://localhost:${process.env.PORT || 4000}`;
+      const confirmationUrl = `${baseUrl}/api/auth/confirm/${token}`;
+      // Leer y personalizar el template HTML
+      const templatePath = path.default.join(
+        process.cwd(),
+        'src',
+        'mail',
+        'confirmationTemplate.html'
+      );
+      let html = fs.default.readFileSync(templatePath, 'utf8');
+      const safeName = escapeHtml(name);
+      html = html.replace('{{name}}', safeName).replace('{{confirmationUrl}}', confirmationUrl);
+      await sendConfirmationEmail(email, 'Confirma tu cuenta en CloudDocs Copilot', html);
+    } catch {
+      // Silent fail - user can still use the account
     }
-
-    // Retornar datos del usuario (incluyendo _id manualmente)
-    const userObj = user.toJSON();
-    return {
-      ...userObj,
-      _id: user._id
-    };
-  } catch (error) {
-    // Re-lanzar el error original
-    throw error;
   }
+
+  // Retornar datos del usuario (incluyendo _id manualmente)
+  return {
+    _id: new Types.ObjectId(String(user._id)),
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    active: user.active,
+    organization: user.organization,
+    rootFolder: user.rootFolder,
+    storageUsed: user.storageUsed,
+    avatar: user.avatar,
+    preferences: user.preferences
+  };
 }
 
 /**
@@ -179,7 +207,7 @@ export async function loginUser({ email, password }: LoginUserDto): Promise<Auth
   if (!valid) throw new HttpError(401, 'Invalid password');
 
   const token = signToken({
-    id: user._id.toString(),
+    id: String(user._id),
     email: user.email,
     role: user.role,
     tokenVersion: user.tokenVersion
@@ -199,19 +227,20 @@ export async function confirmUserAccount(
   token: string
 ): Promise<{ userId: string; userName: string; userAlreadyActive: boolean }> {
   const jwt = await import('jsonwebtoken');
-  const payload: any = jwt.default.verify(token, process.env.JWT_SECRET || 'secret');
-  const user = await User.findById(payload.userId);
+  const payload: unknown = jwt.default.verify(token, process.env.JWT_SECRET || 'secret');
+  const userId = extractUserIdFromJwtPayload(payload);
+  const user = await User.findById(userId);
   if (!user) {
     throw new Error('User not found');
   }
   if (user.active) {
     // El token de confirmación no se almacena en localStorage, la activación se gestiona por cookies en el flujo de login
-    return { userId: user._id, userName: user.name, userAlreadyActive: true };
+    return { userId: String(user._id), userName: user.name, userAlreadyActive: true };
   }
   user.active = true;
   await user.save();
   // La activación se gestiona por cookies, no por localStorage
-  return { userId: user._id, userName: user.name, userAlreadyActive: false };
+  return { userId: String(user._id), userName: user.name, userAlreadyActive: false };
 }
 
 /** Reseteo de contraseña */
@@ -242,9 +271,14 @@ export async function requestPasswordReset(email: string): Promise<string | null
         const path = await import('path');
         const jwt = await import('jsonwebtoken');
 
-        const token = jwt.default.sign({ userId: user._id }, process.env.JWT_SECRET || 'secret', {
-          expiresIn: '1d'
-        });
+        const rawToken: unknown = jwt.default.sign(
+          { userId: String(user._id) },
+          process.env.JWT_SECRET || 'secret',
+          {
+            expiresIn: '1d'
+          }
+        );
+        const token = ensureString(rawToken, 'Invalid confirmation token generation');
 
         const baseUrl =
           process.env.CONFIRMATION_URL_BASE || `http://localhost:${process.env.PORT || 4000}`;

@@ -5,12 +5,49 @@ import Membership, {
 } from '../models/membership.model';
 import Organization from '../models/organization.model';
 import User from '../models/user.model';
-import Folder from '../models/folder.model';
+import Folder, { IFolder } from '../models/folder.model';
 import DocumentModel from '../models/document.model';
 import HttpError from '../models/error.model';
+import { SubscriptionPlan } from '../models/types/organization.types';
+import { sendConfirmationEmail } from '../mail/emailService';
+import {
+  createNotificationForUser,
+  notifyMembersOfOrganization
+} from './notification.service';
 // email sending is required dynamically to make it easier to mock in tests
 import * as fs from 'fs';
 import * as path from 'path';
+import { Types } from 'mongoose';
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
+interface PopulatedOrganization {
+  _id: Types.ObjectId;
+  active: boolean;
+  settings: { maxUsers: number };
+  slug: string;
+  name: string;
+  members: Array<Types.ObjectId | string>;
+  plan: string;
+  save: () => Promise<unknown>;
+}
+
+function isPopulatedOrganization(value: unknown): value is PopulatedOrganization {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    '_id' in value &&
+    'active' in value &&
+    'settings' in value &&
+    'slug' in value &&
+    'name' in value &&
+    'members' in value &&
+    'save' in value
+  );
+}
 
 /**
  * Crea una invitación para un usuario a una organización
@@ -97,7 +134,7 @@ export async function createInvitation({
     });
 
     // Ejemplo: plan FREE solo permite 1 admin (el owner)
-    if (organization.plan === 'free' && adminCount >= 1) {
+    if (organization.plan === SubscriptionPlan.FREE && adminCount >= 1) {
       throw new HttpError(
         403,
         'Free plan does not allow multiple administrators. Upgrade to invite admins.'
@@ -117,20 +154,17 @@ export async function createInvitation({
 
   // Notificación persistida + realtime al invitado
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const notificationService = require('./notification.service');
-
     const roleLower = String(role || '').toLowerCase();
     const roleDisplay =
       roleLower === 'admin' ? 'Admin' : roleLower === 'viewer' ? 'Viewer' : 'Member';
 
-    await notificationService.createNotificationForUser({
+    await createNotificationForUser({
       organizationId: organizationId,
       recipientUserId: userId,
       actorUserId: invitedBy,
       type: 'INVITATION_CREATED',
       entityKind: 'membership',
-      entityId: membership._id.toString(),
+      entityId: String(membership._id),
       message: `${inviter.name || inviter.email} te invitó a ${organization.name} como ${roleDisplay}`,
       metadata: {
         role,
@@ -138,8 +172,8 @@ export async function createInvitation({
         inviterName: inviter.name || inviter.email
       }
     });
-  } catch (e: any) {
-    console.error('Failed to create notification (INVITATION_CREATED):', e.message);
+  } catch (e: unknown) {
+    console.error('Failed to create notification (INVITATION_CREATED):', getErrorMessage(e));
   }
 
   // Enviar email de invitación
@@ -176,16 +210,13 @@ export async function createInvitation({
       .replace(/{{acceptUrl}}/g, acceptUrl)
       .replace(/{{appUrl}}/g, appUrl);
 
-    // require mailer at runtime so unit tests can mock the module easily
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const mail = require('../mail/emailService');
-    await mail.sendConfirmationEmail(
+    await sendConfirmationEmail(
       user.email,
       `Invitación a ${organization.name} en CloudDocs`,
       emailHtml
     );
-  } catch (emailError) {
-    console.error('Error sending invitation email:', emailError);
+  } catch (emailError: unknown) {
+    console.error('Error sending invitation email:', getErrorMessage(emailError));
     // No bloqueamos la creación de la invitación si falla el email
   }
 
@@ -211,7 +242,11 @@ export async function acceptInvitation(membershipId: string, userId: string): Pr
     throw new HttpError(400, 'Invitation is not pending');
   }
 
-  const organization = membership.organization as any;
+  if (!isPopulatedOrganization(membership.organization)) {
+    throw new HttpError(500, 'Organization data is not properly populated for invitation');
+  }
+
+  const organization = membership.organization;
   if (!organization.active) {
     throw new HttpError(403, 'Organization is not active');
   }
@@ -237,7 +272,7 @@ export async function acceptInvitation(membershipId: string, userId: string): Pr
     );
   }
 
-  let rootFolder = null;
+  let rootFolder: IFolder | null = null;
   let userStoragePath = '';
 
   try {
@@ -282,34 +317,33 @@ export async function acceptInvitation(membershipId: string, userId: string): Pr
 
     // Actualizar membresía a ACTIVE con rootFolder
     membership.status = MembershipStatus.ACTIVE;
-    membership.rootFolder = rootFolder._id as any;
+    const rootFolderObjectId = new Types.ObjectId(String(rootFolder._id));
+    membership.rootFolder = rootFolderObjectId;
     membership.joinedAt = new Date();
     await membership.save();
 
     // Actualizar array legacy en Organization
-    if (!organization.members.includes(userId as any)) {
-      organization.members.push(userId as any);
+    const userObjectId = new Types.ObjectId(userId);
+    if (!organization.members.some(memberId => memberId.toString() === userId)) {
+      organization.members.push(userObjectId);
       await organization.save();
     }
 
     // Si es la primera organización del usuario, establecerla como activa
     if (!user.organization) {
-      user.organization = organization._id as any;
-      user.rootFolder = rootFolder._id as any;
+      user.organization = organization._id;
+      user.rootFolder = rootFolderObjectId;
       await user.save();
     }
 
     // Notificar a TODOS los miembros activos de esa organización (excluye al actor)
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const notificationService = require('./notification.service');
-
-      await notificationService.notifyMembersOfOrganization({
-        organizationId: organization._id.toString(),
+      await notifyMembersOfOrganization({
+        organizationId: String(organization._id),
         actorUserId: userId,
         type: 'MEMBER_JOINED',
         entityKind: 'membership',
-        entityId: membership._id.toString(),
+        entityId: String(membership._id),
         message: `${user.name || user.email} se unió a la organización`,
         metadata: {
           memberUserId: userId,
@@ -318,12 +352,12 @@ export async function acceptInvitation(membershipId: string, userId: string): Pr
           organizationName: organization.name
         }
       });
-    } catch (e: any) {
-      console.error('Failed to create notification (MEMBER_JOINED):', e.message);
+    } catch (e: unknown) {
+      console.error('Failed to create notification (MEMBER_JOINED):', getErrorMessage(e));
     }
 
     return membership.populate('organization', 'name slug plan');
-  } catch (error) {
+  } catch (error: unknown) {
     // Rollback: limpiar rootFolder creado
     if (rootFolder?._id) {
       await Folder.findByIdAndDelete(rootFolder._id).catch(err =>
@@ -343,8 +377,8 @@ export async function acceptInvitation(membershipId: string, userId: string): Pr
       ) {
         try {
           fs.rmSync(resolvedUserStoragePath, { recursive: true, force: true });
-        } catch (cleanupError) {
-          console.error('Error deleting storage directory during rollback:', cleanupError);
+        } catch (cleanupError: unknown) {
+          console.error('Error deleting storage directory during rollback:', getErrorMessage(cleanupError));
         }
       }
     }
@@ -452,7 +486,7 @@ export async function createMembership({
     );
   }
 
-  let rootFolder = null;
+  let rootFolder: IFolder | null = null;
   let userStoragePath = '';
 
   try {
@@ -493,31 +527,34 @@ export async function createMembership({
       ]
     });
 
+    const rootFolderObjectId = new Types.ObjectId(String(rootFolder._id));
+
     const membership = await Membership.create({
       user: userId,
       organization: organizationId,
       role,
       status: MembershipStatus.ACTIVE,
-      rootFolder: rootFolder._id,
+      rootFolder: rootFolderObjectId,
       invitedBy: invitedBy || undefined
     });
 
-    if (!organization.members.includes(userId as any)) {
-      organization.members.push(userId as any);
+    const userObjectId = new Types.ObjectId(userId);
+    if (!organization.members.some(memberId => memberId.toString() === userId)) {
+      organization.members.push(userObjectId);
       await organization.save();
     }
 
     if (!user.organization) {
-      user.organization = organizationId as any;
-      user.rootFolder = rootFolder._id as any;
+      user.organization = new Types.ObjectId(organizationId);
+      user.rootFolder = rootFolderObjectId;
       await user.save();
     } else if (user.organization.toString() === organizationId) {
-      user.rootFolder = rootFolder._id as any;
+      user.rootFolder = rootFolderObjectId;
       await user.save();
     }
 
     return membership;
-  } catch (error) {
+  } catch (error: unknown) {
     if (rootFolder?._id) {
       await Folder.findByIdAndDelete(rootFolder._id).catch(err =>
         console.error('Error deleting folder during rollback:', err)
@@ -536,8 +573,8 @@ export async function createMembership({
       ) {
         try {
           fs.rmSync(resolvedUserStoragePath, { recursive: true, force: true });
-        } catch (cleanupError) {
-          console.error('Error deleting storage directory during rollback:', cleanupError);
+        } catch (cleanupError: unknown) {
+          console.error('Error deleting storage directory during rollback:', getErrorMessage(cleanupError));
         }
       }
     }
@@ -693,7 +730,7 @@ export async function switchActiveOrganization(
     throw new HttpError(404, 'User not found');
   }
 
-  user.organization = organizationId as any;
+  user.organization = new Types.ObjectId(organizationId);
   await user.save();
 }
 
@@ -778,19 +815,18 @@ export async function updateMembershipRole(
 
   // Notificación al usuario afectado
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const notificationService = require('./notification.service');
+    const requester = await User.findById(requestingUserId)
+      .select('name email')
+      .lean<{ name?: string; email?: string }>();
+    const requesterName = requester?.name || requester?.email || 'Alguien';
 
-    const requester = await User.findById(requestingUserId).select('name email').lean();
-    const requesterName = (requester as any)?.name || (requester as any)?.email || 'Alguien';
-
-    await notificationService.createNotificationForUser({
+    await createNotificationForUser({
       organizationId: membership.organization.toString(),
       recipientUserId: membership.user.toString(),
       actorUserId: requestingUserId,
       type: 'MEMBER_ROLE_UPDATED',
       entityKind: 'membership',
-      entityId: membership._id.toString(),
+      entityId: String(membership._id),
       message: `Tu rol fue actualizado de ${oldRole} a ${newRole} por ${requesterName}`,
       metadata: {
         oldRole,
@@ -798,8 +834,8 @@ export async function updateMembershipRole(
         requesterName
       }
     });
-  } catch (e: any) {
-    console.error('Failed to create notification (MEMBER_ROLE_UPDATED):', e.message);
+  } catch (e: unknown) {
+    console.error('Failed to create notification (MEMBER_ROLE_UPDATED):', getErrorMessage(e));
   }
 
   return membership.populate('user', 'name email');
@@ -814,7 +850,7 @@ async function deleteFolderContentsRecursively(folderId: string): Promise<void> 
 
   for (const subfolder of subfolders) {
     // Recursión: eliminar contenido de subcarpetas
-    await deleteFolderContentsRecursively(subfolder._id.toString());
+    await deleteFolderContentsRecursively(String(subfolder._id));
 
     // Eliminar documentos de esta subcarpeta
     const docs = await DocumentModel.find({ folder: subfolder._id });
@@ -824,8 +860,8 @@ async function deleteFolderContentsRecursively(folderId: string): Promise<void> 
         if (doc.path && fs.existsSync(doc.path)) {
           fs.unlinkSync(doc.path);
         }
-      } catch (e: any) {
-        console.error('[delete-doc-error]', { id: doc._id, path: doc.path, err: e.message });
+      } catch (e: unknown) {
+        console.error('[delete-doc-error]', { id: String(doc._id), path: doc.path, err: getErrorMessage(e) });
       }
       // Eliminar registro de documento
       await DocumentModel.findByIdAndDelete(doc._id);
@@ -842,8 +878,8 @@ async function deleteFolderContentsRecursively(folderId: string): Promise<void> 
       if (doc.path && fs.existsSync(doc.path)) {
         fs.unlinkSync(doc.path);
       }
-    } catch (e: any) {
-      console.error('[delete-doc-error]', { id: doc._id, path: doc.path, err: e.message });
+    } catch (e: unknown) {
+      console.error('[delete-doc-error]', { id: String(doc._id), path: doc.path, err: getErrorMessage(e) });
     }
     await DocumentModel.findByIdAndDelete(doc._id);
   }
@@ -922,7 +958,7 @@ export async function removeMembershipById(
   const organization = await Organization.findById(organizationId);
   if (organization) {
     organization.members = organization.members.filter(
-      (memberId: any) => memberId.toString() !== userId
+      (memberId: Types.ObjectId) => memberId.toString() !== userId
     );
     await organization.save();
   }
@@ -997,7 +1033,7 @@ export async function removeMembership(userId: string, organizationId: string): 
   const organization = await Organization.findById(organizationId);
   if (organization) {
     organization.members = organization.members.filter(
-      (memberId: any) => memberId.toString() !== userId
+      (memberId: Types.ObjectId) => memberId.toString() !== userId
     );
     await organization.save();
   }
@@ -1038,7 +1074,7 @@ export async function transferOwnership(
     throw new HttpError(403, 'Only the current owner can transfer ownership');
   }
 
-  organization.owner = newOwnerId as any;
+  organization.owner = new Types.ObjectId(newOwnerId);
   await organization.save();
 
   // Actualizar membresías

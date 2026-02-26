@@ -8,6 +8,23 @@ import { MockAIProvider } from './mock.provider';
  */
 export type AIProviderType = 'openai' | 'ollama' | 'mock';
 
+interface AIProviderInfo {
+  name: string;
+  chatModel: string;
+  embeddingModel: string;
+  embeddingDimensions: number;
+}
+
+function resolveAIProviderType(rawProvider: string | undefined): AIProviderType | null {
+  const normalized = (rawProvider || 'openai').toLowerCase();
+
+  if (normalized === 'openai' || normalized === 'ollama' || normalized === 'mock') {
+    return normalized;
+  }
+
+  return null;
+}
+
 /**
  * Singleton para el proveedor de IA actual
  */
@@ -32,13 +49,20 @@ export function getAIProvider(): AIProvider {
     return currentProvider;
   }
 
-  const providerType = (process.env.AI_PROVIDER || 'openai').toLowerCase() as AIProviderType;
+  const providerType = resolveAIProviderType(process.env.AI_PROVIDER);
 
-  console.log(`[ai-provider-factory] Initializing AI provider: ${providerType}`);
+  if (!providerType) {
+    const configuredProvider = process.env.AI_PROVIDER || 'undefined';
+    throw new Error(
+      `Invalid AI provider: ${configuredProvider}. Valid options: 'openai', 'ollama', 'mock'`
+    );
+  }
+
+  console.warn(`[ai-provider-factory] Initializing AI provider: ${providerType}`);
   // Respect explicit AI_PROVIDER. Do not force the mock provider based on
   // NODE_ENV here so unit tests can mock provider clients as needed. Tests
   // that require the mock provider should explicitly set AI_PROVIDER=mock.
-  switch (providerType as AIProviderType) {
+  switch (providerType) {
     case 'openai':
       currentProvider = new OpenAIProvider();
       break;
@@ -51,13 +75,9 @@ export function getAIProvider(): AIProvider {
       currentProvider = new MockAIProvider();
       break;
 
-    default:
-      throw new Error(
-        `Invalid AI provider: ${providerType}. Valid options: 'openai', 'ollama', 'mock'`
-      );
   }
 
-  console.log(`[ai-provider-factory] AI provider initialized: ${currentProvider.name}`);
+  console.warn(`[ai-provider-factory] AI provider initialized: ${currentProvider.name}`);
   return currentProvider;
 }
 
@@ -67,7 +87,7 @@ export function getAIProvider(): AIProvider {
  */
 export function resetAIProvider(): void {
   currentProvider = null;
-  console.log('[ai-provider-factory] AI provider reset');
+  console.warn('[ai-provider-factory] AI provider reset');
 }
 
 /**
@@ -75,7 +95,7 @@ export function resetAIProvider(): void {
  * @returns Tipo de proveedor configurado
  */
 export function getAIProviderType(): AIProviderType {
-  return (process.env.AI_PROVIDER || 'openai').toLowerCase() as AIProviderType;
+  return resolveAIProviderType(process.env.AI_PROVIDER) ?? 'openai';
 }
 
 /**
@@ -86,7 +106,7 @@ export async function checkAIProviderAvailability(): Promise<boolean> {
   try {
     const provider = getAIProvider();
     await provider.checkConnection();
-    console.log(`[ai-provider-factory] Provider ${provider.name} is available`);
+    console.warn(`[ai-provider-factory] Provider ${provider.name} is available`);
     return true;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -99,7 +119,7 @@ export async function checkAIProviderAvailability(): Promise<boolean> {
  * Obtiene información del proveedor actual
  * @returns Información del proveedor (nombre, modelos, dimensiones)
  */
-export function getAIProviderInfo() {
+export function getAIProviderInfo(): AIProviderInfo {
   const provider = getAIProvider();
   return {
     name: provider.name,

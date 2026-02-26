@@ -12,6 +12,8 @@ export interface TokenPayload {
   role: string;
   tokenVersion?: number;
   tokenCreatedAt?: string;
+  iat?: number;
+  exp?: number;
 }
 
 /**

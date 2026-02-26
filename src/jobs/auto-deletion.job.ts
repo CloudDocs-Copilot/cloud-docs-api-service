@@ -1,6 +1,13 @@
 import cron from 'node-cron';
 import { deletionService } from '../services/deletion.service';
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
 /**
  * Configuración de Jobs Programados para Eliminación Automática
  *
@@ -29,8 +36,8 @@ export const startAutoDeletionJob = (): void => {
     try {
       const deletedCount = await deletionService.autoDeleteExpiredDocuments();
       console.log(`[${timestamp}] Auto-deletion completed. Deleted ${deletedCount} documents.`);
-    } catch (error: any) {
-      console.error(`[${timestamp}] Auto-deletion job failed:`, error.message);
+    } catch (error: unknown) {
+      console.error(`[${timestamp}] Auto-deletion job failed:`, getErrorMessage(error));
     }
   };
 

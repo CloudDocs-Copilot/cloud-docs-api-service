@@ -2,7 +2,8 @@
 require('dotenv').config();
 
 // Force AI provider to mock in test runs to avoid external LLM calls
-process.env.AI_PROVIDER = process.env.AI_PROVIDER || 'mock';
+// Always force the mock provider in the test environment to ensure deterministic AI behavior
+process.env.AI_PROVIDER = 'mock';
 
 // Ensure common storage and fixture directories exist for integration tests
 const fs = require('fs');
@@ -38,6 +39,31 @@ jest.mock('mammoth', () => ({
     extractRawText: jest.fn(async (_buffer: any) => ({ value: '' }))
   }
 }));
+// Mock Ollama provider to ensure deterministic behaviour if imported directly
+jest.mock('../src/services/ai/providers/ollama.provider', () => {
+  class FakeOllamaProvider {
+    name = 'ollama-mock';
+    async checkConnection() {
+      return true;
+    }
+    async generateResponse(prompt: string, _opts?: any) {
+      // Return a deterministic JSON response string
+      const payload = JSON.stringify({ summary: `Resumen mock para: ${prompt.substring(0,50)}`, keyPoints: ['kp1','kp2'] });
+      return { response: payload, model: 'llama-mock' };
+    }
+    async summarizeDocument(text: string) {
+      return { summary: `Resumen mock: ${text.substring(0,100)}`, keyPoints: ['kp1','kp2'] };
+    }
+    async generateEmbedding(_text: string) {
+      return { embedding: new Array(768).fill(0.01), dimensions: 768, model: 'ollama-embed-mock' };
+    }
+    getEmbeddingDimensions() { return 768; }
+    getEmbeddingModel() { return 'ollama-embed-mock'; }
+    getChatModel() { return 'llama-mock'; }
+  }
+
+  return { __esModule: true, OllamaProvider: FakeOllamaProvider };
+});
 // Mock the search service so tests don't require a running Elasticsearch instance
 
 jest.mock('../src/services/search.service', () => ({
@@ -47,11 +73,10 @@ jest.mock('../src/services/search.service', () => ({
   getAutocompleteSuggestions: jest.fn().mockResolvedValue([])
 }));
 
-// Optional: silence noisy logs from Elasticsearch config during tests
+// Optional: silence only specific noisy errors from Elasticsearch/indexing
 const originalConsoleError = console.error;
 console.error = (...args: any[]) => {
   const msg = String(args[0] || '');
-  // Suppress known noisy messages from Elasticsearch/indexing and search
   if (
     msg.includes('Error indexing document') ||
     msg.includes('Failed to index document in search') ||
@@ -59,8 +84,9 @@ console.error = (...args: any[]) => {
     msg.includes('Elasticsearch cluster status') ||
     msg.includes('Error creating Elasticsearch index')
   ) {
-    return; // suppress in tests
+    return; // suppress known noisy messages only
   }
+  // otherwise forward to original
   originalConsoleError(...args);
 };
 

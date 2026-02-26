@@ -1,15 +1,47 @@
-// Resolve Elasticsearch client at runtime to make the module easier to mock in tests
-function getEsModule() {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const esMod = require('../configurations/elasticsearch-config');
-  return esMod && esMod.getInstance ? esMod : esMod && esMod.default ? esMod.default : esMod;
+import { IDocument } from '../models/document.model';
+import type { Client } from '@elastic/elasticsearch';
+import ElasticsearchClient from '../configurations/elasticsearch-config';
+
+export const getEsClient = (): Client => {
+  return ElasticsearchClient.getInstance();
+};
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
 }
 
-export let getEsClient = () => {
-  const mod = getEsModule();
-  return mod.getInstance();
-};
-import { IDocument } from '../models/document.model';
+interface IndexedDocumentSource {
+  filename: string;
+  originalname: string;
+  mimeType: string;
+  size: number;
+  uploadedBy: string;
+  organization: string | null;
+  folder: string | null;
+  uploadedAt?: Date;
+  content: string | null;
+  aiCategory: string | null;
+  aiTags: string[];
+  aiSummary: string | null;
+  aiKeyPoints: string[];
+  aiProcessingStatus: string;
+  aiConfidence: number | null;
+}
+
+interface SearchHitLike {
+  _id: string;
+  _score?: number;
+  _source?: Record<string, unknown>;
+}
+
+interface SearchResultLike {
+  hits: {
+    hits: SearchHitLike[];
+    total?: { value: number } | number;
+  };
+  took: number;
+}
 
 /**
  * Interfaz para parámetros de búsqueda
@@ -29,7 +61,7 @@ export interface SearchParams {
  * Interfaz para resultados de búsqueda
  */
 export interface SearchResult {
-  documents: any[];
+  documents: Array<Record<string, unknown>>;
   total: number;
   took: number;
 }
@@ -50,16 +82,16 @@ export async function indexDocument(document: IDocument, extractedText?: string)
 
     await client.index({
       index: 'documents',
-      id: document._id.toString(),
+      id: String(document._id),
       document: {
         // Campos básicos
         filename: document.filename || '',
         originalname: document.originalname || '',
         mimeType: document.mimeType,
         size: document.size,
-        uploadedBy: document.uploadedBy.toString(),
-        organization: document.organization ? document.organization.toString() : null,
-        folder: document.folder ? document.folder.toString() : null,
+        uploadedBy: String(document.uploadedBy),
+        organization: document.organization ? String(document.organization) : null,
+        folder: document.folder ? String(document.folder) : null,
         uploadedAt: document.uploadedAt,
 
         // 🔍 NUEVO: Contenido extraído para búsqueda full-text
@@ -67,18 +99,18 @@ export async function indexDocument(document: IDocument, extractedText?: string)
         content: extractedText ? extractedText.slice(0, 100000) : null,
 
         // 🤖 NUEVO: Campos AI para búsqueda facetada y filtrado (RFE-AI-002, RFE-AI-004)
-        aiCategory: (document as any).aiCategory || null,
-        aiTags: (document as any).aiTags || [],
-        aiSummary: (document as any).aiSummary || null,
-        aiKeyPoints: (document as any).aiKeyPoints || [],
-        aiProcessingStatus: (document as any).aiProcessingStatus || 'none',
-        aiConfidence: (document as any).aiConfidence || null
-      }
+        aiCategory: document.aiCategory || null,
+        aiTags: document.aiTags || [],
+        aiSummary: document.aiSummary || null,
+        aiKeyPoints: document.aiKeyPoints || [],
+        aiProcessingStatus: document.aiProcessingStatus || 'none',
+        aiConfidence: document.aiConfidence || null
+      } as IndexedDocumentSource
     });
 
-    console.log(`✅ Document indexed: ${document._id}`);
-  } catch (error: any) {
-    console.error(`❌ Error indexing document ${document._id}:`, error.message);
+    console.warn(`✅ Document indexed: ${String(document._id)}`);
+  } catch (error: unknown) {
+    console.error(`❌ Error indexing document ${String(document._id)}:`, getErrorMessage(error));
     throw error;
   }
 }
@@ -95,12 +127,20 @@ export async function removeDocumentFromIndex(documentId: string): Promise<void>
       id: documentId
     });
 
-    console.log(`✅ Document removed from index: ${documentId}`);
-  } catch (error: any) {
-    if (error.meta?.statusCode === 404) {
+    console.warn(`✅ Document removed from index: ${documentId}`);
+  } catch (error: unknown) {
+    const statusCode =
+      typeof error === 'object' &&
+      error !== null &&
+      'meta' in error &&
+      typeof (error as { meta?: { statusCode?: unknown } }).meta?.statusCode === 'number'
+        ? (error as { meta: { statusCode: number } }).meta.statusCode
+        : undefined;
+
+    if (statusCode === 404) {
       console.warn(`⚠️  Document not found in index: ${documentId}`);
     } else {
-      console.error(`❌ Error removing document from index:`, error.message);
+      console.error(`❌ Error removing document from index:`, getErrorMessage(error));
       throw error;
     }
   }
@@ -124,7 +164,7 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
     } = params;
 
     // Construir filtros
-    const filters: any[] = [];
+    const filters: Array<Record<string, unknown>> = [];
 
     // Si hay organizationId, buscar en toda la organización
     // Si NO hay organizationId, buscar solo documentos del usuario
@@ -139,14 +179,14 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
     }
 
     if (fromDate || toDate) {
-      const dateRange: any = {};
+      const dateRange: { gte?: string; lte?: string } = {};
       if (fromDate) dateRange.gte = fromDate.toISOString();
       if (toDate) dateRange.lte = toDate.toISOString();
       filters.push({ range: { uploadedAt: dateRange } });
     }
 
     // Realizar búsqueda
-    const result = await client.search({
+    const result = (await client.search({
       index: 'documents',
       query: {
         bool: {
@@ -168,12 +208,12 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
       from: offset,
       size: limit,
       sort: [{ _score: { order: 'desc' } }, { uploadedAt: { order: 'desc' } }]
-    });
+    })) as SearchResultLike;
 
-    const documents = result.hits.hits.map((hit: any) => ({
+    const documents = result.hits.hits.map(hit => ({
       id: hit._id,
       score: hit._score,
-      ...hit._source
+      ...(hit._source || {})
     }));
 
     return {
@@ -182,8 +222,8 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
         typeof result.hits.total === 'object' ? result.hits.total.value : result.hits.total || 0,
       took: result.took
     };
-  } catch (error: any) {
-    console.error('❌ Error searching documents:', error.message);
+  } catch (error: unknown) {
+    console.error('❌ Error searching documents:', getErrorMessage(error));
     throw error;
   }
 }
@@ -199,7 +239,7 @@ export async function getAutocompleteSuggestions(
   try {
     const client = getEsClient();
 
-    const result = await client.search({
+    const result = (await client.search({
       index: 'documents',
       query: {
         bool: {
@@ -217,11 +257,16 @@ export async function getAutocompleteSuggestions(
       },
       size: limit,
       _source: ['filename', 'originalname']
-    });
+    })) as SearchResultLike;
 
-    const suggestions = result.hits.hits.map((hit: any) =>
-      (hit._source.originalname || hit._source.filename || '').toString()
-    );
+    const suggestions = result.hits.hits.map(hit => {
+      const source = hit._source || {};
+      const originalname = source.originalname;
+      const filename = source.filename;
+      if (typeof originalname === 'string') return originalname;
+      if (typeof filename === 'string') return filename;
+      return '';
+    });
 
     // Eliminar duplicados manteniendo el orden y respetar el límite
     const unique: string[] = [];
@@ -236,8 +281,8 @@ export async function getAutocompleteSuggestions(
     }
 
     return unique;
-  } catch (error: any) {
-    console.error('❌ Error getting autocomplete suggestions:', error.message);
+  } catch (error: unknown) {
+    console.error('❌ Error getting autocomplete suggestions:', getErrorMessage(error));
     return [];
   }
 }

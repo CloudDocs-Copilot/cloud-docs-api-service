@@ -9,7 +9,7 @@
  */
 class HttpError extends Error {
   public statusCode: number;
-  public details?: any;
+  public details?: unknown;
 
   /**
    * Crea una nueva instancia de HttpError
@@ -18,7 +18,7 @@ class HttpError extends Error {
    * @param message - Mensaje descriptivo del error
    * @param details - Detalles adicionales opcionales
    */
-  constructor(statusCode: number, message: string, details?: any) {
+  constructor(statusCode: number, message: string, details?: unknown) {
     super(message);
     this.statusCode = parseInt(String(statusCode), 10) || 500;
     this.details = details;

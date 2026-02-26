@@ -9,19 +9,24 @@ import mongoose from 'mongoose';
  */
 export async function create(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { name, displayName, organizationId, parentId } = req.body;
-
-    if (!name) {
+    const body = req.body as Record<string, unknown>;
+    
+    if (typeof body.name !== 'string' || !body.name) {
       return next(new HttpError(400, 'Folder name is required'));
     }
-
-    if (!organizationId) {
+    
+    if (typeof body.organizationId !== 'string' || !body.organizationId) {
       return next(new HttpError(400, 'Organization ID is required'));
     }
-
-    if (!parentId) {
+    
+    if (typeof body.parentId !== 'string' || !body.parentId) {
       return next(new HttpError(400, 'Parent folder ID is required'));
     }
+
+    const name = body.name;
+    const organizationId = body.organizationId;
+    const parentId = body.parentId;
+    const displayName = typeof body.displayName === 'string' ? body.displayName : undefined;
 
     const folder = await folderService.createFolder({
       name,
@@ -36,7 +41,7 @@ export async function create(req: AuthRequest, res: Response, next: NextFunction
       message: 'Folder created successfully',
       folder
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -75,7 +80,7 @@ export async function getUserTree(
       success: true,
       tree
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -90,7 +95,7 @@ export async function getContents(
 ): Promise<void> {
   try {
     const contents = await folderService.getFolderContents({
-      folderId: req.params.id as string,
+      folderId: req.params.id,
       userId: req.user!.id
     });
 
@@ -98,7 +103,7 @@ export async function getContents(
       success: true,
       contents
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -108,7 +113,10 @@ export async function getContents(
  */
 export async function share(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { userId, targetUserId, role } = req.body;
+    const body = req.body as Record<string, unknown>;
+    const userId = typeof body.userId === 'string' ? body.userId : undefined;
+    const targetUserId = typeof body.targetUserId === 'string' ? body.targetUserId : undefined;
+    const role = body.role; // Keep original type (string or number)
     const userIdToShare = targetUserId || userId; // Aceptar ambos nombres
 
     if (!userIdToShare) {
@@ -153,7 +161,7 @@ export async function share(req: AuthRequest, res: Response, next: NextFunction)
       message: 'Folder shared successfully',
       folder
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -180,7 +188,9 @@ export async function list(req: AuthRequest, res: Response, next: NextFunction):
  */
 export async function rename(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { name, displayName } = req.body;
+    const body = req.body as Record<string, unknown>;
+    const name = typeof body.name === 'string' ? body.name : undefined;
+    const displayName = typeof body.displayName === 'string' ? body.displayName : undefined;
 
     if (!name && !displayName) {
       return next(new HttpError(400, 'Name or displayName is required'));
@@ -189,8 +199,8 @@ export async function rename(req: AuthRequest, res: Response, next: NextFunction
     const folder = await folderService.renameFolder({
       id: String(req.params.id),
       userId: req.user!.id,
-      name,
-      displayName
+      ...(name !== undefined && { name }),
+      ...(displayName !== undefined && { displayName })
     });
 
     res.json({
@@ -198,7 +208,7 @@ export async function rename(req: AuthRequest, res: Response, next: NextFunction
       message: 'Folder renamed successfully',
       folder
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -208,8 +218,9 @@ export async function rename(req: AuthRequest, res: Response, next: NextFunction
  */
 export async function remove(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const forceParam = (req.query && req.query.force) || 'false';
-    const force = String(forceParam).toLowerCase() === 'true' || String(forceParam) === '1';
+    const forceValue = req.query?.force;
+    const forceParam = typeof forceValue === 'string' ? forceValue : 'false';
+    const force = forceParam.toLowerCase() === 'true' || forceParam === '1';
 
     const result = await folderService.deleteFolder({
       id: String(req.params.id),

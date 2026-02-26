@@ -318,7 +318,8 @@ describe('OrganizationService Integration Tests', () => {
       // Debe devolver 1 organización (la que creó como owner)
       expect(organizations).toHaveLength(1);
       // El servicio devuelve membresías con la organización poblada
-      expect(organizations[0].organization.slug).toBe('test-org');
+      const populatedOrganization = organizations[0].organization as unknown as { slug: string };
+      expect(populatedOrganization.slug).toBe('test-org');
     });
 
     it('should not return inactive organizations', async () => {

@@ -20,23 +20,26 @@ jest.mock('../../../src/services/search.service', () => ({
 
 // Mock del servicio de extracción de texto ANTES de importar el job
 jest.mock('../../../src/services/ai/text-extraction.service', () => {
+  const SUPPORTED_MIME_TYPES = {
+    PDF: 'application/pdf',
+    DOCX: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    DOC: 'application/msword',
+    TXT: 'text/plain',
+    MD: 'text/markdown',
+    PNG: 'image/png',
+    JPG: 'image/jpeg',
+    TIFF: 'image/tiff',
+    BMP: 'image/bmp'
+  } as const;
+
   const isSupported = (mime: string) => {
-    const supported = [
-      'text/plain',
-      'application/pdf',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/msword',
-      'text/markdown',
-      'image/jpeg',
-      'image/png',
-      'image/tiff',
-      'image/bmp'
-    ];
+    const supported: string[] = Object.values(SUPPORTED_MIME_TYPES);
     return supported.includes(mime);
   };
 
   return {
     __esModule: true,
+    SUPPORTED_MIME_TYPES,
     textExtractionService: {
       extractText: jest.fn(),
       isSupportedMimeType: jest.fn((mime: string) => isSupported(mime))

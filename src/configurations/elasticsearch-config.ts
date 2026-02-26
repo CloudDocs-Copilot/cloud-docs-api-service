@@ -1,5 +1,12 @@
 import { Client } from '@elastic/elasticsearch';
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
 /**
  * Cliente de Elasticsearch para búsqueda de documentos
  */
@@ -42,8 +49,8 @@ class ElasticsearchClient {
       const health = await client.cluster.health();
       console.log(`✅ Elasticsearch cluster status: ${health.status}`);
       return true;
-    } catch (error: any) {
-      console.error('❌ Elasticsearch connection failed:', error.message);
+    } catch (error: unknown) {
+      console.error('❌ Elasticsearch connection failed:', getErrorMessage(error));
       return false;
     }
   }
@@ -117,8 +124,8 @@ class ElasticsearchClient {
       } else {
         console.log(`ℹ️  Elasticsearch index '${indexName}' already exists`);
       }
-    } catch (error: any) {
-      console.error(`❌ Error creating Elasticsearch index:`, error.message);
+    } catch (error: unknown) {
+      console.error(`❌ Error creating Elasticsearch index:`, getErrorMessage(error));
       throw error;
     }
   }

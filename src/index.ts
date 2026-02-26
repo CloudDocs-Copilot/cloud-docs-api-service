@@ -47,7 +47,10 @@ async function start(): Promise<void> {
     }
 
     // Iniciar job de eliminación automática
-    startAutoDeletionJob();
+    // Do not start background jobs during tests to avoid async work interfering with Jest
+    if (process.env.NODE_ENV !== 'test' && !process.env.DISABLE_JOBS) {
+      startAutoDeletionJob();
+    }
 
     // Create HTTP server (required for Socket.IO)
     const server = http.createServer(app);

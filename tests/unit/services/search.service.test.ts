@@ -1,3 +1,84 @@
+import { jest } from '@jest/globals';
+import * as searchService from '../../../src/services/search.service';
+
+describe('search.service', () => {
+  const fakeClient = {
+    index: jest.fn().mockResolvedValue({}),
+    delete: jest.fn().mockResolvedValue({}),
+    search: jest.fn().mockResolvedValue({ hits: { hits: [], total: 0 }, took: 1 })
+  } as any;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.spyOn(searchService, 'getEsClient').mockReturnValue(fakeClient as any);
+  });
+
+  it('indexDocument should call client.index with proper payload', async () => {
+    const doc: any = {
+      _id: '123',
+      filename: 'f',
+      originalname: 'o',
+      mimeType: 'text/plain',
+      size: 10,
+      uploadedBy: 'u',
+      organization: null,
+      folder: null,
+      uploadedAt: new Date()
+    };
+
+    await searchService.indexDocument(doc, 'hello world');
+
+    expect(fakeClient.index).toHaveBeenCalled();
+    const call = fakeClient.index.mock.calls[0][0];
+    expect(call.index).toBe('documents');
+    expect(call.id).toBe(String(doc._id));
+    expect(call.document.content).toBe('hello world');
+  });
+
+  it('indexDocument truncates large content to 100000 chars', async () => {
+    const long = 'a'.repeat(150000);
+    const doc: any = { _id: 'x', filename: 'f', originalname: 'o', mimeType: 't', size: 1, uploadedBy: 'u', organization: null, folder: null };
+    await searchService.indexDocument(doc, long);
+    const call = fakeClient.index.mock.calls[0][0];
+    expect(call.document.content.length).toBeLessThanOrEqual(100000);
+  });
+
+  it('removeDocumentFromIndex should call client.delete', async () => {
+    await searchService.removeDocumentFromIndex('doc1');
+    expect(fakeClient.delete).toHaveBeenCalledWith({ index: 'documents', id: 'doc1' });
+  });
+
+  it('removeDocumentFromIndex should ignore 404 errors', async () => {
+    fakeClient.delete.mockRejectedValueOnce({ meta: { statusCode: 404 } });
+    await expect(searchService.removeDocumentFromIndex('missing')).resolves.toBeUndefined();
+  });
+
+  it('searchDocuments maps hits and returns total when total is object', async () => {
+    fakeClient.search.mockResolvedValueOnce({ hits: { hits: [{ _id: '1', _score: 2, _source: { filename: 'a' } }], total: { value: 1 } }, took: 5 });
+    const res = await searchService.searchDocuments({ query: 'a', userId: 'u' });
+    expect(res.total).toBe(1);
+    expect(res.documents[0].id).toBe('1');
+  });
+
+  it('searchDocuments maps hits and returns total when total is number', async () => {
+    fakeClient.search.mockResolvedValueOnce({ hits: { hits: [{ _id: '2', _source: { filename: 'b' } }], total: 3 }, took: 3 });
+    const res = await searchService.searchDocuments({ query: 'b', userId: 'u' });
+    expect(res.total).toBe(3);
+    expect(res.documents[0].id).toBe('2');
+  });
+
+  it('getAutocompleteSuggestions returns unique filenames and originalnames', async () => {
+    fakeClient.search.mockResolvedValueOnce({ hits: { hits: [ { _id: '1', _source: { originalname: 'orig1' } }, { _id: '2', _source: { filename: 'file2' } }, { _id: '3', _source: { originalname: 'orig1' } } ] }, took: 1 });
+    const suggestions = await searchService.getAutocompleteSuggestions('q', 'u', 5);
+    expect(suggestions).toEqual(['orig1', 'file2']);
+  });
+
+  it('getAutocompleteSuggestions returns empty array on error', async () => {
+    fakeClient.search.mockRejectedValueOnce(new Error('boom'));
+    const suggestions = await searchService.getAutocompleteSuggestions('q', 'u');
+    expect(suggestions).toEqual([]);
+  });
+});
 jest.mock('../../../src/configurations/elasticsearch-config', () => ({
   getInstance: () => ({
     index: jest.fn().mockResolvedValue(true),

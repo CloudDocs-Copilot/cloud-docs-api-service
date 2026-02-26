@@ -1,9 +1,18 @@
 import path from 'path';
 import DocumentModel from '../models/document.model';
-import { textExtractionService } from '../services/ai/text-extraction.service';
+import { SUPPORTED_MIME_TYPES, textExtractionService } from '../services/ai/text-extraction.service';
 import { documentProcessor } from '../services/document-processor.service';
 import { indexDocument } from '../services/search.service';
 import { getAIProvider } from '../services/ai/providers/provider.factory';
+
+const SUPPORTED_MIME_TYPE_SET = new Set<string>(Object.values(SUPPORTED_MIME_TYPES));
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
 
 /**
  * Job de Procesamiento AI para Documentos (RFE-AI-002)
@@ -71,11 +80,9 @@ export async function processDocumentAI(documentId: string): Promise<void> {
       } else {
         // Fallback: use module's SUPPORTED_MIME_TYPES in case the service was mocked
         // without the helper method (common in tests)
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const { SUPPORTED_MIME_TYPES } = require('../services/ai/text-extraction.service');
-        isSupported = Object.values(SUPPORTED_MIME_TYPES).includes(doc.mimeType);
+        isSupported = SUPPORTED_MIME_TYPE_SET.has(doc.mimeType);
       }
-    } catch (e) {
+    } catch {
       // If anything goes wrong determining support, assume supported for safety
       isSupported = true;
     }
@@ -115,7 +122,7 @@ export async function processDocumentAI(documentId: string): Promise<void> {
     if (doc.organization) {
       console.log(`[ai-job] Processing chunks and embeddings for document ${documentId}...`);
       const processingResult = await documentProcessor.processDocument(
-        doc._id.toString(),
+        String(doc._id),
         doc.organization.toString(),
         extractionResult.text
       );
@@ -133,11 +140,11 @@ export async function processDocumentAI(documentId: string): Promise<void> {
       console.log(`[ai-job] Indexing document ${documentId} in Elasticsearch...`);
       await indexDocument(doc, extractionResult.text);
       console.log(`[ai-job] Document ${documentId} indexed successfully`);
-    } catch (esError: any) {
+    } catch (esError: unknown) {
       // No fallar todo el procesamiento si Elasticsearch falla
       console.error(
         `[ai-job] Failed to index document ${documentId} in Elasticsearch:`,
-        esError.message
+        getErrorMessage(esError)
       );
     }
 
@@ -152,9 +159,9 @@ export async function processDocumentAI(documentId: string): Promise<void> {
       console.log(
         `[ai-job] Document ${documentId} classified as "${classification.category}" (confidence: ${classification.confidence})`
       );
-    } catch (classifyError: any) {
+    } catch (classifyError: unknown) {
       // No fallar todo el procesamiento si clasificación falla
-      console.error(`[ai-job] Failed to classify document ${documentId}:`, classifyError.message);
+      console.error(`[ai-job] Failed to classify document ${documentId}:`, getErrorMessage(classifyError));
       // Dejar los campos en null/undefined
     }
 
@@ -186,11 +193,11 @@ export async function processDocumentAI(documentId: string): Promise<void> {
 
     const duration = Date.now() - startTime;
     console.log(`[ai-job] ✅ Document ${documentId} processed successfully in ${duration}ms`);
-  } catch (error: any) {
+  } catch (error: unknown) {
     const duration = Date.now() - startTime;
     console.error(
       `[ai-job] ❌ Failed to process document ${documentId} after ${duration}ms:`,
-      error.message
+      getErrorMessage(error)
     );
 
     // Actualizar documento con error
@@ -198,13 +205,13 @@ export async function processDocumentAI(documentId: string): Promise<void> {
       const doc = await DocumentModel.findById(documentId);
       if (doc) {
         doc.aiProcessingStatus = 'failed';
-        doc.aiError = error.message.substring(0, 500); // Truncar a 500 chars
+        doc.aiError = getErrorMessage(error).substring(0, 500); // Truncar a 500 chars
         await doc.save();
       }
-    } catch (saveError: any) {
+    } catch (saveError: unknown) {
       console.error(
         `[ai-job] Failed to save error state for document ${documentId}:`,
-        saveError.message
+        getErrorMessage(saveError)
       );
     }
 
@@ -244,10 +251,10 @@ export async function processPendingDocuments(limit: number = 10): Promise<numbe
 
     for (const doc of documents) {
       try {
-        await processDocumentAI(doc._id.toString());
+        await processDocumentAI(String(doc._id));
         successCount++;
-      } catch (error: any) {
-        console.error(`[ai-job] Failed to process document ${doc._id}:`, error.message);
+      } catch (error: unknown) {
+        console.error(`[ai-job] Failed to process document ${doc._id}:`, getErrorMessage(error));
         // Continuar con el siguiente documento
       }
     }
@@ -256,8 +263,8 @@ export async function processPendingDocuments(limit: number = 10): Promise<numbe
       `[ai-job] Batch processing completed: ${successCount}/${documents.length} successful`
     );
     return successCount;
-  } catch (error: any) {
-    console.error('[ai-job] Failed to process pending documents:', error.message);
+  } catch (error: unknown) {
+    console.error('[ai-job] Failed to process pending documents:', getErrorMessage(error));
     throw error;
   }
 }

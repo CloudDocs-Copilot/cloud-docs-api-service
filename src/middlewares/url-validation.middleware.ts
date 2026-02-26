@@ -43,10 +43,11 @@ export function validateUrlMiddleware(options: UrlValidationOptions) {
 
   return (req: Request, _res: Response, next: NextFunction): void => {
     const errors: string[] = [];
+    const body = req.body as Record<string, unknown>;
 
     // Validar cada campo especificado
     for (const field of fields) {
-      const value = req.body[field];
+      const value = body[field];
 
       // Si el campo no existe o está vacío, continuar
       if (!value) continue;
@@ -103,7 +104,9 @@ export const validateWebhookUrl = validateUrlMiddleware({
  * @example
  * router.post('/profile', validateImageUrl(['cdn.example.com']), controller.updateProfile);
  */
-export function validateImageUrl(allowedDomains?: string[]) {
+export function validateImageUrl(
+  allowedDomains?: string[]
+): ReturnType<typeof validateUrlMiddleware> {
   return validateUrlMiddleware({
     fields: ['imageUrl', 'avatarUrl', 'thumbnailUrl', 'iconUrl'],
     allowedDomains,
@@ -121,7 +124,9 @@ export function validateImageUrl(allowedDomains?: string[]) {
  * @example
  * router.get('/redirect', validateRedirectUrl(['myapp.com']), controller.redirect);
  */
-export function validateRedirectUrl(allowedDomains: string[]) {
+export function validateRedirectUrl(
+  allowedDomains: string[]
+): ReturnType<typeof validateUrlMiddleware> {
   if (!allowedDomains || allowedDomains.length === 0) {
     throw new Error('allowedDomains is required for redirect URL validation');
   }
@@ -186,11 +191,11 @@ export function scanForUrls(allowedDomains?: string[]) {
     const errors: string[] = [];
 
     // Función recursiva para buscar URLs en objetos
-    function scanObject(obj: any, path: string = ''): void {
-      if (typeof obj === 'string') {
+    function scanObject(value: unknown, path: string = ''): void {
+      if (typeof value === 'string') {
         // Regex simple para detectar URLs
         const urlPattern = /https?:\/\/[^\s]+/gi;
-        const matches = obj.match(urlPattern);
+        const matches = value.match(urlPattern);
 
         if (matches) {
           matches.forEach(url => {
@@ -200,13 +205,14 @@ export function scanForUrls(allowedDomains?: string[]) {
             }
           });
         }
-      } else if (Array.isArray(obj)) {
-        obj.forEach((item, index) => {
+      } else if (Array.isArray(value)) {
+        value.forEach((item, index) => {
           scanObject(item, `${path}[${index}]`);
         });
-      } else if (obj && typeof obj === 'object') {
-        Object.keys(obj).forEach(key => {
-          scanObject(obj[key], path ? `${path}.${key}` : key);
+      } else if (value && typeof value === 'object') {
+        const record = value as Record<string, unknown>;
+        Object.keys(record).forEach(key => {
+          scanObject(record[key], path ? `${path}.${key}` : key);
         });
       }
     }

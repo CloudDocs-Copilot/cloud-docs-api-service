@@ -87,7 +87,7 @@ export interface IOrganization extends Document {
   /** Virtual: Número de miembros */
   memberCount?: number;
   /** Método para agregar un miembro */
-  addMember(userId: string): void;
+  addMember(userId: string | Types.ObjectId): void;
   /** Método para remover un miembro */
   removeMember(userId: string): void;
 }

@@ -13,6 +13,16 @@ export interface AuthRequest extends Request {
   };
 }
 
+function getTokenFromCookies(req: Request): string | undefined {
+  const cookies: unknown = req.cookies;
+  if (!cookies || typeof cookies !== 'object') {
+    return undefined;
+  }
+
+  const token = (cookies as Record<string, unknown>).token;
+  return typeof token === 'string' ? token : undefined;
+}
+
 /**
  * Middleware de autenticación avanzado
  *
@@ -28,12 +38,18 @@ export async function authenticateToken(
   next: NextFunction
 ): Promise<void> {
   // Intentar obtener el token desde la cookie primero
-  let token = req.cookies?.token;
+  let token: string | undefined;
+  const cookieToken = getTokenFromCookies(req);
+  if (typeof cookieToken === 'string') {
+    token = cookieToken;
+  }
 
   // Fallback: si no hay cookie, intentar con header Authorization (para compatibilidad temporal)
   if (!token) {
     const authHeader = req.headers['authorization'];
-    token = authHeader && authHeader.split(' ')[1];
+    if (typeof authHeader === 'string') {
+      token = authHeader.split(' ')[1];
+    }
   }
 
   if (!token) {
@@ -65,8 +81,8 @@ export async function authenticateToken(
       return next(new HttpError(401, 'Token invalidated due to password change'));
     }
 
-    if ((decoded as any).iat && user.lastPasswordChange) {
-      const tokenIssuedAt = new Date((decoded as any).iat * 1000);
+    if (decoded.iat && user.lastPasswordChange) {
+      const tokenIssuedAt = new Date(decoded.iat * 1000);
       const passwordChangeTime = new Date(user.lastPasswordChange.getTime() - 5000);
       if (tokenIssuedAt < passwordChangeTime) {
         return next(new HttpError(401, 'Token invalidated due to password change'));
@@ -74,7 +90,7 @@ export async function authenticateToken(
     }
 
     req.user = {
-      id: user._id.toString(),
+      id: String(user._id),
       email: user.email,
       name: user.name,
       active: user.active,
@@ -93,16 +109,18 @@ export async function authenticateToken(
       if (token && _res && typeof _res.cookie === 'function') {
         _res.cookie('token', token, cookieOptions);
       }
-    } catch (e) {
+    } catch {
       // Don't block request flow if cookie refresh fails
     }
 
     next();
-  } catch (error: any) {
-    if (error.name === 'TokenExpiredError') {
+  } catch (error: unknown) {
+    const errorName = error instanceof Error ? error.name : '';
+
+    if (errorName === 'TokenExpiredError') {
       return next(new HttpError(401, 'Token expired'));
     }
-    if (error.name === 'JsonWebTokenError') {
+    if (errorName === 'JsonWebTokenError') {
       return next(new HttpError(401, 'Invalid token'));
     }
     return next(new HttpError(401, 'Authentication error'));

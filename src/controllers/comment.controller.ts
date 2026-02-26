@@ -6,9 +6,10 @@ import * as commentService from '../services/comment.service';
 export async function create(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const { documentId } = req.params;
-    const { content } = req.body;
+    const body = req.body as Record<string, unknown>;
+    const content = body.content;
 
-    if (!content) {
+    if (typeof content !== 'string' || !content) {
       return next(new HttpError(400, 'Contenido es requerido'));
     }
 
@@ -23,7 +24,7 @@ export async function create(req: AuthRequest, res: Response, next: NextFunction
       message: 'Comentario creado exitosamente',
       comment
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -47,7 +48,7 @@ export async function listByDocument(
       count: comments.length,
       comments
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -55,9 +56,10 @@ export async function listByDocument(
 export async function update(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const { id } = req.params;
-    const { content } = req.body;
+    const body = req.body as Record<string, unknown>;
+    const content = body.content;
 
-    if (!content) {
+    if (typeof content !== 'string' || !content) {
       return next(new HttpError(400, 'Contenido es requerido'));
     }
 
@@ -72,7 +74,7 @@ export async function update(req: AuthRequest, res: Response, next: NextFunction
       message: 'Comentario actualizado exitosamente',
       comment
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }

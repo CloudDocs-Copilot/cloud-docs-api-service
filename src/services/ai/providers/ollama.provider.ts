@@ -10,6 +10,28 @@ import type {
   SummarizationResult
 } from './ai-provider.interface';
 
+function parseJsonRecord(value: string): Record<string, unknown> | null {
+  try {
+    const parsed: unknown = JSON.parse(value);
+
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function parseStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((item): item is string => typeof item === 'string');
+}
+
 /**
  * Implementación del proveedor Ollama
  *
@@ -41,7 +63,7 @@ export class OllamaProvider implements AIProvider {
       host: this.baseUrl
     });
 
-    console.log(
+    console.warn(
       `[ollama-provider] Initialized with chat model: ${this.chatModel}, embedding model: ${this.embeddingModel}`
     );
   }
@@ -142,7 +164,7 @@ export class OllamaProvider implements AIProvider {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(`[ollama-provider] Generating response with ${model} (attempt ${attempt})...`);
+        console.warn(`[ollama-provider] Generating response with ${model} (attempt ${attempt})...`);
 
         const response = await this.client.generate({
           model,
@@ -223,25 +245,30 @@ Responde ÚNICAMENTE con un objeto JSON válido (sin markdown, sin explicaciones
       maxTokens: 200
     });
 
-    try {
-      // Limpiar markdown si existe
-      let jsonStr = result.response.trim();
-      jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+    // Limpiar markdown si existe
+    let jsonStr = result.response.trim();
+    jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '');
 
-      const parsed = JSON.parse(jsonStr);
+    const parsed = parseJsonRecord(jsonStr);
+    if (parsed) {
+      const category = typeof parsed.category === 'string' ? parsed.category : 'Otro';
+      const confidence = typeof parsed.confidence === 'number' ? parsed.confidence : 0.5;
+      const tags = parseStringArray(parsed.tags);
+
       return {
-        category: parsed.category || 'Otro',
-        confidence: parsed.confidence || 0.5,
-        tags: parsed.tags || []
-      };
-    } catch (error) {
-      console.error('[ollama-provider] Failed to parse classification:', result.response);
-      return {
-        category: 'Otro',
-        confidence: 0.3,
-        tags: []
+        category,
+        confidence,
+        tags
       };
     }
+
+      console.error('[ollama-provider] Failed to parse classification:', result.response);
+
+    return {
+      category: 'Otro',
+      confidence: 0.3,
+      tags: []
+    };
   }
 
   /**
@@ -260,28 +287,35 @@ Responde ÚNICAMENTE con un objeto JSON válido (sin markdown, sin explicaciones
   "keyPoints": ["punto1", "punto2", "punto3"]
 }`;
 
-      console.log('[ollama-provider] Requesting summarization...');
+      console.warn('[ollama-provider] Requesting summarization...');
       const result = await this.generateResponse(prompt, {
         temperature: 0.3,
         maxTokens: 500
       });
 
-      console.log('[ollama-provider] Raw Ollama response:', result.response.substring(0, 200));
+      console.warn('[ollama-provider] Raw Ollama response:', result.response.substring(0, 200));
 
       // Limpiar markdown si existe
       let jsonStr = result.response.trim();
       jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '');
 
-      const parsed = JSON.parse(jsonStr);
-      
-      if (!parsed.summary || !Array.isArray(parsed.keyPoints)) {
+      const parsed = parseJsonRecord(jsonStr);
+
+      if (!parsed) {
+        throw new Error('Invalid summary JSON payload');
+      }
+
+      const summary = typeof parsed.summary === 'string' ? parsed.summary : '';
+      const keyPoints = parseStringArray(parsed.keyPoints);
+
+      if (!summary || keyPoints.length === 0) {
         throw new Error('Invalid summary structure: missing summary or keyPoints');
       }
 
-      console.log('[ollama-provider] Summary generated successfully');
+      console.warn('[ollama-provider] Summary generated successfully');
       return {
-        summary: parsed.summary,
-        keyPoints: parsed.keyPoints
+        summary,
+        keyPoints
       };
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -299,11 +333,12 @@ Responde ÚNICAMENTE con un objeto JSON válido (sin markdown, sin explicaciones
     try {
       await this.client.list();
       return true;
-    } catch (error) {
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      throw new Error(
-        `Ollama connection failed: ${errorMessage}. Is Ollama running on ${this.baseUrl}?`
+      console.error(
+        `[ollama-provider] Ollama connection failed: ${errorMessage}. Is Ollama running on ${this.baseUrl}?`
       );
+      return false;
     }
   }
 

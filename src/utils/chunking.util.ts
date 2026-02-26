@@ -255,7 +255,7 @@ export { countWords };
 export function truncateContext(chunks: string[], maxTokens: number): string[] {
   if (!Array.isArray(chunks) || chunks.length === 0) return [];
 
-  const estimateTokens = (s: string) => Math.max(1, Math.ceil(s.length / 4));
+  const estimateTokens = (s: string): number => Math.max(1, Math.ceil(s.length / 4));
 
   const out: string[] = [];
   let used = 0;
