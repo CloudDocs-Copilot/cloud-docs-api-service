@@ -26,17 +26,31 @@ jest.mock('../../../src/services/search.service', () => ({
 }));
 
 jest.mock('../../../src/services/notification.service', () => ({
-  notifyOrganizationMembers: jest.fn()
+  notifyOrganizationMembers: jest.fn(),
+  createNotificationForUser: jest.fn()
 }));
 
 jest.mock('../../../src/socket/socket', () => ({
   emitToUser: jest.fn()
 }));
 
+jest.mock('../../../src/jobs/process-document-ai.job', () => ({
+  processDocumentAI: jest.fn()
+}));
+
+jest.mock('../../../src/services/ai/text-extraction.service', () => ({
+  textExtractionService: {
+    isSupportedMimeType: jest.fn()
+  }
+}));
+
 import * as membershipService from '../../../src/services/membership.service';
 import * as folderService from '../../../src/services/folder.service';
 import * as searchService from '../../../src/services/search.service';
 import * as notificationService from '../../../src/services/notification.service';
+import * as aiJob from '../../../src/jobs/process-document-ai.job';
+import { textExtractionService } from '../../../src/services/ai/text-extraction.service';
+import { emitToUser } from '../../../src/socket/socket';
 
 let mongoServer: MongoMemoryServer;
 
@@ -150,7 +164,6 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
       active: true
     });
 
-    // IMPORTANT: do NOT trust slug input — model may overwrite it
     const org = await Organization.create({
       name: 'Test Organization',
       owner: owner._id,
@@ -222,7 +235,13 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
 
     (searchService.indexDocument as jest.Mock).mockResolvedValue(undefined);
     (searchService.removeDocumentFromIndex as jest.Mock).mockResolvedValue(undefined);
+
     (notificationService.notifyOrganizationMembers as jest.Mock).mockResolvedValue(undefined);
+    (notificationService.createNotificationForUser as jest.Mock).mockResolvedValue(undefined);
+
+    // AI defaults (avoid async job noise unless test opts in)
+    (textExtractionService.isSupportedMimeType as jest.Mock).mockReturnValue(false);
+    (aiJob.processDocumentAI as jest.Mock).mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -255,8 +274,8 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
       expect(doc.organization?.toString()).toBe(testOrgId.toString());
       expect(doc.folder?.toString()).toBe(docsFolderId.toString());
       expect(doc.size).toBe(12);
+      expect((doc as unknown as { aiProcessingStatus?: unknown }).aiProcessingStatus).toBe('pending');
 
-      // derive physical path from doc.path (don’t hardcode slug)
       const expectedPhysical = physicalFromDocPath(doc.path as string);
 
       expect(fs.existsSync(expectedPhysical)).toBe(true);
@@ -266,7 +285,32 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
       expect(updatedUser?.storageUsed).toBe(12);
 
       expect(searchService.indexDocument).toHaveBeenCalled();
-      expect(notificationService.notifyOrganizationMembers).toHaveBeenCalled();
+      // NOTE: upload is private by default now -> should NOT notify entire org
+      expect(notificationService.notifyOrganizationMembers).not.toHaveBeenCalled();
+    });
+
+    it('should trigger AI processing when supported mime type (fire-and-forget)', async () => {
+      (textExtractionService.isSupportedMimeType as jest.Mock).mockReturnValueOnce(true);
+
+      const testFileName = `ai-${Date.now()}.txt`;
+      const tempFilePath = path.join(uploadsRoot, testFileName);
+      fs.writeFileSync(tempFilePath, 'AI content');
+
+      const mockFile: TestMulterFile = {
+        filename: testFileName,
+        originalname: 'ai.txt',
+        mimetype: 'text/plain',
+        size: 10
+      };
+
+      const doc = await documentService.uploadDocument({
+        file: mockFile as unknown as Express.Multer.File,
+        userId: testUserId.toString(),
+        folderId: docsFolderId.toString()
+      });
+
+      expect(doc).toBeDefined();
+      expect(aiJob.processDocumentAI).toHaveBeenCalledWith(doc._id.toString());
     });
 
     it('should use membership.rootFolder when folderId is not provided', async () => {
@@ -281,7 +325,6 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
         size: 10
       };
 
-      // ensure root physical dir exists
       ensureDir(path.join(storageRoot, testOrgSlug, testUserId.toString()));
 
       const doc = await documentService.uploadDocument({
@@ -408,7 +451,6 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
       org!.settings.maxStorageTotal = 10;
       await org!.save();
 
-      // ensure aggregate matches by organization field
       await User.updateMany({ organization: testOrgId }, { $set: { storageUsed: 0 } });
       await User.findByIdAndUpdate(testUserId, { storageUsed: 9 });
 
@@ -622,7 +664,8 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
         uploadedBy: testUser2Id,
         folder: docsFolderId,
         organization: testOrgId,
-        path: `/${testOrgSlug}/${testUser2Id.toString()}/Documents/theirs.txt`
+        path: `/${testOrgSlug}/${testUser2Id.toString()}/Documents/theirs.txt`,
+        sharedWith: [testUserId]
       });
 
       const shared = await documentService.listSharedDocumentsToUser(testUserId.toString());
@@ -638,7 +681,7 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
   });
 
   describe('shareDocument', () => {
-    it('should no-op return doc when document belongs to organization', async () => {
+    it('should share org document only to active members and create notifications per recipient', async () => {
       const doc = await Document.create({
         filename: 'orgdoc.txt',
         originalname: 'orgdoc.txt',
@@ -650,6 +693,9 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
         path: `/${testOrgSlug}/${testUserId.toString()}/Documents/orgdoc.txt`
       });
 
+      // actor user "name/email" for message
+      (User.findById as unknown as jest.Mock | undefined);
+
       const updated = await documentService.shareDocument({
         id: doc._id.toString(),
         userId: testUserId.toString(),
@@ -657,7 +703,33 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
       });
 
       expect(updated?._id.toString()).toBe(doc._id.toString());
-      expect(notificationService.notifyOrganizationMembers).toHaveBeenCalled();
+
+      // doc is org => validate recipients via getMembership
+      expect(membershipService.getMembership).toHaveBeenCalledWith(testUser2Id.toString(), testOrgId.toString());
+
+      // notifications for selected recipients (persist + realtime)
+      expect(notificationService.createNotificationForUser).toHaveBeenCalledTimes(1);
+      expect(notificationService.createNotificationForUser).toHaveBeenCalledWith(
+        expect.objectContaining({
+          organizationId: testOrgId.toString(),
+          recipientUserId: testUser2Id.toString(),
+          actorUserId: testUserId.toString(),
+          type: 'DOC_SHARED',
+          entityKind: 'document',
+          entityId: doc._id.toString(),
+          emitter: expect.any(Function)
+        })
+      );
+
+      // ensure we still do NOT use org-wide notifier here
+      expect(notificationService.notifyOrganizationMembers).not.toHaveBeenCalled();
+
+      // optionally execute emitter to verify it routes to socket
+      const call = (notificationService.createNotificationForUser as jest.Mock).mock.calls[0][0] as {
+        emitter: (recipientUserId: string, payload: unknown) => void;
+      };
+      call.emitter(testUser2Id.toString(), { hello: 'world' });
+      expect(emitToUser).toHaveBeenCalledWith(testUser2Id.toString(), 'notification:new', { hello: 'world' });
     });
 
     it('should share personal document with existing users (excluding owner)', async () => {
@@ -877,6 +949,7 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
       expect(deleted?._id.toString()).toBe(doc._id.toString());
       expect(fs.existsSync(physical)).toBe(false);
       expect(searchService.removeDocumentFromIndex).toHaveBeenCalledWith(doc._id.toString());
+      expect(notificationService.notifyOrganizationMembers).toHaveBeenCalled();
     });
 
     it('should delete personal document only if uploadedBy', async () => {
