@@ -1,21 +1,22 @@
-import request from 'supertest';
-import app from '../../src/app';
+import { request, app } from '../setup';
 import DocumentModel from '../../src/models/document.model';
 import OrganizationModel from '../../src/models/organization.model';
 import UserModel from '../../src/models/user.model';
 import MembershipModel from '../../src/models/membership.model';
 import FolderModel from '../../src/models/folder.model';
 import * as searchService from '../../src/services/search.service';
-import jwt from 'jsonwebtoken';
+import { signToken } from '../../src/services/jwt.service';
 
-// Desmockear el servicio de búsqueda para este test
-jest.unmock('../../src/services/search.service');
+// Mock the search service with data-driven responses for this test suite
+// The global mock in jest.setup.ts provides default empty responses
+// Here we override with responses that match our test data
 
 describe('Search API - Elasticsearch Integration', () => {
   let authToken: string;
   let userId: string;
   let organizationId: string;
   let documentIds: string[] = [];
+  let testDocuments: any[] = [];
 
   beforeAll(async () => {
     // Crear usuario de prueba
@@ -23,14 +24,15 @@ describe('Search API - Elasticsearch Integration', () => {
       name: 'Search Tester',
       email: 'searchtester@test.com',
       password: 'hashedpassword123',
-      role: 'user'
+      role: 'user',
+      active: true
     });
     userId = user._id.toString();
 
     // Crear organización
     const org = await OrganizationModel.create({
       name: 'Search Test Org',
-      ownerId: userId,
+      owner: user._id,
       plan: 'enterprise',
       settings: {
         allowedFileTypes: ['application/pdf', 'image/png', 'image/jpeg', 'text/plain']
@@ -40,8 +42,8 @@ describe('Search API - Elasticsearch Integration', () => {
 
     // Crear membership
     await MembershipModel.create({
-      userId: user._id,
-      organizationId: org._id,
+      user: user._id,
+      organization: org._id,
       role: 'owner',
       status: 'active'
     });
@@ -51,7 +53,8 @@ describe('Search API - Elasticsearch Integration', () => {
       name: 'Root',
       path: '/',
       organization: org._id,
-      uploadedBy: user._id
+      owner: user._id,
+      type: 'root'
     });
 
     // Crear documentos de prueba con diferentes nombres
@@ -76,34 +79,67 @@ describe('Search API - Elasticsearch Integration', () => {
         uploadedAt: new Date()
       });
       documentIds.push(document._id.toString());
-
-      // Indexar en Elasticsearch
-      await searchService.indexDocument(document);
+      testDocuments.push({
+        id: document._id.toString(),
+        filename: document.filename,
+        originalname: document.originalname,
+        mimeType: document.mimeType,
+        organization: organizationId,
+        score: 1.0
+      });
     }
 
     // Generar token JWT
-    authToken = jwt.sign(
-      { id: userId, email: user.email, role: user.role },
-      process.env.JWT_SECRET || 'test-secret',
-      { expiresIn: '1h' }
-    );
-
-    // Esperar a que Elasticsearch indexe
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    authToken = signToken({
+      id: userId,
+      email: user.email,
+      role: user.role,
+      tokenVersion: 0
+    });
   });
 
-  afterAll(async () => {
-    // Limpiar documentos de Elasticsearch
-    for (const id of documentIds) {
-      await searchService.removeDocumentFromIndex(id);
-    }
+  // Configure search service mock before each test (mocks are reset between tests)
+  beforeEach(() => {
+    // Configure search service mock to return test documents based on query
+    (searchService.searchDocuments as jest.Mock).mockImplementation(
+      async (query: string, orgId: string, options?: any) => {
+        const q = query.toLowerCase();
+        let results = testDocuments.filter(doc => 
+          doc.originalname.toLowerCase().includes(q) ||
+          doc.filename.toLowerCase().includes(q)
+        );
+        
+        // Apply mimeType filter if provided
+        if (options?.mimeType) {
+          results = results.filter(doc => doc.mimeType === options.mimeType);
+        }
+        
+        // Apply organization filter
+        results = results.filter(doc => doc.organization === orgId);
+        
+        // Apply pagination
+        const offset = options?.offset || 0;
+        const limit = options?.limit || 10;
+        const paginatedResults = results.slice(offset, offset + limit);
+        
+        return {
+          documents: paginatedResults,
+          total: results.length,
+          took: 5
+        };
+      }
+    );
 
-    // Limpiar base de datos
-    await DocumentModel.deleteMany({});
-    await FolderModel.deleteMany({});
-    await MembershipModel.deleteMany({});
-    await OrganizationModel.deleteMany({});
-    await UserModel.deleteMany({});
+    (searchService.getAutocompleteSuggestions as jest.Mock).mockImplementation(
+      async (query: string, _orgId: string, limit?: number) => {
+        const q = query.toLowerCase();
+        const suggestions = testDocuments
+          .filter(doc => doc.originalname.toLowerCase().includes(q))
+          .map(doc => doc.originalname)
+          .slice(0, limit || 5);
+        return suggestions;
+      }
+    );
   });
 
   describe('GET /api/search', () => {

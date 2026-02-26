@@ -11,12 +11,14 @@ module.exports = {
   // Excluir tests de embedding que requieren configuración específica sin mocks globales
   // y tests de Ollama que requieren Ollama server corriendo localmente
   // y tests/unit/** que se ejecutan por separado con jest.unit.config.js
+  // y tests/e2e/** que requieren servicios externos (Elasticsearch, MongoDB, servidor live)
   testPathIgnorePatterns: [
     '/node_modules/',
     '.*embedding\\.service\\.test\\.ts$',
     '.*embedding\\.service\\.error-validation\\.test\\.ts$',
     '.*ollama\\.provider\\.test\\.ts$', // Ollama integration tests (use RUN_OLLAMA_TESTS=true to enable)
-    'tests/unit/' // Unit tests ejecutados por separado con jest.unit.config.js
+    'tests/unit/', // Unit tests ejecutados por separado con jest.unit.config.js
+    'tests/e2e/' // E2E tests require live external services (run manually with npm run test:e2e)
   ],
 
   // Transformación de archivos TypeScript
