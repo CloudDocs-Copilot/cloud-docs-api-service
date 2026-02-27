@@ -43,8 +43,13 @@ export function deleteTempFiles(filePaths: string[]): void {
  */
 function extractUserIdFromToken(token: string): string | null {
   try {
-    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-    return payload.id || payload.userId || null;
+    const parsed = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString()) as unknown;
+    if (typeof parsed === 'object' && parsed !== null) {
+      const p = parsed as Record<string, unknown>;
+      const id = typeof p.id === 'string' ? p.id : typeof p.userId === 'string' ? p.userId : null;
+      return id;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -63,7 +68,7 @@ export async function uploadTestFile(
     folderId?: string;
     organizationId?: string;
   }
-): Promise<any> {
+): Promise<{ body?: unknown }> {
   const builder = new DocumentBuilder()
     .withFilename(options?.filename || 'test-file.txt')
     .withContent(options?.content || 'Test content')
@@ -132,8 +137,8 @@ export async function uploadMultipleFiles(
   authData: string | string[],
   count: number,
   prefix: string = 'file'
-): Promise<any[]> {
-  const results: any[] = [];
+): Promise<unknown[]> {
+  const results: unknown[] = [];
 
   for (let i = 0; i < count; i++) {
     const response = await uploadTestFile(authData, {

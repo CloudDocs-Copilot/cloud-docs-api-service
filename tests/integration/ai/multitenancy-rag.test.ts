@@ -272,7 +272,7 @@ describe('RAG Multitenancy Security (RFE-AI-005) - Unit Tests', () => {
   });
 
   describe('📝 Documentation - Vector Search Integration Tests', () => {
-    it('should document that $vectorSearch tests require real Atlas', async () => {
+    it('should document that $vectorSearch tests require real Atlas', () => {
       /**
        * NOTA PARA DESARROLLADORES:
        *

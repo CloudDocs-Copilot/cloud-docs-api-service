@@ -8,14 +8,18 @@ jest.mock('../../../src/models/organization.model', () => ({
   findByIdAndDelete: jest.fn()
 }));
 
-const orgService = require('../../../src/services/organization.service');
+let orgService: typeof import('../../../src/services/organization.service');
 
 describe('organization.service (unit)', () => {
+  beforeAll(async () => {
+    orgService = (await import('../../../src/services/organization.service')) as unknown as typeof import('../../../src/services/organization.service');
+  });
+
   afterEach(() => jest.restoreAllMocks());
 
   it('createOrganization throws 404 when owner not found', async () => {
-    const User = require('../../../src/models/user.model');
-    User.findById = jest.fn().mockResolvedValue(null);
+    const User = await import('../../../src/models/user.model');
+    (User as any).findById.mockResolvedValue(null);
 
     await expect(
       orgService.createOrganization({ name: 'X', ownerId: '507f1f77bcf86cd799439011' } as any)
@@ -23,10 +27,8 @@ describe('organization.service (unit)', () => {
   });
 
   it('getOrganizationById throws 404 when not found', async () => {
-    const Organization = require('../../../src/models/organization.model');
-    Organization.findById = jest
-      .fn()
-      .mockReturnValue({ populate: () => ({ populate: () => Promise.resolve(null) }) });
+    const Organization = await import('../../../src/models/organization.model');
+    (Organization as any).findById.mockReturnValue({ populate: () => ({ populate: () => Promise.resolve(null) }) });
 
     await expect(orgService.getOrganizationById('507f1f77bcf86cd799439011')).rejects.toThrow(
       'Organization not found'
@@ -34,8 +36,8 @@ describe('organization.service (unit)', () => {
   });
 
   it('getOrganizationStorageStats throws 404 when org not found', async () => {
-    const Organization = require('../../../src/models/organization.model');
-    Organization.findById = jest.fn().mockResolvedValue(null);
+    const Organization = await import('../../../src/models/organization.model');
+    (Organization as any).findById.mockResolvedValue(null);
 
     await expect(
       orgService.getOrganizationStorageStats('507f1f77bcf86cd799439011')

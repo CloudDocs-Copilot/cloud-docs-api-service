@@ -1,107 +1,138 @@
 import { jest } from '@jest/globals';
+import http from 'http';
 
 // Instrumentation used by multiple mocked Server implementations
-let lastServerInstance: any = null;
+interface ServerMock {
+  opts: unknown;
+  middlewares: Array<(socket: unknown, next: (err?: Error) => void) => void>;
+  handlers: Record<string, (socket: unknown) => void>;
+  to: jest.MockedFunction<(room: string) => { emit: (event: string, payload: unknown) => void }>;
+  lastEmit?: unknown;
+  use: (fn: (socket: unknown, next: (err?: Error) => void) => void) => void;
+  on: (event: string, fn: (socket: unknown) => void) => void;
+  _use?: (socket: unknown, next: (err?: Error) => void) => void;
+  _onConnection?: (socket: unknown) => void;
+}
+
+interface ServerOptions {
+  cors: {
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => void;
+  };
+}
+
+interface JwtMock {
+  verify: jest.Mock;
+  sign: jest.Mock;
+  default: { verify: jest.Mock; sign: jest.Mock };
+}
+
+interface SocketModule {
+  initSocket: (server: http.Server) => ServerMock;
+  emitToUser: (userId: string, event: string, payload?: unknown) => void;
+  emitToOrg: (orgId: string, event: string, payload?: unknown) => void;
+}
+
+let lastServerInstance: ServerMock | null = null;
 let lastCtorArgs: [unknown, unknown] | null = null;
 
+async function importSocketModule(): Promise<SocketModule> {
+  return (await import('../../../src/socket/socket')) as unknown as SocketModule;
+}
+
 describe('socket module', () => {
-  let FakeServer: any;
-  beforeEach(() => {
+  let FakeServer: { new(_server: unknown, opts: unknown): ServerMock } | undefined;
+  beforeEach((): void => {
     jest.resetModules();
-
     FakeServer = class {
-      public opts: any;
-      public middlewares: Array<(s: any, next: any) => void> = [];
-      public handlers: Record<string, (s: any) => void> = {};
-      public lastEmit: any = null;
-      public _use: any = null;
-      public _onConnection: any = null;
+      public opts: unknown;
+      public middlewares: Array<(s: unknown, next: (err?: Error) => void) => void> = [];
+      public handlers: Record<string, (s: unknown) => void> = {};
+      public lastEmit: unknown = null;
+      public _use: ((socket: unknown, next: (err?: Error) => void) => void) | undefined = undefined;
+      public _onConnection: ((socket: unknown) => void) | undefined = undefined;
 
-      constructor(_server: unknown, opts: any) {
+      constructor(_server: unknown, opts: unknown) {
         this.opts = opts;
         lastCtorArgs = [_server, opts];
-        lastServerInstance = this;
+        lastServerInstance = this as unknown as ServerMock;
       }
 
-      use(fn: any) {
+      use(fn: (s: unknown, next: (err?: Error) => void) => void): void {
         this.middlewares.push(fn);
         this._use = fn;
       }
 
-      on(ev: string, cb: any) {
+      on(ev: string, cb: (s: unknown) => void): void {
         this.handlers[ev] = cb;
         if (ev === 'connection') this._onConnection = cb;
       }
 
-      to = jest.fn().mockImplementation((room: string) => {
-        const inst = this;
-        return {
-          emit: (event: string, payload: unknown) => {
-            inst.lastEmit = { room, event, payload };
-            serverToEmitMock(event, payload);
-          }
-        };
-      });
+      to: jest.MockedFunction<(room: string) => { emit: (event: string, payload: unknown) => void }> =
+        jest.fn().mockImplementation((room: unknown) => {
+          const roomStr = String(room);
+          return {
+            emit: (event: string, payload: unknown): void => {
+              ((this as unknown) as { lastEmit?: unknown }).lastEmit = { room: roomStr, event, payload };
+              serverToEmitMock(event, payload);
+            }
+          };
+        }) as unknown as jest.MockedFunction<(room: string) => { emit: (event: string, payload: unknown) => void }>;
     };
 
     jest.doMock('socket.io', () => ({ Server: FakeServer }));
   });
 
   it('emitToUser is no-op when io not initialized', async () => {
-    const mod = await import('../../../src/socket/socket');
+    const mod = await importSocketModule();
     // ensure io is not initialized
     mod.emitToUser('u1', 'e', { a: 1 });
     // no throw
   });
 
   it('initSocket returns server and emitToUser emits to room', async () => {
-    const http = await import('http');
-    const mod = await import('../../../src/socket/socket');
+    const mod = await importSocketModule();
     const server = http.createServer();
-    const io = mod.initSocket(server as any);
-    expect(io).toBeInstanceOf(FakeServer);
+    const io = mod.initSocket(server as unknown as http.Server) as unknown as ServerMock;
+    expect(io.to).toBeDefined();
 
     // call emitToUser
     mod.emitToUser('user42', 'hello', { ok: true });
-    expect((io as any).lastEmit).toEqual({ room: 'user:user42', event: 'hello', payload: { ok: true } });
+    expect((io).lastEmit).toEqual({ room: 'user:user42', event: 'hello', payload: { ok: true } });
   });
 
   it('emitToOrg emits to org room', async () => {
-    const http = await import('http');
-    const mod = await import('../../../src/socket/socket');
+    const mod = await importSocketModule();
     const server = http.createServer();
-    const io = mod.initSocket(server as any);
+    const io = mod.initSocket(server as unknown as http.Server) as unknown as ServerMock;
     mod.emitToOrg('org1', 'ev', { x: 1 });
-    expect((io as any).lastEmit).toEqual({ room: 'org:org1', event: 'ev', payload: { x: 1 } });
+    expect(io.lastEmit).toEqual({ room: 'org:org1', event: 'ev', payload: { x: 1 } });
   });
 
   it('initSocket returns same instance on subsequent calls', async () => {
-    const http = await import('http');
-    const mod = await import('../../../src/socket/socket');
+    const mod = await importSocketModule();
     const server = http.createServer();
-    const a = mod.initSocket(server as any);
-    const b = mod.initSocket(server as any);
+    const a = mod.initSocket(server as unknown as http.Server);
+    const b = mod.initSocket(server as unknown as http.Server);
     expect(a).toBe(b);
   });
 
   it('auth middleware accepts valid JWT token provided in auth.token', async () => {
-    const jwt = await import('jsonwebtoken');
+    const { mod, jwt } = await loadSocketModuleFresh();
     process.env.JWT_SECRET = 'test-secret';
-    const mod = await import('../../../src/socket/socket');
     const http = await import('http');
     const server = http.createServer();
-    const io = mod.initSocket(server as any) as any;
+    const io = mod.initSocket(server as unknown as http.Server) as unknown as ServerMock;
 
     // create token with userId
-    const token = jwt.sign({ userId: 'u1' }, process.env.JWT_SECRET as string);
+    const token = jwt.sign({ userId: 'u1' });
 
     // fake socket object
-    const fakeSocket = { handshake: { auth: { token }, headers: {} }, data: {} };
+    const fakeSocket = { handshake: { auth: { token }, headers: {} }, data: {} } as unknown;
 
     // run the middleware stored in FakeServer
-    const middleware = io._use;
+    const middleware = io._use as (s: unknown, next: (err?: Error) => void) => void;
     let nextCalled = false;
-    middleware(fakeSocket, (err?: any) => {
+    middleware(fakeSocket, (err?: Error) => {
       if (err) throw err;
       nextCalled = true;
     });
@@ -112,73 +143,73 @@ describe('socket module', () => {
 
   it('auth middleware rejects invalid JWT', async () => {
     process.env.JWT_SECRET = 's';
-    const mod = await import('../../../src/socket/socket');
+    const mod = await importSocketModule();
     const http = await import('http');
     const server = http.createServer();
-    const io = mod.initSocket(server as any) as any;
-    const fakeSocket = { handshake: { auth: { token: 'badtoken' }, headers: {} }, data: {} };
-    const middleware = io._use;
+    const io = mod.initSocket(server as unknown as http.Server) as unknown as ServerMock;
+    const fakeSocket = { handshake: { auth: { token: 'badtoken' }, headers: {} }, data: {} } as unknown;
+    const middleware = io._use as (s: unknown, next: (err?: Error) => void) => void;
     let thrown = false;
     try {
-      middleware(fakeSocket, (err?: any) => {
+      middleware(fakeSocket, (err?: Error) => {
         if (err) throw err;
       });
-    } catch (e) {
+    } catch {
       thrown = true;
     }
     expect(thrown).toBe(true);
   });
 
   it('on connection emits socket:connected to client (via emit in connection handler)', async () => {
+    const { mod, jwt } = await loadSocketModuleFresh();
     process.env.JWT_SECRET = 't';
-    const jwt = await import('jsonwebtoken');
-    const mod = await import('../../../src/socket/socket');
     const http = await import('http');
     const server = http.createServer();
-    const io = mod.initSocket(server as any) as any;
-    const token = jwt.sign({ userId: 'u2' }, process.env.JWT_SECRET as string);
+    const io = mod.initSocket(server as unknown as http.Server) as unknown as ServerMock;
+    const token = jwt.sign({ userId: 'u2' });
     const fakeSocket = {
       handshake: { auth: { token }, headers: {} },
       data: {},
       join: jest.fn(),
       emit: jest.fn(),
       on: jest.fn()
-    } as any;
+    } as unknown as { join: jest.Mock; emit: jest.Mock; on: jest.Mock };
 
     // run middleware
-    io._use(fakeSocket, (err?: any) => {
+    (io._use as (s: unknown, next: (err?: Error) => void) => void)(fakeSocket, (err?: Error) => {
       if (err) throw err;
     });
 
     // call connection handler to simulate a new connection
-    io._onConnection(fakeSocket);
-    expect(fakeSocket.join).toHaveBeenCalled();
-    expect(fakeSocket.emit).toHaveBeenCalledWith('socket:connected', { userId: 'u2' });
+    (io._onConnection as (s: unknown) => void)(fakeSocket);
+    expect((fakeSocket as { join: jest.Mock }).join).toHaveBeenCalled();
+    expect((fakeSocket as { emit: jest.Mock }).emit).toHaveBeenCalledWith('socket:connected', { userId: 'u2' });
   });
 });
 // Note: these are unit tests for the socket module, not integration tests. We mock socket.io and jsonwebtoken to test socket.ts logic in isolation without needing a real server or real JWTs.
-import http from 'http';
 
 // Simple smoke tests before mocks are applied
 describe('socket module - basic safety', () => {
-  beforeEach(() => {
+  beforeEach((): void => {
     jest.resetModules();
   });
 
-  it('emitToUser and emitToOrg are safe when not initialized', () => {
+  it('emitToUser and emitToOrg are safe when not initialized', async () => {
     // Arrange: Load module fresh with no initialization
-    const { emitToUser, emitToOrg } = require('../../../src/socket/socket');
+    const mod = await importSocketModule();
+    const { emitToUser, emitToOrg } = mod;
 
     // Act & Assert: should not throw
     expect(() => emitToUser('u1', 'e', { x: 1 })).not.toThrow();
     expect(() => emitToOrg('org1', 'e', { x: 1 })).not.toThrow();
   });
 
-  it('initSocket returns a Server instance when JWT_SECRET provided', () => {
+  it('initSocket returns a Server instance when JWT_SECRET provided', async () => {
     // Arrange
     process.env.JWT_SECRET = 'test-secret';
     process.env.ALLOWED_ORIGINS = '';
-    const { initSocket } = require('../../../src/socket/socket');
+    const mod = await importSocketModule();
+    const { initSocket } = mod;
     const server = http.createServer();
 
     // Act
@@ -189,10 +220,11 @@ describe('socket module - basic safety', () => {
     server.close();
   });
 
-  it('initSocket returns same instance on second call', () => {
+  it('initSocket returns same instance on second call', async () => {
     // Arrange
     process.env.JWT_SECRET = 'test-secret';
-    const { initSocket } = require('../../../src/socket/socket');
+    const mod = await importSocketModule();
+    const { initSocket } = mod;
     const server = http.createServer();
 
     // Act
@@ -204,11 +236,12 @@ describe('socket module - basic safety', () => {
     server.close();
   });
 
-  it('extract token flow via initSocket middleware indirectly', () => {
+  it('extract token flow via initSocket middleware indirectly', async () => {
     // Arrange
     process.env.JWT_SECRET = 'test-secret';
     process.env.ALLOWED_ORIGINS = 'http://localhost';
-    const { initSocket } = require('../../../src/socket/socket');
+    const mod = await importSocketModule();
+    const { initSocket } = mod;
     const server = http.createServer();
 
     // Act & Assert
@@ -224,32 +257,20 @@ const serverToEmitMock = jest.fn();
 lastServerInstance = null;
 lastCtorArgs = null;
 
-interface ServerMock {
-  opts: unknown;
-  middlewares: Array<(socket: unknown, next: (err?: Error) => void) => void>;
-  handlers: Record<string, (socket: unknown) => void>;
-  to: jest.Mock;
-  use: (fn: (socket: unknown, next: (err?: Error) => void) => void) => void;
-  on: (event: string, fn: (socket: unknown) => void) => void;
-}
-
-interface ServerOptions {
-  cors: {
-    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => void;
-  };
-}
-
 jest.mock('socket.io', () => {
   class ServerMock {
     public opts: unknown;
     public middlewares: Array<(socket: unknown, next: (err?: Error) => void) => void> = [];
     public handlers: Record<string, (socket: unknown) => void> = {};
-    public to = jest.fn().mockReturnValue({ emit: serverToEmitMock });
+    public to: jest.MockedFunction<(room: string) => { emit: (event: string, payload: unknown) => void }> =
+      jest.fn().mockReturnValue({ emit: serverToEmitMock }) as unknown as jest.MockedFunction<(
+        room: string
+      ) => { emit: (event: string, payload: unknown) => void }>;
 
     constructor(_server: unknown, opts: unknown) {
       this.opts = opts;
       lastCtorArgs = [_server, opts];
-      lastServerInstance = this;
+      lastServerInstance = this as unknown as ServerMock;
     }
 
     use(fn: (socket: unknown, next: (err?: Error) => void) => void): void {
@@ -267,12 +288,13 @@ jest.mock('socket.io', () => {
 // ✅ Mock BOTH jsonwebtoken.verify and jsonwebtoken.default.verify (same function)
 jest.mock('jsonwebtoken', () => {
   const sign = jest.fn((payload: unknown) => Buffer.from(JSON.stringify(payload)).toString('base64'));
-  const verify = jest.fn((token: string) => {
+    const verify = jest.fn((token: string): unknown => {
     try {
       const s = Buffer.from(token, 'base64').toString();
-      return JSON.parse(s);
-    } catch (e) {
-      throw new Error('bad token');
+      return JSON.parse(s) as unknown;
+    } catch (e: unknown) {
+      // Preserve original caught value as the cause to retain debugging context
+      throw new Error('bad token', { cause: e });
     }
   });
 
@@ -284,21 +306,21 @@ jest.mock('jsonwebtoken', () => {
   };
 });
 
-function loadSocketModuleFresh() {
+async function loadSocketModuleFresh(): Promise<{ mod: SocketModule; jwt: JwtMock }> {
   // Important: reset module registry so socket internal singleton `io` resets
   jest.resetModules();
 
-  // Re-require AFTER resetModules so we get the SAME mocked instance socket.ts uses
-  const jwt = require('jsonwebtoken');
-  const mod = require('../../../src/socket/socket');
+  const jwt = await import('jsonwebtoken');
+  const mod = (await import('../../../src/socket/socket')) as unknown as SocketModule;
 
-  return { mod, jwt };
+  const jwtModule = jwt as unknown as JwtMock;
+  return { mod, jwt: jwtModule };
 }
 
 describe('socket/socket (unit)', () => {
   const originalEnv = process.env;
 
-  beforeEach(() => {
+  beforeEach((): void => {
     process.env = { ...originalEnv };
     serverToEmitMock.mockClear();
     lastServerInstance = null;
@@ -335,8 +357,8 @@ describe('socket/socket (unit)', () => {
     return socket;
   }
 
-  it('initSocket returns singleton instance on repeated calls', () => {
-    const { mod, jwt } = loadSocketModuleFresh();
+  it('initSocket returns singleton instance on repeated calls', async () => {
+    const { mod, jwt } = await loadSocketModuleFresh();
 
     process.env.ALLOWED_ORIGINS = 'http://a.com';
     process.env.JWT_SECRET = 'secret';
@@ -349,8 +371,8 @@ describe('socket/socket (unit)', () => {
     expect(lastCtorArgs).not.toBeNull();
   });
 
-  it('CORS origin callback allows when origin is missing', () => {
-    const { mod, jwt } = loadSocketModuleFresh();
+  it('CORS origin callback allows when origin is missing', async () => {
+    const { mod, jwt } = await loadSocketModuleFresh();
 
     process.env.ALLOWED_ORIGINS = '';
     process.env.JWT_SECRET = 'secret';
@@ -366,8 +388,8 @@ describe('socket/socket (unit)', () => {
     expect(cb).toHaveBeenCalledWith(null, true);
   });
 
-  it('CORS blocks when ALLOWED_ORIGINS empty and origin present', () => {
-    const { mod, jwt } = loadSocketModuleFresh();
+  it('CORS blocks when ALLOWED_ORIGINS empty and origin present', async () => {
+    const { mod, jwt } = await loadSocketModuleFresh();
 
     process.env.ALLOWED_ORIGINS = '';
     process.env.JWT_SECRET = 'secret';
@@ -384,12 +406,14 @@ describe('socket/socket (unit)', () => {
     const err = cb.mock.calls[0][0];
     const allowed = cb.mock.calls[0][1];
     expect(err).toBeInstanceOf(Error);
-    expect(err.message).toBe('CORS blocked');
+    if (err instanceof Error) {
+      expect(err.message).toBe('CORS blocked');
+    }
     expect(allowed).toBe(false);
   });
 
-  it('CORS allows when origin is in ALLOWED_ORIGINS', () => {
-    const { mod, jwt } = loadSocketModuleFresh();
+  it('CORS allows when origin is in ALLOWED_ORIGINS', async () => {
+    const { mod, jwt } = await loadSocketModuleFresh();
 
     process.env.ALLOWED_ORIGINS = 'http://ok.com, http://also.com';
     process.env.JWT_SECRET = 'secret';
@@ -405,8 +429,8 @@ describe('socket/socket (unit)', () => {
     expect(cb).toHaveBeenCalledWith(null, true);
   });
 
-  it('CORS blocks when origin not in ALLOWED_ORIGINS', () => {
-    const { mod, jwt } = loadSocketModuleFresh();
+  it('CORS blocks when origin not in ALLOWED_ORIGINS', async () => {
+    const { mod, jwt } = await loadSocketModuleFresh();
 
     process.env.ALLOWED_ORIGINS = 'http://ok.com';
     process.env.JWT_SECRET = 'secret';
@@ -423,12 +447,14 @@ describe('socket/socket (unit)', () => {
     const err = cb.mock.calls[0][0];
     const allowed = cb.mock.calls[0][1];
     expect(err).toBeInstanceOf(Error);
-    expect(err.message).toBe('CORS blocked');
+    if (err instanceof Error) {
+      expect(err.message).toBe('CORS blocked');
+    }
     expect(allowed).toBe(false);
   });
 
-  it('auth middleware rejects when no token present', () => {
-    const { mod } = loadSocketModuleFresh();
+  it('auth middleware rejects when no token present', async () => {
+    const { mod } = await loadSocketModuleFresh();
 
     process.env.ALLOWED_ORIGINS = 'http://ok.com';
     process.env.JWT_SECRET = 'secret';
@@ -443,11 +469,13 @@ describe('socket/socket (unit)', () => {
 
     const err = next.mock.calls[0][0];
     expect(err).toBeInstanceOf(Error);
-    expect(err.message).toBe('Unauthorized');
+    if (err instanceof Error) {
+      expect(err.message).toBe('Unauthorized');
+    }
   });
 
-  it('auth middleware rejects when token invalid (jwt.verify throws)', () => {
-    const { mod, jwt } = loadSocketModuleFresh();
+  it('auth middleware rejects when token invalid (jwt.verify throws)', async () => {
+    const { mod, jwt } = await loadSocketModuleFresh();
 
     process.env.ALLOWED_ORIGINS = 'http://ok.com';
     process.env.JWT_SECRET = 'secret';
@@ -470,11 +498,13 @@ describe('socket/socket (unit)', () => {
 
     const err = next.mock.calls[0][0];
     expect(err).toBeInstanceOf(Error);
-    expect(err.message).toBe('Unauthorized');
+    if (err instanceof Error) {
+      expect(err.message).toBe('Unauthorized');
+    }
   });
 
-  it('auth middleware rejects when JWT_SECRET missing (treated as invalid token)', () => {
-    const { mod, jwt } = loadSocketModuleFresh();
+  it('auth middleware rejects when JWT_SECRET missing (treated as invalid token)', async () => {
+    const { mod, jwt } = await loadSocketModuleFresh();
 
     process.env.ALLOWED_ORIGINS = 'http://ok.com';
     delete process.env.JWT_SECRET;
@@ -495,11 +525,13 @@ describe('socket/socket (unit)', () => {
 
     const err = next.mock.calls[0][0];
     expect(err).toBeInstanceOf(Error);
-    expect(err.message).toBe('Unauthorized');
+    if (err instanceof Error) {
+      expect(err.message).toBe('Unauthorized');
+    }
   });
 
-  it('extracts token from Authorization Bearer, sets socket.data.userId, allows', () => {
-    const { mod, jwt } = loadSocketModuleFresh();
+  it('extracts token from Authorization Bearer, sets socket.data.userId, allows', async () => {
+    const { mod, jwt } = await loadSocketModuleFresh();
 
     process.env.ALLOWED_ORIGINS = 'http://ok.com';
     process.env.JWT_SECRET = 'secret';
@@ -522,8 +554,8 @@ describe('socket/socket (unit)', () => {
     expect(next).toHaveBeenCalledWith();
   });
 
-  it('extracts token from handshake.auth.token', () => {
-    const { mod, jwt } = loadSocketModuleFresh();
+  it('extracts token from handshake.auth.token', async () => {
+    const { mod, jwt } = await loadSocketModuleFresh();
 
     process.env.ALLOWED_ORIGINS = 'http://ok.com';
     process.env.JWT_SECRET = 'secret';
@@ -546,8 +578,8 @@ describe('socket/socket (unit)', () => {
     expect(next).toHaveBeenCalledWith();
   });
 
-  it('extracts token from cookie header', () => {
-    const { mod, jwt } = loadSocketModuleFresh();
+  it('extracts token from cookie header', async () => {
+    const { mod, jwt } = await loadSocketModuleFresh();
 
     process.env.ALLOWED_ORIGINS = 'http://ok.com';
     process.env.JWT_SECRET = 'secret';
@@ -570,8 +602,8 @@ describe('socket/socket (unit)', () => {
     expect(next).toHaveBeenCalledWith();
   });
 
-  it('on connection: joins user room and emits socket:connected', () => {
-    const { mod, jwt } = loadSocketModuleFresh();
+  it('on connection: joins user room and emits socket:connected', async () => {
+    const { mod, jwt } = await loadSocketModuleFresh();
 
     process.env.ALLOWED_ORIGINS = 'http://ok.com';
     process.env.JWT_SECRET = 'secret';
@@ -590,13 +622,13 @@ describe('socket/socket (unit)', () => {
     expect(socket.on).toHaveBeenCalledWith('disconnect', expect.any(Function));
   });
 
-  it('emitToUser is safe when io not initialized', () => {
-    const { mod } = loadSocketModuleFresh();
+  it('emitToUser is safe when io not initialized', async () => {
+    const { mod } = await loadSocketModuleFresh();
     mod.emitToUser('u1', 'evt', { a: 1 });
   });
 
-  it('emitToUser emits to user room after init', () => {
-    const { mod, jwt } = loadSocketModuleFresh();
+  it('emitToUser emits to user room after init', async () => {
+    const { mod, jwt } = await loadSocketModuleFresh();
 
     process.env.ALLOWED_ORIGINS = 'http://ok.com';
     process.env.JWT_SECRET = 'secret';
@@ -610,8 +642,8 @@ describe('socket/socket (unit)', () => {
     expect(serverToEmitMock).toHaveBeenCalledWith('notification:new', { hello: 'world' });
   });
 
-  it('emitToOrg emits to org room after init', () => {
-    const { mod, jwt } = loadSocketModuleFresh();
+  it('emitToOrg emits to org room after init', async () => {
+    const { mod, jwt } = await loadSocketModuleFresh();
 
     process.env.ALLOWED_ORIGINS = 'http://ok.com';
     process.env.JWT_SECRET = 'secret';

@@ -254,7 +254,7 @@ export async function processPendingDocuments(limit: number = 10): Promise<numbe
         await processDocumentAI(String(doc._id));
         successCount++;
       } catch (error: unknown) {
-        console.error(`[ai-job] Failed to process document ${doc._id}:`, getErrorMessage(error));
+        console.error(`[ai-job] Failed to process document ${String(doc._id)}:`, getErrorMessage(error));
         // Continuar con el siguiente documento
       }
     }

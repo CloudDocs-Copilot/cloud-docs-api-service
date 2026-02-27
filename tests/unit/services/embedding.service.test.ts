@@ -32,7 +32,7 @@ import HttpError from '../../../src/models/error.model';
 describe('Embedding Service', () => {
   let mockProvider: any;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Reset modules and mock the provider factory so we control provider behaviour
     jest.resetModules();
 
@@ -47,7 +47,8 @@ describe('Embedding Service', () => {
       getAIProvider: () => mockProvider
     }));
 
-    embeddingService = require('../../../src/services/ai/embedding.service').embeddingService;
+    const mod = await import('../../../src/services/ai/embedding.service');
+    embeddingService = (mod as unknown as { embeddingService: unknown }).embeddingService as any;
   });
 
   describe('generateEmbedding', () => {

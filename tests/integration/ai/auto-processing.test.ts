@@ -11,7 +11,7 @@
  */
 
 // IMPORTANTE: Los mocks deben ir ANTES de los imports
-jest.mock('../../../src/services/search.service', () => ({
+jest.mock('../../../src/services/search.service', (): unknown => ({
   indexDocument: jest.fn().mockResolvedValue(undefined),
   removeDocumentFromIndex: jest.fn().mockResolvedValue(undefined),
   searchDocuments: jest.fn().mockResolvedValue({ documents: [], total: 0 }),
@@ -19,7 +19,7 @@ jest.mock('../../../src/services/search.service', () => ({
 }));
 
 // Mock del servicio de extracción de texto ANTES de importar el job
-jest.mock('../../../src/services/ai/text-extraction.service', () => {
+jest.mock('../../../src/services/ai/text-extraction.service', (): unknown => {
   const SUPPORTED_MIME_TYPES = {
     PDF: 'application/pdf',
     DOCX: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -32,7 +32,7 @@ jest.mock('../../../src/services/ai/text-extraction.service', () => {
     BMP: 'image/bmp'
   } as const;
 
-  const isSupported = (mime: string) => {
+  const isSupported = (mime: string): boolean => {
     const supported: string[] = Object.values(SUPPORTED_MIME_TYPES);
     return supported.includes(mime);
   };
@@ -51,49 +51,38 @@ import '../../setup'; // Import MongoDB Memory Server connection
 import DocumentModel from '../../../src/models/document.model';
 import { processDocumentAI } from '../../../src/jobs/process-document-ai.job';
 // Use require to ensure Jest's mock factory is applied and we get the mocked module
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { textExtractionService } = require('../../../src/services/ai/text-extraction.service');
-
-// Ensure the mocked service provides a deterministic isSupportedMimeType implementation
-if (!textExtractionService.isSupportedMimeType) {
-  (textExtractionService as any).isSupportedMimeType = jest.fn((mime: string) => {
-    const supported = [
-      'text/plain',
-      'application/pdf',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/msword',
-      'text/markdown',
-      'image/jpeg',
-      'image/png',
-      'image/tiff',
-      'image/bmp'
-    ];
-    return supported.includes(mime);
-  });
-}
-
-// Also ensure the CommonJS/required module has the mock (covers import/require interop)
-try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const teModule = require('../../../src/services/ai/text-extraction.service');
-  if (teModule && teModule.textExtractionService && !teModule.textExtractionService.isSupportedMimeType) {
-    teModule.textExtractionService.isSupportedMimeType = (textExtractionService as any).isSupportedMimeType;
-  }
-} catch (e) {
-  // ignore
-}
+let textExtractionService: { extractText: jest.Mock; isSupportedMimeType: jest.Mock };
 
 describe('Auto-processing AI Integration Tests', () => {
   const testOrganizationId = '507f1f77bcf86cd799439011';
 
-  beforeAll(async () => {
+  beforeAll(async (): Promise<void> => {
     // Configurar Mock Provider para tests
     process.env.AI_PROVIDER = 'mock';
+    // Import the mocked textExtractionService after jest.mock has been applied
+    const teModule = await import('../../../src/services/ai/text-extraction.service');
+    textExtractionService = teModule.textExtractionService as unknown as { extractText: jest.Mock; isSupportedMimeType: jest.Mock };
+    if (!textExtractionService.isSupportedMimeType) {
+      textExtractionService.isSupportedMimeType = jest.fn((mime: string) => {
+        const supported = [
+          'text/plain',
+          'application/pdf',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'application/msword',
+          'text/markdown',
+          'image/jpeg',
+          'image/png',
+          'image/tiff',
+          'image/bmp'
+        ];
+        return supported.includes(mime);
+      });
+    }
   });
 
-  beforeEach(() => {
+  beforeEach((): void => {
     // Configurar mock de extracción de texto antes de cada test
-    (textExtractionService.extractText as jest.Mock).mockResolvedValue({
+    textExtractionService.extractText.mockResolvedValue({
       text: 'Este es un documento de prueba para el procesamiento AI. Contiene múltiples párrafos. Y suficiente texto para probar la extracción.',
       charCount: 120,
       wordCount: 20,
@@ -113,26 +102,7 @@ describe('Auto-processing AI Integration Tests', () => {
       'image/bmp'
     ];
 
-    if ((textExtractionService.isSupportedMimeType as jest.Mock).mockImplementation === undefined) {
-      (textExtractionService.isSupportedMimeType as jest.Mock).mockImplementation((mime: string) =>
-        supportedList.includes(mime)
-      );
-    } else {
-      (textExtractionService.isSupportedMimeType as jest.Mock).mockImplementation((mime: string) =>
-        supportedList.includes(mime)
-      );
-    }
-    // Also attach to the required module instance to avoid interop issues
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const teModule = require('../../../src/services/ai/text-extraction.service');
-      if (teModule && teModule.textExtractionService) {
-        teModule.textExtractionService.isSupportedMimeType = (textExtractionService.isSupportedMimeType as any);
-        teModule.textExtractionService.extractText = (textExtractionService.extractText as any);
-      }
-    } catch (e) {
-      // ignore
-    }
+    textExtractionService.isSupportedMimeType.mockImplementation((mime: string) => supportedList.includes(mime));
   });
 
   afterAll(() => {
@@ -171,12 +141,12 @@ describe('Auto-processing AI Integration Tests', () => {
       const updatedDoc = await DocumentModel.findById(doc._id).select('+extractedText');
 
       expect(updatedDoc).toBeTruthy();
-      expect(updatedDoc!.aiProcessingStatus).toBe('completed');
-      expect(updatedDoc!.extractedText).toBeTruthy();
-      expect(updatedDoc!.extractedText!.length).toBeGreaterThan(0);
-      expect(updatedDoc!.extractedText).toContain('documento de prueba');
-      expect(updatedDoc!.aiProcessedAt).toBeInstanceOf(Date);
-      expect(updatedDoc!.aiError).toBeNull();
+      expect(updatedDoc?.aiProcessingStatus).toBe('completed');
+      expect(updatedDoc?.extractedText).toBeTruthy();
+      expect(updatedDoc?.extractedText?.length).toBeGreaterThan(0);
+      expect(updatedDoc?.extractedText).toContain('documento de prueba');
+      expect(updatedDoc?.aiProcessedAt).toBeInstanceOf(Date);
+      expect(updatedDoc?.aiError).toBeNull();
     });
 
     it('should mark document as completed without processing if MIME type is unsupported', async () => {
@@ -195,13 +165,7 @@ describe('Auto-processing AI Integration Tests', () => {
       });
 
       // Arrange override: mark video mime as unsupported explicitly
-      (textExtractionService.isSupportedMimeType as jest.Mock).mockImplementation((_mime: string) => false);
-      try {
-        // Also ensure module-level mock updated
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const teModule = require('../../../src/services/ai/text-extraction.service');
-        if (teModule && teModule.textExtractionService) teModule.textExtractionService.isSupportedMimeType = (textExtractionService.isSupportedMimeType as any);
-      } catch (e) {}
+      textExtractionService.isSupportedMimeType.mockImplementation((_mime: string) => false);
 
       // Act: Intentar procesar
       await processDocumentAI(doc._id.toString());
@@ -209,9 +173,9 @@ describe('Auto-processing AI Integration Tests', () => {
       // Assert: Estado debe ser 'completed' pero sin texto extraído
       const updatedDoc = await DocumentModel.findById(doc._id).select('+extractedText');
 
-      expect(updatedDoc!.aiProcessingStatus).toBe('completed');
-      expect(updatedDoc!.extractedText).toBeNull();
-      expect(updatedDoc!.aiProcessedAt).toBeInstanceOf(Date);
+      expect(updatedDoc?.aiProcessingStatus).toBe('completed');
+      expect(updatedDoc?.extractedText).toBeNull();
+      expect(updatedDoc?.aiProcessedAt).toBeInstanceOf(Date);
     });
 
     it('should mark document as failed if extraction throws error', async () => {
@@ -230,19 +194,19 @@ describe('Auto-processing AI Integration Tests', () => {
       });
 
       // Arrange: force extractText to throw to simulate missing file/path
-      (textExtractionService.extractText as jest.Mock).mockRejectedValue(new Error('File not found'));
+      textExtractionService.extractText.mockRejectedValue(new Error('File not found'));
       try {
         await processDocumentAI(doc._id.toString());
-      } catch (error) {
+      } catch {
         // Esperamos que falle
       }
 
       // Assert: Estado debe ser 'failed' con mensaje de error
       const updatedDoc = await DocumentModel.findById(doc._id);
 
-      expect(updatedDoc!.aiProcessingStatus).toBe('failed');
-      expect(updatedDoc!.aiError).toBeTruthy();
-      expect(updatedDoc!.aiError).toContain('not found'); // Error de archivo no encontrado
+      expect(updatedDoc?.aiProcessingStatus).toBe('failed');
+      expect(updatedDoc?.aiError).toBeTruthy();
+      expect(updatedDoc?.aiError).toContain('not found'); // Error de archivo no encontrado
     });
 
     it('should not reprocess document if already completed', async () => {
@@ -270,8 +234,8 @@ describe('Auto-processing AI Integration Tests', () => {
       // Assert: No debe cambiar nada
       const updatedDoc = await DocumentModel.findById(doc._id);
 
-      expect(updatedDoc!.aiProcessingStatus).toBe('completed');
-      expect(updatedDoc!.aiProcessedAt).toEqual(originalProcessedAt);
+      expect(updatedDoc?.aiProcessingStatus).toBe('completed');
+      expect(updatedDoc?.aiProcessedAt).toEqual(originalProcessedAt);
     });
 
     it('should handle documents with no organization (skip chunk processing)', async () => {
@@ -295,9 +259,9 @@ describe('Auto-processing AI Integration Tests', () => {
       // Assert: Debe completarse pero sin procesar chunks
       const updatedDoc = await DocumentModel.findById(doc._id).select('+extractedText');
 
-      expect(updatedDoc!.aiProcessingStatus).toBe('completed');
-      expect(updatedDoc!.extractedText).toBeTruthy();
-      expect(updatedDoc!.aiProcessedAt).toBeInstanceOf(Date);
+      expect(updatedDoc?.aiProcessingStatus).toBe('completed');
+      expect(updatedDoc?.extractedText).toBeTruthy();
+      expect(updatedDoc?.aiProcessedAt).toBeInstanceOf(Date);
     });
   });
 
@@ -346,9 +310,9 @@ describe('Auto-processing AI Integration Tests', () => {
 
       // Estado final: completed
       const finalDoc = await DocumentModel.findById(doc._id);
-      expect(finalDoc!.aiProcessingStatus).toBe('completed');
-      expect(finalDoc!.aiProcessedAt).toBeTruthy();
-      expect(finalDoc!.aiError).toBeNull();
+      expect(finalDoc?.aiProcessingStatus).toBe('completed');
+      expect(finalDoc?.aiProcessedAt).toBeTruthy();
+      expect(finalDoc?.aiError).toBeNull();
     });
 
     it('should initialize new documents with status "pending"', async () => {

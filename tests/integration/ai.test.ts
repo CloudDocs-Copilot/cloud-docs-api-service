@@ -1,6 +1,7 @@
 import { request, app } from '../setup';
 import { registerAndLogin, getAuthCookie } from '../helpers/auth.helper';
 import DocumentModel from '../../src/models/document.model';
+import mongoose from 'mongoose';
 import User from '../../src/models/user.model';
 import path from 'path';
 import fs from 'fs';
@@ -49,19 +50,27 @@ describeOrSkip('AI Endpoints', () => {
     const testContent =
       'Este es un documento de prueba para testing de IA. Contiene información sobre proyectos y objetivos del Q1 2026.';
 
-    const created = await createDocumentModel(DocumentModel, {
+    const createdUnknown = await createDocumentModel(DocumentModel, {
       organization: organizationId,
       filename: 'test-ai-doc.txt',
       content: testContent,
       mimeType: 'text/plain',
-      uploadedBy: userId,
+      uploadedBy: new mongoose.Types.ObjectId(userId),
       folder: rootFolderId
     });
 
-    documentId = created._id.toString();
+    // Validate result shape without using `any` (use unknown + type guards)
+    if (typeof createdUnknown !== 'object' || createdUnknown === null || !('_id' in createdUnknown)) {
+      throw new Error('createDocumentModel returned unexpected value');
+    }
+    const createdIdRaw = (createdUnknown as { _id?: unknown })._id;
+    if (createdIdRaw === undefined || createdIdRaw === null || typeof (createdIdRaw as { toString?: unknown }).toString !== 'function') {
+      throw new Error('created document _id is missing or not stringable');
+    }
+    documentId = (createdIdRaw as { toString: () => string }).toString();
   });
 
-  afterEach(async () => {
+  afterEach(() => {
     // Limpiar archivos de prueba
     const testFilePath = path.join(
       process.cwd(),

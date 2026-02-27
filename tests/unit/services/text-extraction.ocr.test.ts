@@ -38,7 +38,8 @@ describe('TextExtractionService OCR unit tests', () => {
       })
     }));
 
-    const { textExtractionService } = require('../../../src/services/ai/text-extraction.service');
+    const mod = await import('../../../src/services/ai/text-extraction.service');
+    const { textExtractionService } = mod;
 
     const res = await textExtractionService.extractText(imgPath, 'image/png');
 
@@ -65,7 +66,8 @@ describe('TextExtractionService OCR unit tests', () => {
       })
     }));
 
-    const { textExtractionService } = require('../../../src/services/ai/text-extraction.service');
+    const mod = await import('../../../src/services/ai/text-extraction.service');
+    const { textExtractionService } = mod;
     // stub the internal PDF extractor to return empty text so the OCR fallback is exercised
     jest.spyOn(textExtractionService as any, 'extractFromPdf').mockResolvedValue({
       text: '',
@@ -85,7 +87,8 @@ describe('TextExtractionService OCR unit tests', () => {
     const imgPath = path.join(fixturesDir, 'dummy2.png');
     fs.writeFileSync(imgPath, 'PNGDATA');
 
-    const { textExtractionService } = require('../../../src/services/ai/text-extraction.service');
+    const mod = await import('../../../src/services/ai/text-extraction.service');
+    const { textExtractionService } = mod;
 
     await expect(textExtractionService.extractText(imgPath, 'image/png')).rejects.toThrow(
       'OCR is disabled'

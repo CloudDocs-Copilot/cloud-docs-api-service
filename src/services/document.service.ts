@@ -1016,9 +1016,6 @@ export async function uploadDocument({
   }
 
   // NOTE: Upload is private by default now -> do NOT notify entire org on upload.
-    } catch (e: any) {
-      console.error('Failed to create notification (DOC_UPLOADED):', e.message);
-
   return doc;
 }
 

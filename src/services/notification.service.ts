@@ -264,10 +264,7 @@ export async function listNotifications({
     );
   }
 
-  const query: FilterQuery<INotification> = {
-    recipient: new mongoose.Types.ObjectId(userId),
-    organization: new mongoose.Types.ObjectId(orgId)
-  };
+  // Build base query dynamically below; do not predeclare `query` here.
   /**
    * Behavior:
    * - If the user has an active org (or orgId was provided), return:
@@ -275,7 +272,7 @@ export async function listNotifications({
    * - If the user has NO active org, still allow returning INVITATION_CREATED (global invitations),
    *   instead of throwing 403.
    */
-  const baseQuery: any = {
+  const baseQuery: FilterQuery<INotification> = {
     recipient: new mongoose.Types.ObjectId(userId)
   };
 
@@ -283,7 +280,7 @@ export async function listNotifications({
     baseQuery.readAt = null;
   }
 
-  let query: any;
+  let query: FilterQuery<INotification>;
 
   if (orgId && isValidObjectId(orgId)) {
     query = {
@@ -292,13 +289,13 @@ export async function listNotifications({
         { organization: new mongoose.Types.ObjectId(orgId) },
         { type: 'INVITATION_CREATED' }
       ]
-    };
+    } as FilterQuery<INotification>;
   } else {
     // No org context available -> only show global invitation notifications
     query = {
       ...baseQuery,
       type: 'INVITATION_CREATED'
-    };
+    } as FilterQuery<INotification>;
   }
 
   const [items, total] = await Promise.all([
@@ -334,7 +331,7 @@ export async function markAllRead(userId: string, organizationId?: string | null
     orgId = await getActiveOrganization(userId);
   }
 
-  const baseQuery: any = {
+  const baseQuery: FilterQuery<INotification> = {
     recipient: new mongoose.Types.ObjectId(userId),
     readAt: null
   };
@@ -344,7 +341,7 @@ export async function markAllRead(userId: string, organizationId?: string | null
    * - If org context exists: mark read for (org notifications) OR (INVITATION_CREATED)
    * - If no org context: mark read only for INVITATION_CREATED
    */
-  let query: any;
+  let query: FilterQuery<INotification>;
 
   if (orgId && isValidObjectId(orgId)) {
     query = {
@@ -353,12 +350,12 @@ export async function markAllRead(userId: string, organizationId?: string | null
         { organization: new mongoose.Types.ObjectId(orgId) },
         { type: 'INVITATION_CREATED' }
       ]
-    };
+    } as FilterQuery<INotification>;
   } else {
     query = {
       ...baseQuery,
       type: 'INVITATION_CREATED'
-    };
+    } as FilterQuery<INotification>;
   }
 
   await NotificationModel.updateMany(query, { $set: { readAt: new Date() } });

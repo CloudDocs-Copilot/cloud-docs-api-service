@@ -45,7 +45,7 @@ export async function registerUser(userData?: {
   password?: string;
   organizationId?: string;
   createOrganization?: boolean; // Si es true y no hay organizationId, crea una org
-}): Promise<any> {
+}): Promise<unknown> {
   const user = new UserBuilder()
     .withName(userData?.name || 'Test User')
     .withEmail(userData?.email || `test-${Date.now()}@example.com`)
@@ -59,7 +59,7 @@ export async function registerUser(userData?: {
     organizationId = await createTestOrganization();
   }
 
-  const payload: any = { ...user };
+  const payload: Record<string, unknown> = { ...user };
   if (organizationId) {
     payload.organizationId = organizationId;
   }
@@ -75,27 +75,26 @@ export async function registerUser(userData?: {
 export async function loginUser(email: string, password: string): Promise<AuthResult> {
   const response = await request(app).post('/api/auth/login').send({ email, password }).expect(200);
 
-  // Extraer cookies de la respuesta
-  const cookies: string[] = Array.isArray(response.headers['set-cookie'])
-    ? response.headers['set-cookie']
-    : response.headers['set-cookie']
-      ? [response.headers['set-cookie']]
-      : [];
+  const setCookieHeader = response.headers['set-cookie'];
+  const cookies: string[] = Array.isArray(setCookieHeader)
+    ? setCookieHeader.map(String)
+    : typeof setCookieHeader === 'string'
+    ? [setCookieHeader]
+    : [];
 
-  // Extraer el token de la cookie
   let token = '';
   if (cookies.length > 0) {
     const tokenCookie = cookies.find((cookie: string) => cookie.startsWith('token='));
-    if (tokenCookie) {
-      token = tokenCookie.split(';')[0].split('=')[1];
-    }
+    if (tokenCookie) token = tokenCookie.split(';')[0].split('=')[1];
   }
+
+  const body = response.body as { user: { id: string; email: string; name: string } };
 
   return {
     token,
     cookies,
-    userId: response.body.user.id,
-    user: response.body.user
+    userId: body.user.id,
+    user: body.user
   };
 }
 
@@ -130,13 +129,10 @@ export async function registerAndLogin(userData?: {
     const tokenCookie = cookies.find((cookie: string) => cookie.startsWith('token='));
     const cookieHeader = tokenCookie ? tokenCookie.split(';')[0] : '';
 
-    const orgResponse = await request(app)
-      .post('/api/organizations')
-      .set('Cookie', cookieHeader)
-      .send({ name: `Test Org ${Date.now()}` });
-
+    const orgResponse = await request(app).post('/api/organizations').set('Cookie', cookieHeader).send({ name: `Test Org ${Date.now()}` });
     if (orgResponse.status === 201) {
-      organizationId = orgResponse.body.organization.id;
+      const orgBody = orgResponse.body as { organization: { id: string } };
+      organizationId = orgBody.organization.id;
     }
   }
 
@@ -220,6 +216,6 @@ export async function getAuthCookies(): Promise<string[]> {
 /**
  * Intenta autenticar con credenciales incorrectas
  */
-export async function attemptInvalidLogin(email: string, password: string): Promise<any> {
+export async function attemptInvalidLogin(email: string, password: string): Promise<unknown> {
   return await request(app).post('/api/auth/login').send({ email, password });
 }

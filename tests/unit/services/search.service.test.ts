@@ -79,13 +79,18 @@ describe('search.service', () => {
     expect(suggestions).toEqual([]);
   });
 });
-jest.mock('../../../src/configurations/elasticsearch-config', () => ({
-  getInstance: () => ({
+jest.mock('../../../src/configurations/elasticsearch-config', () => {
+  const getInstanceFn = jest.fn(() => ({
     index: jest.fn().mockResolvedValue(true),
     delete: jest.fn().mockResolvedValue(true),
     search: jest.fn().mockResolvedValue({ hits: { hits: [{ _id: '1', _score: 1, _source: { filename: 'f' } }], total: 1 }, took: 2 })
-  })
-}));
+  }));
+
+  return {
+    getInstance: getInstanceFn,
+    default: { getInstance: getInstanceFn }
+  };
+});
 
 import { indexDocument, removeDocumentFromIndex, searchDocuments, getAutocompleteSuggestions } from '../../../src/services/search.service';
 
@@ -104,15 +109,28 @@ describe('search.service', () => {
 
   test('indexDocument calls client.index and truncates content', async () => {
     const long = 'a'.repeat(200000);
-    await expect(indexDocument(fakeDoc, long)).resolves.toBeUndefined();
+    const client = { index: jest.fn().mockResolvedValue(true) };
+    const svcMod = await import('../../../src/services/search.service');
+    const svc = svcMod as unknown as typeof import('../../../src/services/search.service');
+    svc.getEsClient = () => client as any;
+    await expect(svc.indexDocument(fakeDoc, long)).resolves.toBeUndefined();
   });
 
   test('removeDocumentFromIndex handles success', async () => {
-    await expect(removeDocumentFromIndex('doc1')).resolves.toBeUndefined();
+    const client2 = { delete: jest.fn().mockResolvedValue(true) };
+    const svcMod2 = await import('../../../src/services/search.service');
+    const svc2 = svcMod2 as unknown as typeof import('../../../src/services/search.service');
+    svc2.getEsClient = () => client2 as any;
+    await expect(svc2.removeDocumentFromIndex('doc1')).resolves.toBeUndefined();
   });
 
   test('searchDocuments returns mapped result', async () => {
-    const res = await searchDocuments({ query: 'q', userId: 'user1' } as any);
+    const hits = { hits: { hits: [{ _id: 'h1', _score: 1.2, _source: { filename: 'a' } }], total: { value: 1 } }, took: 5 };
+    const client = { search: jest.fn().mockResolvedValue(hits) };
+    const svcMod = await import('../../../src/services/search.service');
+    const svc = svcMod as unknown as typeof import('../../../src/services/search.service');
+    svc.getEsClient = () => client as any;
+    const res = await svc.searchDocuments({ query: 'q', userId: 'user1' } as any);
     expect(res).toHaveProperty('documents');
     expect(res.documents[0]).toHaveProperty('id');
   });
@@ -125,21 +143,27 @@ describe('search.service', () => {
   test('searchDocuments supports mimeType filter and date range', async () => {
     const from = new Date(Date.now() - 1000 * 60 * 60);
     const to = new Date();
-    const res = await searchDocuments({ query: 'q', userId: 'user1', mimeType: 'text/plain', fromDate: from, toDate: to } as any);
+    const hits = { hits: { hits: [], total: { value: 0 } }, took: 1 };
+    const client = { search: jest.fn().mockResolvedValue(hits) };
+    const svcMod = await import('../../../src/services/search.service');
+    const svc = svcMod as unknown as typeof import('../../../src/services/search.service');
+    svc.getEsClient = () => client as any;
+    const res = await svc.searchDocuments({ query: 'q', userId: 'user1', mimeType: 'text/plain', fromDate: from, toDate: to } as any);
     expect(res.total).toBeGreaterThanOrEqual(0);
   });
 
   test('indexDocument logs on error should rethrow', async () => {
     // Import and override getEsClient to inject a failing mock
-    const searchService = require('../../../src/services/search.service');
+    const mod = await import('../../../src/services/search.service');
+    const searchService = mod as unknown as typeof import('../../../src/services/search.service');
     const originalGetEsClient = searchService.getEsClient;
     searchService.getEsClient = () => ({
       index: jest.fn().mockRejectedValue(new Error('es-error'))
     });
-    
+
     // Call from the required module to use the overridden getEsClient
     await expect(searchService.indexDocument(fakeDoc)).rejects.toThrow('es-error');
-    
+
     // Restore original
     searchService.getEsClient = originalGetEsClient;
   });
@@ -156,12 +180,11 @@ describe('search.service', () => {
   it('indexDocument calls client.index', async () => {
     const client = { index: jest.fn().mockResolvedValue(true) };
     // override real module's getInstance to return our client
-    const es = require('../../../src/configurations/elasticsearch-config');
-    es.getInstance = mockGetInstance;
-    if (es.default) es.default.getInstance = mockGetInstance;
-    mockGetInstance.mockReturnValue(client);
-
-    const svc = require('../../../src/services/search.service');
+    const es = await import('../../../src/configurations/elasticsearch-config');
+    (es as any).getInstance.mockReturnValue(client);
+    if ((es as any).default) (es as any).default.getInstance.mockReturnValue(client);
+    const svcMod = await import('../../../src/services/search.service');
+    const svc = svcMod as unknown as typeof import('../../../src/services/search.service');
     svc.getEsClient = () => client;
     const doc = {
       _id: 'd1',
@@ -179,12 +202,11 @@ describe('search.service', () => {
   // 🔍 RFE-AI-004: Verify that extractedText is indexed in 'content' field
   it('indexDocument includes content field when extractedText is provided', async () => {
     const client = { index: jest.fn().mockResolvedValue(true) };
-    const es = require('../../../src/configurations/elasticsearch-config');
-    es.getInstance = mockGetInstance;
-    if (es.default) es.default.getInstance = mockGetInstance;
-    mockGetInstance.mockReturnValue(client);
-
-    const svc = require('../../../src/services/search.service');
+    const es = await import('../../../src/configurations/elasticsearch-config');
+    (es as any).getInstance.mockReturnValue(client);
+    if ((es as any).default) (es as any).default.getInstance.mockReturnValue(client);
+    const svcMod = await import('../../../src/services/search.service');
+    const svc = svcMod as unknown as typeof import('../../../src/services/search.service');
     svc.getEsClient = () => client;
     const doc = {
       _id: 'd2',
@@ -220,12 +242,11 @@ describe('search.service', () => {
   // 🔍 RFE-AI-004: Verify that content is null when no extractedText provided
   it('indexDocument sets content to null when no extractedText provided', async () => {
     const client = { index: jest.fn().mockResolvedValue(true) };
-    const es = require('../../../src/configurations/elasticsearch-config');
-    es.getInstance = mockGetInstance;
-    if (es.default) es.default.getInstance = mockGetInstance;
-    mockGetInstance.mockReturnValue(client);
-
-    const svc = require('../../../src/services/search.service');
+    const es = await import('../../../src/configurations/elasticsearch-config');
+    (es as any).getInstance.mockReturnValue(client);
+    if ((es as any).default) (es as any).default.getInstance.mockReturnValue(client);
+    const svcMod = await import('../../../src/services/search.service');
+    const svc = svcMod as unknown as typeof import('../../../src/services/search.service');
     svc.getEsClient = () => client;
     const doc = {
       _id: 'd3',
@@ -250,12 +271,11 @@ describe('search.service', () => {
 
   it('removeDocumentFromIndex handles 404 gracefully', async () => {
     const client = { delete: jest.fn().mockRejectedValue({ meta: { statusCode: 404 } }) };
-    const es = require('../../../src/configurations/elasticsearch-config');
-    es.getInstance = mockGetInstance;
-    if (es.default) es.default.getInstance = mockGetInstance;
-    mockGetInstance.mockReturnValue(client);
-
-    const svc = require('../../../src/services/search.service');
+    const es = await import('../../../src/configurations/elasticsearch-config');
+    (es as any).getInstance.mockReturnValue(client);
+    if ((es as any).default) (es as any).default.getInstance.mockReturnValue(client);
+    const svcMod = await import('../../../src/services/search.service');
+    const svc = svcMod as unknown as typeof import('../../../src/services/search.service');
     svc.getEsClient = () => client;
     await expect(svc.removeDocumentFromIndex('d1')).resolves.toBeUndefined();
   });
@@ -266,12 +286,11 @@ describe('search.service', () => {
       took: 5
     };
     const client = { search: jest.fn().mockResolvedValue(hits) };
-    const es = require('../../../src/configurations/elasticsearch-config');
-    es.getInstance = mockGetInstance;
-    if (es.default) es.default.getInstance = mockGetInstance;
-    mockGetInstance.mockReturnValue(client);
-
-    const svc = require('../../../src/services/search.service');
+    const es = await import('../../../src/configurations/elasticsearch-config');
+    (es as any).getInstance.mockReturnValue(client);
+    if ((es as any).default) (es as any).default.getInstance.mockReturnValue(client);
+    const svcMod = await import('../../../src/services/search.service');
+    const svc = svcMod as unknown as typeof import('../../../src/services/search.service');
     svc.getEsClient = () => client;
     const res = await svc.searchDocuments({ query: 'a', userId: 'u1' } as any);
     expect(res.total).toBe(1);
@@ -289,11 +308,11 @@ describe('search.service', () => {
       }
     };
     const client = { search: jest.fn().mockResolvedValue(hits) };
-    const es = require('../../../src/configurations/elasticsearch-config');
-    es.getInstance = mockGetInstance;
-    mockGetInstance.mockReturnValue(client);
+    const es = await import('../../../src/configurations/elasticsearch-config');
+    (es as any).getInstance.mockReturnValue(client);
 
-    const svc = require('../../../src/services/search.service');
+    const svcMod = await import('../../../src/services/search.service');
+    const svc = svcMod as unknown as typeof import('../../../src/services/search.service');
     svc.getEsClient = () => client;
     const res = await svc.getAutocompleteSuggestions('A', 'u1', 5);
     expect(Array.isArray(res)).toBe(true);

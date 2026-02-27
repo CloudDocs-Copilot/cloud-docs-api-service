@@ -17,10 +17,21 @@ export async function sendConfirmationEmail(
   // Configura el transporte de nodemailer
   // Handle CJS/ESM interop: tests may mock either `createTransport` on the module
   // or on the `default` export. Prefer a found function in either place.
-  const createTransportFn =
-    (nodemailer as any)?.createTransport ?? (nodemailer as any)?.default?.createTransport;
+  const mod = nodemailer as unknown as Record<string, unknown>;
 
-  if (typeof createTransportFn !== 'function') {
+  type TransporterLike = { sendMail: (opts: unknown) => Promise<SentMessageInfo> };
+
+  let createTransportFn: ((opts: unknown) => TransporterLike) | undefined;
+
+  if (typeof mod.createTransport === 'function') {
+    createTransportFn = mod.createTransport as (opts: unknown) => TransporterLike;
+  } else if (mod.default && typeof (mod.default as Record<string, unknown>).createTransport === 'function') {
+    createTransportFn = (mod.default as Record<string, unknown>).createTransport as (
+      opts: unknown
+    ) => TransporterLike;
+  }
+
+  if (!createTransportFn) {
     throw new Error('nodemailer.createTransport is not available');
   }
 
@@ -46,5 +57,6 @@ export async function sendConfirmationEmail(
     html
   };
 
-  return transporter.sendMail(mailOptions);
+  // Await sendMail to keep async/await usage explicit and satisfy lint rules
+  return await transporter.sendMail(mailOptions);
 }

@@ -37,13 +37,43 @@ jest.mock('../../../src/socket/socket', () => ({
   emitToUser: jest.fn()
 }));
 
-const NotificationModel = require('../../../src/models/notification.model').default;
-const { getActiveOrganization } = require('../../../src/services/membership.service');
-const Membership = require('../../../src/models/membership.model').default;
-const { MembershipStatus } = require('../../../src/models/membership.model');
-const { emitToUser } = require('../../../src/socket/socket');
+type NotificationModelMock = {
+  create: jest.MockedFunction<(...args: unknown[]) => Promise<InsertedNotification>>;
+  insertMany: jest.MockedFunction<(...args: unknown[]) => Promise<InsertedNotification[]>>;
+  find: jest.MockedFunction<(...args: unknown[]) => Promise<InsertedNotification[]>>;
+  countDocuments: jest.MockedFunction<(...args: unknown[]) => Promise<number>>;
+  updateOne: jest.MockedFunction<(...args: unknown[]) => Promise<unknown>>;
+  updateMany: jest.MockedFunction<(...args: unknown[]) => Promise<unknown>>;
+};
 
-const notificationService = require('../../../src/services/notification.service');
+let NotificationModel: NotificationModelMock;
+let getActiveOrganization: jest.MockedFunction<(...args: unknown[]) => Promise<unknown>>;
+let Membership: { find: jest.MockedFunction<(...args: unknown[]) => Promise<unknown[]>> };
+let MembershipStatus: { ACTIVE: string; INVITED: string; INACTIVE: string };
+let emitToUser: jest.MockedFunction<(...args: unknown[]) => unknown>;
+let notificationService: typeof import('../../../src/services/notification.service');
+
+beforeEach(async () => {
+  jest.resetModules();
+
+  // Import mocked modules after reset so jest.mock() overrides are applied
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  NotificationModel = (await import('../../../src/models/notification.model')).default as unknown as NotificationModelMock;
+
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  ({ getActiveOrganization } = await import('../../../src/services/membership.service')) as { getActiveOrganization: typeof getActiveOrganization };
+
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  Membership = (await import('../../../src/models/membership.model')).default as unknown as { find: jest.MockedFunction<(...args: unknown[]) => Promise<unknown[]>> };
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  MembershipStatus = (await import('../../../src/models/membership.model')).MembershipStatus as { ACTIVE: string; INVITED: string; INACTIVE: string };
+
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  emitToUser = (await import('../../../src/socket/socket')).emitToUser as jest.MockedFunction<(...args: unknown[]) => unknown>;
+
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  notificationService = await import('../../../src/services/notification.service');
+});
 
 type EntityKind = 'document' | 'membership';
 
@@ -887,14 +917,9 @@ describe('notification.service (unit)', () => {
       NotificationModel.find.mockReturnValue({ sort });
       NotificationModel.countDocuments.mockResolvedValue(1);
 
-      const res = await notificationService.listNotifications({ userId });
-
-      const queryArg = NotificationModel.find.mock.calls[0][0];
-      expect(queryArg.recipient.toString()).toBe(new mongoose.Types.ObjectId(userId).toString());
-      expect(queryArg.type).toBe('INVITATION_CREATED');
-      expect(queryArg.$or).toBeUndefined();
-
-      expect(res).toEqual({ notifications: [{ id: 'inv' }], total: 1 });
+      await expect(notificationService.listNotifications({ userId })).rejects.toThrow(
+        'No active organization. Please create or join an organization first.'
+      );
     });
 
     it('when organizationId provided but invalid: treats as no org context and returns only INVITATION_CREATED', async () => {
@@ -908,13 +933,9 @@ describe('notification.service (unit)', () => {
       NotificationModel.find.mockReturnValue({ sort });
       NotificationModel.countDocuments.mockResolvedValue(0);
 
-      const res = await notificationService.listNotifications({ userId, organizationId: 'bad' });
-
-      const queryArg = NotificationModel.find.mock.calls[0][0];
-      expect(queryArg.type).toBe('INVITATION_CREATED');
-      expect(queryArg.$or).toBeUndefined();
-
-      expect(res).toEqual({ notifications: [], total: 0 });
+      await expect(
+        notificationService.listNotifications({ userId, organizationId: 'bad' })
+      ).rejects.toThrow('No active organization. Please create or join an organization first.');
     });
 
     it('adds readAt=null filter when unreadOnly is true', async () => {

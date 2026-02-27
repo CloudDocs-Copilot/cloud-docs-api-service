@@ -32,7 +32,7 @@ describe('Auth Service - email branches', () => {
     process.env.SEND_CONFIRMATION_EMAIL = 'true';
     process.env.NODE_ENV = 'production';
     mockBcryptHashEmail.mockResolvedValue('h');
-    const mongoose = require('mongoose');
+    const mongoose = await import('mongoose');
     const id = new mongoose.Types.ObjectId().toString();
     const fakeUser = {
       _id: id,
@@ -42,8 +42,13 @@ describe('Auth Service - email branches', () => {
     };
     mockUserCreateEmail.mockResolvedValue(fakeUser);
 
-    const { registerUser } = require('../../../src/services/auth.service');
-    const res = await registerUser({ name: 'X', email: 'x@y.com', password: 'P@ssw0rd!' } as any);
+    const mod = await import('../../../src/services/auth.service');
+    const { registerUser } = mod;
+    const res = await registerUser({ name: 'X', email: 'x@y.com', password: 'P@ssw0rd!' } as unknown as {
+      name: string;
+      email: string;
+      password: string;
+    });
 
     expect(mockUserCreateEmail).toHaveBeenCalled();
     expect(mockSendEmail).toHaveBeenCalled();
@@ -54,7 +59,7 @@ describe('Auth Service - email branches', () => {
     process.env.SEND_CONFIRMATION_EMAIL = 'true';
     process.env.NODE_ENV = 'production';
     mockBcryptHashEmail.mockResolvedValue('h');
-    const mongoose = require('mongoose');
+    const mongoose = await import('mongoose');
     const id2 = new mongoose.Types.ObjectId().toString();
     const fakeUser = {
       _id: id2,
@@ -65,8 +70,13 @@ describe('Auth Service - email branches', () => {
     mockUserCreateEmail.mockResolvedValue(fakeUser);
     mockSendEmail.mockRejectedValue(new Error('SMTP fail'));
 
-    const { registerUser } = require('../../../src/services/auth.service');
-    const res = await registerUser({ name: 'Y', email: 'y@z.com', password: 'P@ssw0rd!' } as any);
+    const mod = await import('../../../src/services/auth.service');
+    const { registerUser } = mod;
+    const res = await registerUser({ name: 'Y', email: 'y@z.com', password: 'P@ssw0rd!' } as unknown as {
+      name: string;
+      email: string;
+      password: string;
+    });
 
     expect(mockUserCreateEmail).toHaveBeenCalled();
     expect(String(res._id)).toBe(id2);

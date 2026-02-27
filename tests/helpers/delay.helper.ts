@@ -67,7 +67,7 @@ export async function retryWithBackoff<T>(
     try {
       return await fn();
     } catch (error) {
-      lastError = error as Error;
+      lastError = error instanceof Error ? error : new Error(String(error));
       if (i < maxRetries - 1) {
         await delay(currentDelay);
         currentDelay *= 2; // Exponential backoff
@@ -75,5 +75,5 @@ export async function retryWithBackoff<T>(
     }
   }
 
-  throw lastError;
+  throw lastError ?? new Error('Retry failed');
 }

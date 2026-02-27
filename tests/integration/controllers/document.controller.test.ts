@@ -1,42 +1,62 @@
 // document.controller.spec.ts
+ 
+
 export {};
 
 import mongoose from 'mongoose';
+import type { Response } from 'express';
+// Removed unused `typeof` imports — mocks use local explicit types below
+import type { AuthRequest } from '../../../src/middlewares/auth.middleware';
+import type { IDocument } from '../../../src/models/document.model';
 
-const mockUploadDocument = jest.fn();
-const mockReplaceDocumentFile = jest.fn();
-const mockListDocuments = jest.fn();
-const mockListSharedDocumentsToUser = jest.fn();
-const mockGetUserRecentDocuments = jest.fn();
-const mockFindDocumentById = jest.fn();
-const mockShareDocument = jest.fn();
-const mockMoveDocument = jest.fn();
-const mockCopyDocument = jest.fn();
-const mockDeleteDocument = jest.fn();
+// Local explicit types for service functions to avoid `any` assignments in tests
+type UploadDocumentFn = (opts: { file: unknown; userId: string; folderId?: string }) => Promise<IDocument>;
+type ReplaceDocumentFileFn = (opts: { documentId: string; userId: string; file: unknown }) => Promise<IDocument>;
+type ListDocumentsFn = (userId: string) => Promise<IDocument[]>;
+type ListSharedDocumentsToUserFn = (userId: string) => Promise<IDocument[]>;
+type GetUserRecentDocumentsFn = (opts: { userId: string; limit: number }) => Promise<IDocument[]>;
+type FindDocumentByIdFn = (id: string) => Promise<IDocument | null>;
+type ShareDocumentFn = (opts: { id: string; userId: string; userIds: string[] }) => Promise<IDocument>;
+type MoveDocumentFn = (opts: { documentId: string; userId: string; targetFolderId: string }) => Promise<IDocument>;
+type CopyDocumentFn = (opts: { documentId: string; userId: string; targetFolderId: string }) => Promise<IDocument>;
+type DeleteDocumentFn = (opts: { id: string; userId: string }) => Promise<IDocument>;
 
-const mockValidateDownloadPath = jest.fn();
+const mockUploadDocument = jest.fn() as jest.MockedFunction<UploadDocumentFn>;
+const mockReplaceDocumentFile = jest.fn() as jest.MockedFunction<ReplaceDocumentFileFn>;
+const mockListDocuments = jest.fn() as jest.MockedFunction<ListDocumentsFn>;
+const mockListSharedDocumentsToUser = jest.fn() as jest.MockedFunction<ListSharedDocumentsToUserFn>;
+const mockGetUserRecentDocuments = jest.fn() as jest.MockedFunction<GetUserRecentDocumentsFn>;
+const mockFindDocumentById = jest.fn() as jest.MockedFunction<FindDocumentByIdFn>;
+const mockShareDocument = jest.fn() as jest.MockedFunction<ShareDocumentFn>;
+const mockMoveDocument = jest.fn() as jest.MockedFunction<MoveDocumentFn>;
+const mockCopyDocument = jest.fn() as jest.MockedFunction<CopyDocumentFn>;
+const mockDeleteDocument = jest.fn() as jest.MockedFunction<DeleteDocumentFn>;
 
-const mockHasAnyRole = jest.fn();
+type ValidateDownloadPathFn = (relativePath: string, base: string) => Promise<string>;
+const mockValidateDownloadPath = jest.fn() as jest.MockedFunction<ValidateDownloadPathFn>;
 
-const mockMammothConvertToHtml = jest.fn();
+type HasAnyRoleFn = (userId: string, organizationId: string, roles: string[]) => Promise<boolean>;
+const mockHasAnyRole = jest.fn() as jest.MockedFunction<HasAnyRoleFn>;
+
+const mockMammothConvertToHtml = jest.fn() as jest.MockedFunction<(...args: unknown[]) => Promise<{ value: string }>>;
 
 jest.mock('../../../src/services/document.service', () => ({
   __esModule: true,
-  uploadDocument: (...args: unknown[]) => mockUploadDocument(...args),
-  replaceDocumentFile: (...args: unknown[]) => mockReplaceDocumentFile(...args),
-  listDocuments: (...args: unknown[]) => mockListDocuments(...args),
-  listSharedDocumentsToUser: (...args: unknown[]) => mockListSharedDocumentsToUser(...args),
-  getUserRecentDocuments: (...args: unknown[]) => mockGetUserRecentDocuments(...args),
-  findDocumentById: (...args: unknown[]) => mockFindDocumentById(...args),
-  shareDocument: (...args: unknown[]) => mockShareDocument(...args),
-  moveDocument: (...args: unknown[]) => mockMoveDocument(...args),
-  copyDocument: (...args: unknown[]) => mockCopyDocument(...args),
-  deleteDocument: (...args: unknown[]) => mockDeleteDocument(...args),
+  uploadDocument: mockUploadDocument,
+  replaceDocumentFile: mockReplaceDocumentFile,
+  listDocuments: mockListDocuments,
+  listSharedDocumentsToUser: mockListSharedDocumentsToUser,
+  getUserRecentDocuments: mockGetUserRecentDocuments,
+  findDocumentById: mockFindDocumentById,
+  shareDocument: mockShareDocument,
+  moveDocument: mockMoveDocument,
+  copyDocument: mockCopyDocument,
+  deleteDocument: mockDeleteDocument,
 }));
 
 jest.mock('../../../src/utils/path-sanitizer', () => ({
   __esModule: true,
-  validateDownloadPath: (...args: unknown[]) => mockValidateDownloadPath(...args),
+  validateDownloadPath: mockValidateDownloadPath,
 }));
 
 /**
@@ -46,7 +66,7 @@ jest.mock('../../../src/utils/path-sanitizer', () => ({
  */
 jest.mock('../../../src/services/membership.service', () => ({
   __esModule: true,
-  hasAnyRole: (...args: unknown[]) => mockHasAnyRole(...args),
+  hasAnyRole: mockHasAnyRole,
 }));
 
 jest.mock('../../../src/models/membership.model', () => ({
@@ -60,10 +80,12 @@ jest.mock('../../../src/models/membership.model', () => ({
 jest.mock('mammoth', () => ({
   __esModule: true,
   default: {
-    convertToHtml: (...args: unknown[]) => mockMammothConvertToHtml(...args),
+    convertToHtml: mockMammothConvertToHtml,
   },
-  convertToHtml: (...args: unknown[]) => mockMammothConvertToHtml(...args),
+  convertToHtml: mockMammothConvertToHtml,
 }));
+
+import * as documentController from '../../../src/controllers/document.controller';
 
 type MockRes = {
   status: jest.Mock;
@@ -74,19 +96,27 @@ type MockRes = {
   setHeader: jest.Mock;
 };
 
-function makeRes(): MockRes {
-  const res: Partial<MockRes> = {};
-  res.status = jest.fn(() => res);
-  res.json = jest.fn(() => res);
-  res.download = jest.fn(() => res);
-  res.send = jest.fn(() => res);
-  res.sendFile = jest.fn(() => res);
-  res.setHeader = jest.fn(() => res);
-  return res as MockRes;
+function makeRes(): Response {
+  const res: MockRes = {
+    status: jest.fn(),
+    json: jest.fn(),
+    download: jest.fn(),
+    send: jest.fn(),
+    sendFile: jest.fn(),
+    setHeader: jest.fn(),
+  };
+  // Chainable mocks
+  (res.status).mockImplementation(() => res);
+  (res.json).mockImplementation(() => res);
+  (res.download).mockImplementation(() => res);
+  (res.send).mockImplementation(() => res);
+  (res.sendFile).mockImplementation(() => res);
+  (res.setHeader).mockImplementation(() => res);
+  return res as unknown as Response;
 }
 
-function makeNext() {
-  return jest.fn();
+function makeNext(): jest.MockedFunction<(err?: unknown) => void> {
+  return jest.fn() as jest.MockedFunction<(err?: unknown) => void>;
 }
 
 afterEach(() => {
@@ -102,34 +132,32 @@ describe('document.controller (unit)', () => {
 
   describe('upload', () => {
     it('should next 400 when file missing', async () => {
-      const { upload } = require('../../../src/controllers/document.controller');
-      const req: { file?: unknown; body: Record<string, unknown>; user: { id: string } } = {
+      const req = {
         file: undefined,
         body: {},
         user: { id: USER_ID },
-      };
+      } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await upload(req, res, next);
+      await documentController.upload(req, res, next);
 
       expect(next).toHaveBeenCalled();
       expect(mockUploadDocument).not.toHaveBeenCalled();
     });
 
     it('should call service with folderId undefined when not provided', async () => {
-      const { upload } = require('../../../src/controllers/document.controller');
-      mockUploadDocument.mockResolvedValue({ _id: 'doc1' });
+      mockUploadDocument.mockResolvedValue({ _id: new mongoose.Types.ObjectId() } as IDocument);
 
-      const req: { file: unknown; body: Record<string, unknown>; user: { id: string } } = {
+      const req = {
         file: { filename: 'a.txt' },
         body: {},
         user: { id: USER_ID },
-      };
+      } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await upload(req, res, next);
+      await documentController.upload(req, res, next);
 
       expect(mockUploadDocument).toHaveBeenCalledWith({
         file: req.file,
@@ -143,18 +171,17 @@ describe('document.controller (unit)', () => {
     });
 
     it('should call service and return 201 on success', async () => {
-      const { upload } = require('../../../src/controllers/document.controller');
-      mockUploadDocument.mockResolvedValue({ _id: 'doc1' });
+      mockUploadDocument.mockResolvedValue({ _id: new mongoose.Types.ObjectId() } as IDocument);
 
-      const req: { file: unknown; body: { folderId?: string }; user: { id: string } } = {
+      const req = {
         file: { filename: 'a.txt' },
         body: { folderId: '507f1f77bcf86cd799439088' },
         user: { id: USER_ID },
-      };
+      } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await upload(req, res, next);
+      await documentController.upload(req, res, next);
 
       expect(mockUploadDocument).toHaveBeenCalledWith({
         file: req.file,
@@ -170,51 +197,49 @@ describe('document.controller (unit)', () => {
 
   describe('replaceFile', () => {
     it('should next 400 when file missing', async () => {
-      const { replaceFile } = require('../../../src/controllers/document.controller');
-      const req: { file?: unknown; params: { id: string }; user: { id: string } } = {
+      const req = {
         file: undefined,
-        params: { id: DOC_ID },
+        params: { id: DOC_ID } as unknown,
         user: { id: USER_ID },
-      };
+      } as AuthRequest;
+      
       const res = makeRes();
       const next = makeNext();
 
-      await replaceFile(req, res, next);
+      await documentController.replaceFile(req, res, next);
 
       expect(next).toHaveBeenCalled();
       expect(mockReplaceDocumentFile).not.toHaveBeenCalled();
     });
 
     it('should map "Document not found" to 404', async () => {
-      const { replaceFile } = require('../../../src/controllers/document.controller');
       mockReplaceDocumentFile.mockRejectedValue(new Error('Document not found'));
 
-      const req: { file: unknown; params: { id: string }; user: { id: string } } = {
+      const req = {
         file: { filename: 'a.txt' },
-        params: { id: DOC_ID },
+        params: { id: DOC_ID } as unknown,
         user: { id: USER_ID },
-      };
+      } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await replaceFile(req, res, next);
+      await documentController.replaceFile(req, res, next);
 
       expect(next).toHaveBeenCalled();
     });
 
     it('should return success json on success', async () => {
-      const { replaceFile } = require('../../../src/controllers/document.controller');
-      mockReplaceDocumentFile.mockResolvedValue({ _id: DOC_ID });
+      mockReplaceDocumentFile.mockResolvedValue({ _id: new mongoose.Types.ObjectId(DOC_ID) } as IDocument);
 
-      const req: { file: unknown; params: { id: string }; user: { id: string } } = {
+      const req = {
         file: { filename: 'a.txt' },
-        params: { id: DOC_ID },
+        params: { id: DOC_ID } as unknown,
         user: { id: USER_ID },
-      };
+      } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await replaceFile(req, res, next);
+      await documentController.replaceFile(req, res, next);
 
       expect(mockReplaceDocumentFile).toHaveBeenCalledWith({
         documentId: DOC_ID,
@@ -229,32 +254,34 @@ describe('document.controller (unit)', () => {
 
   describe('list', () => {
     it('should return docs and count', async () => {
-      const { list } = require('../../../src/controllers/document.controller');
-      mockListDocuments.mockResolvedValue([{ _id: 1 }, { _id: 2 }]);
+    
+      mockListDocuments.mockResolvedValue([
+        { _id: new mongoose.Types.ObjectId() },
+        { _id: new mongoose.Types.ObjectId() },
+      ] as IDocument[]);
 
-      const req: { user: { id: string } } = { user: { id: USER_ID } };
+      const req = { user: { id: USER_ID } } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await list(req, res, next);
+      await documentController.list(req, res, next);
 
       expect(mockListDocuments).toHaveBeenCalledWith(USER_ID);
       expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ success: true, count: 2, documents: expect.any(Array) })
+        expect.objectContaining({ success: true, count: 2, documents: expect.arrayContaining([expect.objectContaining({ _id: expect.anything() })]) })
       );
     });
   });
 
   describe('listSharedToMe', () => {
     it('should return docs and count', async () => {
-      const { listSharedToMe } = require('../../../src/controllers/document.controller');
-      mockListSharedDocumentsToUser.mockResolvedValue([{ _id: 1 }]);
+      mockListSharedDocumentsToUser.mockResolvedValue([{ _id: new mongoose.Types.ObjectId() }] as IDocument[]);
 
-      const req: { user: { id: string } } = { user: { id: USER_ID } };
+      const req = { user: { id: USER_ID } } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await listSharedToMe(req, res, next);
+      await documentController.listSharedToMe(req, res, next);
 
       expect(mockListSharedDocumentsToUser).toHaveBeenCalledWith(USER_ID);
       expect(res.json).toHaveBeenCalledWith(
@@ -265,70 +292,72 @@ describe('document.controller (unit)', () => {
 
   describe('getRecent', () => {
     it('should next 400 when organizationId missing', async () => {
-      const { getRecent } = require('../../../src/controllers/document.controller');
-      const req: { user: { id: string }; params: Record<string, unknown>; query: Record<string, unknown> } = {
+      const req = {
         user: { id: USER_ID },
         params: {},
         query: {},
-      };
+      } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await getRecent(req, res, next);
+      await documentController.getRecent(req, res, next);
 
       expect(next).toHaveBeenCalled();
       expect(mockGetUserRecentDocuments).not.toHaveBeenCalled();
     });
 
     it('should next 400 when organizationId invalid', async () => {
-      const { getRecent } = require('../../../src/controllers/document.controller');
-      const req: { user: { id: string }; params: { organizationId: string }; query: Record<string, unknown> } = {
+      const req = {
         user: { id: USER_ID },
-        params: { organizationId: 'invalid' },
+        params: { organizationId: 'invalid' } as unknown,
         query: {},
-      };
+      } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await getRecent(req, res, next);
+      await documentController.getRecent(req, res, next);
 
       expect(next).toHaveBeenCalled();
       expect(mockGetUserRecentDocuments).not.toHaveBeenCalled();
     });
 
     it('should default limit=10 and return docs', async () => {
-      const { getRecent } = require('../../../src/controllers/document.controller');
-      mockGetUserRecentDocuments.mockResolvedValue([{ _id: 1 }, { _id: 2 }]);
+     
+      mockGetUserRecentDocuments.mockResolvedValue([
+        { _id: new mongoose.Types.ObjectId() },
+        { _id: new mongoose.Types.ObjectId() },
+      ] as IDocument[]);
 
-      const req: { user: { id: string }; params: { organizationId: string }; query: Record<string, unknown> } = {
+      const req = {
         user: { id: USER_ID },
-        params: { organizationId: ORG_ID },
+        params: { organizationId: ORG_ID } as unknown,
         query: {},
-      };
+      } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await getRecent(req, res, next);
+      await documentController.getRecent(req, res, next);
 
       expect(mockGetUserRecentDocuments).toHaveBeenCalledWith({ userId: USER_ID, limit: 10 });
       expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ success: true, count: 2, documents: expect.any(Array) })
+        expect.objectContaining({ success: true, count: 2, documents: expect.arrayContaining([expect.objectContaining({ _id: expect.anything() })]) })
       );
     });
 
     it('should parse limit from query', async () => {
-      const { getRecent } = require('../../../src/controllers/document.controller');
-      mockGetUserRecentDocuments.mockResolvedValue([]);
+       
+      
+      mockGetUserRecentDocuments.mockResolvedValue([] as IDocument[]);
 
-      const req: { user: { id: string }; params: { organizationId: string }; query: { limit: string } } = {
+      const req = {
         user: { id: USER_ID },
-        params: { organizationId: ORG_ID },
-        query: { limit: '2' },
-      };
+        params: { organizationId: ORG_ID } as unknown,
+        query: { limit: '2' } as unknown,
+      } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await getRecent(req, res, next);
+      await documentController.getRecent(req, res, next);
 
       expect(mockGetUserRecentDocuments).toHaveBeenCalledWith({ userId: USER_ID, limit: 2 });
     });
@@ -336,130 +365,123 @@ describe('document.controller (unit)', () => {
 
   describe('getById', () => {
     it('should next 404 when doc not found', async () => {
-      const { getById } = require('../../../src/controllers/document.controller');
       mockFindDocumentById.mockResolvedValue(null);
 
-      const req: { user: { id: string }; params: { id: string } } = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await getById(req, res, next);
+      await documentController.getById(req, res, next);
 
       expect(next).toHaveBeenCalled();
     });
 
     it('should allow access for org doc when user is owner (no membership check needed)', async () => {
-      const { getById } = require('../../../src/controllers/document.controller');
 
       mockFindDocumentById.mockResolvedValue({
         _id: DOC_ID,
         organization: new mongoose.Types.ObjectId(ORG_ID),
         uploadedBy: new mongoose.Types.ObjectId(USER_ID),
         sharedWith: [],
-      });
+      } as unknown as IDocument);
 
-      const req: { user: { id: string }; params: { id: string } } = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await getById(req, res, next);
+      await documentController.getById(req, res, next);
 
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
       expect(mockHasAnyRole).not.toHaveBeenCalled();
     });
 
     it('should allow access for org doc when user is in sharedWith', async () => {
-      const { getById } = require('../../../src/controllers/document.controller');
 
       mockFindDocumentById.mockResolvedValue({
         _id: DOC_ID,
         organization: new mongoose.Types.ObjectId(ORG_ID),
         uploadedBy: new mongoose.Types.ObjectId(OTHER_USER_ID),
         sharedWith: [new mongoose.Types.ObjectId(USER_ID)],
-      });
+      } as unknown as IDocument);
 
-      const req: { user: { id: string }; params: { id: string } } = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await getById(req, res, next);
+      await documentController.getById(req, res, next);
 
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     });
 
     it('should allow access for org doc when user is org admin (hasAnyRole true)', async () => {
-      const { getById } = require('../../../src/controllers/document.controller');
 
       mockFindDocumentById.mockResolvedValue({
         _id: DOC_ID,
         organization: new mongoose.Types.ObjectId(ORG_ID),
         uploadedBy: new mongoose.Types.ObjectId(OTHER_USER_ID),
         sharedWith: [],
-      });
+      } as unknown as IDocument);
       mockHasAnyRole.mockResolvedValue(true);
 
-      const req: { user: { id: string }; params: { id: string } } = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await getById(req, res, next);
+      await documentController.getById(req, res, next);
 
       expect(mockHasAnyRole).toHaveBeenCalledWith(USER_ID, ORG_ID, ['OWNER', 'ADMIN']);
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     });
 
     it('should deny access for org doc when not owner/shared and hasAnyRole false', async () => {
-      const { getById } = require('../../../src/controllers/document.controller');
 
       mockFindDocumentById.mockResolvedValue({
         _id: DOC_ID,
         organization: new mongoose.Types.ObjectId(ORG_ID),
         uploadedBy: new mongoose.Types.ObjectId(OTHER_USER_ID),
         sharedWith: [],
-      });
+      } as unknown as IDocument);
       mockHasAnyRole.mockResolvedValue(false);
 
-      const req: { user: { id: string }; params: { id: string } } = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await getById(req, res, next);
+      await documentController.getById(req, res, next);
 
       expect(next).toHaveBeenCalled();
     });
 
     it('should allow access for personal doc when user is owner', async () => {
-      const { getById } = require('../../../src/controllers/document.controller');
       mockFindDocumentById.mockResolvedValue({
-        _id: DOC_ID,
-        organization: null,
+        _id: new mongoose.Types.ObjectId(DOC_ID),
+        organization: undefined,
         uploadedBy: new mongoose.Types.ObjectId(USER_ID),
         sharedWith: [],
-      });
+      } as unknown as IDocument);
 
-      const req: { user: { id: string }; params: { id: string } } = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await getById(req, res, next);
+      await documentController.getById(req, res, next);
 
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     });
 
     it('should allow access for personal doc when user is in sharedWith', async () => {
-      const { getById } = require('../../../src/controllers/document.controller');
       mockFindDocumentById.mockResolvedValue({
-        _id: DOC_ID,
-        organization: null,
+        _id: new mongoose.Types.ObjectId(DOC_ID),
+        organization: undefined,
         uploadedBy: new mongoose.Types.ObjectId(OTHER_USER_ID),
         sharedWith: [new mongoose.Types.ObjectId(USER_ID)],
-      });
+      } as IDocument);
 
-      const req: { user: { id: string }; params: { id: string } } = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await getById(req, res, next);
+      await documentController.getById(req, res, next);
 
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     });
@@ -467,52 +489,49 @@ describe('document.controller (unit)', () => {
 
   describe('share', () => {
     it('should next 400 when userIds missing/invalid', async () => {
-      const { share } = require('../../../src/controllers/document.controller');
 
-      const req: { user: { id: string }; params: { id: string }; body: Record<string, unknown> } = {
+      const req = {
         user: { id: USER_ID },
-        params: { id: DOC_ID },
+        params: { id: DOC_ID } as unknown,
         body: {},
-      };
+      } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await share(req, res, next);
+      await documentController.share(req, res, next);
 
       expect(next).toHaveBeenCalled();
       expect(mockShareDocument).not.toHaveBeenCalled();
     });
 
     it('should map "Document not found" to 404', async () => {
-      const { share } = require('../../../src/controllers/document.controller');
       mockShareDocument.mockRejectedValue(new Error('Document not found'));
 
-      const req: { user: { id: string }; params: { id: string }; body: { userIds: string[] } } = {
+      const req = {
         user: { id: USER_ID },
-        params: { id: DOC_ID },
+        params: { id: DOC_ID } as unknown,
         body: { userIds: [USER_ID] },
-      };
+      } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await share(req, res, next);
+      await documentController.share(req, res, next);
 
       expect(next).toHaveBeenCalled();
     });
 
     it('should return success on valid request', async () => {
-      const { share } = require('../../../src/controllers/document.controller');
-      mockShareDocument.mockResolvedValue({ _id: DOC_ID });
+      mockShareDocument.mockResolvedValue({ _id: new mongoose.Types.ObjectId(DOC_ID) } as IDocument);
 
-      const req: { user: { id: string }; params: { id: string }; body: { userIds: string[] } } = {
+      const req = {
         user: { id: USER_ID },
-        params: { id: DOC_ID },
+        params: { id: DOC_ID } as unknown,
         body: { userIds: [USER_ID] },
-      };
+      } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await share(req, res, next);
+      await documentController.share(req, res, next);
 
       expect(mockShareDocument).toHaveBeenCalledWith({
         id: DOC_ID,
@@ -527,34 +546,32 @@ describe('document.controller (unit)', () => {
 
   describe('move', () => {
     it('should next 400 when targetFolderId missing', async () => {
-      const { move } = require('../../../src/controllers/document.controller');
-      const req: { user: { id: string }; params: { id: string }; body: Record<string, unknown> } = {
+      const req = {
         user: { id: USER_ID },
-        params: { id: DOC_ID },
+        params: { id: DOC_ID } as unknown,
         body: {},
-      };
+      } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await move(req, res, next);
+      await documentController.move(req, res, next);
 
       expect(next).toHaveBeenCalled();
       expect(mockMoveDocument).not.toHaveBeenCalled();
     });
 
     it('should return success when service resolves', async () => {
-      const { move } = require('../../../src/controllers/document.controller');
-      mockMoveDocument.mockResolvedValue({ _id: DOC_ID });
+      mockMoveDocument.mockResolvedValue({ _id: new mongoose.Types.ObjectId(DOC_ID) } as IDocument);
 
-      const req: { user: { id: string }; params: { id: string }; body: { targetFolderId: string } } = {
+      const req = {
         user: { id: USER_ID },
-        params: { id: DOC_ID },
+        params: { id: DOC_ID } as unknown,
         body: { targetFolderId: '507f1f77bcf86cd799439099' },
-      };
+      } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await move(req, res, next);
+      await documentController.move(req, res, next);
 
       expect(mockMoveDocument).toHaveBeenCalledWith({
         documentId: DOC_ID,
@@ -569,34 +586,32 @@ describe('document.controller (unit)', () => {
 
   describe('copy', () => {
     it('should next 400 when targetFolderId missing', async () => {
-      const { copy } = require('../../../src/controllers/document.controller');
-      const req: { user: { id: string }; params: { id: string }; body: Record<string, unknown> } = {
+      const req = {
         user: { id: USER_ID },
-        params: { id: DOC_ID },
+        params: { id: DOC_ID } as unknown,
         body: {},
-      };
+      } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await copy(req, res, next);
+      await documentController.copy(req, res, next);
 
       expect(next).toHaveBeenCalled();
       expect(mockCopyDocument).not.toHaveBeenCalled();
     });
 
     it('should return 201 when service resolves', async () => {
-      const { copy } = require('../../../src/controllers/document.controller');
-      mockCopyDocument.mockResolvedValue({ _id: 'newDoc' });
+      mockCopyDocument.mockResolvedValue({ _id: new mongoose.Types.ObjectId() } as IDocument);
 
-      const req: { user: { id: string }; params: { id: string }; body: { targetFolderId: string } } = {
+      const req = {
         user: { id: USER_ID },
-        params: { id: DOC_ID },
+        params: { id: DOC_ID } as unknown,
         body: { targetFolderId: '507f1f77bcf86cd799439099' },
-      };
+      } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await copy(req, res, next);
+      await documentController.copy(req, res, next);
 
       expect(mockCopyDocument).toHaveBeenCalledWith({
         documentId: DOC_ID,
@@ -612,43 +627,40 @@ describe('document.controller (unit)', () => {
 
   describe('download', () => {
     it('should next 404 when doc not found', async () => {
-      const { download } = require('../../../src/controllers/document.controller');
       mockFindDocumentById.mockResolvedValue(null);
 
-      const req: { user: { id: string }; params: { id: string } } = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await download(req, res, next);
+      await documentController.download(req, res, next);
 
       expect(next).toHaveBeenCalled();
     });
 
     it('should next 403 when access denied (org doc)', async () => {
-      const { download } = require('../../../src/controllers/document.controller');
       mockFindDocumentById.mockResolvedValue({
-        _id: DOC_ID,
+        _id: new mongoose.Types.ObjectId(DOC_ID),
         organization: new mongoose.Types.ObjectId(ORG_ID),
         uploadedBy: new mongoose.Types.ObjectId(OTHER_USER_ID),
         sharedWith: [],
         filename: 'a.pdf',
         originalname: 'a.pdf',
         path: '/obs/a.pdf',
-      });
+      } as unknown as IDocument);
       mockHasAnyRole.mockResolvedValue(false);
 
-      const req: { user: { id: string }; params: { id: string } } = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await download(req, res, next);
+      await documentController.download(req, res, next);
 
       expect(next).toHaveBeenCalled();
       expect(mockValidateDownloadPath).not.toHaveBeenCalled();
     });
 
     it('should download using uploads path if validateDownloadPath succeeds (uses doc.filename)', async () => {
-      const { download } = require('../../../src/controllers/document.controller');
       mockFindDocumentById.mockResolvedValue({
         _id: DOC_ID,
         organization: null,
@@ -657,15 +669,15 @@ describe('document.controller (unit)', () => {
         filename: 'a.pdf',
         originalname: 'nice.pdf',
         path: '/org/a.pdf',
-      });
+      } as unknown as IDocument);
 
       mockValidateDownloadPath.mockResolvedValue('/abs/uploads/a.pdf');
 
-      const req: { user: { id: string }; params: { id: string } } = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await download(req, res, next);
+      await documentController.download(req, res, next);
 
       expect(mockValidateDownloadPath).toHaveBeenCalledTimes(1);
       expect(mockValidateDownloadPath).toHaveBeenCalledWith('a.pdf', expect.any(String));
@@ -673,7 +685,6 @@ describe('document.controller (unit)', () => {
     });
 
     it('should fallback to storage using doc.path when uploads fails', async () => {
-      const { download } = require('../../../src/controllers/document.controller');
       mockFindDocumentById.mockResolvedValue({
         _id: DOC_ID,
         organization: null,
@@ -682,17 +693,17 @@ describe('document.controller (unit)', () => {
         filename: 'a.pdf',
         originalname: 'nice.pdf',
         path: '/org/a.pdf',
-      });
+      } as unknown as IDocument);
 
       mockValidateDownloadPath
         .mockRejectedValueOnce(new Error('nope')) // uploads attempt with filename
         .mockResolvedValueOnce('/abs/storage/org/a.pdf'); // storage attempt with relative path from doc.path
 
-      const req: { user: { id: string }; params: { id: string } } = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await download(req, res, next);
+      await documentController.download(req, res, next);
 
       expect(mockValidateDownloadPath).toHaveBeenCalledTimes(2);
       expect(mockValidateDownloadPath).toHaveBeenNthCalledWith(1, 'a.pdf', expect.any(String));
@@ -701,26 +712,25 @@ describe('document.controller (unit)', () => {
     });
 
     it('should next 404 File not found when both validations fail', async () => {
-      const { download } = require('../../../src/controllers/document.controller');
       mockFindDocumentById.mockResolvedValue({
-        _id: DOC_ID,
+        _id: new mongoose.Types.ObjectId(DOC_ID),
         organization: null,
         uploadedBy: new mongoose.Types.ObjectId(USER_ID),
         sharedWith: [],
         filename: 'a.pdf',
         originalname: 'nice.pdf',
         path: '/org/a.pdf',
-      });
+      } as unknown as IDocument);
 
       mockValidateDownloadPath
         .mockRejectedValueOnce(new Error('no uploads'))
         .mockRejectedValueOnce(new Error('no storage'));
 
-      const req: { user: { id: string }; params: { id: string } } = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await download(req, res, next);
+      await documentController.download(req, res, next);
 
       expect(next).toHaveBeenCalled();
       expect(res.download).not.toHaveBeenCalled();
@@ -729,20 +739,18 @@ describe('document.controller (unit)', () => {
 
   describe('preview', () => {
     it('should next 404 when doc not found', async () => {
-      const { preview } = require('../../../src/controllers/document.controller');
       mockFindDocumentById.mockResolvedValue(null);
 
-      const req: { user: { id: string }; params: { id: string } } = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await preview(req, res, next);
+      await documentController.preview(req, res, next);
 
       expect(next).toHaveBeenCalled();
     });
 
     it('should try uploads -> storage -> alternative (obs) in uploads, then serve file inline', async () => {
-      const { preview } = require('../../../src/controllers/document.controller');
       mockFindDocumentById.mockResolvedValue({
         _id: DOC_ID,
         organization: null,
@@ -751,18 +759,18 @@ describe('document.controller (unit)', () => {
         path: 'org/file.pdf',
         originalname: 'file.pdf',
         mimeType: 'application/pdf',
-      });
+      } as unknown as IDocument);
 
       mockValidateDownloadPath
         .mockRejectedValueOnce(new Error('uploads fail')) // uploads attempt (relativePath, uploadsBase)
         .mockRejectedValueOnce(new Error('storage fail')) // storage attempt (relativePath, storageBase)
         .mockResolvedValueOnce('/abs/uploads/obs/org/file.pdf'); // alternativePath in uploads
 
-      const req: { user: { id: string }; params: { id: string } } = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await preview(req, res, next);
+      await documentController.preview(req, res, next);
 
       expect(mockValidateDownloadPath).toHaveBeenCalledTimes(3);
       expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/pdf');
@@ -771,7 +779,6 @@ describe('document.controller (unit)', () => {
     });
 
     it('should convert Word to HTML when mammoth succeeds', async () => {
-      const { preview } = require('../../../src/controllers/document.controller');
       mockFindDocumentById.mockResolvedValue({
         _id: DOC_ID,
         organization: null,
@@ -780,16 +787,16 @@ describe('document.controller (unit)', () => {
         path: 'org/file.docx',
         originalname: 'file.docx',
         mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      });
+      } as unknown as IDocument);
 
       mockValidateDownloadPath.mockResolvedValue('/abs/storage/org/file.docx');
       mockMammothConvertToHtml.mockResolvedValue({ value: '<p>Hello</p>' });
 
-      const req: { user: { id: string }; params: { id: string } } = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await preview(req, res, next);
+      await documentController.preview(req, res, next);
 
       expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/html; charset=utf-8');
       expect(res.send).toHaveBeenCalledWith(expect.stringContaining('<!DOCTYPE html>'));
@@ -798,7 +805,6 @@ describe('document.controller (unit)', () => {
     });
 
     it('should fallback to serving original file when mammoth fails', async () => {
-      const { preview } = require('../../../src/controllers/document.controller');
       mockFindDocumentById.mockResolvedValue({
         _id: DOC_ID,
         organization: null,
@@ -807,22 +813,21 @@ describe('document.controller (unit)', () => {
         path: 'org/file.docx',
         originalname: 'file.docx',
         mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      });
+      } as unknown as IDocument);
 
       mockValidateDownloadPath.mockResolvedValue('/abs/storage/org/file.docx');
       mockMammothConvertToHtml.mockRejectedValue(new Error('bad docx'));
 
-      const req: { user: { id: string }; params: { id: string } } = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await preview(req, res, next);
+      await documentController.preview(req, res, next);
 
       expect(res.sendFile).toHaveBeenCalledWith('/abs/storage/org/file.docx');
     });
 
     it('should next 403 when access denied (org doc)', async () => {
-      const { preview } = require('../../../src/controllers/document.controller');
       mockFindDocumentById.mockResolvedValue({
         _id: DOC_ID,
         organization: new mongoose.Types.ObjectId(ORG_ID),
@@ -831,41 +836,40 @@ describe('document.controller (unit)', () => {
         path: 'org/file.pdf',
         originalname: 'file.pdf',
         mimeType: 'application/pdf',
-      });
+      } as unknown as IDocument);
       mockHasAnyRole.mockResolvedValue(false);
 
-      const req: { user: { id: string }; params: { id: string } } = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await preview(req, res, next);
+      await documentController.preview(req, res, next);
 
       expect(next).toHaveBeenCalled();
       expect(mockValidateDownloadPath).not.toHaveBeenCalled();
     });
 
     it('should next 404 when file not found after all path attempts', async () => {
-      const { preview } = require('../../../src/controllers/document.controller');
       mockFindDocumentById.mockResolvedValue({
-        _id: DOC_ID,
+        _id: new mongoose.Types.ObjectId(DOC_ID),
         organization: null,
         uploadedBy: new mongoose.Types.ObjectId(USER_ID),
         sharedWith: [],
         path: 'org/file.pdf',
         originalname: 'file.pdf',
         mimeType: 'application/pdf',
-      });
+      } as unknown as IDocument);
 
       mockValidateDownloadPath
         .mockRejectedValueOnce(new Error('no uploads'))
         .mockRejectedValueOnce(new Error('no storage'))
         .mockRejectedValueOnce(new Error('no alternative'));
 
-      const req: { user: { id: string }; params: { id: string } } = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await preview(req, res, next);
+      await documentController.preview(req, res, next);
 
       expect(next).toHaveBeenCalled();
       expect(res.sendFile).not.toHaveBeenCalled();
@@ -874,27 +878,25 @@ describe('document.controller (unit)', () => {
 
   describe('remove', () => {
     it('should map "Document not found" to 404', async () => {
-      const { remove } = require('../../../src/controllers/document.controller');
       mockDeleteDocument.mockRejectedValue(new Error('Document not found'));
 
-      const req: { user: { id: string }; params: { id: string } } = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await remove(req, res, next);
+      await documentController.remove(req, res, next);
 
       expect(next).toHaveBeenCalled();
     });
 
     it('should return success json when deleted', async () => {
-      const { remove } = require('../../../src/controllers/document.controller');
-      mockDeleteDocument.mockResolvedValue({ _id: DOC_ID });
+      mockDeleteDocument.mockResolvedValue({ _id: new mongoose.Types.ObjectId(DOC_ID) } as IDocument);
 
-      const req: { user: { id: string }; params: { id: string } } = { user: { id: USER_ID }, params: { id: DOC_ID } };
+      const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
       const next = makeNext();
 
-      await remove(req, res, next);
+      await documentController.remove(req, res, next);
 
       expect(mockDeleteDocument).toHaveBeenCalledWith({ id: DOC_ID, userId: USER_ID });
       expect(res.json).toHaveBeenCalledWith(

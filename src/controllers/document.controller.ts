@@ -4,13 +4,19 @@ import mongoose from 'mongoose';
 import mammoth from 'mammoth';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import * as documentService from '../services/document.service';
+import { hasAnyRole } from '../services/membership.service';
+import { MembershipRole } from '../models/membership.model';
+
+function hasIsSharedWith(obj: unknown): obj is { isSharedWith: (userId: string) => boolean } {
+  return typeof obj === 'object' && obj !== null && typeof (obj as { isSharedWith?: unknown }).isSharedWith === 'function';
+}
 import HttpError from '../models/error.model';
 import { validateDownloadPath } from '../utils/path-sanitizer';
 
 /**
  * Controlador para subir un nuevo documento
  */
-export async function upload(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+export async function upload(this: void, req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     if (!req.file) {
       return next(new HttpError(400, 'File is required'));
@@ -39,7 +45,7 @@ export async function upload(req: AuthRequest, res: Response, next: NextFunction
 /**
  * Controlador para reemplazar (sobrescribir) el archivo de un documento existente
  */
-export async function replaceFile(
+export async function replaceFile(this: void,
   req: AuthRequest,
   res: Response,
   next: NextFunction
@@ -72,7 +78,7 @@ export async function replaceFile(
 /**
  * Controlador para listar documentos del usuario
  */
-export async function list(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+export async function list(this: void, req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const docs = await documentService.listDocuments(req.user!.id);
 
@@ -89,7 +95,7 @@ export async function list(req: AuthRequest, res: Response, next: NextFunction):
 /**
  * Controlador para listar documentos compartidos al usuario (por otros usuarios)
  */
-export async function listSharedToMe(
+export async function listSharedToMe(this: void,
   req: AuthRequest,
   res: Response,
   next: NextFunction
@@ -110,7 +116,7 @@ export async function listSharedToMe(
 /**
  * Controlador para obtener documentos recientes del usuario
  */
-export async function getRecent(
+export async function getRecent(this: void,
   req: AuthRequest,
   res: Response,
   next: NextFunction
@@ -142,36 +148,21 @@ export async function getRecent(
   }
 }
 
-async function hasOrgAdminAccess(userId: string, organizationId: string): Promise<boolean> {
+async function hasOrgAdminAccess(this: void, userId: string, organizationId: string): Promise<boolean> {
   try {
-    // Avoid changing static imports: require at runtime
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const membershipService = require('../services/membership.service');
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const membershipModel = require('../models/membership.model');
-
-    const hasAnyRole = membershipService.hasAnyRole as (
-      userId: string,
-      organizationId: string,
-      allowedRoles: any[]
-    ) => Promise<boolean>;
-
-    const MembershipRole = membershipModel.MembershipRole as any;
-
     return await hasAnyRole(userId, organizationId, [MembershipRole.OWNER, MembershipRole.ADMIN]);
   } catch {
     return false;
   }
 }
 
-async function hasDocumentAccess(userId: string, doc: any): Promise<boolean> {
+async function hasDocumentAccess(this: void, userId: string, doc: import('../models/document.model').IDocument): Promise<boolean> {
   // Org documents: private by default (owner/sharedWith/admin)
   if (doc.organization) {
     if (doc.uploadedBy?.toString?.() === userId) return true;
-
     const isShared =
-      doc.sharedWith?.some?.((id: any) => id?.toString?.() === userId) ||
-      (typeof doc.isSharedWith === 'function' && doc.isSharedWith(userId));
+      doc.sharedWith?.some?.((id: mongoose.Types.ObjectId | string) => id?.toString?.() === userId) ||
+      (hasIsSharedWith(doc) && doc.isSharedWith(userId));
 
     if (isShared) return true;
 
@@ -182,15 +173,15 @@ async function hasDocumentAccess(userId: string, doc: any): Promise<boolean> {
   // Personal documents: owner or sharedWith
   return (
     doc.uploadedBy?.toString?.() === userId ||
-    doc.sharedWith?.some?.((id: any) => id?.toString?.() === userId) ||
-    (typeof doc.isSharedWith === 'function' && doc.isSharedWith(userId))
+    doc.sharedWith?.some?.((id: mongoose.Types.ObjectId | string) => id?.toString?.() === userId) ||
+    (hasIsSharedWith(doc) && doc.isSharedWith(userId))
   );
 }
 
 /**
  * Controlador para obtener un documento por ID
  */
-export async function getById(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+export async function getById(this: void, req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const doc = await documentService.findDocumentById(req.params.id);
 
@@ -216,7 +207,7 @@ export async function getById(req: AuthRequest, res: Response, next: NextFunctio
 /**
  * Controlador para compartir documento con otros usuarios
  */
-export async function share(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+export async function share(this: void, req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const body = req.body as Record<string, unknown>;
     const userIds = body.userIds;
@@ -253,7 +244,7 @@ export async function share(req: AuthRequest, res: Response, next: NextFunction)
 /**
  * Controlador para mover un documento a otra carpeta
  */
-export async function move(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+export async function move(this: void, req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const body = req.body as Record<string, unknown>;
     const targetFolderId = body.targetFolderId;
@@ -281,7 +272,7 @@ export async function move(req: AuthRequest, res: Response, next: NextFunction):
 /**
  * Controlador para copiar un documento a otra carpeta
  */
-export async function copy(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+export async function copy(this: void, req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const body = req.body as Record<string, unknown>;
     const targetFolderId = body.targetFolderId;
@@ -309,7 +300,7 @@ export async function copy(req: AuthRequest, res: Response, next: NextFunction):
 /**
  * Controlador para descargar un documento
  */
-export async function download(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+export async function download(this: void, req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const doc = await documentService.findDocumentById(req.params.id);
 
@@ -352,7 +343,7 @@ export async function download(req: AuthRequest, res: Response, next: NextFuncti
  * Similar a download pero sirve el archivo inline en lugar de forzar descarga
  * Convierte documentos Word a HTML automáticamente
  */
-export async function preview(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+export async function preview(this: void, req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const doc = await documentService.findDocumentById(req.params.id);
 
@@ -507,7 +498,7 @@ export async function preview(req: AuthRequest, res: Response, next: NextFunctio
 /**
  * Controlador para eliminar un documento
  */
-export async function remove(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+export async function remove(this: void, req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     await documentService.deleteDocument({
       id: String(req.params.id),
@@ -531,7 +522,7 @@ export async function remove(req: AuthRequest, res: Response, next: NextFunction
  * Controlador para obtener el estado de procesamiento AI de un documento
  * RFE-AI-002: Auto-procesamiento
  */
-export async function getAIStatus(
+export async function getAIStatus(this: void,
   req: AuthRequest,
   res: Response,
   next: NextFunction

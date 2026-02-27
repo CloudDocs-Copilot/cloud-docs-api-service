@@ -30,16 +30,21 @@ describe('OCR Integration Tests', () => {
     fs.writeFileSync(imgPath, 'PNGDATA');
 
     jest.doMock('tesseract.js', () => ({
-      createWorker: () => ({
-        load: async () => {},
-        loadLanguage: async () => {},
-        initialize: async () => {},
-        recognize: async () => ({ data: { text: 'Integration OCR text' } }),
-        terminate: async () => {}
+      createWorker: (): {
+        load: () => Promise<void>;
+        loadLanguage: () => Promise<void>;
+        initialize: () => Promise<void>;
+        recognize: () => { data: { text: string } };
+        terminate: () => Promise<void>;
+      } => ({
+        load: async (): Promise<void> => {},
+        loadLanguage: async (): Promise<void> => {},
+        initialize: async (): Promise<void> => {},
+        recognize: (): { data: { text: string } } => ({ data: { text: 'Integration OCR text' } }),
+        terminate: async (): Promise<void> => {}
       })
     }));
-
-    const { textExtractionService } = require('../../../src/services/ai/text-extraction.service');
+    const { textExtractionService } = await import('../../../src/services/ai/text-extraction.service');
 
     const res = await textExtractionService.extractText(imgPath, 'image/png');
     expect(res.text).toBe('Integration OCR text');

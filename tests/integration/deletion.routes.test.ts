@@ -26,7 +26,7 @@ describe('Deletion Routes', () => {
       content: 'Test content for deletion'
     });
 
-    document = uploadResponse.body.document;
+    document = (uploadResponse.body as any).document;
   });
 
   describe('POST /api/deletion/:id/trash', () => {

@@ -70,7 +70,7 @@ describe('FolderController - New Endpoints Integration Tests', () => {
 
     // Crear estructura de carpetas
     const rootFolder = await Folder.create({
-      name: `root_${testOrgSlug}_${testUserId}`,
+      name: `root_${testOrgSlug}_${testUserId.toString()}`,
       displayName: 'My Files',
       type: 'root',
       organization: testOrgId,
@@ -136,9 +136,18 @@ describe('FolderController - New Endpoints Integration Tests', () => {
     if (fs.existsSync(storageDir)) {
       try {
         fs.rmSync(storageDir, { recursive: true, force: true });
-      } catch (err: any) {
-        if (err && (err.code === 'ENOTEMPTY' || err.code === 'EBUSY' || err.code === 'EPERM')) {
-          console.warn('Warning: could not fully remove storageDir during cleanup:', err.code);
+      } catch (err: unknown) {
+        if (
+          err &&
+          typeof err === 'object' &&
+          'code' in err &&
+          (err as { code?: unknown }).code &&
+          ( (err as { code?: unknown }).code === 'ENOTEMPTY' ||
+            (err as { code?: unknown }).code === 'EBUSY' ||
+            (err as { code?: unknown }).code === 'EPERM')
+        ) {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          console.warn('Warning: could not fully remove storageDir during cleanup:', (err as { code?: unknown }).code);
         } else {
           throw err;
         }

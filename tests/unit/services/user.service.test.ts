@@ -46,13 +46,15 @@ describe('user.service (unit - branches)', () => {
   describe('getUserById', () => {
     it('should throw 404 when user not found', async () => {
       userServiceMockFindById.mockResolvedValue(null);
-      const { getUserById } = require('../../../src/services/user.service');
+      const mod = await import('../../../src/services/user.service');
+      const { getUserById } = mod;
       await expect(getUserById('507f1f77bcf86cd799439011')).rejects.toThrow('User not found');
     });
 
     it('should return user when found', async () => {
       userServiceMockFindById.mockResolvedValue({ _id: 'u1', name: 'Test User' });
-      const { getUserById } = require('../../../src/services/user.service');
+      const mod = await import('../../../src/services/user.service');
+      const { getUserById } = mod;
       const user = await getUserById('507f1f77bcf86cd799439011');
       expect(user).toBeDefined();
       expect(user.name).toBe('Test User');
@@ -64,7 +66,8 @@ describe('user.service (unit - branches)', () => {
       const mockUser = { _id: 'u1', active: true, save: jest.fn() };
       userServiceMockFindById.mockResolvedValue(mockUser);
 
-      const { setUserActive } = require('../../../src/services/user.service');
+      const mod = await import('../../../src/services/user.service');
+      const { setUserActive } = mod;
       const result = await setUserActive('507f1f77bcf86cd799439011', true);
 
       expect(result).toBe(mockUser);
@@ -76,7 +79,8 @@ describe('user.service (unit - branches)', () => {
       const mockUser = { _id: 'u1', active: false, save: saveMock };
       userServiceMockFindById.mockResolvedValue(mockUser);
 
-      const { setUserActive } = require('../../../src/services/user.service');
+      const mod = await import('../../../src/services/user.service');
+      const { setUserActive } = mod;
       const result = await setUserActive('507f1f77bcf86cd799439011', true);
 
       expect(result.active).toBe(true);
@@ -85,7 +89,8 @@ describe('user.service (unit - branches)', () => {
 
     it('should throw 404 when user not found', async () => {
       userServiceMockFindById.mockResolvedValue(null);
-      const { setUserActive } = require('../../../src/services/user.service');
+      const mod = await import('../../../src/services/user.service');
+      const { setUserActive } = mod;
       await expect(setUserActive('507f1f77bcf86cd799439011', true)).rejects.toThrow(
         'User not found'
       );
@@ -104,7 +109,8 @@ describe('user.service (unit - branches)', () => {
       };
       userServiceMockFindById.mockResolvedValue(mockUser);
 
-      const { updateUser } = require('../../../src/services/user.service');
+      const mod = await import('../../../src/services/user.service');
+      const { updateUser } = mod;
       await updateUser('507f1f77bcf86cd799439011', { name: 'New Name' });
 
       expect(mockUser.name).toBe('New Name');
@@ -122,7 +128,8 @@ describe('user.service (unit - branches)', () => {
       };
       userServiceMockFindById.mockResolvedValue(mockUser);
 
-      const { updateUser } = require('../../../src/services/user.service');
+      const mod = await import('../../../src/services/user.service');
+      const { updateUser } = mod;
       await updateUser('507f1f77bcf86cd799439011', { email: 'new@test.com' });
 
       expect(mockUser.email).toBe('new@test.com');
@@ -140,7 +147,8 @@ describe('user.service (unit - branches)', () => {
       };
       userServiceMockFindById.mockResolvedValue(mockUser);
 
-      const { updateUser } = require('../../../src/services/user.service');
+      const mod = await import('../../../src/services/user.service');
+      const { updateUser } = mod;
       await updateUser('507f1f77bcf86cd799439011', { preferences: { emailNotifications: true } });
 
       expect(mockUser.preferences.emailNotifications).toBe(true);
@@ -149,7 +157,8 @@ describe('user.service (unit - branches)', () => {
 
     it('should throw 404 when user not found', async () => {
       userServiceMockFindById.mockResolvedValue(null);
-      const { updateUser } = require('../../../src/services/user.service');
+      const mod = await import('../../../src/services/user.service');
+      const { updateUser } = mod;
       await expect(updateUser('507f1f77bcf86cd799439011', { name: 'New' })).rejects.toThrow(
         'User not found'
       );
@@ -161,7 +170,8 @@ describe('user.service (unit - branches)', () => {
       userServiceMockFindById.mockResolvedValue({ _id: 'u1', password: 'hashed' });
       userServiceMockBcryptCompare.mockResolvedValue(false);
 
-      const { changePassword } = require('../../../src/services/user.service');
+      const mod = await import('../../../src/services/user.service');
+      const { changePassword } = mod;
       await expect(
         changePassword('507f1f77bcf86cd799439011', {
           currentPassword: 'wrong',
@@ -177,7 +187,8 @@ describe('user.service (unit - branches)', () => {
       userServiceMockBcryptCompare.mockResolvedValue(true);
       userServiceMockBcryptHash.mockResolvedValue('newhashed');
 
-      const { changePassword } = require('../../../src/services/user.service');
+      const mod = await import('../../../src/services/user.service');
+      const { changePassword } = mod;
       const result = await changePassword('507f1f77bcf86cd799439011', {
         currentPassword: 'correct',
         newPassword: 'NewP@ss123'
@@ -191,7 +202,8 @@ describe('user.service (unit - branches)', () => {
 
     it('should throw 404 when user not found', async () => {
       userServiceMockFindById.mockResolvedValue(null);
-      const { changePassword } = require('../../../src/services/user.service');
+      const mod = await import('../../../src/services/user.service');
+      const { changePassword } = mod;
       await expect(
         changePassword('507f1f77bcf86cd799439011', {
           currentPassword: 'x',
@@ -204,13 +216,15 @@ describe('user.service (unit - branches)', () => {
   describe('deleteUser', () => {
     it('should throw 404 when user not found', async () => {
       userServiceMockFindByIdAndDelete.mockResolvedValue(null);
-      const { deleteUser } = require('../../../src/services/user.service');
+      const mod = await import('../../../src/services/user.service');
+      const { deleteUser } = mod;
       await expect(deleteUser('507f1f77bcf86cd799439011')).rejects.toThrow('User not found');
     });
 
     it('should delete user when found', async () => {
       userServiceMockFindByIdAndDelete.mockResolvedValue({ _id: 'u1', name: 'Deleted User' });
-      const { deleteUser } = require('../../../src/services/user.service');
+      const mod = await import('../../../src/services/user.service');
+      const { deleteUser } = mod;
       const result = await deleteUser('507f1f77bcf86cd799439011');
       expect(result).toBeDefined();
       expect(result.name).toBe('Deleted User');
@@ -220,7 +234,8 @@ describe('user.service (unit - branches)', () => {
   describe('updateAvatar', () => {
     it('should throw 404 when user not found', async () => {
       userServiceMockFindById.mockResolvedValue(null);
-      const { updateAvatar } = require('../../../src/services/user.service');
+      const mod = await import('../../../src/services/user.service');
+      const { updateAvatar } = mod;
       await expect(updateAvatar('507f1f77bcf86cd799439011', { avatar: 'url' })).rejects.toThrow(
         'User not found'
       );
@@ -231,7 +246,8 @@ describe('user.service (unit - branches)', () => {
       const mockUser = { _id: 'u1', avatar: null, save: saveMock };
       userServiceMockFindById.mockResolvedValue(mockUser);
 
-      const { updateAvatar } = require('../../../src/services/user.service');
+      const mod = await import('../../../src/services/user.service');
+      const { updateAvatar } = mod;
       await updateAvatar('507f1f77bcf86cd799439011', { avatar: 'https://example.com/avatar.jpg' });
 
       expect(mockUser.avatar).toBe('https://example.com/avatar.jpg');
@@ -241,20 +257,23 @@ describe('user.service (unit - branches)', () => {
 
   describe('findUsersByEmail', () => {
     it('should return empty array when email is empty', async () => {
-      const { findUsersByEmail } = require('../../../src/services/user.service');
+      const mod = await import('../../../src/services/user.service');
+      const { findUsersByEmail } = mod;
       const result = await findUsersByEmail('');
       expect(result).toEqual([]);
     });
 
     it('should throw 400 on invalid excludeUserId', async () => {
-      const { findUsersByEmail } = require('../../../src/services/user.service');
+      const mod = await import('../../../src/services/user.service');
+      const { findUsersByEmail } = mod;
       await expect(findUsersByEmail('test@test.com', { excludeUserId: 'invalid' })).rejects.toThrow(
         'Invalid user ID'
       );
     });
 
     it('should throw 400 on invalid organizationId', async () => {
-      const { findUsersByEmail } = require('../../../src/services/user.service');
+      const mod = await import('../../../src/services/user.service');
+      const { findUsersByEmail } = mod;
       await expect(
         findUsersByEmail('test@test.com', { organizationId: 'invalid' })
       ).rejects.toThrow('Invalid organization ID');
@@ -266,7 +285,8 @@ describe('user.service (unit - branches)', () => {
       const mockLimit = jest.fn().mockReturnValue({ select: mockSelect });
       userServiceMockFind.mockReturnValue({ limit: mockLimit });
 
-      const { findUsersByEmail } = require('../../../src/services/user.service');
+      const mod = await import('../../../src/services/user.service');
+      const { findUsersByEmail } = mod;
       const result = await findUsersByEmail('test@test.com');
 
       expect(result).toBeDefined();
