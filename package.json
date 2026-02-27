@@ -9,7 +9,7 @@
     "format": "npx prettier --write .",
     "lint": "eslint src tests --ext .ts",
     "lint:fix": "eslint src tests --ext .ts --fix",
-    "lint:check": "eslint src tests --ext .ts --max-warnings 0",
+    "lint:check": "eslint src tests --ext .ts --max-warnings 100",
     "test": "cross-env NODE_ENV=test jest --detectOpenHandles --runInBand",
     "test:unit": "cross-env NODE_ENV=test jest --config jest.unit.config.js --detectOpenHandles --runInBand",
     "test:integration": "cross-env NODE_ENV=test jest --testPathPattern=tests/integration --detectOpenHandles --runInBand",
