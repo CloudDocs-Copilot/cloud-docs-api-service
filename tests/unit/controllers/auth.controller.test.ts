@@ -181,7 +181,7 @@ describe('Auth Controller', () => {
         password: 'SecurePass123!'
       };
 
-      const mockResult = {
+      const mockResult: authService.AuthResponse = {
         token: 'jwt-token-123',
         user: { id: '123', email: 'test@example.com', name: 'Test User' }
       };
@@ -273,7 +273,7 @@ describe('Auth Controller', () => {
         password: 'SecurePass123!'
       };
 
-      const mockResult = {
+      const mockResult: authService.AuthResponse = {
         token: 'jwt-token-123',
         user: { id: '123', email: 'test@example.com' }
       };

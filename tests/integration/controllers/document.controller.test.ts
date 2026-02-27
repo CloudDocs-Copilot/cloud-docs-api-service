@@ -87,6 +87,22 @@ jest.mock('mammoth', () => ({
 
 import * as documentController from '../../../src/controllers/document.controller';
 
+// Helper factories for strongly-typed mocked documents used by tests
+function makeDocument(overrides: Partial<IDocument> = {}): IDocument {
+  const doc: Partial<IDocument> = {
+    _id: new mongoose.Types.ObjectId(),
+    organization: undefined as unknown as mongoose.Types.ObjectId | undefined,
+    uploadedBy: new mongoose.Types.ObjectId(),
+    sharedWith: [],
+    filename: undefined as unknown as string,
+    originalname: undefined as unknown as string,
+    path: undefined as unknown as string,
+    mimeType: undefined as unknown as string,
+    ...overrides,
+  };
+  return doc as IDocument;
+}
+
 type MockRes = {
   status: jest.Mock;
   json: jest.Mock;
@@ -147,7 +163,7 @@ describe('document.controller (unit)', () => {
     });
 
     it('should call service with folderId undefined when not provided', async () => {
-      mockUploadDocument.mockResolvedValue({ _id: new mongoose.Types.ObjectId() } as IDocument);
+      mockUploadDocument.mockImplementation(async () => makeDocument({ _id: new mongoose.Types.ObjectId() }));
 
       const req = {
         file: { filename: 'a.txt' },
@@ -171,7 +187,7 @@ describe('document.controller (unit)', () => {
     });
 
     it('should call service and return 201 on success', async () => {
-      mockUploadDocument.mockResolvedValue({ _id: new mongoose.Types.ObjectId() } as IDocument);
+      mockUploadDocument.mockImplementation(async () => makeDocument({ _id: new mongoose.Types.ObjectId() }));
 
       const req = {
         file: { filename: 'a.txt' },
@@ -229,7 +245,7 @@ describe('document.controller (unit)', () => {
     });
 
     it('should return success json on success', async () => {
-      mockReplaceDocumentFile.mockResolvedValue({ _id: new mongoose.Types.ObjectId(DOC_ID) } as IDocument);
+      mockReplaceDocumentFile.mockImplementation(async () => makeDocument({ _id: new mongoose.Types.ObjectId(DOC_ID) }));
 
       const req = {
         file: { filename: 'a.txt' },
@@ -255,10 +271,10 @@ describe('document.controller (unit)', () => {
   describe('list', () => {
     it('should return docs and count', async () => {
     
-      mockListDocuments.mockResolvedValue([
-        { _id: new mongoose.Types.ObjectId() },
-        { _id: new mongoose.Types.ObjectId() },
-      ] as IDocument[]);
+      mockListDocuments.mockImplementation(async () => [
+        makeDocument({ _id: new mongoose.Types.ObjectId() }),
+        makeDocument({ _id: new mongoose.Types.ObjectId() }),
+      ]);
 
       const req = { user: { id: USER_ID } } as AuthRequest;
       const res = makeRes();
@@ -275,7 +291,7 @@ describe('document.controller (unit)', () => {
 
   describe('listSharedToMe', () => {
     it('should return docs and count', async () => {
-      mockListSharedDocumentsToUser.mockResolvedValue([{ _id: new mongoose.Types.ObjectId() }] as IDocument[]);
+      mockListSharedDocumentsToUser.mockImplementation(async () => [makeDocument({ _id: new mongoose.Types.ObjectId() })]);
 
       const req = { user: { id: USER_ID } } as AuthRequest;
       const res = makeRes();
@@ -323,10 +339,10 @@ describe('document.controller (unit)', () => {
 
     it('should default limit=10 and return docs', async () => {
      
-      mockGetUserRecentDocuments.mockResolvedValue([
-        { _id: new mongoose.Types.ObjectId() },
-        { _id: new mongoose.Types.ObjectId() },
-      ] as IDocument[]);
+      mockGetUserRecentDocuments.mockImplementation(async () => [
+        makeDocument({ _id: new mongoose.Types.ObjectId() }),
+        makeDocument({ _id: new mongoose.Types.ObjectId() }),
+      ]);
 
       const req = {
         user: { id: USER_ID },
@@ -347,7 +363,7 @@ describe('document.controller (unit)', () => {
     it('should parse limit from query', async () => {
        
       
-      mockGetUserRecentDocuments.mockResolvedValue([] as IDocument[]);
+      mockGetUserRecentDocuments.mockImplementation(async () => []);
 
       const req = {
         user: { id: USER_ID },
@@ -365,7 +381,7 @@ describe('document.controller (unit)', () => {
 
   describe('getById', () => {
     it('should next 404 when doc not found', async () => {
-      mockFindDocumentById.mockResolvedValue(null);
+      mockFindDocumentById.mockImplementation(async () => null);
 
       const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
@@ -378,12 +394,14 @@ describe('document.controller (unit)', () => {
 
     it('should allow access for org doc when user is owner (no membership check needed)', async () => {
 
-      mockFindDocumentById.mockResolvedValue({
-        _id: DOC_ID,
-        organization: new mongoose.Types.ObjectId(ORG_ID),
-        uploadedBy: new mongoose.Types.ObjectId(USER_ID),
-        sharedWith: [],
-      } as unknown as IDocument);
+      mockFindDocumentById.mockImplementation(async () =>
+        makeDocument({
+          _id: new mongoose.Types.ObjectId(DOC_ID),
+          organization: new mongoose.Types.ObjectId(ORG_ID),
+          uploadedBy: new mongoose.Types.ObjectId(USER_ID),
+          sharedWith: [],
+        })
+      );
 
       const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
@@ -397,12 +415,14 @@ describe('document.controller (unit)', () => {
 
     it('should allow access for org doc when user is in sharedWith', async () => {
 
-      mockFindDocumentById.mockResolvedValue({
-        _id: DOC_ID,
-        organization: new mongoose.Types.ObjectId(ORG_ID),
-        uploadedBy: new mongoose.Types.ObjectId(OTHER_USER_ID),
-        sharedWith: [new mongoose.Types.ObjectId(USER_ID)],
-      } as unknown as IDocument);
+      mockFindDocumentById.mockImplementation(async () =>
+        makeDocument({
+          _id: new mongoose.Types.ObjectId(DOC_ID),
+          organization: new mongoose.Types.ObjectId(ORG_ID),
+          uploadedBy: new mongoose.Types.ObjectId(OTHER_USER_ID),
+          sharedWith: [new mongoose.Types.ObjectId(USER_ID)],
+        })
+      );
 
       const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
@@ -415,13 +435,15 @@ describe('document.controller (unit)', () => {
 
     it('should allow access for org doc when user is org admin (hasAnyRole true)', async () => {
 
-      mockFindDocumentById.mockResolvedValue({
-        _id: DOC_ID,
-        organization: new mongoose.Types.ObjectId(ORG_ID),
-        uploadedBy: new mongoose.Types.ObjectId(OTHER_USER_ID),
-        sharedWith: [],
-      } as unknown as IDocument);
-      mockHasAnyRole.mockResolvedValue(true);
+      mockFindDocumentById.mockImplementation(async () =>
+        makeDocument({
+          _id: new mongoose.Types.ObjectId(DOC_ID),
+          organization: new mongoose.Types.ObjectId(ORG_ID),
+          uploadedBy: new mongoose.Types.ObjectId(OTHER_USER_ID),
+          sharedWith: [],
+        })
+      );
+      mockHasAnyRole.mockImplementation(async () => true);
 
       const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
@@ -435,13 +457,15 @@ describe('document.controller (unit)', () => {
 
     it('should deny access for org doc when not owner/shared and hasAnyRole false', async () => {
 
-      mockFindDocumentById.mockResolvedValue({
-        _id: DOC_ID,
-        organization: new mongoose.Types.ObjectId(ORG_ID),
-        uploadedBy: new mongoose.Types.ObjectId(OTHER_USER_ID),
-        sharedWith: [],
-      } as unknown as IDocument);
-      mockHasAnyRole.mockResolvedValue(false);
+      mockFindDocumentById.mockImplementation(async () =>
+        makeDocument({
+          _id: new mongoose.Types.ObjectId(DOC_ID),
+          organization: new mongoose.Types.ObjectId(ORG_ID),
+          uploadedBy: new mongoose.Types.ObjectId(OTHER_USER_ID),
+          sharedWith: [],
+        })
+      );
+      mockHasAnyRole.mockImplementation(async () => false);
 
       const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
@@ -453,12 +477,14 @@ describe('document.controller (unit)', () => {
     });
 
     it('should allow access for personal doc when user is owner', async () => {
-      mockFindDocumentById.mockResolvedValue({
-        _id: new mongoose.Types.ObjectId(DOC_ID),
-        organization: undefined,
-        uploadedBy: new mongoose.Types.ObjectId(USER_ID),
-        sharedWith: [],
-      } as unknown as IDocument);
+      mockFindDocumentById.mockImplementation(async () =>
+        makeDocument({
+          _id: new mongoose.Types.ObjectId(DOC_ID),
+          organization: undefined,
+          uploadedBy: new mongoose.Types.ObjectId(USER_ID),
+          sharedWith: [],
+        })
+      );
 
       const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
@@ -470,12 +496,14 @@ describe('document.controller (unit)', () => {
     });
 
     it('should allow access for personal doc when user is in sharedWith', async () => {
-      mockFindDocumentById.mockResolvedValue({
-        _id: new mongoose.Types.ObjectId(DOC_ID),
-        organization: undefined,
-        uploadedBy: new mongoose.Types.ObjectId(OTHER_USER_ID),
-        sharedWith: [new mongoose.Types.ObjectId(USER_ID)],
-      } as IDocument);
+      mockFindDocumentById.mockImplementation(async () =>
+        makeDocument({
+          _id: new mongoose.Types.ObjectId(DOC_ID),
+          organization: undefined,
+          uploadedBy: new mongoose.Types.ObjectId(OTHER_USER_ID),
+          sharedWith: [new mongoose.Types.ObjectId(USER_ID)],
+        })
+      );
 
       const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
@@ -521,7 +549,7 @@ describe('document.controller (unit)', () => {
     });
 
     it('should return success on valid request', async () => {
-      mockShareDocument.mockResolvedValue({ _id: new mongoose.Types.ObjectId(DOC_ID) } as IDocument);
+      mockShareDocument.mockImplementation(async () => makeDocument({ _id: new mongoose.Types.ObjectId(DOC_ID) }));
 
       const req = {
         user: { id: USER_ID },
@@ -561,7 +589,7 @@ describe('document.controller (unit)', () => {
     });
 
     it('should return success when service resolves', async () => {
-      mockMoveDocument.mockResolvedValue({ _id: new mongoose.Types.ObjectId(DOC_ID) } as IDocument);
+      mockMoveDocument.mockImplementation(async () => makeDocument({ _id: new mongoose.Types.ObjectId(DOC_ID) }));
 
       const req = {
         user: { id: USER_ID },
@@ -601,7 +629,7 @@ describe('document.controller (unit)', () => {
     });
 
     it('should return 201 when service resolves', async () => {
-      mockCopyDocument.mockResolvedValue({ _id: new mongoose.Types.ObjectId() } as IDocument);
+      mockCopyDocument.mockImplementation(async () => makeDocument({ _id: new mongoose.Types.ObjectId() }));
 
       const req = {
         user: { id: USER_ID },
@@ -627,7 +655,7 @@ describe('document.controller (unit)', () => {
 
   describe('download', () => {
     it('should next 404 when doc not found', async () => {
-      mockFindDocumentById.mockResolvedValue(null);
+      mockFindDocumentById.mockImplementation(async () => null);
 
       const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
@@ -639,16 +667,18 @@ describe('document.controller (unit)', () => {
     });
 
     it('should next 403 when access denied (org doc)', async () => {
-      mockFindDocumentById.mockResolvedValue({
-        _id: new mongoose.Types.ObjectId(DOC_ID),
-        organization: new mongoose.Types.ObjectId(ORG_ID),
-        uploadedBy: new mongoose.Types.ObjectId(OTHER_USER_ID),
-        sharedWith: [],
-        filename: 'a.pdf',
-        originalname: 'a.pdf',
-        path: '/obs/a.pdf',
-      } as unknown as IDocument);
-      mockHasAnyRole.mockResolvedValue(false);
+      mockFindDocumentById.mockImplementation(async () =>
+        makeDocument({
+          _id: new mongoose.Types.ObjectId(DOC_ID),
+          organization: new mongoose.Types.ObjectId(ORG_ID),
+          uploadedBy: new mongoose.Types.ObjectId(OTHER_USER_ID),
+          sharedWith: [],
+          filename: 'a.pdf',
+          originalname: 'a.pdf',
+          path: '/obs/a.pdf',
+        })
+      );
+      mockHasAnyRole.mockImplementation(async () => false);
 
       const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
@@ -661,17 +691,19 @@ describe('document.controller (unit)', () => {
     });
 
     it('should download using uploads path if validateDownloadPath succeeds (uses doc.filename)', async () => {
-      mockFindDocumentById.mockResolvedValue({
-        _id: DOC_ID,
-        organization: null,
-        uploadedBy: new mongoose.Types.ObjectId(USER_ID),
-        sharedWith: [],
-        filename: 'a.pdf',
-        originalname: 'nice.pdf',
-        path: '/org/a.pdf',
-      } as unknown as IDocument);
+      mockFindDocumentById.mockImplementation(async () =>
+        makeDocument({
+          _id: new mongoose.Types.ObjectId(DOC_ID),
+          organization: undefined,
+          uploadedBy: new mongoose.Types.ObjectId(USER_ID),
+          sharedWith: [],
+          filename: 'a.pdf',
+          originalname: 'nice.pdf',
+          path: '/org/a.pdf',
+        })
+      );
 
-      mockValidateDownloadPath.mockResolvedValue('/abs/uploads/a.pdf');
+      mockValidateDownloadPath.mockImplementation(async () => '/abs/uploads/a.pdf');
 
       const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
@@ -685,15 +717,17 @@ describe('document.controller (unit)', () => {
     });
 
     it('should fallback to storage using doc.path when uploads fails', async () => {
-      mockFindDocumentById.mockResolvedValue({
-        _id: DOC_ID,
-        organization: null,
-        uploadedBy: new mongoose.Types.ObjectId(USER_ID),
-        sharedWith: [],
-        filename: 'a.pdf',
-        originalname: 'nice.pdf',
-        path: '/org/a.pdf',
-      } as unknown as IDocument);
+      mockFindDocumentById.mockImplementation(async () =>
+        makeDocument({
+          _id: new mongoose.Types.ObjectId(DOC_ID),
+          organization: undefined,
+          uploadedBy: new mongoose.Types.ObjectId(USER_ID),
+          sharedWith: [],
+          filename: 'a.pdf',
+          originalname: 'nice.pdf',
+          path: '/org/a.pdf',
+        })
+      );
 
       mockValidateDownloadPath
         .mockRejectedValueOnce(new Error('nope')) // uploads attempt with filename
@@ -712,15 +746,17 @@ describe('document.controller (unit)', () => {
     });
 
     it('should next 404 File not found when both validations fail', async () => {
-      mockFindDocumentById.mockResolvedValue({
-        _id: new mongoose.Types.ObjectId(DOC_ID),
-        organization: null,
-        uploadedBy: new mongoose.Types.ObjectId(USER_ID),
-        sharedWith: [],
-        filename: 'a.pdf',
-        originalname: 'nice.pdf',
-        path: '/org/a.pdf',
-      } as unknown as IDocument);
+      mockFindDocumentById.mockImplementation(async () =>
+        makeDocument({
+          _id: new mongoose.Types.ObjectId(DOC_ID),
+          organization: undefined,
+          uploadedBy: new mongoose.Types.ObjectId(USER_ID),
+          sharedWith: [],
+          filename: 'a.pdf',
+          originalname: 'nice.pdf',
+          path: '/org/a.pdf',
+        })
+      );
 
       mockValidateDownloadPath
         .mockRejectedValueOnce(new Error('no uploads'))
@@ -739,7 +775,7 @@ describe('document.controller (unit)', () => {
 
   describe('preview', () => {
     it('should next 404 when doc not found', async () => {
-      mockFindDocumentById.mockResolvedValue(null);
+      mockFindDocumentById.mockImplementation(async () => null);
 
       const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
@@ -751,15 +787,17 @@ describe('document.controller (unit)', () => {
     });
 
     it('should try uploads -> storage -> alternative (obs) in uploads, then serve file inline', async () => {
-      mockFindDocumentById.mockResolvedValue({
-        _id: DOC_ID,
-        organization: null,
-        uploadedBy: new mongoose.Types.ObjectId(USER_ID),
-        sharedWith: [],
-        path: 'org/file.pdf',
-        originalname: 'file.pdf',
-        mimeType: 'application/pdf',
-      } as unknown as IDocument);
+      mockFindDocumentById.mockImplementation(async () =>
+        makeDocument({
+          _id: new mongoose.Types.ObjectId(DOC_ID),
+          organization: undefined,
+          uploadedBy: new mongoose.Types.ObjectId(USER_ID),
+          sharedWith: [],
+          path: 'org/file.pdf',
+          originalname: 'file.pdf',
+          mimeType: 'application/pdf',
+        })
+      );
 
       mockValidateDownloadPath
         .mockRejectedValueOnce(new Error('uploads fail')) // uploads attempt (relativePath, uploadsBase)
@@ -779,18 +817,20 @@ describe('document.controller (unit)', () => {
     });
 
     it('should convert Word to HTML when mammoth succeeds', async () => {
-      mockFindDocumentById.mockResolvedValue({
-        _id: DOC_ID,
-        organization: null,
-        uploadedBy: new mongoose.Types.ObjectId(USER_ID),
-        sharedWith: [],
-        path: 'org/file.docx',
-        originalname: 'file.docx',
-        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      } as unknown as IDocument);
+      mockFindDocumentById.mockImplementation(async () =>
+        makeDocument({
+          _id: new mongoose.Types.ObjectId(DOC_ID),
+          organization: undefined,
+          uploadedBy: new mongoose.Types.ObjectId(USER_ID),
+          sharedWith: [],
+          path: 'org/file.docx',
+          originalname: 'file.docx',
+          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        })
+      );
 
-      mockValidateDownloadPath.mockResolvedValue('/abs/storage/org/file.docx');
-      mockMammothConvertToHtml.mockResolvedValue({ value: '<p>Hello</p>' });
+      mockValidateDownloadPath.mockImplementation(async () => '/abs/storage/org/file.docx');
+      mockMammothConvertToHtml.mockImplementation(async () => ({ value: '<p>Hello</p>' }));
 
       const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
@@ -805,17 +845,19 @@ describe('document.controller (unit)', () => {
     });
 
     it('should fallback to serving original file when mammoth fails', async () => {
-      mockFindDocumentById.mockResolvedValue({
-        _id: DOC_ID,
-        organization: null,
-        uploadedBy: new mongoose.Types.ObjectId(USER_ID),
-        sharedWith: [],
-        path: 'org/file.docx',
-        originalname: 'file.docx',
-        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      } as unknown as IDocument);
+      mockFindDocumentById.mockImplementation(async () =>
+        makeDocument({
+          _id: new mongoose.Types.ObjectId(DOC_ID),
+          organization: undefined,
+          uploadedBy: new mongoose.Types.ObjectId(USER_ID),
+          sharedWith: [],
+          path: 'org/file.docx',
+          originalname: 'file.docx',
+          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        })
+      );
 
-      mockValidateDownloadPath.mockResolvedValue('/abs/storage/org/file.docx');
+      mockValidateDownloadPath.mockImplementation(async () => '/abs/storage/org/file.docx');
       mockMammothConvertToHtml.mockRejectedValue(new Error('bad docx'));
 
       const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
@@ -828,16 +870,18 @@ describe('document.controller (unit)', () => {
     });
 
     it('should next 403 when access denied (org doc)', async () => {
-      mockFindDocumentById.mockResolvedValue({
-        _id: DOC_ID,
-        organization: new mongoose.Types.ObjectId(ORG_ID),
-        uploadedBy: new mongoose.Types.ObjectId(OTHER_USER_ID),
-        sharedWith: [],
-        path: 'org/file.pdf',
-        originalname: 'file.pdf',
-        mimeType: 'application/pdf',
-      } as unknown as IDocument);
-      mockHasAnyRole.mockResolvedValue(false);
+      mockFindDocumentById.mockImplementation(async () =>
+        makeDocument({
+          _id: new mongoose.Types.ObjectId(DOC_ID),
+          organization: new mongoose.Types.ObjectId(ORG_ID),
+          uploadedBy: new mongoose.Types.ObjectId(OTHER_USER_ID),
+          sharedWith: [],
+          path: 'org/file.pdf',
+          originalname: 'file.pdf',
+          mimeType: 'application/pdf',
+        })
+      );
+      mockHasAnyRole.mockImplementation(async () => false);
 
       const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();
@@ -850,15 +894,17 @@ describe('document.controller (unit)', () => {
     });
 
     it('should next 404 when file not found after all path attempts', async () => {
-      mockFindDocumentById.mockResolvedValue({
-        _id: new mongoose.Types.ObjectId(DOC_ID),
-        organization: null,
-        uploadedBy: new mongoose.Types.ObjectId(USER_ID),
-        sharedWith: [],
-        path: 'org/file.pdf',
-        originalname: 'file.pdf',
-        mimeType: 'application/pdf',
-      } as unknown as IDocument);
+      mockFindDocumentById.mockImplementation(async () =>
+        makeDocument({
+          _id: new mongoose.Types.ObjectId(DOC_ID),
+          organization: undefined,
+          uploadedBy: new mongoose.Types.ObjectId(USER_ID),
+          sharedWith: [],
+          path: 'org/file.pdf',
+          originalname: 'file.pdf',
+          mimeType: 'application/pdf',
+        })
+      );
 
       mockValidateDownloadPath
         .mockRejectedValueOnce(new Error('no uploads'))
@@ -890,7 +936,7 @@ describe('document.controller (unit)', () => {
     });
 
     it('should return success json when deleted', async () => {
-      mockDeleteDocument.mockResolvedValue({ _id: new mongoose.Types.ObjectId(DOC_ID) } as IDocument);
+      mockDeleteDocument.mockImplementation(async () => makeDocument({ _id: new mongoose.Types.ObjectId(DOC_ID) }));
 
       const req = { user: { id: USER_ID }, params: { id: DOC_ID } as unknown } as AuthRequest;
       const res = makeRes();

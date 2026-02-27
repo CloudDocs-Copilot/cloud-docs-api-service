@@ -45,7 +45,10 @@ describe('AI Controller - askQuestion', () => {
     const err = next.mock.calls[0][0];
     expect(err).toBeInstanceOf(Error);
     // HttpError exposes statusCode
-    expect(err.statusCode || err.status).toBeGreaterThanOrEqual(400);
+    if (typeof err === 'object' && err !== null && ('statusCode' in err || 'status' in err)) {
+      const status = (err as { statusCode?: number; status?: number }).statusCode ?? (err as { status?: number }).status;
+      expect(status).toBeGreaterThanOrEqual(400);
+    }
   });
 
   it('calls ragService and returns answer when inputs valid', async () => {
@@ -61,7 +64,10 @@ describe('AI Controller - askQuestion', () => {
     if (next.mock.calls.length > 0) {
       const err = next.mock.calls[0][0];
       expect(err).toBeInstanceOf(Error);
-      expect(err.statusCode || err.status).toBeGreaterThanOrEqual(400);
+      if (typeof err === 'object' && err !== null && ('statusCode' in err || 'status' in err)) {
+        const status = (err as { statusCode?: number; status?: number }).statusCode ?? (err as { status?: number }).status;
+        expect(status).toBeGreaterThanOrEqual(400);
+      }
     } else {
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     }

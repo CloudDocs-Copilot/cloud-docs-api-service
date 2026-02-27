@@ -38,8 +38,8 @@ jest.mock('../../../src/socket/socket', () => ({
 }));
 
 type NotificationModelMock = {
-  create: jest.MockedFunction<(...args: unknown[]) => Promise<InsertedNotification>>;
-  insertMany: jest.MockedFunction<(...args: unknown[]) => Promise<InsertedNotification[]>>;
+  create: jest.MockedFunction<(doc: InsertedNotification) => Promise<InsertedNotification>>;
+  insertMany: jest.MockedFunction<(docs: InsertedNotification[]) => Promise<InsertedNotification[]>>;
   find: jest.MockedFunction<(...args: unknown[]) => Promise<InsertedNotification[]>>;
   countDocuments: jest.MockedFunction<(...args: unknown[]) => Promise<number>>;
   updateOne: jest.MockedFunction<(...args: unknown[]) => Promise<unknown>>;
@@ -47,31 +47,25 @@ type NotificationModelMock = {
 };
 
 let NotificationModel: NotificationModelMock;
-let getActiveOrganization: jest.MockedFunction<(...args: unknown[]) => Promise<unknown>>;
+let getActiveOrganization: jest.MockedFunction<(...args: unknown[]) => Promise<string | null>>;
 let Membership: { find: jest.MockedFunction<(...args: unknown[]) => Promise<unknown[]>> };
 let MembershipStatus: { ACTIVE: string; INVITED: string; INACTIVE: string };
-let emitToUser: jest.MockedFunction<(...args: unknown[]) => unknown>;
+let emitToUser: jest.MockedFunction<(recipient: string, payload: unknown) => unknown>;
 let notificationService: typeof import('../../../src/services/notification.service');
 
 beforeEach(async () => {
   jest.resetModules();
 
   // Import mocked modules after reset so jest.mock() overrides are applied
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   NotificationModel = (await import('../../../src/models/notification.model')).default as unknown as NotificationModelMock;
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   ({ getActiveOrganization } = await import('../../../src/services/membership.service')) as { getActiveOrganization: typeof getActiveOrganization };
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   Membership = (await import('../../../src/models/membership.model')).default as unknown as { find: jest.MockedFunction<(...args: unknown[]) => Promise<unknown[]>> };
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   MembershipStatus = (await import('../../../src/models/membership.model')).MembershipStatus as { ACTIVE: string; INVITED: string; INACTIVE: string };
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-  emitToUser = (await import('../../../src/socket/socket')).emitToUser as jest.MockedFunction<(...args: unknown[]) => unknown>;
+  emitToUser = (await import('../../../src/socket/socket')).emitToUser as jest.MockedFunction<(recipient: string, payload: unknown) => unknown>;
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   notificationService = await import('../../../src/services/notification.service');
 });
 
@@ -96,7 +90,7 @@ describe('notification.service (unit)', () => {
     jest.clearAllMocks();
   });
 
-  const oid = () => new mongoose.Types.ObjectId().toString();
+  const oid = (): string => new mongoose.Types.ObjectId().toString();
 
   // IMPORTANT: allow _id to be truly undefined (for optional chaining test)
   const makeInsertedNotification = (
@@ -221,7 +215,7 @@ describe('notification.service (unit)', () => {
 
       expect(NotificationModel.create).toHaveBeenCalledTimes(1);
 
-      const createArg = NotificationModel.create.mock.calls[0][0];
+      const createArg = NotificationModel.create.mock.calls[0][0] as unknown as InsertedNotification;
       expect(createArg.organization.toString()).toBe(
         new mongoose.Types.ObjectId(organizationId).toString()
       );
@@ -239,7 +233,7 @@ describe('notification.service (unit)', () => {
       expect(createArg.updatedAt).toBeInstanceOf(Date);
 
       expect(emitter).toHaveBeenCalledTimes(1);
-      const [recipientId, payload] = emitter.mock.calls[0];
+      const [recipientId, payload] = emitter.mock.calls[0] as unknown as [string, Record<string, unknown>];
       expect(recipientId).toBe(recipientUserId);
 
       expect(payload.organization).toBe(organizationId);
@@ -318,7 +312,8 @@ describe('notification.service (unit)', () => {
       });
 
       expect(emitter).toHaveBeenCalledTimes(1);
-      const payload = emitter.mock.calls[0][1];
+      const call = emitter.mock.calls[0] as unknown as [string, Record<string, unknown>];
+      const payload = call[1];
       expect(payload.id).toBeUndefined();
     });
   });
@@ -420,17 +415,20 @@ describe('notification.service (unit)', () => {
         emitter
       });
 
-      const [filter, projection] = Membership.find.mock.calls[0];
+      const [filterRaw, projection] = Membership.find.mock.calls[0] as unknown as [Record<string, unknown>, Record<string, unknown>];
+      const filter = filterRaw as unknown as {
+        organization: mongoose.Types.ObjectId;
+        user: { $ne: mongoose.Types.ObjectId };
+        status: string;
+      };
 
-      expect(filter.organization.toString()).toBe(
-        new mongoose.Types.ObjectId(organizationId).toString()
-      );
+      expect(filter.organization.toString()).toBe(new mongoose.Types.ObjectId(organizationId).toString());
       expect(filter.user.$ne.toString()).toBe(new mongoose.Types.ObjectId(actorUserId).toString());
       expect(filter.status).toBe(MembershipStatus.ACTIVE);
       expect(projection).toEqual({ user: 1 });
 
       expect(NotificationModel.insertMany).toHaveBeenCalledTimes(1);
-      const [docsToInsert, options] = NotificationModel.insertMany.mock.calls[0];
+      const [docsToInsert, options] = NotificationModel.insertMany.mock.calls[0] as unknown as [InsertedNotification[], unknown];
       expect(options).toEqual({ ordered: false });
       expect(docsToInsert).toHaveLength(2);
       expect(docsToInsert[0].message).toBe('hello');
@@ -438,7 +436,7 @@ describe('notification.service (unit)', () => {
 
       expect(emitter).toHaveBeenCalledTimes(2);
 
-      const [firstRecipientId, firstPayload] = emitter.mock.calls[0];
+      const [firstRecipientId, firstPayload] = emitter.mock.calls[0] as unknown as [string, Record<string, unknown>];
       expect(firstRecipientId).toBe(recipient1.toString());
       expect(firstPayload.organization).toBe(organizationId);
       expect(firstPayload.recipient).toBe(recipient1.toString());
@@ -489,7 +487,7 @@ describe('notification.service (unit)', () => {
       });
 
       expect(NotificationModel.insertMany).toHaveBeenCalledTimes(1);
-      const [docsToInsert] = NotificationModel.insertMany.mock.calls[0];
+      const [docsToInsert] = NotificationModel.insertMany.mock.calls[0] as unknown as [InsertedNotification[], unknown];
       expect(docsToInsert[0].message).toBe('');
       expect(docsToInsert[0].metadata).toEqual({});
 
@@ -551,7 +549,8 @@ describe('notification.service (unit)', () => {
       });
 
       expect(emitter).toHaveBeenCalledTimes(1);
-      const payload = emitter.mock.calls[0][1];
+      const call = emitter.mock.calls[0] as unknown as [string, Record<string, unknown>];
+      const payload = call[1];
       expect(payload.id).toBeUndefined();
     });
   });
@@ -662,17 +661,20 @@ describe('notification.service (unit)', () => {
         emitter
       });
 
-      const [filter, projection] = Membership.find.mock.calls[0];
+      const [filterRaw, projection] = Membership.find.mock.calls[0] as unknown as [Record<string, unknown>, Record<string, unknown>];
+      const filter = filterRaw as unknown as {
+        organization: mongoose.Types.ObjectId;
+        user: { $ne: mongoose.Types.ObjectId };
+        status: string;
+      };
 
-      expect(filter.organization.toString()).toBe(
-        new mongoose.Types.ObjectId(activeOrgId).toString()
-      );
+      expect(filter.organization.toString()).toBe(new mongoose.Types.ObjectId(activeOrgId).toString());
       expect(filter.user.$ne.toString()).toBe(new mongoose.Types.ObjectId(actorUserId).toString());
       expect(filter.status).toBe(MembershipStatus.ACTIVE);
       expect(projection).toEqual({ user: 1 });
 
       expect(NotificationModel.insertMany).toHaveBeenCalledTimes(1);
-      const [docsToInsert, options] = NotificationModel.insertMany.mock.calls[0];
+      const [docsToInsert, options] = NotificationModel.insertMany.mock.calls[0] as unknown as [InsertedNotification[], unknown];
       expect(options).toEqual({ ordered: false });
       expect(docsToInsert).toHaveLength(2);
       expect(docsToInsert[0].message).toBe('hello');
@@ -680,7 +682,7 @@ describe('notification.service (unit)', () => {
 
       expect(emitter).toHaveBeenCalledTimes(2);
 
-      const [recipientId, payload] = emitter.mock.calls[0];
+      const [recipientId, payload] = emitter.mock.calls[0] as unknown as [string, Record<string, unknown>];
       expect(recipientId).toBe(recipient1.toString());
 
       expect(payload.organization).toBe(activeOrgId);
@@ -731,7 +733,7 @@ describe('notification.service (unit)', () => {
       });
 
       expect(NotificationModel.insertMany).toHaveBeenCalledTimes(1);
-      const [docsToInsert] = NotificationModel.insertMany.mock.calls[0];
+      const [docsToInsert] = NotificationModel.insertMany.mock.calls[0] as unknown as [InsertedNotification[], unknown];
       expect(docsToInsert[0].message).toBe('');
       expect(docsToInsert[0].metadata).toEqual({});
 
@@ -790,7 +792,8 @@ describe('notification.service (unit)', () => {
       });
 
       expect(emitter).toHaveBeenCalledTimes(1);
-      const payload = emitter.mock.calls[0][1];
+      const call = emitter.mock.calls[0] as unknown as [string, Record<string, unknown>];
+      const payload = call[1];
       expect(payload.id).toBeUndefined();
     });
 
@@ -826,7 +829,7 @@ describe('notification.service (unit)', () => {
       });
 
       expect(NotificationModel.insertMany).toHaveBeenCalledTimes(1);
-      const [docsToInsert] = NotificationModel.insertMany.mock.calls[0];
+      const [docsToInsert] = NotificationModel.insertMany.mock.calls[0] as unknown as [InsertedNotification[], unknown];
       expect(docsToInsert[0].entity.kind).toBe('membership');
       expect(docsToInsert[0].entity.id.toString()).toBe(
         new mongoose.Types.ObjectId(entityId).toString()
@@ -863,14 +866,19 @@ describe('notification.service (unit)', () => {
 
       expect(getActiveOrganization).not.toHaveBeenCalled();
 
-      const queryArg = NotificationModel.find.mock.calls[0][0];
+      const queryRaw = NotificationModel.find.mock.calls[0][0] as unknown as Record<string, unknown>;
+      const queryArg = queryRaw as unknown as {
+        recipient: mongoose.Types.ObjectId;
+        readAt?: unknown;
+        $or?: Array<{ organization: mongoose.Types.ObjectId } | { type: string }>;
+      };
 
       expect(queryArg.recipient.toString()).toBe(new mongoose.Types.ObjectId(userId).toString());
       expect(queryArg.readAt).toBeUndefined();
 
       expect(queryArg.$or).toHaveLength(2);
-      expect(queryArg.$or[0].organization.toString()).toBe(new mongoose.Types.ObjectId(orgId).toString());
-      expect(queryArg.$or[1]).toEqual({ type: 'INVITATION_CREATED' });
+      expect(queryArg.$or![0].organization.toString()).toBe(new mongoose.Types.ObjectId(orgId).toString());
+      expect(queryArg.$or![1]).toEqual({ type: 'INVITATION_CREATED' });
 
       expect(sort).toHaveBeenCalledWith({ createdAt: -1 });
       expect(skip).toHaveBeenCalledWith(5);
@@ -897,10 +905,13 @@ describe('notification.service (unit)', () => {
 
       expect(getActiveOrganization).toHaveBeenCalledWith(userId);
 
-      const queryArg = NotificationModel.find.mock.calls[0][0];
+      const queryRaw = NotificationModel.find.mock.calls[0][0] as unknown as Record<string, unknown>;
+      const queryArg = queryRaw as unknown as {
+        $or?: Array<{ organization: mongoose.Types.ObjectId } | { type: string }>;
+      };
       expect(queryArg.$or).toHaveLength(2);
-      expect(queryArg.$or[0].organization.toString()).toBe(new mongoose.Types.ObjectId(activeOrgId).toString());
-      expect(queryArg.$or[1]).toEqual({ type: 'INVITATION_CREATED' });
+      expect(queryArg.$or![0].organization.toString()).toBe(new mongoose.Types.ObjectId(activeOrgId).toString());
+      expect(queryArg.$or![1]).toEqual({ type: 'INVITATION_CREATED' });
 
       expect(res).toEqual({ notifications: [], total: 0 });
     });
@@ -956,7 +967,8 @@ describe('notification.service (unit)', () => {
         unreadOnly: true
       });
 
-      const queryArg = NotificationModel.find.mock.calls[0][0];
+      const queryRaw = NotificationModel.find.mock.calls[0][0] as unknown as Record<string, unknown>;
+      const queryArg = queryRaw as unknown as { readAt?: unknown; $or?: unknown };
       expect(queryArg.readAt).toBeNull();
       expect(queryArg.$or).toBeDefined();
     });
@@ -990,10 +1002,10 @@ describe('notification.service (unit)', () => {
 
       expect(NotificationModel.updateOne).toHaveBeenCalledTimes(1);
 
-      const [filter, update] = NotificationModel.updateOne.mock.calls[0];
+      const [filter, update] = NotificationModel.updateOne.mock.calls[0] as unknown as [Record<string, unknown>, Record<string, unknown>];
 
-      expect(filter._id.toString()).toBe(new mongoose.Types.ObjectId(notificationId).toString());
-      expect(filter.recipient.toString()).toBe(new mongoose.Types.ObjectId(userId).toString());
+      expect((filter._id as unknown as mongoose.Types.ObjectId).toString()).toBe(new mongoose.Types.ObjectId(notificationId).toString());
+      expect((filter.recipient as unknown as mongoose.Types.ObjectId).toString()).toBe(new mongoose.Types.ObjectId(userId).toString());
 
       expect(update).toHaveProperty('$set.readAt');
       expect(update.$set.readAt).toBeInstanceOf(Date);
@@ -1015,7 +1027,7 @@ describe('notification.service (unit)', () => {
 
       expect(getActiveOrganization).not.toHaveBeenCalled();
 
-      const [filter, update] = NotificationModel.updateMany.mock.calls[0];
+      const [filter, update] = NotificationModel.updateMany.mock.calls[0] as unknown as [Record<string, unknown>, Record<string, unknown>];
 
       expect(filter.recipient.toString()).toBe(new mongoose.Types.ObjectId(userId).toString());
       expect(filter.readAt).toBeNull();
@@ -1039,7 +1051,7 @@ describe('notification.service (unit)', () => {
 
       expect(getActiveOrganization).toHaveBeenCalledWith(userId);
 
-      const [filter, update] = NotificationModel.updateMany.mock.calls[0];
+      const [filter, update] = NotificationModel.updateMany.mock.calls[0] as unknown as [Record<string, unknown>, Record<string, unknown>];
 
       expect(filter.recipient.toString()).toBe(new mongoose.Types.ObjectId(userId).toString());
       expect(filter.readAt).toBeNull();
@@ -1061,7 +1073,7 @@ describe('notification.service (unit)', () => {
 
       expect(getActiveOrganization).toHaveBeenCalledWith(userId);
 
-      const [filter] = NotificationModel.updateMany.mock.calls[0];
+      const [filter] = NotificationModel.updateMany.mock.calls[0] as unknown as [Record<string, unknown>, Record<string, unknown>];
 
       expect(filter.recipient.toString()).toBe(new mongoose.Types.ObjectId(userId).toString());
       expect(filter.readAt).toBeNull();
@@ -1076,7 +1088,7 @@ describe('notification.service (unit)', () => {
 
       await notificationService.markAllRead(userId, 'bad');
 
-      const [filter] = NotificationModel.updateMany.mock.calls[0];
+      const [filter] = NotificationModel.updateMany.mock.calls[0] as unknown as [Record<string, unknown>, Record<string, unknown>];
       expect(filter.type).toBe('INVITATION_CREATED');
       expect(filter.$or).toBeUndefined();
     });
