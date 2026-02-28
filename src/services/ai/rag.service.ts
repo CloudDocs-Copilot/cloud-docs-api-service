@@ -82,7 +82,7 @@ export class RAGService {
 
 
       // Ejecutar búsqueda vectorial usando aggregation pipeline
-      const cursor = collection.aggregate([
+      const cursor = collection.aggregate<SearchChunkWithScore>([
           {
             $vectorSearch: {
               index: VECTOR_SEARCH_INDEX,
@@ -120,11 +120,11 @@ export class RAGService {
           { $limit: topK }
         ]);
 
-      if (!cursor || typeof (cursor as any).toArray !== 'function') {
+      if (!cursor || typeof cursor.toArray !== 'function') {
         throw new Error('Database error');
       }
 
-      const results = await (cursor as any).toArray();
+      const results = await cursor.toArray();
 
       // Transformar resultados al formato esperado
       const searchResults: ISearchResult[] = (results as SearchChunkWithScore[]).map(doc => ({
@@ -286,7 +286,7 @@ export class RAGService {
         : documentId;
 
       // Búsqueda vectorial con filtro por organización Y documento
-      const cursor = collection.aggregate([
+      const cursor = collection.aggregate<SearchChunkWithScore>([
           {
             $vectorSearch: {
               index: VECTOR_SEARCH_INDEX,
@@ -326,11 +326,11 @@ export class RAGService {
           { $limit: topK }
         ]);
 
-      if (!cursor || typeof (cursor as any).toArray !== 'function') {
+      if (!cursor || typeof cursor.toArray !== 'function') {
         throw new Error('Database error');
       }
 
-      const results = await (cursor as any).toArray();
+      const results = await cursor.toArray();
 
       const searchResults: ISearchResult[] = (results as SearchChunkWithScore[]).map(doc => ({
         chunk: {
