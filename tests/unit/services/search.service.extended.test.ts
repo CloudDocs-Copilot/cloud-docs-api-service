@@ -33,7 +33,7 @@ jest.mock('../../../src/configurations/elasticsearch-config', () => ({
 }));
 
 let svc: unknown;
-beforeAll(async () => {
+beforeAll(async (): Promise<void> => {
   // import after mocks are applied
   svc = (await import('../../../src/services/search.service')) as unknown;
 });
@@ -41,7 +41,7 @@ beforeAll(async () => {
 const S = (): typeof import('../../../src/services/search.service') => svc as unknown as typeof import('../../../src/services/search.service');
 
 describe('SearchService - Extended Coverage', () => {
-  it('indexes and removes without throwing on 404', async () => {
+  it('indexes and removes without throwing on 404', async (): Promise<void> => {
     const doc: unknown = {
       _id: { toString: () => 'doc1' },
       filename: 'f',
@@ -58,7 +58,7 @@ describe('SearchService - Extended Coverage', () => {
     await expect(S().removeDocumentFromIndex('missing-id')).resolves.toBeUndefined();
   });
 
-  it('searchDocuments returns mapped results and respects filters', async () => {
+  it('searchDocuments returns mapped results and respects filters', async (): Promise<void> => {
     // Asegurar que el mock devuelve el formato correcto
     (mockClient.search as jest.Mock).mockResolvedValueOnce({
       hits: {
@@ -93,7 +93,7 @@ describe('SearchService - Extended Coverage', () => {
     expect(res.documents.length).toBe(2);
   });
 
-  it('getAutocompleteSuggestions dedupes and returns strings', async () => {
+  it('getAutocompleteSuggestions dedupes and returns strings', async (): Promise<void> => {
     // adjust mock to return duplicates and blanks
     (mockClient.search as jest.Mock).mockResolvedValueOnce({
       hits: {

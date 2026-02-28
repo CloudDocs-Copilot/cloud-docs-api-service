@@ -38,7 +38,7 @@ jest.mock('mongoose', () => ({
   }
 }));
 
-afterEach(() => {
+afterEach((): void => {
   jest.clearAllMocks();
 });
 

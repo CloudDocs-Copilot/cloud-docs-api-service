@@ -11,11 +11,11 @@ jest.mock('../../../src/models/organization.model', () => ({
 let orgService: typeof import('../../../src/services/organization.service');
 
 describe('organization.service (unit)', () => {
-  beforeAll(async () => {
+  beforeAll(async (): Promise<void> => {
     orgService = (await import('../../../src/services/organization.service')) as unknown as typeof import('../../../src/services/organization.service');
   });
 
-  afterEach(() => jest.restoreAllMocks());
+  afterEach((): void => jest.restoreAllMocks());
 
   it('createOrganization throws 404 when owner not found', async () => {
     const User = await import('../../../src/models/user.model');

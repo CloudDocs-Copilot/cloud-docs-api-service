@@ -163,52 +163,68 @@ jest.mock('../src/services/ai/embedding.service', () => {
 
 // Provide a jest.mock for mongoAtlas to use the in-memory collection implementation
 jest.mock('../src/configurations/database-config/mongoAtlas', () => {
-  const stores: Record<string, unknown[]> = {};
+  type MockDoc = Record<string, unknown>;
 
-  const _collectionFactory = (name: string) => {
+  interface MockCollection {
+    insertMany(docs: MockDoc[]): Promise<{ insertedCount: number }>;
+    deleteMany(filter: unknown): Promise<{ deletedCount: number }>;
+    find(filter: unknown): { sort: () => { toArray: () => Promise<MockDoc[]> } };
+    countDocuments(filter: unknown, _opts?: unknown): Promise<number>;
+    distinct(field: string): Promise<unknown[]>;
+    aggregate(pipeline: unknown[]): { toArray: () => Promise<MockDoc[]> };
+    command(_cmd: unknown): Promise<{ ok: number }>;
+  }
+
+  const stores: Record<string, MockDoc[]> = {};
+
+  const _collectionFactory = (name: string): MockCollection => {
     stores[name] = stores[name] || [];
 
     return {
-      insertMany: async (docs: unknown[]) => {
-        stores[name].push(...docs.map(d => ({ ...(d as Record<string, unknown>) })));
+      insertMany: async (docs: MockDoc[]) => {
+        stores[name].push(...docs.map(d => ({ ...d })));
         return { insertedCount: docs.length };
       },
       deleteMany: async (filter: unknown) => {
-        if (!filter || !(filter as Record<string, unknown>).hasOwnProperty('documentId')) {
+        const hasDocumentId = filter && typeof filter === 'object' && 'documentId' in (filter as MockDoc);
+        if (!hasDocumentId) {
           const deleted = stores[name].length;
           stores[name] = [];
           return { deletedCount: deleted };
         }
         const before = stores[name].length;
-        const docId = String((filter as Record<string, unknown>).documentId as unknown);
-        stores[name] = (stores[name] || []).filter(d => (d as Record<string, unknown>).documentId !== docId);
+        const docId = String((filter as MockDoc).documentId);
+        stores[name] = (stores[name] || []).filter(d => d.documentId !== docId);
         return { deletedCount: before - (stores[name] || []).length };
       },
       find: (filter: unknown) => ({
         sort: () => ({
-          toArray: async () => ((stores[name] || []) as unknown[]).filter(d => (d as Record<string, unknown>).documentId === (filter as Record<string, unknown>).documentId) as unknown[]
+          toArray: async () => {
+            const docId = filter && typeof filter === 'object' && 'documentId' in (filter as MockDoc) ? String((filter as MockDoc).documentId) : undefined;
+            if (docId) return (stores[name] || []).filter(d => d.documentId === docId);
+            return (stores[name] || []).slice();
+          }
         })
       }),
       countDocuments: async (filter: unknown, _opts?: unknown) => {
-        if (filter && (filter as Record<string, unknown>).hasOwnProperty('documentId'))
-          return ((stores[name] || []) as unknown[]).filter(d => (d as Record<string, unknown>).documentId === (filter as Record<string, unknown>).documentId).length;
-        return ((stores[name] || []) as unknown[]).length;
+        const docId = filter && typeof filter === 'object' && 'documentId' in (filter as MockDoc) ? String((filter as MockDoc).documentId) : undefined;
+        if (docId) return (stores[name] || []).filter(d => d.documentId === docId).length;
+        return (stores[name] || []).length;
       },
-      distinct: async (field: string) =>
-        Array.from(new Set(((stores[name] || []) as unknown[]).map(d => (d as Record<string, unknown>)[field]))) as unknown[],
+      distinct: async (field: string) => Array.from(new Set((stores[name] || []).map(d => d[field]))) as unknown[],
       aggregate: (pipeline: unknown[]) => ({
         toArray: async () => {
-          const all = (stores[name] || []) as unknown[];
+          const all = (stores[name] || []).slice();
 
           const vsStage = Array.isArray(pipeline)
             ? pipeline.find(p => {
                 if (!p || typeof p !== 'object') return false;
                 const obj = p as Record<string, unknown>;
-                return ('$vectorSearch' in obj) || ('$vectorSearch' in obj);
+                return '$vectorSearch' in obj || '$vectorSearch' in obj;
               })
             : null;
 
-          let results = all.slice();
+          let results: MockDoc[] = all.slice();
 
           if (vsStage && typeof vsStage === 'object') {
             const stageObj = vsStage as Record<string, unknown>;
@@ -223,26 +239,26 @@ jest.mock('../src/configurations/database-config/mongoAtlas', () => {
               }
             }
             if (docId) {
-              results = (results as unknown[]).filter(d => (d as Record<string, unknown>).documentId === docId);
+              results = results.filter(d => d.documentId === docId);
             }
 
             const limitVal = stage && stage['limit'];
             const limit = typeof limitVal === 'number' ? limitVal : undefined;
             if (typeof limit === 'number') {
-              results = (results as unknown[]).slice(0, limit);
+              results = results.slice(0, limit);
             }
           }
 
-          return (results as unknown[]).map((d: unknown, i: number) => ({
-            _id: ((d as Record<string, unknown>)['_id'] ?? `mock-${i}`) as unknown,
-            documentId: (d as Record<string, unknown>)['documentId'],
-            content: (d as Record<string, unknown>)['content'],
-            embedding: (d as Record<string, unknown>)['embedding'],
-            createdAt: (d as Record<string, unknown>)['createdAt'],
-            chunkIndex: (d as Record<string, unknown>)['chunkIndex'],
-            wordCount: (d as Record<string, unknown>)['wordCount'],
-            score: typeof (d as Record<string, unknown>)['score'] === 'number' ? (d as Record<string, unknown>)['score'] : 0.8
-          })) as unknown[];
+          return results.map((d, i) => ({
+            _id: (d['_id'] ?? `mock-${i}`),
+            documentId: d['documentId'],
+            content: d['content'],
+            embedding: d['embedding'],
+            createdAt: d['createdAt'],
+            chunkIndex: d['chunkIndex'],
+            wordCount: d['wordCount'],
+            score: typeof d['score'] === 'number' ? d['score'] : 0.8
+          }));
         }
       }),
       command: async (_cmd: unknown) => ({ ok: 1 })
@@ -251,8 +267,8 @@ jest.mock('../src/configurations/database-config/mongoAtlas', () => {
 
   // Expose a minimal getDb/getClient implementation so production code calling
   // `getDb()` or `getClient()` works against the in-memory collection factory.
-  const getDb = async () => ({ collection: (name: string) => _collectionFactory(name) });
-  const getClient = async () => null;
+  const getDb = async (): Promise<{ collection: (name: string) => MockCollection }> => ({ collection: (name: string) => _collectionFactory(name) });
+  const getClient = async (): Promise<null> => null;
 
   return {
     __esModule: true,
