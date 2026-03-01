@@ -27,7 +27,7 @@ jest.mock('../../../src/models/membership.model', () => ({
 }));
 jest.mock('../../../src/mail/emailService', () => ({ sendConfirmationEmail: jest.fn() }));
 jest.mock('fs', () => ({ readFileSync: jest.fn(() => '<html/>') }));
-jest.mock('path', () => ({ join: (...args: any[]) => args.join('/') }));
+jest.mock('path', () => ({ join: (...args: unknown[]) => args.map(String).join('/') }));
 
 afterEach(() => jest.clearAllMocks());
 

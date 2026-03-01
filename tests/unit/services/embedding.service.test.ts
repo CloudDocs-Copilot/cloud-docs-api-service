@@ -62,11 +62,11 @@ describe('Embedding Service', (): void => {
 
   describe('generateEmbedding', (): void => {
     it('should generate embedding for valid text', async (): Promise<void> => {
-      const mockEmbedding = Array(1536)
+      const mockEmbedding: number[] = Array<number>(1536)
         .fill(0)
         .map((_, i) => i / 1536);
 
-      mockProvider.generateEmbedding.mockResolvedValue({ embedding: mockEmbedding });
+      mockProvider.generateEmbedding.mockResolvedValue({ embedding: mockEmbedding } as { embedding: number[] });
 
       const result = await embeddingService.generateEmbedding('Test text');
 
@@ -94,9 +94,9 @@ describe('Embedding Service', (): void => {
 
     it('should handle very long text input', async (): Promise<void> => {
       const longText = 'word '.repeat(10000); // 10,000 words
-      const mockEmbedding = Array(1536).fill(0);
+      const mockEmbedding: number[] = Array<number>(1536).fill(0);
 
-      mockProvider.generateEmbedding.mockResolvedValue({ embedding: mockEmbedding });
+      mockProvider.generateEmbedding.mockResolvedValue({ embedding: mockEmbedding } as { embedding: number[] });
 
       const result = await embeddingService.generateEmbedding(longText);
 
@@ -106,9 +106,9 @@ describe('Embedding Service', (): void => {
 
     it('should handle special characters in text', async (): Promise<void> => {
       const specialText = '¡Hola! ¿Cómo estás? 你好 مرحبا';
-      const mockEmbedding = Array(1536).fill(0);
+      const mockEmbedding: number[] = Array<number>(1536).fill(0);
 
-      mockProvider.generateEmbedding.mockResolvedValue({ embedding: mockEmbedding });
+      mockProvider.generateEmbedding.mockResolvedValue({ embedding: mockEmbedding } as { embedding: number[] });
 
       const result = await embeddingService.generateEmbedding(specialText);
 
@@ -119,10 +119,10 @@ describe('Embedding Service', (): void => {
 
   describe('generateEmbeddings', (): void => {
     it('should generate embeddings for multiple texts', async (): Promise<void> => {
-      const mockEmbeddings = [Array(1536).fill(0.1), Array(1536).fill(0.2), Array(1536).fill(0.3)];
+      const mockEmbeddings: number[][] = [Array<number>(1536).fill(0.1), Array<number>(1536).fill(0.2), Array<number>(1536).fill(0.3)];
 
       mockProvider.generateEmbeddings.mockResolvedValue(
-        mockEmbeddings.map(embedding => ({ embedding })) as unknown as Array<{ embedding: number[] }>
+        mockEmbeddings.map(embedding => ({ embedding })) as Array<{ embedding: number[] }>
       );
 
       const texts = ['Text 1', 'Text 2', 'Text 3'];
@@ -139,7 +139,7 @@ describe('Embedding Service', (): void => {
     });
 
     it('should throw error if result count does not match input count', async (): Promise<void> => {
-      mockProvider.generateEmbeddings.mockResolvedValue([{ embedding: Array(1536).fill(0) }]);
+      mockProvider.generateEmbeddings.mockResolvedValue([{ embedding: Array<number>(1536).fill(0) }] as Array<{ embedding: number[] }>);
 
       const texts = ['Text 1', 'Text 2', 'Text 3'];
 
@@ -150,10 +150,10 @@ describe('Embedding Service', (): void => {
 
     it('should handle batch processing for large arrays', async (): Promise<void> => {
       const largeArray = Array(100).fill('test text');
-      const mockEmbedding = Array(1536).fill(0);
+      const mockEmbedding: number[] = Array<number>(1536).fill(0);
 
       mockProvider.generateEmbeddings.mockResolvedValue(
-        largeArray.map(() => ({ embedding: mockEmbedding })) as unknown as Array<{ embedding: number[] }>
+        largeArray.map(() => ({ embedding: mockEmbedding })) as Array<{ embedding: number[] }>
       );
 
       const result = await embeddingService.generateEmbeddings(largeArray);

@@ -37,7 +37,7 @@ describe('EmbeddingService - Provider abstraction dimension checks', (): void =>
   describe('generateEmbedding - dimension awareness', (): void => {
     it('returns embedding matching provider dimensions when provider returns correct size', async (): Promise<void> => {
       const dims = 1536;
-      const embedding = Array(dims).fill(0.1);
+      const embedding: number[] = Array<number>(dims).fill(0.1);
 
       mockProvider.getEmbeddingDimensions.mockReturnValue(dims);
       mockProvider.generateEmbedding.mockResolvedValue({ embedding });
@@ -50,7 +50,7 @@ describe('EmbeddingService - Provider abstraction dimension checks', (): void =>
 
     it('returns embedding even if provider returns unexpected dimensions (detectable)', async () => {
       const providerDims = 1536;
-      const wrongEmbedding = Array(512).fill(0);
+      const wrongEmbedding: number[] = Array<number>(512).fill(0);
 
       mockProvider.getEmbeddingDimensions.mockReturnValue(providerDims);
       mockProvider.generateEmbedding.mockResolvedValue({ embedding: wrongEmbedding });
@@ -67,8 +67,8 @@ describe('EmbeddingService - Provider abstraction dimension checks', (): void =>
   describe('generateEmbeddings - batch dimension observations', (): void => {
     it('returns embeddings array and preserves individual lengths', async (): Promise<void> => {
       const dims = 1536;
-      const embA = Array(dims).fill(0.1);
-      const embB = Array(dims).fill(0.2);
+      const embA: number[] = Array<number>(dims).fill(0.1);
+      const embB: number[] = Array<number>(dims).fill(0.2);
 
       mockProvider.getEmbeddingDimensions.mockReturnValue(dims);
       mockProvider.generateEmbeddings.mockResolvedValue([{ embedding: embA }, { embedding: embB }] as unknown as Array<{ embedding: number[] }>);
@@ -84,7 +84,7 @@ describe('EmbeddingService - Provider abstraction dimension checks', (): void =>
     it('throws when provider returns fewer results than input texts', async (): Promise<void> => {
       const dims = 1536;
       mockProvider.getEmbeddingDimensions.mockReturnValue(dims);
-      mockProvider.generateEmbeddings.mockResolvedValue([{ embedding: Array(dims).fill(0) }] as unknown as Array<{ embedding: number[] }>);
+      mockProvider.generateEmbeddings.mockResolvedValue([{ embedding: Array<number>(dims).fill(0) }] as unknown as Array<{ embedding: number[] }>);
 
       const texts = ['T1', 'T2', 'T3'];
 

@@ -15,7 +15,7 @@ describe('Search API - Elasticsearch Integration', () => {
   let authToken: string;
   let userId: string;
   let organizationId: string;
-  let testDocuments: any[] = [];
+  let testDocuments: Array<Record<string, unknown>> = [];
 
   // Setup test data before each test (setup.ts clears collections after each test)
   beforeEach(async () => {
@@ -103,29 +103,31 @@ describe('Search API - Elasticsearch Integration', () => {
     (searchService.searchDocuments as jest.Mock).mockImplementation(
       async (params: { query: string; organizationId?: string; mimeType?: string; limit?: number; offset?: number }) => {
         const q = params.query.toLowerCase();
-        let results = testDocuments.filter(doc => 
-          doc.originalname.toLowerCase().includes(q) ||
-          doc.filename.toLowerCase().includes(q)
-        );
-        
+        const results = testDocuments.filter((doc) => {
+          const original = String(doc.originalname || '').toLowerCase();
+          const filename = String(doc.filename || '').toLowerCase();
+          return original.includes(q) || filename.includes(q);
+        });
+
         // Apply mimeType filter if provided
+        let filtered = results;
         if (params.mimeType) {
-          results = results.filter(doc => doc.mimeType === params.mimeType);
+          filtered = filtered.filter(d => String(d.mimeType || '') === params.mimeType);
         }
-        
+
         // Apply organization filter
         if (params.organizationId) {
-          results = results.filter(doc => doc.organization === params.organizationId);
+          filtered = filtered.filter(d => String(d.organization || '') === params.organizationId);
         }
-        
+
         // Apply pagination
         const offset = params.offset || 0;
         const limit = params.limit || 10;
-        const paginatedResults = results.slice(offset, offset + limit);
-        
+        const paginatedResults = filtered.slice(offset, offset + limit);
+
         return {
           documents: paginatedResults,
-          total: results.length,
+          total: filtered.length,
           took: 5
         };
       }
@@ -136,8 +138,8 @@ describe('Search API - Elasticsearch Integration', () => {
       async (query: string, _userId: string, _organizationId?: string, limit: number = 5) => {
         const q = query.toLowerCase();
         const suggestions = testDocuments
-          .filter(doc => doc.originalname.toLowerCase().includes(q))
-          .map(doc => doc.originalname)
+          .filter(doc => String(doc.originalname || '').toLowerCase().includes(q))
+          .map(doc => String(doc.originalname || ''))
           .slice(0, limit);
         return suggestions;
       }
@@ -151,11 +153,11 @@ describe('Search API - Elasticsearch Integration', () => {
         .query({ q: 'zonificacion' })
         .set('Authorization', `Bearer ${authToken}`)
         .set('X-Organization-ID', organizationId);
-
       expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.length).toBeGreaterThan(0);
-      expect(response.body.total).toBeGreaterThan(0);
+      const body = response.body as { success?: boolean; data?: Array<Record<string, unknown>>; total?: number };
+      expect(body.success).toBe(true);
+      expect(body.data?.length).toBeGreaterThan(0);
+      expect(body.total).toBeGreaterThan(0);
     });
 
     it('debe buscar con búsqueda case-insensitive (PREDIAL)', async () => {
@@ -164,10 +166,10 @@ describe('Search API - Elasticsearch Integration', () => {
         .query({ q: 'PREDIAL' })
         .set('Authorization', `Bearer ${authToken}`)
         .set('X-Organization-ID', organizationId);
-
       expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.length).toBeGreaterThan(0);
+      const body = response.body as { success?: boolean; data?: Array<Record<string, unknown>> };
+      expect(body.success).toBe(true);
+      expect(body.data?.length).toBeGreaterThan(0);
     });
 
     it('debe buscar con palabra parcial (constan)', async () => {
@@ -176,10 +178,10 @@ describe('Search API - Elasticsearch Integration', () => {
         .query({ q: 'constan' })
         .set('Authorization', `Bearer ${authToken}`)
         .set('X-Organization-ID', organizationId);
-
       expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.length).toBeGreaterThan(0);
+      const body = response.body as { success?: boolean; data?: Array<Record<string, unknown>> };
+      expect(body.success).toBe(true);
+      expect(body.data?.length).toBeGreaterThan(0);
     });
 
     it('debe filtrar por tipo MIME', async () => {
@@ -191,11 +193,11 @@ describe('Search API - Elasticsearch Integration', () => {
         })
         .set('Authorization', `Bearer ${authToken}`)
         .set('X-Organization-ID', organizationId);
-
       expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      response.body.data.forEach((doc: any) => {
-        expect(doc.mimeType).toBe('application/pdf');
+      const body = response.body as { success?: boolean; data?: Array<Record<string, unknown>> };
+      expect(body.success).toBe(true);
+      (body.data || []).forEach((doc) => {
+        expect(String(doc.mimeType || '')).toBe('application/pdf');
       });
     });
 
@@ -209,9 +211,9 @@ describe('Search API - Elasticsearch Integration', () => {
         })
         .set('Authorization', `Bearer ${authToken}`)
         .set('X-Organization-ID', organizationId);
-
       expect(response.status).toBe(200);
-      expect(response.body.data.length).toBeLessThanOrEqual(2);
+      const body = response.body as { data?: Array<Record<string, unknown>> };
+      expect(body.data?.length).toBeLessThanOrEqual(2);
     });
 
     it('debe retornar 400 si falta el parámetro q', async () => {
@@ -219,7 +221,6 @@ describe('Search API - Elasticsearch Integration', () => {
         .get('/api/search')
         .set('Authorization', `Bearer ${authToken}`)
         .set('X-Organization-ID', organizationId);
-
       expect(response.status).toBe(400);
     });
 
@@ -239,8 +240,9 @@ describe('Search API - Elasticsearch Integration', () => {
         .set('X-Organization-ID', organizationId);
 
       expect(response.status).toBe(200);
-      response.body.data.forEach((doc: any) => {
-        expect(doc.organization).toBe(organizationId);
+      const body = response.body as { data?: Array<Record<string, unknown>> };
+      (body.data || []).forEach((doc) => {
+        expect(String(doc.organization || '')).toBe(organizationId);
       });
     });
   });
