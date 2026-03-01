@@ -410,7 +410,7 @@ Responde ÚNICAMENTE con un objeto JSON válido (sin markdown, sin explicaciones
           if (match2) {
             parsed = parseJsonRecord(match2[0]);
           }
-        } catch (e) {
+        } catch  {
           // ignore and continue to error handling below
         }
       }
