@@ -30,8 +30,24 @@ interface OcrWorker {
   terminate(): Promise<void>;
 }
 
+interface TesseractWorkerOptions {
+  logger?: (message: unknown) => void;
+  /** Local directory containing *.traineddata files — checked first before langPath */
+  cachePath?: string;
+  /** 'readOnly' reads from cachePath without downloading; 'none' skips cache entirely */
+  cacheMethod?: string;
+  /** Set to false when using pre-downloaded (uncompressed) .traineddata files */
+  gzip?: boolean;
+  /**
+   * Path (local dir or URL) used as fallback when cachePath read fails.
+   * Setting this to a LOCAL directory ensures the fallback also reads from disk
+   * instead of the CDN — eliminating all network requests in Node.js.
+   */
+  langPath?: string;
+}
+
 interface TesseractModule {
-  createWorker(options?: { logger?: (message: unknown) => void }): OcrWorker;
+  createWorker(options?: TesseractWorkerOptions): OcrWorker;
 }
 
 function toRecord(value: unknown): Record<string, unknown> | null {
@@ -68,6 +84,75 @@ function toPdfInfoRecord(value: unknown): PdfInfoRecord {
 function isTesseractModule(value: unknown): value is TesseractModule {
   return typeof value === 'object' && value !== null && 'createWorker' in value;
 }
+
+// ---------------------------------------------------------------------------
+// Singleton OCR worker — created once, reused for all image recognition calls.
+// This avoids the expensive load/loadLanguage/initialize cycle per image.
+// ---------------------------------------------------------------------------
+let _ocrWorkerInstance: OcrWorker | null = null;
+let _ocrWorkerInitPromise: Promise<OcrWorker> | null = null;
+
+async function getOrInitOcrWorker(): Promise<OcrWorker> {
+  if (_ocrWorkerInstance) return _ocrWorkerInstance;
+  // If init is already in progress, wait for it instead of double-initialising
+  if (_ocrWorkerInitPromise) return _ocrWorkerInitPromise;
+
+  _ocrWorkerInitPromise = (async (): Promise<OcrWorker> => {
+    console.warn('[text-extraction] Initialising OCR singleton worker...');
+
+    const tesseractModuleUnknown: unknown = await import('tesseract.js');
+    if (!isTesseractModule(tesseractModuleUnknown)) {
+      throw new HttpError(500, 'Invalid tesseract module shape');
+    }
+
+    // Point tesseract at the local tessdata directory so it NEVER contacts the
+    // internet.  Two-layer protection:
+    //  1. cachePath + cacheMethod:'readOnly'  → reads traineddata from disk first
+    //  2. langPath set to same local dir       → if cache read fails for any
+    //     reason, the fallback also reads from disk (not the CDN URL)
+    const tessdataPath = path.join(process.cwd(), 'tessdata');
+
+    const worker = tesseractModuleUnknown.createWorker({
+      // Primary: read .traineddata from local dir
+      cachePath: tessdataPath,
+      cacheMethod: 'readOnly',
+      // Fallback path (local dir, not a URL) → adapter.readCache used, no fetch
+      langPath: tessdataPath,
+      // Plain .traineddata files downloaded by setup:tessdata (not gzipped)
+      gzip: false,
+      logger: (m: unknown) => {
+        const msg = m as Record<string, unknown>;
+        if (msg.status === 'recognizing text') {
+          const pct = Math.round(((msg.progress as number) || 0) * 100);
+          console.warn(`[tesseract] Recognizing: ${pct}%`);
+        }
+      },
+    });
+
+    await worker.load();
+    await worker.loadLanguage(OCR_LANGUAGES);
+    await worker.initialize(OCR_LANGUAGES);
+
+    _ocrWorkerInstance = worker;
+    console.warn(`[text-extraction] OCR singleton worker ready (languages: ${OCR_LANGUAGES})`);
+    return worker;
+  })();
+
+  // If init fails, reset state so the next call retries
+  _ocrWorkerInitPromise.catch(() => {
+    _ocrWorkerInstance = null;
+    _ocrWorkerInitPromise = null;
+  });
+
+  return _ocrWorkerInitPromise;
+}
+
+// Graceful shutdown: terminate worker when process exits
+process.on('exit', () => {
+  if (_ocrWorkerInstance) {
+    _ocrWorkerInstance.terminate().catch(() => {});
+  }
+});
 
 /**
  * Tipos MIME soportados para extracción de texto
@@ -317,45 +402,26 @@ export class TextExtractionService {
   }
 
   /**
-   * Extrae texto de una imagen usando tesseract.js
+   * Extrae texto de una imagen usando tesseract.js.
+   * Reutiliza un worker singleton para evitar el coste de load/init por imagen.
    */
   private async extractFromImage(filePath: string): Promise<ITextExtractionResult> {
     if (!OCR_ENABLED) {
       throw new HttpError(400, 'OCR is not enabled on this server');
     }
 
-    const tesseractModuleUnknown: unknown = await import('tesseract.js');
+    const worker = await getOrInitOcrWorker();
 
-    if (!isTesseractModule(tesseractModuleUnknown)) {
-      throw new HttpError(500, 'Invalid tesseract module shape');
-    }
+    const recognizeResult = await worker.recognize(filePath);
+    const text = recognizeResult.data?.text?.trim() || '';
+    const wordCount = this.countWords(text);
 
-    const worker = tesseractModuleUnknown.createWorker({
-      logger: (m: unknown) => console.warn('[tesseract]', m)
-    });
-
-    try {
-      await worker.load();
-      await worker.loadLanguage(OCR_LANGUAGES);
-      await worker.initialize(OCR_LANGUAGES);
-
-      const recognizeResult = await worker.recognize(filePath);
-      const text = recognizeResult.data?.text?.trim() || '';
-      const wordCount = this.countWords(text);
-
-      return {
-        text,
-        charCount: text.length,
-        wordCount,
-        mimeType: 'image/*'
-      };
-    } finally {
-      try {
-        await worker.terminate();
-      } catch {
-        // ignore
-      }
-    }
+    return {
+      text,
+      charCount: text.length,
+      wordCount,
+      mimeType: 'image/*'
+    };
   }
 
   /**

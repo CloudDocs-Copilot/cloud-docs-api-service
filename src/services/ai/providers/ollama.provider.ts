@@ -226,28 +226,34 @@ export class OllamaProvider implements AIProvider {
    * Clasifica un documento usando Llama
    */
   async classifyDocument(text: string): Promise<ClassificationResult> {
-    const prompt = `Analiza el siguiente documento y clasifícalo.
+    const prompt = `You are a document classifier. Classify the following document into ONE category.
 
-Categorías posibles: ${DOCUMENT_CATEGORIES.join(', ')}
+AVAILABLE CATEGORIES: ${DOCUMENT_CATEGORIES.join(', ')}
 
-Texto del documento (primeros 2000 caracteres):
-${text.substring(0, 2000)}
+DOCUMENT TEXT (first 3000 characters):
+${text.substring(0, 3000)}
 
-Responde ÚNICAMENTE con un objeto JSON válido (sin markdown, sin explicaciones):
-{
-  "category": "nombre_de_la_categoría",
-  "confidence": 0.95,
-  "tags": ["tag1", "tag2", "tag3"]
-}`;
+IMPORTANT: Respond ONLY with valid JSON. No explanations, no markdown, no additional text.
+
+EXAMPLE OUTPUT:
+{"category":"Factura","confidence":0.95,"tags":["finanzas","pago","IVA"]}
+
+Your JSON response:`;
 
     const result = await this.generateResponse(prompt, {
-      temperature: 0.2,
-      maxTokens: 200
+      temperature: 0.1,
+      maxTokens: 300
     });
 
-    // Limpiar markdown si existe
+    // Limpiar markdown y texto extra
     let jsonStr = result.response.trim();
     jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+    
+    // Intentar extraer JSON de la respuesta
+    const jsonMatch = jsonStr.match(/\{[^}]+\}/);
+    if (jsonMatch) {
+      jsonStr = jsonMatch[0];
+    }
 
     const parsed = parseJsonRecord(jsonStr);
     if (parsed) {
@@ -262,7 +268,88 @@ Responde ÚNICAMENTE con un objeto JSON válido (sin markdown, sin explicaciones
       };
     }
 
-      console.error('[ollama-provider] Failed to parse classification:', result.response);
+    // Fallback: extraer categoría de texto natural
+    console.warn('[ollama-provider] Failed to parse JSON, attempting fallback extraction...');
+    console.error('[ollama-provider] Original response:', result.response);
+    
+    const fallbackResult = this.extractCategoryFromText(result.response);
+    if (fallbackResult.category !== 'Otro') {
+      console.warn(`[ollama-provider] Fallback extraction succeeded: ${fallbackResult.category}`);
+      return fallbackResult;
+    }
+
+    console.error('[ollama-provider] All classification attempts failed');
+    return {
+      category: 'Otro',
+      confidence: 0.3,
+      tags: []
+    };
+  }
+
+  /**
+   * Extrae categoría de texto natural cuando el modelo no genera JSON
+   * Busca palabras clave de categorías en la respuesta
+   */
+  private extractCategoryFromText(response: string): ClassificationResult {
+    const lowerResponse = response.toLowerCase();
+    
+    // Mapeo de palabras clave a categorías (extendido)
+    const categoryKeywords: Record<string, string[]> = {
+      'Factura': ['factura', 'invoice', 'sat', 'cfdi', 'fiscal', 'iva', 'rfc', 'total', 'importe'],
+      'Contrato': ['contrato', 'contract', 'acuerdo', 'cláusula', 'convenio', 'términos', 'firma'],
+      'Informe': ['informe', 'report', 'análisis', 'reporte', 'estudio', 'conclusión'],
+      'Manual': ['manual', 'guía', 'instrucciones', 'procedimiento', 'paso'],
+      'Política': ['política', 'policy', 'normativa', 'reglamento', 'directriz'],
+      'Presentación': ['presentación', 'presentation', 'diapositiva', 'slide', 'ppt'],
+      'Reporte Financiero': ['balance', 'estado financiero', 'pérdidas', 'ganancias', 'utilidades', 'estado de resultados'],
+      'Acta de Reunión': ['acta', 'reunión', 'junta', 'sesión', 'minuta', 'asistentes'],
+      'Propuesta': ['propuesta', 'proposal', 'cotización', 'presupuesto', 'oferta'],
+      'Recibo': ['recibo', 'receipt', 'comprobante de pago'],
+      'Nómina': ['nómina', 'nomina', 'salario', 'sueldo', 'percepción'],
+      'Certificado': ['certificado', 'certificate', 'certificación'],
+      'Documento Fiscal': ['fiscal', 'sat', 'cfdi', 'rfc', 'comprobante fiscal'],
+      'Carta': ['carta', 'letter', 'saludo', 'atentamente'],
+      'Solicitud': ['solicitud', 'request', 'petición', 'solicita'],
+      'Cotización': ['cotización', 'quote', 'precio', 'valor'],
+      'Presupuesto': ['presupuesto', 'budget', 'estimación'],
+      'Factura Proforma': ['proforma', 'factura proforma'],
+      'Factura Simplificada': ['simplificada', 'ticket', 'factura simplificada'],
+      'Orden de Compra': ['orden de compra', 'purchase order', 'oc', 'orden'],
+      'Hoja de Cálculo': ['hoja de cálculo', 'spreadsheet', 'excel', 'xlsx', 'csv'],
+      'Imagen/Fotografía': ['imagen', 'fotografía', 'jpg', 'png', 'photo'],
+      'Presentación Técnica': ['presentación técnica', 'especificación', 'technical'],
+      'Política Interna': ['política interna', 'procedimiento interno'],
+      'Carta Comercial': ['carta comercial', 'oferta comercial'],
+      'Declaración': ['declaración', 'declaracion', 'statement'],
+      'Permiso': ['permiso', 'license', 'autorización', 'autorizacion'],
+      'Licencia': ['licencia', 'license'],
+      'Resumen Ejecutivo': ['resumen ejecutivo', 'executive summary'],
+      'Checklist': ['checklist', 'lista de verificación', 'lista'],
+      'Formulario': ['formulario', 'form', 'solicitud de datos']
+    };
+
+    // Buscar la categoría con más coincidencias
+    let bestMatch = 'Otro';
+    let maxMatches = 0;
+    let foundKeywords: string[] = [];
+
+    for (const [category, keywords] of Object.entries(categoryKeywords)) {
+      const matches = keywords.filter(keyword => lowerResponse.includes(keyword));
+      if (matches.length > maxMatches) {
+        maxMatches = matches.length;
+        bestMatch = category;
+        foundKeywords = matches;
+      }
+    }
+
+    // Si encontramos al menos 1 palabra clave, usamos esa categoría
+    if (maxMatches > 0) {
+      return {
+        category: bestMatch,
+        confidence: Math.min(0.6 + (maxMatches * 0.1), 0.9), // Confianza basada en matches
+        tags: foundKeywords.slice(0, 5) // Primeras 5 palabras clave encontradas
+      };
+    }
 
     return {
       category: 'Otro',
@@ -290,7 +377,7 @@ Responde ÚNICAMENTE con un objeto JSON válido (sin markdown, sin explicaciones
       console.warn('[ollama-provider] Requesting summarization...');
       const result = await this.generateResponse(prompt, {
         temperature: 0.3,
-        maxTokens: 500
+        maxTokens: 800
       });
 
       console.warn('[ollama-provider] Raw Ollama response:', result.response.substring(0, 200));
@@ -299,9 +386,54 @@ Responde ÚNICAMENTE con un objeto JSON válido (sin markdown, sin explicaciones
       let jsonStr = result.response.trim();
       jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '');
 
-      const parsed = parseJsonRecord(jsonStr);
+      // Intentar parse directo
+      let parsed = parseJsonRecord(jsonStr);
 
+      // Si falla, intentar extraer el primer objeto JSON completo (soporta saltos de línea)
       if (!parsed) {
+        const match = jsonStr.match(/\{[\s\S]*\}/);
+        if (match) {
+          parsed = parseJsonRecord(match[0]);
+        }
+      }
+
+      // Fallback adicional: convertir comillas simples a dobles para casos donde el modelo
+      // devuelve JSON con comillas simples (p. ej. { 'summary': '...', 'keyPoints': ['a'] })
+      if (!parsed) {
+        try {
+          const singleToDouble = jsonStr
+            .replace(/\n/g, ' ')
+            .replace(/\s*'([^']*)'\s*:/g, '"$1":')
+            .replace(/:\s*'([^']*)'/g, ':"$1"');
+
+          const match2 = singleToDouble.match(/\{[\s\S]*\}/);
+          if (match2) {
+            parsed = parseJsonRecord(match2[0]);
+          }
+        } catch  {
+          // ignore and continue to error handling below
+        }
+      }
+      // Fallback de reparación: el modelo truncó el JSON (falta el cierre '}')
+      // Se intenta reparar añadiendo los tokens de cierre que faltan
+      if (!parsed) {
+        const repairCandidates = [
+          jsonStr + '\n]}',   // falta cerrar el array y el objeto
+          jsonStr + '"]}',    // truncado en medio de un string dentro del array
+          jsonStr + '\n}',    // solo falta cerrar el objeto
+          jsonStr + '"}'      // truncado en medio de un string de la raíz
+        ];
+        for (const candidate of repairCandidates) {
+          const repaired = parseJsonRecord(candidate);
+          if (repaired) {
+            parsed = repaired;
+            console.warn('[ollama-provider] Repaired truncated summary JSON');
+            break;
+          }
+        }
+      }
+      if (!parsed) {
+        console.error('[ollama-provider] Failed to parse summarization JSON. Raw response:', result.response);
         throw new Error('Invalid summary JSON payload');
       }
 
@@ -309,6 +441,7 @@ Responde ÚNICAMENTE con un objeto JSON válido (sin markdown, sin explicaciones
       const keyPoints = parseStringArray(parsed.keyPoints);
 
       if (!summary || keyPoints.length === 0) {
+        console.error('[ollama-provider] Parsed summary structure invalid:', parsed);
         throw new Error('Invalid summary structure: missing summary or keyPoints');
       }
 

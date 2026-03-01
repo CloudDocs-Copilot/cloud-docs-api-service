@@ -115,6 +115,9 @@ class ElasticsearchClient {
               },
               uploadedAt: {
                 type: 'date'
+              },
+              sharedWith: {
+                type: 'keyword' // Array of user IDs; ES handles arrays natively
               }
             }
           }

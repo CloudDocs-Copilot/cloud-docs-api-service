@@ -5,7 +5,6 @@ import { embeddingService } from './embedding.service';
 import { llmService } from './llm.service';
 import { buildPrompt } from './prompt.builder';
 import HttpError from '../../models/error.model';
-import mongoose from 'mongoose';
 import type { IDocumentChunk, ISearchResult, IRagResponse } from '../../models/types/ai.types';
 
 type SearchChunkWithScore = IDocumentChunk & { score?: number };
@@ -280,10 +279,9 @@ export class RAGService {
       const db = await getDb();
       const collection = db.collection<IDocumentChunk>(COLLECTION_NAME);
 
-      // Compute deterministic document id filter (ObjectId when valid)
-      const docIdFilter = mongoose.Types.ObjectId.isValid(documentId)
-        ? new mongoose.Types.ObjectId(documentId)
-        : documentId;
+      // documentId is stored as string in document_chunks collection
+      // Do NOT convert to ObjectId - it will break the filter match
+      const docIdFilter = documentId;
 
       // Búsqueda vectorial con filtro por organización Y documento
       const cursor = collection.aggregate<SearchChunkWithScore>([
@@ -329,7 +327,7 @@ export class RAGService {
       if (!cursor || typeof cursor.toArray !== 'function') {
         throw new Error('Database error');
       }
-
+      console.warn(`[rag] Executing vector search with document filter ${documentId}...`);
       const results = await cursor.toArray();
 
       const searchResults: ISearchResult[] = (results as SearchChunkWithScore[]).map(doc => ({

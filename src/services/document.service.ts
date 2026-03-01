@@ -18,6 +18,7 @@ import { emitToUser } from '../socket/socket';
 import { processDocumentAI } from '../jobs/process-document-ai.job';
 import { textExtractionService } from './ai/text-extraction.service';
 import { extractContentFromDocument } from '../utils/pdf-extractor';
+import { getDocumentSelect } from '../utils/document-fields.util';
 
 /**
  * Valida si un string es un ObjectId válido de MongoDB
@@ -222,7 +223,7 @@ export async function listSharedDocumentsToUser(userId: string): Promise<IDocume
   })
     .sort({ createdAt: -1 })
     .populate('folder', 'name displayName path')
-    .select('-__v')
+    .select(getDocumentSelect('list')) // 🤖 Incluye campos AI explícitamente
     .lean();
 
   return docs as unknown as IDocument[];
@@ -291,8 +292,9 @@ export async function replaceDocumentFile({
   }
 
   // Validar tipo de archivo permitido según el plan
+  // Fuente única de verdad: PLAN_LIMITS (no settings de BD, que puede estar desactualizado)
   const fileExt = path.extname(file.originalname).slice(1).toLowerCase();
-  const allowedTypes = organization.settings.allowedFileTypes;
+  const allowedTypes = PLAN_LIMITS[organization.plan].allowedFileTypes;
 
   if (!allowedTypes.includes('*') && !allowedTypes.includes(fileExt)) {
     throw new HttpError(
@@ -751,7 +753,7 @@ export async function getUserRecentDocuments({
     .sort({ createdAt: -1 })
     .limit(limit)
     .populate('folder', 'name displayName path')
-    .select('-__v')
+    .select(getDocumentSelect('list')) // 🤖 Incluye campos AI explícitamente
     .lean();
 
   // Agregar campo calculado indicando si es propio o visible por organización
@@ -864,8 +866,9 @@ export async function uploadDocument({
   }
 
   // Validar tipo de archivo permitido según el plan
+  // Fuente única de verdad: PLAN_LIMITS (no settings de BD, que puede estar desactualizado)
   const fileExt = path.extname(file.originalname).slice(1).toLowerCase();
-  const allowedTypes = organization.settings.allowedFileTypes;
+  const allowedTypes = PLAN_LIMITS[organization.plan].allowedFileTypes;
 
   if (!allowedTypes.includes('*') && !allowedTypes.includes(fileExt)) {
     throw new HttpError(
@@ -1050,7 +1053,9 @@ export async function listDocuments(userId: string): Promise<IDocument[]> {
   return DocumentModel.find({
     uploadedBy: userObjectId,
     deletedAt: null // Excluir documentos en papelera
-  }).populate('folder');
+  })
+    .populate('folder')
+    .select(getDocumentSelect('list')); // 🤖 Incluye campos AI explícitamente
 }
 
 export async function findDocumentById(id: string): Promise<IDocument | null> {

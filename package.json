@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "dist/index.js",
   "scripts": {
+    "postinstall": "node scripts/patch-tesseract-core.mjs",
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "nodemon --exec ts-node src/index.ts",
@@ -21,8 +22,11 @@
     "test:coverage:unit:ci": "cross-env NODE_ENV=test COVERAGE_DIR=coverage/unit jest --config jest.unit.config.js --coverage --runInBand",
     "test:ci": "npm run test:coverage:main && npm run test:coverage:unit:ci && npm run test:ci:report",
     "test:ci:report": "node scripts/merge-coverage.js",
+    "setup:tessdata": "ts-node scripts/setup-tessdata.ts",
     "seed:dev": "ts-node scripts/seed-dev.ts",
-    "reprocess-chunks": "ts-node scripts/reprocess-chunks.ts"
+    "es:reindex": "ts-node scripts/reindex-elasticsearch.ts",
+    "reprocess-chunks": "ts-node scripts/reprocess-chunks.ts",
+    "check-chunks": "ts-node scripts/check-chunks.ts"
   },
   "dependencies": {
     "@elastic/elasticsearch": "^8.10.0",

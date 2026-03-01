@@ -17,10 +17,11 @@ jest.mock('../../../src/services/ai/llm.service');
 jest.mock('../../../src/services/ai/prompt.builder');
 jest.mock('../../../src/configurations/database-config/mongoAtlas');
 
-type ISearchResult = {
-  chunk: { documentId: mongoose.Types.ObjectId | string; content: string; chunkIndex?: number };
-  score: number;
-};
+// Search result can be either the internal shape returned by search()/searchInDocument
+// or the flattened shape returned by answerQuestion()/answerQuestionInDocument.
+type ISearchResult =
+  | { chunk: { documentId: mongoose.Types.ObjectId | string; content: string; chunkIndex?: number }; score: number }
+  | { documentId: mongoose.Types.ObjectId | string; content: string; score: number };
 
 type RAGServiceType = {
   search: (q: string, orgId: string, limit: number) => Promise<ISearchResult[]>;
@@ -48,12 +49,21 @@ describe('RAGService', (): void => {
     } as unknown;
 
     // Obtain the mocked `getDb` implementation from the mocked module via dynamic import
-    const mocked = await import('../../../src/configurations/database-config/mongoAtlas') as { getDb: jest.Mock };
+    const mocked = await import('../../../src/configurations/database-config/mongoAtlas') as unknown as { getDb: jest.Mock };
     getDb = mocked.getDb;
 
-    (getDb as jest.Mock).mockResolvedValue({
-      collection: jest.fn().mockReturnValue(mockCollection)
-    });
+    // Ensure getDb is a jest.Mock so tests can set mockResolvedValue.
+    if (typeof (getDb as any).mockResolvedValue !== 'function') {
+      // Replace the exported function with a mock implementation.
+      (mocked as any).getDb = jest.fn().mockResolvedValue({
+        collection: jest.fn().mockReturnValue(mockCollection)
+      });
+      getDb = (mocked as any).getDb;
+    } else {
+      (getDb as jest.Mock).mockResolvedValue({
+        collection: jest.fn().mockReturnValue(mockCollection)
+      });
+    }
   });
 
   describe('search', (): void => {
@@ -201,7 +211,8 @@ describe('RAGService', (): void => {
       const pipeline = mockAggregate.mock.calls[0][0] as unknown as Array<Record<string, unknown>>;
       const matchStage = pipeline.find((stage: unknown) => (stage as { $match?: Record<string, unknown> }).$match !== undefined) as { $match?: Record<string, unknown> } | undefined;
       expect(matchStage).toBeDefined();
-      expect(matchStage!.$match!['documentId']).toEqual(doc123Id);
+      // documentId filter may be a string in the pipeline; compare as string
+      expect(String(matchStage!.$match!['documentId'])).toEqual(doc123Id.toString());
     });
 
     it('should return empty array if document has no chunks', async (): Promise<void> => {
@@ -253,9 +264,10 @@ describe('RAGService', (): void => {
       expect(result.answer).toBe('AI stands for Artificial Intelligence.');
       expect(result.chunks).toBeInstanceOf(Array);
       expect(result.chunks).toHaveLength(1);
-      expect(result.chunks![0].documentId.toString()).toBe(doc1Id.toString());
-      expect(result.chunks![0].content).toBe('AI is artificial intelligence');
-      expect(result.chunks![0].score).toBe(0.95);
+      // answerQuestion returns flattened chunk objects: { documentId, content, score }
+      expect((result.chunks![0] as any).documentId.toString()).toBe(doc1Id.toString());
+      expect((result.chunks![0] as any).content).toBe('AI is artificial intelligence');
+      expect((result.chunks![0] as any).score).toBe(0.95);
     });
 
     it('should handle case when no relevant chunks found', async (): Promise<void> => {
@@ -333,8 +345,9 @@ describe('RAGService', (): void => {
       expect(result.answer).toBe('Answer about the document.');
       expect(result.chunks).toBeInstanceOf(Array);
       expect(result.chunks).toHaveLength(1);
-      expect(result.chunks![0].documentId.toString()).toBe(doc123Id.toString());
-      expect(result.chunks![0].content).toBe('Document specific content');
+      // answerQuestionInDocument returns flattened chunk objects: { documentId, content, score }
+      expect((result.chunks![0] as any).documentId.toString()).toBe(doc123Id.toString());
+      expect((result.chunks![0] as any).content).toBe('Document specific content');
     });
 
     it('should handle empty document', async (): Promise<void> => {

@@ -18,6 +18,12 @@ package-lock.json.bak
 .env.production
 .env.test
 .env.*.local
+
+# -----------------------------------------------------------------------------
+# OCR Language models (tessdata)
+# Large binary files - download via: npm run setup:tessdata
+# -----------------------------------------------------------------------------
+tessdata/
 !.env.example
 !.env.test.example
 

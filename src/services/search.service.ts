@@ -27,6 +27,7 @@ interface IndexedDocumentSource {
   aiKeyPoints: string[];
   aiProcessingStatus: string;
   aiConfidence: number | null;
+  sharedWith: string[];
 }
 
 interface SearchHitLike {
@@ -51,6 +52,7 @@ export interface SearchParams {
   userId: string;
   organizationId?: string;
   mimeType?: string;
+  category?: string;
   fromDate?: Date;
   toDate?: Date;
   limit?: number;
@@ -105,7 +107,9 @@ export async function indexDocument(document: IDocument, extractedText?: string)
         aiSummary: document.aiSummary || null,
         aiKeyPoints: document.aiKeyPoints || [],
         aiProcessingStatus: document.aiProcessingStatus || 'none',
-        aiConfidence: document.aiConfidence || null
+        aiConfidence: document.aiConfidence || null,
+        // Array de IDs de usuarios con quienes se comparte el documento
+        sharedWith: (document.sharedWith || []).map(id => String(id))
       } as IndexedDocumentSource
     });
 
@@ -158,69 +162,118 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
       userId,
       organizationId,
       mimeType,
+      category,
       fromDate,
       toDate,
       limit = 20,
       offset = 0
     } = params;
 
-    // Construir filtros
-    const filters: Array<Record<string, unknown>> = [];
+    // ─── Construir filtro de acceso ─────────────────────────────────────────
+    // Un usuario puede ver un documento si se cumple CUALQUIERA de:
+    //   a) El usuario lo subió (uploadedBy = userId)
+    //   b) El documento pertenece a la organización activa del usuario
+    //   c) El documento ha sido compartido directamente con él (sharedWith contains userId)
+    const accessFilter: Record<string, unknown> = {
+      bool: {
+        should: [
+          { term: { uploadedBy: userId } },
+          { term: { sharedWith: userId } },
+          ...(organizationId ? [{ term: { organization: organizationId } }] : [])
+        ],
+        minimum_should_match: 1
+      }
+    };
 
-    // Si hay organizationId, buscar en toda la organización
-    // Si NO hay organizationId, buscar solo documentos del usuario
-    if (organizationId) {
-      filters.push({ term: { organization: organizationId } });
-    } else {
-      filters.push({ term: { uploadedBy: userId } });
-    }
+    const filters: Array<Record<string, unknown>> = [accessFilter];
 
     if (mimeType) {
-      console.warn(`🔍 [Elasticsearch] Filtering by mimeType: ${mimeType}`);
-
-      // Usar coincidencia exacta para el mimeType específico
-      // Esto asegura que se filtren exactamente los documentos del tipo seleccionado
       filters.push({ term: { 'mimeType.keyword': mimeType } });
+    }
 
-      console.warn(`📋 [Elasticsearch] Added exact mimeType filter: ${mimeType}`);
+    // Filtro por categoría AI — excluye documentos con null/ausente
+    if (category) {
+      filters.push({ term: { aiCategory: category } });
     }
 
     if (fromDate || toDate) {
       const dateRange: { gte?: string; lte?: string } = {};
       if (fromDate) dateRange.gte = fromDate.toISOString();
       if (toDate) dateRange.lte = toDate.toISOString();
-      filters.push({ range: { createdAt: dateRange } });
+      // `uploadedAt` is the field mapped as date in the ES index
+      filters.push({ range: { uploadedAt: dateRange } });
     }
 
-    // Realizar búsqueda con query_string para mayor flexibilidad
-    // Agregar wildcards automáticamente para búsqueda parcial
-    const searchQuery = `*${query.toLowerCase()}*`;
-    
-    console.warn(`🔍 [Elasticsearch] Searching with query: "${searchQuery}"`);
+    // ─── Query principal ─────────────────────────────────────────────────────
+    // NOTA: `filename` contiene el UUID en disco (no útil para búsqueda).
+    //       `originalname` contiene el nombre legible (SANCHEZ_ROMEA_...pdf).
+    //       El custom_analyzer (standard tokenizer) no divide por guiones bajos,
+    //       por lo que "SANCHEZ_ROMEA" queda como un token. Se usa wildcard en
+    //       originalname.keyword (case-insensitive) para cubrir búsquedas parciales.
+    // q=* significa "todos los documentos" — se convierte a match_all (sin cláusula de texto)
+    const isMatchAll = query.trim() === '*' || query.trim() === '';
+    const searchWords = isMatchAll ? [] : query.trim().split(/\s+/).filter(Boolean);
+
+    // Wildcard por cada palabra de la query sobre el nombre original legible.
+    // Cubre búsquedas como "SANCHEZ" que matchean "SANCHEZ_ROMEA_LUIS...pdf"
+    const wildcardClauses: Array<Record<string, unknown>> = searchWords.map(word => ({
+      wildcard: {
+        'originalname.keyword': {
+          value: `*${word}*`,
+          case_insensitive: true
+        }
+      }
+    }));
+
+    console.warn(`🔍 [Elasticsearch] Searching with query: "${query}"`);
     console.warn(`📊 [Elasticsearch] Filters: ${JSON.stringify(filters, null, 2)}`);
-    
+
+    // Si es match-all (q=* o q vacío), solo aplicar filtros sin cláusula de texto
+    const textQuery: Record<string, unknown> = isMatchAll
+      ? { match_all: {} }
+      : {
+          bool: {
+            should: [
+              // Wildcard en nombre original (cubre nombres con guiones bajos)
+              ...wildcardClauses,
+              // Full-text en contenido extraído con fuzziness (para PDFs con texto)
+              {
+                multi_match: {
+                  query,
+                  fields: ['originalname^3', 'content'],
+                  fuzziness: 'AUTO',
+                  operator: 'or'
+                }
+              },
+              // Frase exacta en contenido con boost alto
+              {
+                multi_match: {
+                  query,
+                  fields: ['originalname^4', 'content^2'],
+                  type: 'phrase',
+                  slop: 2
+                }
+              }
+            ],
+            minimum_should_match: 1
+          }
+        };
+
     const result = (await client.search({
       index: 'documents',
-      query: {
-        bool: {
-          must: [
-            {
-              query_string: {
-                query: searchQuery,
-                fields: ['filename', 'originalname', 'content'],
-                default_operator: 'AND',
-                analyze_wildcard: true
-              }
+      query: isMatchAll
+        ? { bool: { filter: filters } }
+        : {
+            bool: {
+              ...(textQuery.bool as object),
+              filter: filters
             }
-          ],
-          filter: filters
-        }
-      },
+          },
       from: offset,
       size: limit,
       sort: [
         { _score: { order: 'desc' } },
-        { createdAt: { order: 'desc' } }
+        { uploadedAt: { order: 'desc' } }
       ]
     })) as SearchResultLike;
 
@@ -269,34 +322,46 @@ export async function getAutocompleteSuggestions(
   try {
     const client = getEsClient();
 
-    // Construir filtros
-    const filters: Array<Record<string, unknown>> = [];
-    if (organizationId) {
-      filters.push({ term: { organization: organizationId } });
-    } else {
-      filters.push({ term: { uploadedBy: userId } });
-    }
+    // Mismo filtro OR que en searchDocuments
+    const accessFilter: Record<string, unknown> = {
+      bool: {
+        should: [
+          { term: { uploadedBy: userId } },
+          ...(organizationId ? [{ term: { organization: organizationId } }] : [])
+        ],
+        minimum_should_match: 1
+      }
+    };
 
-    const searchQuery = `*${query.toLowerCase()}*`;
-    
     const result = (await client.search({
       index: 'documents',
       query: {
         bool: {
-          must: [
+          should: [
+            // Wildcard en nombre original para sugerencias parciales
             {
-              query_string: {
-                query: searchQuery,
-                fields: ['filename', 'originalname'],
-                analyze_wildcard: true
+              wildcard: {
+                'originalname.keyword': {
+                  value: `*${query}*`,
+                  case_insensitive: true
+                }
+              }
+            },
+            {
+              multi_match: {
+                query,
+                fields: ['originalname^2'],
+                fuzziness: 'AUTO',
+                operator: 'or'
               }
             }
           ],
-          filter: filters
+          minimum_should_match: 1,
+          filter: [accessFilter]
         }
       },
       size: limit,
-      _source: ['filename', 'originalname']
+      _source: ['originalname']
     })) as SearchResultLike;
 
     const suggestions = result.hits.hits.map((hit: SearchHitLike) => {
