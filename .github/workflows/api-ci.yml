@@ -153,6 +153,9 @@ jobs:
         run: npm run format -- --check
         continue-on-error: true
 
+      - name: Run ESLint (src only)
+        run: npx eslint src --ext .ts --max-warnings 100
+
   # Job de resumen - solo pasa si ambos anteriores pasaron
   ci-success:
     name: CI Success

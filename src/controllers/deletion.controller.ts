@@ -22,15 +22,16 @@ export const moveToTrash = async (
     }
 
     const { id } = req.params;
-    const { reason } = req.body;
+    const body = req.body as Record<string, unknown>;
+    const reason = typeof body.reason === 'string' ? body.reason : undefined;
     const userId = req.user.id;
-    const organizationId = req.activeOrganization?.toString();
+    const organizationId = req.activeOrganization ? String(req.activeOrganization) : undefined;
 
     const context = {
       userId,
       organizationId,
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent'),
+      ipAddress: typeof req.ip === 'string' ? req.ip : undefined,
+      userAgent: typeof req.get('user-agent') === 'string' ? req.get('user-agent') : undefined,
       reason
     };
 
@@ -41,7 +42,7 @@ export const moveToTrash = async (
       message: 'Document moved to trash successfully',
       data: document
     });
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 };
@@ -61,15 +62,16 @@ export const restoreFromTrash = async (
     }
 
     const { id } = req.params;
-    const { reason } = req.body;
+    const body = req.body as Record<string, unknown>;
+    const reason = typeof body.reason === 'string' ? body.reason : undefined;
     const userId = req.user.id;
-    const organizationId = req.activeOrganization?.toString();
+    const organizationId = req.activeOrganization ? String(req.activeOrganization) : undefined;
 
     const context = {
       userId,
       organizationId,
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent'),
+      ipAddress: typeof req.ip === 'string' ? req.ip : undefined,
+      userAgent: typeof req.get('user-agent') === 'string' ? req.get('user-agent') : undefined,
       reason
     };
 
@@ -80,7 +82,7 @@ export const restoreFromTrash = async (
       message: 'Document restored successfully',
       data: document
     });
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 };
@@ -100,31 +102,33 @@ export const permanentDelete = async (
     }
 
     const { id } = req.params;
-    const { reason, secureDeleteMethod, overwritePasses } = req.body;
+    const body = req.body as Record<string, unknown>;
+    const reason = typeof body.reason === 'string' ? body.reason : undefined;
+    
+    // Validar método de eliminación segura
+    const validMethods = ['simple', 'DoD 5220.22-M', 'Gutmann'] as const;
+    type SecureDeleteMethod = typeof validMethods[number];
+    const methodValue = typeof body.secureDeleteMethod === 'string' ? body.secureDeleteMethod : 'simple';
+    const secureDeleteMethod: SecureDeleteMethod = validMethods.includes(methodValue as SecureDeleteMethod) 
+      ? (methodValue as SecureDeleteMethod) 
+      : 'simple';
+    
+    const overwritePasses = typeof body.overwritePasses === 'number' ? body.overwritePasses : undefined;
     const userId = req.user.id;
-    const organizationId = req.activeOrganization?.toString();
+    const organizationId = req.activeOrganization ? String(req.activeOrganization) : undefined;
 
     const context = {
       userId,
       organizationId,
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent'),
+      ipAddress: typeof req.ip === 'string' ? req.ip : undefined,
+      userAgent: typeof req.get('user-agent') === 'string' ? req.get('user-agent') : undefined,
       reason
     };
 
     const options: SecureDeleteOptions = {
-      method: secureDeleteMethod || 'simple',
+      method: secureDeleteMethod,
       passes: overwritePasses
     };
-
-    // Validar método de sobrescritura
-    const validMethods = ['simple', 'DoD 5220.22-M', 'Gutmann'];
-    if (options.method && !validMethods.includes(options.method)) {
-      throw new HttpError(
-        400,
-        `Invalid secure delete method. Valid options: ${validMethods.join(', ')}`
-      );
-    }
 
     await deletionService.permanentDelete(id, context, options);
 
@@ -132,7 +136,7 @@ export const permanentDelete = async (
       success: true,
       message: 'Document permanently deleted'
     });
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 };
@@ -152,7 +156,7 @@ export const getTrash = async (
     }
 
     const userId = req.user.id;
-    const organizationId = req.activeOrganization?.toString();
+    const organizationId = req.activeOrganization ? String(req.activeOrganization) : undefined;
 
     // Support optional pagination via query params
     const page = req.query.page ? parseInt(req.query.page as string, 10) : undefined;
@@ -160,8 +164,8 @@ export const getTrash = async (
 
     if (page && limit) {
       const skip = (page - 1) * limit;
-      const query: any = { uploadedBy: userId, isDeleted: true };
-      if (organizationId) query.organization = organizationId;
+      const query: Record<string, unknown> = { uploadedBy: userId, isDeleted: true };
+      if (organizationId && typeof organizationId === 'string') query.organization = organizationId;
 
       const total = await (await import('../models/document.model')).default.countDocuments(query);
       const documents = await (await import('../models/document.model')).default
@@ -185,14 +189,14 @@ export const getTrash = async (
       return;
     }
 
-    const documents = await deletionService.getTrash(userId, organizationId);
+    const documents = await deletionService.getTrash(userId, organizationId || undefined);
 
     res.status(200).json({
       success: true,
       count: documents.length,
       data: documents
     });
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 };
@@ -211,20 +215,30 @@ export const emptyTrash = async (
       return next(new HttpError(401, 'Unauthorized'));
     }
 
-    const { secureDeleteMethod, overwritePasses } = req.body;
+    const body = req.body as Record<string, unknown>;
+    
+    // Validar método de eliminación segura
+    const validMethods = ['simple', 'DoD 5220.22-M', 'Gutmann'] as const;
+    type SecureDeleteMethod = typeof validMethods[number];
+    const methodValue = typeof body.secureDeleteMethod === 'string' ? body.secureDeleteMethod : 'simple';
+    const secureDeleteMethod: SecureDeleteMethod = validMethods.includes(methodValue as SecureDeleteMethod) 
+      ? (methodValue as SecureDeleteMethod) 
+      : 'simple';
+    
+    const overwritePasses = typeof body.overwritePasses === 'number' ? body.overwritePasses : undefined;
     const userId = req.user.id;
-    const organizationId = req.activeOrganization?.toString();
+    const organizationId = req.activeOrganization ? String(req.activeOrganization) : undefined;
 
     const context = {
       userId,
       organizationId,
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent'),
+      ipAddress: typeof req.ip === 'string' ? req.ip : undefined,
+      userAgent: typeof req.get('user-agent') === 'string' ? req.get('user-agent') : undefined,
       reason: 'Empty trash'
     };
 
     const options: SecureDeleteOptions = {
-      method: secureDeleteMethod || 'simple',
+      method: secureDeleteMethod,
       passes: overwritePasses
     };
 
@@ -235,7 +249,7 @@ export const emptyTrash = async (
       message: `Successfully deleted ${deletedCount} documents`,
       data: { deletedCount }
     });
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 };
@@ -259,7 +273,7 @@ export const getDocumentDeletionHistory = async (
       count: history.length,
       data: history
     });
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 };
@@ -275,10 +289,10 @@ export const getOrganizationDeletionAudit = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const organizationId = req.activeOrganization?.toString();
+    const organizationId = req.activeOrganization ? String(req.activeOrganization) : undefined;
     const limit = parseInt(req.query.limit as string) || 100;
 
-    if (!organizationId) {
+    if (!organizationId || typeof organizationId !== 'string') {
       throw new HttpError(400, 'Organization context required');
     }
 
@@ -289,7 +303,7 @@ export const getOrganizationDeletionAudit = async (
       count: audit.length,
       data: audit
     });
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 };

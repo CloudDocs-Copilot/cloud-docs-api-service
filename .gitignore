@@ -18,6 +18,12 @@ package-lock.json.bak
 .env.production
 .env.test
 .env.*.local
+
+# -----------------------------------------------------------------------------
+# OCR Language models (tessdata)
+# Large binary files - download via: npm run setup:tessdata
+# -----------------------------------------------------------------------------
+tessdata/
 !.env.example
 !.env.test.example
 
@@ -136,3 +142,13 @@ storage/
 *.tmp
 *.temp
 ~$*
+# ---------------------------------------------------------------------------
+# TypeScript generated artifacts (DO NOT COMMIT)
+# ---------------------------------------------------------------------------
+**/*.js
+**/*.d.ts
+
+# Except config JS files if any (keep if needed)
+!jest.config.js
+!jest.unit.config.js
+!commitlint.config.js

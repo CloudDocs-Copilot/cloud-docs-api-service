@@ -1,14 +1,29 @@
 import { Request, Response, NextFunction } from 'express';
 import HttpError from '../models/error.model';
 
-interface MongooseError extends Error {
-  code?: number;
-  keyPattern?: any;
-  keyValue?: any;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
 
-interface MulterError extends Error {
-  code?: string;
+function getErrorName(error: unknown): string | undefined {
+  if (isRecord(error) && typeof error.name === 'string') {
+    return error.name;
+  }
+  return undefined;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
+function getErrorStack(error: unknown): string | undefined {
+  if (error instanceof Error) {
+    return error.stack;
+  }
+  return undefined;
 }
 
 /**
@@ -17,29 +32,34 @@ interface MulterError extends Error {
  * @param err - Error de Mongoose a mapear
  * @returns Objeto con status y mensaje, o null si no es un error de Mongoose conocido
  */
-function mapMongooseError(err: MongooseError): { status: number; message: string } | null {
+function mapMongooseError(err: unknown): { status: number; message: string } | null {
+  const errorName = getErrorName(err);
+
   // ValidationError (validación de esquema)
-  if (err.name === 'ValidationError') {
+  if (errorName === 'ValidationError') {
     console.error('[mongoose-validation-error]', err);
     return { status: 400, message: 'Validation failed' };
   }
 
   // CastError (ObjectId inválido)
-  if (err.name === 'CastError') {
+  if (errorName === 'CastError') {
     return { status: 400, message: 'Invalid identifier format' };
   }
 
   // Error de clave duplicada (índice único)
-  if (err.code && err.code === 11000) {
+  if (isRecord(err) && typeof err.code === 'number' && err.code === 11000) {
+    const keyPattern = isRecord(err.keyPattern) ? err.keyPattern : undefined;
+    const keyValue = isRecord(err.keyValue) ? err.keyValue : undefined;
+
     // Caso específico: índice único en Folder (owner+name)
-    if (err.keyPattern && err.keyPattern.owner === 1 && err.keyPattern.name === 1) {
+    if (keyPattern?.owner === 1 && keyPattern?.name === 1) {
       return { status: 409, message: 'Folder name already exists for this user' };
     }
     // Caso específico: duplicado en campo `name` (por ejemplo Organization.name)
-    if (err.keyValue && err.keyValue.name) {
+    if (keyValue?.name) {
       return { status: 409, message: 'Name already exists' };
     }
-    const fields = Object.keys(err.keyValue || {});
+    const fields = Object.keys(keyValue ?? {});
     return { status: 409, message: `Duplicate value for field(s): ${fields.join(', ')}` };
   }
 
@@ -57,7 +77,7 @@ function mapMongooseError(err: MongooseError): { status: number; message: string
  * - Errores de Multer (límites de subida)
  * - Errores no manejados
  */
-export function errorHandler(err: any, _req: Request, res: Response, _next: NextFunction): void {
+export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction): void {
   // Error de aplicación tipado personalizado
   if (err instanceof HttpError) {
     if (process.env.NODE_ENV !== 'test') {
@@ -78,14 +98,17 @@ export function errorHandler(err: any, _req: Request, res: Response, _next: Next
   const mongooseMapped = mapMongooseError(err);
   if (mongooseMapped) {
     if (process.env.NODE_ENV !== 'test') {
-      console.error('[mongoose-error]', { original: err.message, stack: err.stack });
+      console.error('[mongoose-error]', {
+        original: getErrorMessage(err),
+        stack: getErrorStack(err)
+      });
     }
     res.status(mongooseMapped.status).json({ success: false, error: mongooseMapped.message });
     return;
   }
 
   // Errores de token / librería de autenticación
-  if (err.name === 'TokenExpiredError') {
+  if (getErrorName(err) === 'TokenExpiredError') {
     if (process.env.NODE_ENV !== 'test') {
       console.error('[auth-token-expired]', err);
     }
@@ -93,7 +116,7 @@ export function errorHandler(err: any, _req: Request, res: Response, _next: Next
     return;
   }
 
-  if (err.name === 'JsonWebTokenError') {
+  if (getErrorName(err) === 'JsonWebTokenError') {
     if (process.env.NODE_ENV !== 'test') {
       console.error('[auth-token-invalid]', err);
     }
@@ -102,8 +125,8 @@ export function errorHandler(err: any, _req: Request, res: Response, _next: Next
   }
 
   // Errores de Multer (carga de archivos)
-  const multerErr = err as MulterError;
-  if (multerErr.code && multerErr.code.startsWith('LIMIT_')) {
+  const multerErrCode = isRecord(err) && typeof err.code === 'string' ? err.code : undefined;
+  if (multerErrCode && multerErrCode.startsWith('LIMIT_')) {
     if (process.env.NODE_ENV !== 'test') {
       console.error('[upload-limit]', err);
     }

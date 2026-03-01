@@ -5,6 +5,7 @@ import mongoose, { Document as MongooseDocument, Schema, Model, Types } from 'mo
  * Define la estructura de datos para los archivos subidos al sistema
  */
 export interface IDocument extends MongooseDocument {
+  _id: Types.ObjectId;
   /** Nombre del archivo en el sistema de archivos */
   filename?: string;
   /** Nombre original del archivo subido por el usuario */
@@ -23,6 +24,8 @@ export interface IDocument extends MongooseDocument {
   size: number;
   /** Tipo MIME del archivo */
   mimeType: string;
+  /** Contenido de texto extraído del documento (para búsqueda) */
+  extractedContent?: string;
   /** Fecha de subida (deprecated, usar createdAt) */
   uploadedAt: Date;
   /** Usuarios con quienes se comparte el documento */
@@ -149,6 +152,11 @@ const documentSchema = new Schema<IDocument>(
       maxlength: [127, 'MIME type cannot exceed 127 characters'],
       match: [/^[a-z]+\/[a-z0-9][a-z0-9!#$&^_.+-]{0,126}$/i, 'Invalid MIME type format']
     },
+    extractedContent: {
+      type: String,
+      required: false,
+      maxlength: [1000000, 'Extracted content cannot exceed 1MB'],
+    },
     uploadedAt: {
       type: Date,
       default: Date.now
@@ -239,7 +247,7 @@ const documentSchema = new Schema<IDocument>(
     toJSON: {
       virtuals: true,
       versionKey: false,
-      transform: (_doc, ret) => {
+      transform: (_doc, ret): unknown => {
         delete ret._id;
         return ret;
       }
@@ -247,7 +255,7 @@ const documentSchema = new Schema<IDocument>(
     toObject: {
       virtuals: true,
       versionKey: false,
-      transform: (_doc, ret) => {
+      transform: (_doc, ret): unknown => {
         delete ret._id;
         return ret;
       }
@@ -270,14 +278,20 @@ documentSchema.index(
 /**
  * Método de instancia: Verifica si el documento es propiedad del usuario especificado
  */
-documentSchema.methods.isOwnedBy = function (userId: string | Types.ObjectId): boolean {
+documentSchema.methods.isOwnedBy = function (
+  this: IDocument,
+  userId: string | Types.ObjectId
+): boolean {
   return this.uploadedBy.toString() === userId.toString();
 };
 
 /**
  * Método de instancia: Verifica si el documento está compartido con el usuario especificado
  */
-documentSchema.methods.isSharedWith = function (userId: string | Types.ObjectId): boolean {
+documentSchema.methods.isSharedWith = function (
+  this: IDocument,
+  userId: string | Types.ObjectId
+): boolean {
   if (!this.sharedWith || this.sharedWith.length === 0) {
     return false;
   }
@@ -288,6 +302,7 @@ documentSchema.methods.isSharedWith = function (userId: string | Types.ObjectId)
  * Método de instancia: Obtiene el tipo de acceso del usuario al documento
  */
 documentSchema.methods.getAccessType = function (
+  this: IDocument,
   userId: string | Types.ObjectId
 ): 'owner' | 'shared' | 'none' {
   if (this.isOwnedBy(userId)) {

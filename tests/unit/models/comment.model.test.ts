@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import CommentModel from '../../../src/models/comment.model';
 
-describe('Comment Model', () => {
+describe('Comment Model', (): void => {
   let mongoServer: MongoMemoryServer;
 
   beforeAll(async () => {
@@ -28,8 +28,8 @@ describe('Comment Model', () => {
     userId: new mongoose.Types.ObjectId()
   });
 
-  describe('Creation + defaults', () => {
-    it('should create a comment with required fields', async () => {
+  describe('Creation + defaults', (): void => {
+    it('should create a comment with required fields', async (): Promise<void> => {
       const { documentId, userId, orgId } = makeIds();
 
       const comment = await CommentModel.create({
@@ -49,7 +49,7 @@ describe('Comment Model', () => {
       expect(comment.updatedAt).toBeInstanceOf(Date);
     });
 
-    it('should default organization to null when not provided', async () => {
+    it('should default organization to null when not provided', async (): Promise<void> => {
       const { documentId, userId } = makeIds();
 
       const comment = await CommentModel.create({
@@ -61,7 +61,7 @@ describe('Comment Model', () => {
       expect(comment.organization).toBeNull();
     });
 
-    it('should trim content', async () => {
+    it('should trim content', async (): Promise<void> => {
       const { documentId, userId } = makeIds();
 
       const comment = await CommentModel.create({
@@ -74,8 +74,8 @@ describe('Comment Model', () => {
     });
   });
 
-  describe('Validations', () => {
-    it('should require document', async () => {
+  describe('Validations', (): void => {
+    it('should require document', async (): Promise<void> => {
       const { userId } = makeIds();
 
       await expect(
@@ -83,11 +83,11 @@ describe('Comment Model', () => {
           // document missing
           createdBy: userId,
           content: 'Test'
-        } as any)
+        })
       ).rejects.toThrow('Documento es requerido');
     });
 
-    it('should require createdBy', async () => {
+    it('should require createdBy', async (): Promise<void> => {
       const { documentId } = makeIds();
 
       await expect(
@@ -95,11 +95,11 @@ describe('Comment Model', () => {
           document: documentId,
           // createdBy missing
           content: 'Test'
-        } as any)
+        })
       ).rejects.toThrow('createdBy es requerido');
     });
 
-    it('should require content', async () => {
+    it('should require content', async (): Promise<void> => {
       const { documentId, userId } = makeIds();
 
       await expect(
@@ -107,7 +107,7 @@ describe('Comment Model', () => {
           document: documentId,
           createdBy: userId
           // content missing
-        } as any)
+        })
       ).rejects.toThrow('Contenido es requerido');
     });
 
@@ -138,8 +138,8 @@ describe('Comment Model', () => {
     });
   });
 
-  describe('Timestamps', () => {
-    it('should update updatedAt on save', async () => {
+  describe('Timestamps', (): void => {
+    it('should update updatedAt on save', async (): Promise<void> => {
       const { documentId, userId } = makeIds();
 
       const comment = await CommentModel.create({
@@ -160,7 +160,7 @@ describe('Comment Model', () => {
     });
   });
 
-  describe('toJSON / toObject transforms', () => {
+  describe('toJSON / toObject transforms', (): void => {
     it('toJSON should remove _id and versionKey, keep virtuals', async () => {
       const { documentId, userId } = makeIds();
 
@@ -170,7 +170,7 @@ describe('Comment Model', () => {
         content: 'JSON'
       });
 
-      const json = comment.toJSON() as any;
+      const json = comment.toJSON() as Record<string, unknown>;
 
       // transform: delete ret._id
       expect(json._id).toBeUndefined();
@@ -181,7 +181,9 @@ describe('Comment Model', () => {
       // virtuals: true -> por default Mongoose incluye "id" virtual
       // (si tu config global lo desactiva, puedes quitar esta aserción)
       expect(typeof json.id).toBe('string');
-      expect(json.id.length).toBeGreaterThan(0);
+      if (typeof json.id === 'string') {
+        expect(json.id.length).toBeGreaterThan(0);
+      }
     });
 
     it('toObject should remove _id and versionKey, keep virtuals', async () => {
@@ -193,16 +195,18 @@ describe('Comment Model', () => {
         content: 'OBJ'
       });
 
-      const obj = comment.toObject() as any;
+      const obj = comment.toObject() as Record<string, unknown>;
 
       expect(obj._id).toBeUndefined();
       expect(obj.__v).toBeUndefined();
       expect(typeof obj.id).toBe('string');
-      expect(obj.id.length).toBeGreaterThan(0);
+      if (typeof obj.id === 'string') {
+        expect(obj.id.length).toBeGreaterThan(0);
+      }
     });
   });
 
-  describe('Indexes', () => {
+  describe('Indexes', (): void => {
     it('should include single-field indexes (document, organization, createdBy) and compound indexes', async () => {
       // Asegurar que la colección exista y tenga al menos un doc
       const { documentId, userId } = makeIds();

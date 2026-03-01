@@ -34,8 +34,8 @@ describeOllama('Ollama Provider Integration', () => {
     resetAIProvider();
   });
 
-  describe('Connection', () => {
-    it('should connect to Ollama server', async () => {
+  describe('Connection', (): void => {
+    it('should connect to Ollama server', async (): Promise<void> => {
       const provider = getAIProvider();
       expect(provider.name).toBe('ollama');
 
@@ -43,7 +43,7 @@ describeOllama('Ollama Provider Integration', () => {
       expect(available).toBe(true);
     });
 
-    it('should have correct configuration', () => {
+    it('should have correct configuration', (): void => {
       const provider = getAIProvider();
       expect(provider.getEmbeddingModel()).toBe('nomic-embed-text');
       expect(provider.getChatModel()).toBe('llama3.2:3b');
@@ -51,7 +51,7 @@ describeOllama('Ollama Provider Integration', () => {
     });
   });
 
-  describe('Embeddings', () => {
+  describe('Embeddings', (): void => {
     it('should generate embedding with nomic-embed-text (768 dims)', async () => {
       const provider = getAIProvider();
       const result = await provider.generateEmbedding('Test text for embedding with Ollama');
@@ -62,7 +62,7 @@ describeOllama('Ollama Provider Integration', () => {
       expect(result.model).toBe('nomic-embed-text');
     });
 
-    it('should generate embeddings in batch', async () => {
+    it('should generate embeddings in batch', async (): Promise<void> => {
       const provider = getAIProvider();
       const texts = ['First text', 'Second text', 'Third text'];
       const results = await provider.generateEmbeddings(texts);
@@ -74,12 +74,12 @@ describeOllama('Ollama Provider Integration', () => {
       });
     });
 
-    it('should throw error for empty text', async () => {
+    it('should throw error for empty text', async (): Promise<void> => {
       const provider = getAIProvider();
       await expect(provider.generateEmbedding('')).rejects.toThrow();
     });
 
-    it('should generate different embeddings for different texts', async () => {
+    it('should generate different embeddings for different texts', async (): Promise<void> => {
       const provider = getAIProvider();
       const result1 = await provider.generateEmbedding('Hello world');
       const result2 = await provider.generateEmbedding('Goodbye world');
@@ -100,8 +100,8 @@ describeOllama('Ollama Provider Integration', () => {
     });
   });
 
-  describe('Chat/Text Generation', () => {
-    it('should generate response with llama3.2:3b', async () => {
+  describe('Chat/Text Generation', (): void => {
+    it('should generate response with llama3.2:3b', async (): Promise<void> => {
       const provider = getAIProvider();
       const result = await provider.generateResponse('What is 2+2? Answer with just the number.');
 
@@ -111,7 +111,7 @@ describeOllama('Ollama Provider Integration', () => {
       expect(result.tokens?.total).toBeGreaterThan(0);
     });
 
-    it('should respect temperature parameter', async () => {
+    it('should respect temperature parameter', async (): Promise<void> => {
       const provider = getAIProvider();
       const prompt = 'Say hello';
 
@@ -122,14 +122,14 @@ describeOllama('Ollama Provider Integration', () => {
       expect(result1.response).toBe(result2.response);
     });
 
-    it('should respect max tokens parameter', async () => {
+    it('should respect max tokens parameter', async (): Promise<void> => {
       const provider = getAIProvider();
       const result = await provider.generateResponse('Write a long story', { maxTokens: 50 });
 
       expect(result.tokens?.completion).toBeLessThanOrEqual(50);
     });
 
-    it('should use system message when provided', async () => {
+    it('should use system message when provided', async (): Promise<void> => {
       const provider = getAIProvider();
       const result = await provider.generateResponse('What is your role?', {
         systemMessage: 'You are a helpful math tutor.'
@@ -139,8 +139,8 @@ describeOllama('Ollama Provider Integration', () => {
     });
   });
 
-  describe('Document Classification', () => {
-    it('should classify invoice correctly', async () => {
+  describe('Document Classification', (): void => {
+    it('should classify invoice correctly', async (): Promise<void> => {
       const provider = getAIProvider();
       const invoiceText = `
         FACTURA No. 12345
@@ -157,7 +157,7 @@ describeOllama('Ollama Provider Integration', () => {
       expect(result.tags).toBeInstanceOf(Array);
     });
 
-    it('should classify contract correctly', async () => {
+    it('should classify contract correctly', async (): Promise<void> => {
       const provider = getAIProvider();
       const contractText = `
         CONTRATO DE PRESTACIÓN DE SERVICIOS
@@ -171,8 +171,8 @@ describeOllama('Ollama Provider Integration', () => {
     });
   });
 
-  describe('Document Summarization', () => {
-    it('should summarize document correctly', async () => {
+  describe('Document Summarization', (): void => {
+    it('should summarize document correctly', async (): Promise<void> => {
       const provider = getAIProvider();
       const longText = `
         Este es un documento extenso que habla sobre inteligencia artificial.
@@ -191,23 +191,23 @@ describeOllama('Ollama Provider Integration', () => {
     });
   });
 
-  describe('Error Handling', () => {
-    it('should throw error for empty prompt', async () => {
+  describe('Error Handling', (): void => {
+    it('should throw error for empty prompt', async (): Promise<void> => {
       const provider = getAIProvider();
       await expect(provider.generateResponse('')).rejects.toThrow('Prompt cannot be empty');
     });
 
-    it('should throw error for empty text in embedding', async () => {
+    it('should throw error for empty text in embedding', async (): Promise<void> => {
       const provider = getAIProvider();
       await expect(provider.generateEmbedding('')).rejects.toThrow();
     });
 
-    it('should throw error for empty array in batch embeddings', async () => {
+    it('should throw error for empty array in batch embeddings', async (): Promise<void> => {
       const provider = getAIProvider();
       await expect(provider.generateEmbeddings([])).rejects.toThrow();
     });
 
-    it('should handle invalid model gracefully', async () => {
+    it('should handle invalid model gracefully', async (): Promise<void> => {
       const provider = getAIProvider();
 
       // Intentar usar un modelo que no existe
@@ -218,8 +218,8 @@ describeOllama('Ollama Provider Integration', () => {
   });
 });
 
-describe('Ollama Provider - Fallback Behavior', () => {
-  it('should handle Ollama server not running', async () => {
+describe('Ollama Provider - Fallback Behavior', (): void => {
+  it('should handle Ollama server not running', async (): Promise<void> => {
     process.env.AI_PROVIDER = 'ollama';
     process.env.OLLAMA_BASE_URL = 'http://localhost:99999'; // Puerto inválido
     resetAIProvider();

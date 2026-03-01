@@ -11,7 +11,7 @@ This document defines rules and guidelines for AI coding agents working on the C
 
 ## Directory Structure
 
-```
+```schema
 src/
 ├── configurations/     # External service configs (DB, CORS, ES)
 ├── controllers/        # HTTP request handlers - validate & delegate
@@ -151,11 +151,67 @@ router.post(
 | Constants        | SCREAMING_SNAKE_CASE  | `MAX_FILE_SIZE`, `JWT_EXPIRES_IN`       |
 | Environment vars | SCREAMING_SNAKE_CASE  | `MONGO_URI`, `JWT_SECRET`               |
 
+## Linting
+
+**ESLint is configured to enforce code quality and TypeScript best practices.**
+
+### Running ESLint
+
+```bash
+# Check for errors and warnings
+npm run lint
+
+# Auto-fix fixable issues
+npm run lint:fix
+
+# Check with zero warnings tolerance (for CI/CD)
+npm run lint:check
+```
+
+### Critical Rules (configured as ERROR)
+
+All uses of `any` are **PROHIBITED** and will cause linting to fail:
+
+```typescript
+// ❌ WRONG - Will fail linting
+catch (error: any) { ... }
+function process(data: any) { ... }
+const items: any[] = [];
+
+// ✅ CORRECT - Use specific types or unknown
+catch (error: unknown) {
+  if (error instanceof Error) {
+    console.error(error.message);
+  }
+}
+
+interface ProcessData {
+  id: string;
+  name: string;
+}
+function process(data: ProcessData) { ... }
+
+type Item = { id: string; value: number };
+const items: Item[] = [];
+```
+
+### Before Committing
+
+Always run `npm run lint` and fix all errors. The following will cause build failures:
+
+- ❌ Using `any` type explicitly
+- ❌ Unsafe assignments from `any` values
+- ❌ Accessing members on `any` values
+- ❌ Calling functions typed as `any`
+- ❌ Unused variables (unless prefixed with `_`)
+
+See [ESLINT-SETUP.md](ESLINT-SETUP.md) for complete configuration details.
+
 ## Testing
 
 ### Test Structure
 
-```
+```schema
 tests/
 ├── unit/              # Isolated unit tests
 │   ├── services/
@@ -290,8 +346,10 @@ npm run test:watch
 
 Before committing any code change:
 
+- [ ] `npm run lint` passes (NO errors related to `any`)
 - [ ] `npm test` passes
 - [ ] `npm run build` succeeds
 - [ ] Coverage has not decreased
 - [ ] New features have tests
 - [ ] OpenAPI spec updated (if API changed)
+- [ ] No `any` types in code (use `unknown` or specific types)

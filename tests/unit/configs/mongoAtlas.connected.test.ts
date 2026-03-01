@@ -12,24 +12,26 @@
  */
 
 // Mock MongoDB with full client methods
+import type { Db, MongoClient } from 'mongodb';
+
 jest.mock('mongodb', () => {
-  const mockDb = {
+  const mockDb: Partial<Db> = {
     collection: jest.fn(),
-    command: jest.fn().mockResolvedValue({ ok: 1 })
+    command: jest.fn().mockResolvedValue({ ok: 1 }) as unknown as Db['command']
   };
 
-  const mockClient = {
-    db: jest.fn().mockReturnValue(mockDb),
-    connect: jest.fn().mockResolvedValue(undefined),
-    close: jest.fn().mockResolvedValue(undefined)
+  const mockClient: Partial<MongoClient> = {
+    db: jest.fn().mockReturnValue(mockDb) as unknown as MongoClient['db'],
+    connect: jest.fn().mockResolvedValue(undefined) as unknown as MongoClient['connect'],
+    close: jest.fn().mockResolvedValue(undefined) as unknown as MongoClient['close']
   };
 
   return {
-    MongoClient: jest.fn().mockImplementation(() => mockClient)
+    MongoClient: jest.fn().mockImplementation(() => mockClient as unknown as MongoClient)
   };
 });
 
-describe('MongoDB Atlas Configuration - Connection Lifecycle', () => {
+describe('MongoDB Atlas Configuration - Connection Lifecycle', (): void => {
   let originalEnv: NodeJS.ProcessEnv;
 
   beforeEach(() => {
@@ -43,31 +45,38 @@ describe('MongoDB Atlas Configuration - Connection Lifecycle', () => {
   });
 
   describe('connectToMongoAtlas (getDb) - Protocol and Options', () => {
-    it('should accept mongodb+srv protocol', async () => {
+    it('should accept mongodb+srv protocol', async (): Promise<void> => {
       process.env.MONGO_ATLAS_URI = 'mongodb+srv://cluster0.example.mongodb.net/db';
 
-      const { getDb } = require('../../../src/configurations/database-config/mongoAtlas');
+      const { getDb } = (await import('../../../src/configurations/database-config/mongoAtlas')) as unknown as {
+        getDb: () => Promise<Db>;
+      };
       await expect(getDb()).resolves.not.toThrow();
     });
 
-    it('should use correct MongoDB client options', async () => {
+    it('should use correct MongoDB client options', async (): Promise<void> => {
       process.env.MONGO_ATLAS_URI = 'mongodb+srv://cluster0.example.mongodb.net/test';
 
-      const { getDb } = require('../../../src/configurations/database-config/mongoAtlas');
+      const { getDb } = (await import('../../../src/configurations/database-config/mongoAtlas')) as unknown as {
+        getDb: () => Promise<Db>;
+      };
       await getDb();
 
       // Would verify client options if mock supports it
     });
   });
 
-  describe('getClient - Instance Management', () => {
-    it('should return client instance after connection', async () => {
+  describe('getClient - Instance Management', (): void => {
+    it('should return client instance after connection', async (): Promise<void> => {
       process.env.MONGO_ATLAS_URI = 'mongodb+srv://cluster0.example.mongodb.net/test';
 
       const {
         getDb,
         getClient
-      } = require('../../../src/configurations/database-config/mongoAtlas');
+      } = (await import('../../../src/configurations/database-config/mongoAtlas')) as unknown as {
+        getDb: () => Promise<Db>;
+        getClient: () => MongoClient;
+      };
 
       await getDb();
       const client = getClient();
@@ -81,7 +90,10 @@ describe('MongoDB Atlas Configuration - Connection Lifecycle', () => {
       const {
         getDb,
         getClient
-      } = require('../../../src/configurations/database-config/mongoAtlas');
+      } = (await import('../../../src/configurations/database-config/mongoAtlas')) as unknown as {
+        getDb: () => Promise<Db>;
+        getClient: () => MongoClient;
+      };
 
       await getDb();
 
@@ -91,37 +103,43 @@ describe('MongoDB Atlas Configuration - Connection Lifecycle', () => {
       expect(client1).toBe(client2);
     });
 
-    it('should provide access to database methods', async () => {
+    it('should provide access to database methods', async (): Promise<void> => {
       process.env.MONGO_ATLAS_URI = 'mongodb+srv://user:pass@cluster.mongodb.net/test';
 
       const {
         getDb,
         getClient
-      } = require('../../../src/configurations/database-config/mongoAtlas');
+      } = (await import('../../../src/configurations/database-config/mongoAtlas')) as unknown as {
+        getDb: () => Promise<unknown>;
+        getClient: () => unknown;
+      };
 
       await getDb();
       const client = getClient();
 
-      expect(client && typeof (client as any).db).toBe('function');
+      expect(client && typeof (client as unknown as { db?: unknown }).db).toBe('function');
     });
   });
 
-  describe('closeAtlasConnection - Disconnect', () => {
-    it('should disconnect successfully', async () => {
+  describe('closeAtlasConnection - Disconnect', (): void => {
+    it('should disconnect successfully', async (): Promise<void> => {
       process.env.MONGO_ATLAS_URI = 'mongodb+srv://user:pass@cluster.mongodb.net/test';
 
       const {
         getDb,
         closeAtlasConnection
-      } = require('../../../src/configurations/database-config/mongoAtlas');
+      } = (await import('../../../src/configurations/database-config/mongoAtlas')) as unknown as {
+        getDb: () => Promise<Db>;
+        closeAtlasConnection: () => Promise<void>;
+      };
 
       await getDb();
       await expect(closeAtlasConnection()).resolves.not.toThrow();
     });
   });
 
-  describe('URI validation - Format Variations', () => {
-    it('should accept valid MongoDB Atlas URI format', async () => {
+  describe('URI validation - Format Variations', (): void => {
+    it('should accept valid MongoDB Atlas URI format', async (): Promise<void> => {
       const validURIs = [
         'mongodb+srv://cluster0.abc123.mongodb.net/dbname',
         'mongodb+srv://mycluster.example.mongodb.net/production',
@@ -131,7 +149,9 @@ describe('MongoDB Atlas Configuration - Connection Lifecycle', () => {
       for (const uri of validURIs) {
         process.env.MONGO_ATLAS_URI = uri;
 
-        const { getDb } = require('../../../src/configurations/database-config/mongoAtlas');
+        const { getDb } = (await import('../../../src/configurations/database-config/mongoAtlas')) as unknown as {
+          getDb: () => Promise<Db>;
+        };
 
         await expect(getDb()).resolves.not.toThrow();
 
@@ -139,33 +159,41 @@ describe('MongoDB Atlas Configuration - Connection Lifecycle', () => {
       }
     });
 
-    it('should handle URIs with special characters in password', async () => {
+    it('should handle URIs with special characters in password', async (): Promise<void> => {
       process.env.MONGO_ATLAS_URI = 'mongodb+srv://cluster0.example.mongodb.net/db';
 
-      const { getDb } = require('../../../src/configurations/database-config/mongoAtlas');
+        const { getDb } = (await import('../../../src/configurations/database-config/mongoAtlas')) as unknown as {
+          getDb: () => Promise<Db>;
+        };
 
       await expect(getDb()).resolves.not.toThrow();
     });
 
-    it('should handle URIs with query parameters', async () => {
+    it('should handle URIs with query parameters', async (): Promise<void> => {
       process.env.MONGO_ATLAS_URI =
         'mongodb+srv://cluster.example.mongodb.net/db?retryWrites=true&w=majority';
 
-      const { getDb } = require('../../../src/configurations/database-config/mongoAtlas');
+      const { getDb } = (await import('../../../src/configurations/database-config/mongoAtlas')) as unknown as {
+        getDb: () => Promise<Db>;
+      };
 
       await expect(getDb()).resolves.not.toThrow();
     });
   });
 
-  describe('connection lifecycle - Full Flow', () => {
-    it('should support connect -> use -> disconnect flow', async () => {
+  describe('connection lifecycle - Full Flow', (): void => {
+    it('should support connect -> use -> disconnect flow', async (): Promise<void> => {
       process.env.MONGO_ATLAS_URI = 'mongodb+srv://user:pass@cluster.mongodb.net/test';
 
       const {
         getDb,
         getClient,
         closeAtlasConnection
-      } = require('../../../src/configurations/database-config/mongoAtlas');
+      } = (await import('../../../src/configurations/database-config/mongoAtlas')) as unknown as {
+        getDb: () => Promise<Db>;
+        getClient: () => MongoClient;
+        closeAtlasConnection: () => Promise<void>;
+      };
 
       // Connect
       await getDb();

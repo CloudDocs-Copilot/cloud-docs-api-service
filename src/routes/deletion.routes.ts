@@ -20,14 +20,7 @@ router.delete('/trash', requireActiveOrganization, deletionController.emptyTrash
  */
 
 // POST /api/deletion/:id/trash - Mover documento a papelera (soft delete)
-router.post(
-  '/:id/trash',
-  (req, _res, next) => {
-    console.log('🗑️ POST /:id/trash endpoint hit! ID:', req.params.id);
-    next();
-  },
-  deletionController.moveToTrash
-);
+router.post('/:id/trash', deletionController.moveToTrash);
 
 // POST /api/deletion/:id/restore - Restaurar documento de la papelera
 router.post('/:id/restore', deletionController.restoreFromTrash);

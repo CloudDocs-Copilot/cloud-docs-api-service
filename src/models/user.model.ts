@@ -14,6 +14,7 @@ export interface IUserPreferences {
  * Define la estructura de datos para los usuarios del sistema
  */
 export interface IUser extends Document {
+  _id: Types.ObjectId;
   name: string;
   email: string;
   password: string;
@@ -126,7 +127,7 @@ const userSchema = new Schema<IUser>(
     toJSON: {
       virtuals: true,
       versionKey: false,
-      transform: (_doc, ret) => {
+      transform: (_doc, ret): unknown => {
         delete ret._id;
         delete ret.password;
         delete ret.passwordResetTokenHash;
@@ -138,7 +139,7 @@ const userSchema = new Schema<IUser>(
     toObject: {
       virtuals: true,
       versionKey: false,
-      transform: (_doc, ret) => {
+      transform: (_doc, ret): unknown => {
         delete ret._id;
         delete ret.password;
         delete ret.passwordResetTokenHash;

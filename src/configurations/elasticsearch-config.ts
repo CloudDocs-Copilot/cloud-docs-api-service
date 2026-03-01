@@ -1,5 +1,12 @@
 import { Client } from '@elastic/elasticsearch';
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
 /**
  * Cliente de Elasticsearch para búsqueda de documentos
  */
@@ -27,7 +34,7 @@ class ElasticsearchClient {
         sniffOnStart: false
       });
 
-      console.log(`✅ Elasticsearch client initialized: ${esNode}`);
+      console.warn(`✅ Elasticsearch client initialized: ${esNode}`);
     }
 
     return ElasticsearchClient.instance;
@@ -40,10 +47,10 @@ class ElasticsearchClient {
     try {
       const client = ElasticsearchClient.getInstance();
       const health = await client.cluster.health();
-      console.log(`✅ Elasticsearch cluster status: ${health.status}`);
+      console.warn(`✅ Elasticsearch cluster status: ${health.status}`);
       return true;
-    } catch (error: any) {
-      console.error('❌ Elasticsearch connection failed:', error.message);
+    } catch (error: unknown) {
+      console.error('❌ Elasticsearch connection failed:', getErrorMessage(error));
       return false;
     }
   }
@@ -108,17 +115,20 @@ class ElasticsearchClient {
               },
               uploadedAt: {
                 type: 'date'
+              },
+              sharedWith: {
+                type: 'keyword' // Array of user IDs; ES handles arrays natively
               }
             }
           }
         });
 
-        console.log(`✅ Elasticsearch index '${indexName}' created successfully`);
+        console.warn(`✅ Elasticsearch index '${indexName}' created successfully`);
       } else {
-        console.log(`ℹ️  Elasticsearch index '${indexName}' already exists`);
+        console.warn(`ℹ️  Elasticsearch index '${indexName}' already exists`);
       }
-    } catch (error: any) {
-      console.error(`❌ Error creating Elasticsearch index:`, error.message);
+    } catch (error: unknown) {
+      console.error(`❌ Error creating Elasticsearch index:`, getErrorMessage(error));
       throw error;
     }
   }

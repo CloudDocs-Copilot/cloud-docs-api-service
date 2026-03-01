@@ -93,7 +93,7 @@ const membershipSchema = new Schema<IMembership>(
     toJSON: {
       virtuals: true,
       versionKey: false,
-      transform: (_doc, ret) => {
+      transform: (_doc, ret): unknown => {
         delete ret._id;
         return ret;
       }
@@ -101,7 +101,7 @@ const membershipSchema = new Schema<IMembership>(
     toObject: {
       virtuals: true,
       versionKey: false,
-      transform: (_doc, ret) => {
+      transform: (_doc, ret): unknown => {
         delete ret._id;
         return ret;
       }

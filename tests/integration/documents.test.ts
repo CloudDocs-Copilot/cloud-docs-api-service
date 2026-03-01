@@ -7,10 +7,14 @@ import User from '../../src/models/user.model';
  * Tests de integración para endpoints de documentos
  * Prueba subida, listado, compartir, eliminar y descarga de documentos
  */
-describe('Document Endpoints', () => {
+describe('Document Endpoints', (): void => {
   let authCookies: string[];
   let organizationId: string;
   let userId: string;
+
+  function resBody(res: { body: unknown }) {
+    return res.body as unknown as Record<string, unknown>;
+  }
 
   beforeEach(async () => {
     const auth = await registerAndLogin({
@@ -33,8 +37,8 @@ describe('Document Endpoints', () => {
     return rootFolder;
   }
 
-  describe('POST /api/documents/upload', () => {
-    it('should upload a document', async () => {
+  describe('POST /api/documents/upload', (): void => {
+    it('should upload a document', async (): Promise<void> => {
       const cookieHeader = getAuthCookie(authCookies);
       const rootFolderId = await getRootFolderIdOrThrow(userId);
 
@@ -45,16 +49,17 @@ describe('Document Endpoints', () => {
         .attach('file', Buffer.from('Test content'), 'test-file.txt');
 
       expect(res.status).toBe(201);
-      expect(res.body.success).toBe(true);
-      expect(res.body.document).toBeDefined();
+      const body = resBody(res);
+      expect(body.success).toBe(true);
+      expect(body.document).toBeDefined();
 
       // flexible assertions (depending on controller shape)
-      expect(res.body.document).toHaveProperty('id');
-      expect(res.body.document).toHaveProperty('filename');
-      expect(res.body.document).toHaveProperty('originalname');
+      expect((body.document as Record<string, unknown>)).toHaveProperty('id');
+      expect((body.document as Record<string, unknown>)).toHaveProperty('filename');
+      expect((body.document as Record<string, unknown>)).toHaveProperty('originalname');
     });
 
-    it('should fail without file', async () => {
+    it('should fail without file', async (): Promise<void> => {
       const cookieHeader = getAuthCookie(authCookies);
       const rootFolderId = await getRootFolderIdOrThrow(userId);
 
@@ -64,11 +69,12 @@ describe('Document Endpoints', () => {
         .field('folderId', rootFolderId);
 
       expect(res.status).toBe(400);
-      expect(res.body.success).toBe(false);
-      expect(res.body.error || res.body.message).toMatch(/file/i);
+      const body2 = resBody(res);
+      expect(body2.success).toBe(false);
+      expect((body2.error || body2.message) as string).toMatch(/file/i);
     });
 
-    it('should reject invalid folderId format', async () => {
+    it('should reject invalid folderId format', async (): Promise<void> => {
       const cookieHeader = getAuthCookie(authCookies);
 
       const res = await request(app)
@@ -78,30 +84,32 @@ describe('Document Endpoints', () => {
         .attach('file', Buffer.from('test content'), 'testfile.txt');
 
       expect(res.status).toBe(400);
-      expect(res.body.success).toBe(false);
+      const body3 = resBody(res);
+      expect(body3.success).toBe(false);
       // message can vary; keep it robust
-      expect(res.body.error || res.body.message).toMatch(/folderId|invalid/i);
+      expect((body3.error || body3.message) as string).toMatch(/folderId|invalid/i);
     });
   });
 
-  describe('GET /api/documents', () => {
-    it('should list user documents', async () => {
+  describe('GET /api/documents', (): void => {
+    it('should list user documents', async (): Promise<void> => {
       const cookieHeader = getAuthCookie(authCookies);
 
       const res = await request(app).get('/api/documents').set('Cookie', cookieHeader);
 
       expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
-      expect(Array.isArray(res.body.documents)).toBe(true);
+      const body4 = resBody(res);
+      expect(body4.success).toBe(true);
+      expect(Array.isArray(body4.documents)).toBe(true);
     });
 
-    it('should fail without authentication', async () => {
+    it('should fail without authentication', async (): Promise<void> => {
       const res = await request(app).get('/api/documents');
       expect(res.status).toBe(401);
     });
   });
 
-  describe('POST /api/documents/:id/share', () => {
+  describe('POST /api/documents/:id/share', (): void => {
     it('should share a document with other users (same org)', async () => {
       // Create user2 WITHOUT creating a separate org (important)
       const auth2 = await registerAndLogin({
@@ -132,7 +140,8 @@ describe('Document Endpoints', () => {
         .attach('file', Buffer.from('Document to share'), 'share-test.txt');
 
       expect(uploadRes.status).toBe(201);
-      const documentId = uploadRes.body.document?.id;
+      const uploadBody = resBody(uploadRes);
+      const documentId = (uploadBody.document as Record<string, unknown>)?.id;
       expect(documentId).toBeTruthy();
 
       // Share document with user2
@@ -142,13 +151,14 @@ describe('Document Endpoints', () => {
         .send({ userIds: [user2Id] });
 
       expect(shareRes.status).toBe(200);
-      expect(shareRes.body.success).toBe(true);
-      expect(shareRes.body).toHaveProperty('document');
+      const shareBody = resBody(shareRes);
+      expect(shareBody.success).toBe(true);
+      expect(shareBody).toHaveProperty('document');
     });
   });
 
-  describe('DELETE /api/documents/:id', () => {
-    it('should delete a document', async () => {
+  describe('DELETE /api/documents/:id', (): void => {
+    it('should delete a document', async (): Promise<void> => {
       const cookieHeader = getAuthCookie(authCookies);
       const rootFolderId = await getRootFolderIdOrThrow(userId);
 
@@ -159,7 +169,8 @@ describe('Document Endpoints', () => {
         .attach('file', Buffer.from('Document to delete'), 'delete-test.txt');
 
       expect(uploadRes.status).toBe(201);
-      const documentId = uploadRes.body.document?.id;
+      const uploadBody2 = resBody(uploadRes);
+      const documentId = (uploadBody2.document as Record<string, unknown>)?.id;
       expect(documentId).toBeTruthy();
 
       const delRes = await request(app)
@@ -167,11 +178,12 @@ describe('Document Endpoints', () => {
         .set('Cookie', cookieHeader);
 
       expect(delRes.status).toBe(200);
-      expect(delRes.body.success).toBe(true);
+      const delBody = resBody(delRes);
+      expect(delBody.success).toBe(true);
     });
   });
 
-  describe('GET /api/documents/download/:id', () => {
+  describe('GET /api/documents/download/:id', (): void => {
     it('should download a document (200 if physical exists, 404 if not)', async () => {
       const cookieHeader = getAuthCookie(authCookies);
       const rootFolderId = await getRootFolderIdOrThrow(userId);
@@ -183,7 +195,8 @@ describe('Document Endpoints', () => {
         .attach('file', Buffer.from('Content to download'), 'download-test.txt');
 
       expect(uploadRes.status).toBe(201);
-      const documentId = uploadRes.body.document?.id;
+      const uploadBody3 = resBody(uploadRes);
+      const documentId = (uploadBody3.document as Record<string, unknown>)?.id;
       expect(documentId).toBeTruthy();
 
       const res = await request(app)

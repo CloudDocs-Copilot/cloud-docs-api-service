@@ -6,16 +6,21 @@ const mockGetInstanceFilters = jest.fn();
 
 afterEach(() => jest.clearAllMocks());
 
-describe('search.service - filter branches', () => {
+describe('search.service - filter branches', (): void => {
   it('searchDocuments applies organization, mimeType and date range filters', async () => {
     const hits = { hits: { hits: [], total: { value: 0 } }, took: 2 };
     const client = { search: jest.fn().mockResolvedValue(hits) };
-    const es = require('../../../src/configurations/elasticsearch-config');
+    const es = (await import('../../../src/configurations/elasticsearch-config')) as unknown as {
+      getInstance?: () => unknown;
+      default?: { getInstance?: () => unknown };
+    };
     es.getInstance = mockGetInstanceFilters;
     if (es.default) es.default.getInstance = mockGetInstanceFilters;
     mockGetInstanceFilters.mockReturnValue(client);
 
-    const svc = require('../../../src/services/search.service');
+    const svc = (await import('../../../src/services/search.service')) as unknown as {
+      searchDocuments: (q: unknown) => Promise<{ total: number; documents?: unknown[] }>;
+    };
     const res = await svc.searchDocuments({
       query: 'x',
       userId: 'u1',
@@ -25,7 +30,7 @@ describe('search.service - filter branches', () => {
       toDate: new Date(),
       limit: 5,
       offset: 0
-    } as any);
+    } as unknown);
 
     expect(client.search).toHaveBeenCalled();
     expect(res.total).toBe(0);

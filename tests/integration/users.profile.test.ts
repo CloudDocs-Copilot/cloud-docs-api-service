@@ -1,4 +1,6 @@
 import { request, app } from '../setup';
+import { bodyOf } from '../helpers';
+import type { Response } from 'supertest';
 import { UserBuilder } from '../builders/user.builder';
 import Organization from '../../src/models/organization.model';
 import User from '../../src/models/user.model'; // Importar modelo para verificaciones directas
@@ -7,22 +9,24 @@ import mongoose from 'mongoose';
 /**
  * Tests de integración para gestión de perfil de usuario
  */
-describe('User Profile Management', () => {
+describe('User Profile Management', (): void => {
   let token: string;
   let userId: string;
   let organizationId: string;
 
-  // Helpers to extract token from cookies
-  const getTokenFromCookie = (res: any) => {
-    const cookies = res.headers['set-cookie'];
-    if (!cookies) return null;
+  // Helpers to extract token from cookies (safely narrow header types)
+  const getTokenFromCookie = (res: Response): string | null => {
+    const raw = res.headers['set-cookie'];
+    if (!raw) return null;
 
-    // Look for token cookie
-    const tokenCookie = cookies.find((c: string) => c.startsWith('token='));
+    const cookies: string[] = Array.isArray(raw) ? raw.map(String) : [String(raw)];
+
+    const tokenCookie = cookies.find((c) => typeof c === 'string' && c.startsWith('token='));
     if (!tokenCookie) return null;
 
-    // Extract value
-    return tokenCookie.split(';')[0].split('=')[1];
+    const firstPart = tokenCookie.split(';')[0];
+    const kv = firstPart.split('=');
+    return kv.length > 1 ? kv[1] : null;
   };
 
   beforeEach(async () => {
@@ -46,7 +50,9 @@ describe('User Profile Management', () => {
     const registerResponse = await request(app).post('/api/auth/register').send(userData);
 
     // En algunos casos register devuelve user, en otros _id
-    userId = registerResponse.body.user.id || registerResponse.body.user._id;
+    const regBody = bodyOf(registerResponse as unknown as Response) as Record<string, unknown>;
+    const regUser = regBody['user'] as Record<string, unknown>;
+    userId = (regUser['id'] as string) || (regUser['_id'] as string);
 
     // 4. Login para obtener token
     const loginResponse = await request(app)
@@ -54,11 +60,13 @@ describe('User Profile Management', () => {
       .send({ email: userData.email, password: userData.password });
 
     // Extraer token (puede venir en body O en cookie, testea ambos)
-    token = loginResponse.body.token || getTokenFromCookie(loginResponse);
-    if (!token) throw new Error('Login failed to provide token');
+    const loginBody = bodyOf(loginResponse as unknown as Response) as Record<string, unknown>;
+    const maybeToken = (loginBody['token'] as string) || getTokenFromCookie(loginResponse as Response);
+    if (!maybeToken) throw new Error('Login failed to provide token');
+    token = maybeToken;
   });
 
-  describe('PUT /api/users/:id - Update Profile & Preferences', () => {
+  describe('PUT /api/users/:id - Update Profile & Preferences', (): void => {
     it('should update user preferences (partial update)', async () => {
       const updateData = {
         preferences: {
@@ -73,10 +81,14 @@ describe('User Profile Management', () => {
         .send(updateData)
         .expect(200);
 
-      expect(response.body.user.preferences.emailNotifications).toBe(false);
-      expect(response.body.user.preferences.aiAnalysis).toBe(true);
+      const body = bodyOf(response as unknown as Response) as Record<string, unknown>;
+      const user = body['user'] as Record<string, unknown>;
+      const preferences = (user['preferences'] as Record<string, unknown>) || {};
+
+      expect(preferences['emailNotifications']).toBe(false);
+      expect(preferences['aiAnalysis']).toBe(true);
       // Las preferencias no enviadas deben mantener su valor por defecto (true)
-      expect(response.body.user.preferences.documentUpdates).toBe(true);
+      expect(preferences['documentUpdates']).toBe(true);
 
       // Verificación directa con Mongoose (Base de datos real)
       const userInDb = await User.findById(userId);
@@ -85,7 +97,7 @@ describe('User Profile Management', () => {
       expect(userInDb!.preferences.aiAnalysis).toBe(true);
     });
 
-    it('should update user profile info without affecting preferences', async () => {
+    it('should update user profile info without affecting preferences', async (): Promise<void> => {
       const newName = 'Updated Name';
       const response = await request(app)
         .put(`/api/users/${userId}`)
@@ -93,16 +105,20 @@ describe('User Profile Management', () => {
         .send({ name: newName }) // No enviamos preferences
         .expect(200);
 
-      expect(response.body.user.name).toBe(newName);
+      const body = bodyOf(response as unknown as Response) as Record<string, unknown>;
+      const user = body['user'] as Record<string, unknown>;
+
+      expect(user['name']).toBe(newName);
       // Preferencias deben seguir existiendo (default true)
-      if (response.body.user.preferences) {
-        expect(response.body.user.preferences.documentUpdates).toBe(true);
+      if (user['preferences']) {
+        const preferences = user['preferences'] as Record<string, unknown>;
+        expect(preferences['documentUpdates']).toBe(true);
       }
     });
   });
 
-  describe('PATCH /api/users/:id/avatar - Avatar Upload', () => {
-    it('should accept an avatar URL via JSON', async () => {
+  describe('PATCH /api/users/:id/avatar - Avatar Upload', (): void => {
+    it('should accept an avatar URL via JSON', async (): Promise<void> => {
       const avatarUrl = 'https://example.com/avatar.jpg';
 
       const response = await request(app)
@@ -111,10 +127,12 @@ describe('User Profile Management', () => {
         .send({ avatar: avatarUrl })
         .expect(200);
 
-      expect(response.body.user.avatar).toBe(avatarUrl);
+      const body = bodyOf(response as unknown as Response) as Record<string, unknown>;
+      const user = body['user'] as Record<string, unknown>;
+      expect(user['avatar']).toBe(avatarUrl);
     });
 
-    it('should accept an image file via multipart/form-data', async () => {
+    it('should accept an image file via multipart/form-data', async (): Promise<void> => {
       const buffer = Buffer.from('fake image content');
 
       const response = await request(app)
@@ -123,12 +141,14 @@ describe('User Profile Management', () => {
         .attach('avatar', buffer, 'test-avatar.png')
         .expect(200);
 
-      expect(response.body.user.avatar).toMatch(/\/uploads\/.*\.png$/);
+      const body = bodyOf(response as unknown as Response) as Record<string, unknown>;
+      const user = body['user'] as Record<string, unknown>;
+      expect(user['avatar']).toMatch(/\/uploads\/.*\.png$/);
     });
   });
 
-  describe('DELETE /api/users/me - Danger Zone', () => {
-    it('should allow user to delete their own account', async () => {
+  describe('DELETE /api/users/me - Danger Zone', (): void => {
+    it('should allow user to delete their own account', async (): Promise<void> => {
       // Create user to delete first, to avoid breaking other tests if shared state (though beforeEach handles this)
       await request(app)
         .delete('/api/users/me')
@@ -149,5 +169,11 @@ describe('User Profile Management', () => {
       const deletedUser = await User.findById(userId);
       expect(deletedUser).toBeNull();
     });
+  });
+
+  // Small delay after each test to allow background async jobs/logs to settle
+  // Prevents "Cannot log after tests are done" when other modules emit logs
+  afterEach(async () => {
+    await new Promise((r) => setTimeout(r, 200));
   });
 });

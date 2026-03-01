@@ -193,13 +193,13 @@ export const getCorsOptions = (): CorsOptions => {
 
   if (environment === 'production') {
     if (process.env.NODE_ENV !== 'test') {
-      console.log('🔒 Using PRODUCTION CORS configuration');
+      console.warn('🔒 Using PRODUCTION CORS configuration');
     }
     return productionCorsOptions;
   }
 
   if (process.env.NODE_ENV !== 'test') {
-    console.log('🔓 Using DEVELOPMENT CORS configuration');
+    console.warn('🔓 Using DEVELOPMENT CORS configuration');
   }
   return developmentCorsOptions;
 };

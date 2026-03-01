@@ -35,8 +35,13 @@ interface OrphanedDocument {
 /**
  * Verifica si un documento tiene su archivo físico
  */
-function fileExists(doc: any): boolean {
-  if (!doc.path) {
+
+function hasPath(doc: unknown): doc is { path: string } {
+  return typeof doc === 'object' && doc !== null && 'path' in (doc as Record<string, unknown>) && typeof (doc as Record<string, unknown>).path === 'string';
+}
+
+function fileExists(doc: unknown): boolean {
+  if (!hasPath(doc)) {
     return false; // Documento sin path es huérfano
   }
 
@@ -146,11 +151,12 @@ async function cleanOrphanedDocuments(dryRun: boolean = true) {
                 id: doc.id
               });
               esDeletedCount++;
-            } catch (error: any) {
-              if (error.meta?.statusCode !== 404) {
-                console.log(`   ⚠️  Error eliminando ${doc.id} de ES: ${error.message}`);
+              } catch (error: unknown) {
+                const e = error as { meta?: { statusCode?: number }; message?: string };
+                if (e.meta?.statusCode !== 404) {
+                  console.log(`   ⚠️  Error eliminando ${doc.id} de ES: ${e.message ?? String(error)}`);
+                }
               }
-            }
           }
 
           console.log(`✅ Eliminados ${esDeletedCount} documentos de Elasticsearch\n`);

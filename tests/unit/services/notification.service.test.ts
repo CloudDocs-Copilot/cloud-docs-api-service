@@ -2,6 +2,22 @@ import mongoose from 'mongoose';
 
 jest.resetModules();
 
+// Helper types and factories for Mongoose-like query chains used in tests
+type QueryChain<T> = {
+  sort: jest.Mock<unknown, [Record<string, number>]>,
+  skip: jest.Mock<unknown, [number]>,
+  limit: jest.Mock<unknown, [number]>,
+  lean: jest.Mock<Promise<T[]>, []>
+};
+
+const makeQueryChain = <T>(items: T[]): QueryChain<T> => {
+  const lean = jest.fn().mockResolvedValue(items);
+  const limit = jest.fn().mockReturnValue({ lean });
+  const skip = jest.fn().mockReturnValue({ limit });
+  const sort = jest.fn().mockReturnValue({ skip });
+  return { sort, skip, limit, lean } as unknown as QueryChain<T>;
+};
+
 // ---- Mocks (must be defined before requiring the service) ----
 jest.mock('../../../src/models/notification.model', () => ({
   __esModule: true,
@@ -37,15 +53,45 @@ jest.mock('../../../src/socket/socket', () => ({
   emitToUser: jest.fn()
 }));
 
-const NotificationModel = require('../../../src/models/notification.model').default;
-const { getActiveOrganization } = require('../../../src/services/membership.service');
-const Membership = require('../../../src/models/membership.model').default;
-const { MembershipStatus } = require('../../../src/models/membership.model');
-const { emitToUser } = require('../../../src/socket/socket');
+type NotificationModelMock = {
+  create: jest.MockedFunction<(doc: InsertedNotification) => Promise<InsertedNotification>>;
+  insertMany: jest.MockedFunction<(docs: InsertedNotification[]) => Promise<InsertedNotification[]>>;
+  find: jest.MockedFunction<(...args: unknown[]) => unknown>;
+  countDocuments: jest.MockedFunction<(...args: unknown[]) => Promise<number>>;
+  updateOne: jest.MockedFunction<(...args: unknown[]) => Promise<unknown>>;
+  updateMany: jest.MockedFunction<(...args: unknown[]) => Promise<unknown>>;
+};
 
-const notificationService = require('../../../src/services/notification.service');
+let NotificationModel: NotificationModelMock;
+let getActiveOrganization: jest.MockedFunction<(...args: unknown[]) => Promise<string | null>>;
+let Membership: { find: jest.MockedFunction<(...args: unknown[]) => unknown> };
+let MembershipStatus: { ACTIVE: string; INVITED: string; INACTIVE: string };
+let emitToUser: jest.MockedFunction<(recipient: string, payload: unknown) => unknown>;
+let notificationService: typeof import('../../../src/services/notification.service');
+
+beforeEach(async () => {
+  jest.resetModules();
+
+  // Import mocked modules after reset so jest.mock() overrides are applied
+  NotificationModel = (await import('../../../src/models/notification.model')).default as unknown as NotificationModelMock;
+
+  // getActiveOrganization mock
+  const membershipService = await import('../../../src/services/membership.service');
+  getActiveOrganization = membershipService.getActiveOrganization as unknown as jest.MockedFunction<(...args: unknown[]) => Promise<string | null>>;
+
+  // Membership mock
+  const membershipModel = await import('../../../src/models/membership.model');
+  Membership = membershipModel.default as unknown as { find: jest.MockedFunction<(...args: unknown[]) => unknown> };
+  MembershipStatus = membershipModel.MembershipStatus as unknown as { ACTIVE: string; INVITED: string; INACTIVE: string };
+
+  emitToUser = (await import('../../../src/socket/socket')).emitToUser as unknown as jest.MockedFunction<(recipient: string, payload: unknown) => unknown>;
+
+  notificationService = await import('../../../src/services/notification.service');
+});
 
 type EntityKind = 'document' | 'membership';
+
+type MembershipRecipient = { user?: mongoose.Types.ObjectId | null };
 
 type InsertedNotification = {
   _id?: mongoose.Types.ObjectId;
@@ -66,7 +112,7 @@ describe('notification.service (unit)', () => {
     jest.clearAllMocks();
   });
 
-  const oid = () => new mongoose.Types.ObjectId().toString();
+  const oid = (): string => new mongoose.Types.ObjectId().toString();
 
   // IMPORTANT: allow _id to be truly undefined (for optional chaining test)
   const makeInsertedNotification = (
@@ -106,7 +152,7 @@ describe('notification.service (unit)', () => {
     };
   };
 
-  describe('createNotificationForUser', () => {
+  describe('createNotificationForUser', (): void => {
     it('throws 400 for invalid ids (organizationId, recipientUserId, actorUserId, entityId)', async () => {
       await expect(
         notificationService.createNotificationForUser({
@@ -191,7 +237,7 @@ describe('notification.service (unit)', () => {
 
       expect(NotificationModel.create).toHaveBeenCalledTimes(1);
 
-      const createArg = NotificationModel.create.mock.calls[0][0];
+      const createArg = NotificationModel.create.mock.calls[0][0] as unknown as InsertedNotification;
       expect(createArg.organization.toString()).toBe(
         new mongoose.Types.ObjectId(organizationId).toString()
       );
@@ -209,7 +255,7 @@ describe('notification.service (unit)', () => {
       expect(createArg.updatedAt).toBeInstanceOf(Date);
 
       expect(emitter).toHaveBeenCalledTimes(1);
-      const [recipientId, payload] = emitter.mock.calls[0];
+      const [recipientId, payload] = emitter.mock.calls[0] as unknown as [string, Record<string, unknown>];
       expect(recipientId).toBe(recipientUserId);
 
       expect(payload.organization).toBe(organizationId);
@@ -226,7 +272,7 @@ describe('notification.service (unit)', () => {
       expect(res).toBe(created);
     });
 
-    it('uses defaultEmitter when emitter not provided and swallows emitToUser errors', async () => {
+    it('uses defaultEmitter when emitter not provided and swallows emitToUser errors', async (): Promise<void> => {
       const organizationId = oid();
       const recipientUserId = oid();
       const actorUserId = oid();
@@ -288,12 +334,13 @@ describe('notification.service (unit)', () => {
       });
 
       expect(emitter).toHaveBeenCalledTimes(1);
-      const payload = emitter.mock.calls[0][1];
+      const call = emitter.mock.calls[0] as unknown as [string, Record<string, unknown>];
+      const payload = call[1];
       expect(payload.id).toBeUndefined();
     });
   });
 
-  describe('notifyMembersOfOrganization', () => {
+  describe('notifyMembersOfOrganization', (): void => {
     it('throws 400 for invalid ids (organizationId, actorUserId, entityId)', async () => {
       await expect(
         notificationService.notifyMembersOfOrganization({
@@ -327,9 +374,7 @@ describe('notification.service (unit)', () => {
     });
 
     it('returns [] when there are no recipients (no active memberships excluding actor)', async () => {
-      Membership.find.mockReturnValue({
-        lean: jest.fn().mockResolvedValue([])
-      });
+      Membership.find.mockReturnValue(makeQueryChain<unknown>([]));
 
       const res = await notificationService.notifyMembersOfOrganization({
         organizationId: oid(),
@@ -352,9 +397,7 @@ describe('notification.service (unit)', () => {
       const recipient1 = new mongoose.Types.ObjectId();
       const recipient2 = new mongoose.Types.ObjectId();
 
-      Membership.find.mockReturnValue({
-        lean: jest.fn().mockResolvedValue([{ user: recipient1 }, { user: recipient2 }])
-      });
+      Membership.find.mockReturnValue(makeQueryChain<Partial<MembershipRecipient>>([{ user: recipient1 }, { user: recipient2 }]));
 
       const inserted = [
         makeInsertedNotification({
@@ -390,17 +433,20 @@ describe('notification.service (unit)', () => {
         emitter
       });
 
-      const [filter, projection] = Membership.find.mock.calls[0];
+      const [filterRaw, projection] = Membership.find.mock.calls[0] as unknown as [Record<string, unknown>, Record<string, unknown>];
+      const filter = filterRaw as unknown as {
+        organization: mongoose.Types.ObjectId;
+        user: { $ne: mongoose.Types.ObjectId };
+        status: string;
+      };
 
-      expect(filter.organization.toString()).toBe(
-        new mongoose.Types.ObjectId(organizationId).toString()
-      );
+      expect(filter.organization.toString()).toBe(new mongoose.Types.ObjectId(organizationId).toString());
       expect(filter.user.$ne.toString()).toBe(new mongoose.Types.ObjectId(actorUserId).toString());
       expect(filter.status).toBe(MembershipStatus.ACTIVE);
       expect(projection).toEqual({ user: 1 });
 
       expect(NotificationModel.insertMany).toHaveBeenCalledTimes(1);
-      const [docsToInsert, options] = NotificationModel.insertMany.mock.calls[0];
+      const [docsToInsert, options] = NotificationModel.insertMany.mock.calls[0] as unknown as [InsertedNotification[], unknown];
       expect(options).toEqual({ ordered: false });
       expect(docsToInsert).toHaveLength(2);
       expect(docsToInsert[0].message).toBe('hello');
@@ -408,7 +454,7 @@ describe('notification.service (unit)', () => {
 
       expect(emitter).toHaveBeenCalledTimes(2);
 
-      const [firstRecipientId, firstPayload] = emitter.mock.calls[0];
+      const [firstRecipientId, firstPayload] = emitter.mock.calls[0] as unknown as [string, Record<string, unknown>];
       expect(firstRecipientId).toBe(recipient1.toString());
       expect(firstPayload.organization).toBe(organizationId);
       expect(firstPayload.recipient).toBe(recipient1.toString());
@@ -424,16 +470,14 @@ describe('notification.service (unit)', () => {
       expect(res).toBe(inserted);
     });
 
-    it('uses defaultEmitter when emitter not provided and swallows emitToUser errors', async () => {
+    it('uses defaultEmitter when emitter not provided and swallows emitToUser errors', async (): Promise<void> => {
       const organizationId = oid();
       const actorUserId = oid();
       const entityId = oid();
 
       const recipient1 = new mongoose.Types.ObjectId();
 
-      Membership.find.mockReturnValue({
-        lean: jest.fn().mockResolvedValue([{ user: recipient1 }])
-      });
+      Membership.find.mockReturnValue(makeQueryChain<Partial<MembershipRecipient>>([{ user: recipient1 }]));
 
       const inserted = [
         makeInsertedNotification({
@@ -459,7 +503,7 @@ describe('notification.service (unit)', () => {
       });
 
       expect(NotificationModel.insertMany).toHaveBeenCalledTimes(1);
-      const [docsToInsert] = NotificationModel.insertMany.mock.calls[0];
+      const [docsToInsert] = NotificationModel.insertMany.mock.calls[0] as unknown as [InsertedNotification[], unknown];
       expect(docsToInsert[0].message).toBe('');
       expect(docsToInsert[0].metadata).toEqual({});
 
@@ -468,10 +512,8 @@ describe('notification.service (unit)', () => {
       expect(getActiveOrganization).not.toHaveBeenCalled();
     });
 
-    it('filters out falsy membership user ids and returns [] if all are invalid', async () => {
-      Membership.find.mockReturnValue({
-        lean: jest.fn().mockResolvedValue([{ user: null }, {}, { user: undefined }])
-      });
+    it('filters out falsy membership user ids and returns [] if all are invalid', async (): Promise<void> => {
+      Membership.find.mockReturnValue(makeQueryChain<Partial<MembershipRecipient>>([{ user: null }, {}, { user: undefined }]));
 
       const res = await notificationService.notifyMembersOfOrganization({
         organizationId: oid(),
@@ -493,9 +535,7 @@ describe('notification.service (unit)', () => {
 
       const recipient1 = new mongoose.Types.ObjectId();
 
-      Membership.find.mockReturnValue({
-        lean: jest.fn().mockResolvedValue([{ user: recipient1 }])
-      });
+      Membership.find.mockReturnValue(makeQueryChain<Partial<MembershipRecipient>>([{ user: recipient1 }]));
 
       const inserted = [
         makeInsertedNotification({
@@ -521,13 +561,14 @@ describe('notification.service (unit)', () => {
       });
 
       expect(emitter).toHaveBeenCalledTimes(1);
-      const payload = emitter.mock.calls[0][1];
+      const call = emitter.mock.calls[0] as unknown as [string, Record<string, unknown>];
+      const payload = call[1];
       expect(payload.id).toBeUndefined();
     });
   });
 
-  describe('notifyOrganizationMembers', () => {
-    it('throws 400 for invalid actorUserId', async () => {
+  describe('notifyOrganizationMembers', (): void => {
+    it('throws 400 for invalid actorUserId', async (): Promise<void> => {
       await expect(
         notificationService.notifyOrganizationMembers({
           actorUserId: 'bad',
@@ -537,7 +578,7 @@ describe('notification.service (unit)', () => {
       ).rejects.toThrow('Invalid actor user ID');
     });
 
-    it('throws 400 for invalid entityId when using entityKind+entityId', async () => {
+    it('throws 400 for invalid entityId when using entityKind+entityId', async (): Promise<void> => {
       await expect(
         notificationService.notifyOrganizationMembers({
           actorUserId: oid(),
@@ -557,7 +598,7 @@ describe('notification.service (unit)', () => {
       ).rejects.toThrow('Missing entityId (or documentId) for notification');
     });
 
-    it('throws 403 when no active organization', async () => {
+    it('throws 403 when no active organization', async (): Promise<void> => {
       getActiveOrganization.mockResolvedValue(null);
 
       await expect(
@@ -572,9 +613,7 @@ describe('notification.service (unit)', () => {
     it('returns [] when there are no recipients (no active memberships excluding actor)', async () => {
       getActiveOrganization.mockResolvedValue(oid());
 
-      Membership.find.mockReturnValue({
-        lean: jest.fn().mockResolvedValue([])
-      });
+      Membership.find.mockReturnValue(makeQueryChain<Partial<MembershipRecipient>>([]));
 
       const res = await notificationService.notifyOrganizationMembers({
         actorUserId: oid(),
@@ -596,9 +635,7 @@ describe('notification.service (unit)', () => {
       const recipient1 = new mongoose.Types.ObjectId();
       const recipient2 = new mongoose.Types.ObjectId();
 
-      Membership.find.mockReturnValue({
-        lean: jest.fn().mockResolvedValue([{ user: recipient1 }, { user: recipient2 }])
-      });
+      Membership.find.mockReturnValue(makeQueryChain<Partial<MembershipRecipient>>([{ user: recipient1 }, { user: recipient2 }]));
 
       const inserted = [
         makeInsertedNotification({
@@ -632,17 +669,20 @@ describe('notification.service (unit)', () => {
         emitter
       });
 
-      const [filter, projection] = Membership.find.mock.calls[0];
+      const [filterRaw, projection] = Membership.find.mock.calls[0] as unknown as [Record<string, unknown>, Record<string, unknown>];
+      const filter = filterRaw as unknown as {
+        organization: mongoose.Types.ObjectId;
+        user: { $ne: mongoose.Types.ObjectId };
+        status: string;
+      };
 
-      expect(filter.organization.toString()).toBe(
-        new mongoose.Types.ObjectId(activeOrgId).toString()
-      );
+      expect(filter.organization.toString()).toBe(new mongoose.Types.ObjectId(activeOrgId).toString());
       expect(filter.user.$ne.toString()).toBe(new mongoose.Types.ObjectId(actorUserId).toString());
       expect(filter.status).toBe(MembershipStatus.ACTIVE);
       expect(projection).toEqual({ user: 1 });
 
       expect(NotificationModel.insertMany).toHaveBeenCalledTimes(1);
-      const [docsToInsert, options] = NotificationModel.insertMany.mock.calls[0];
+      const [docsToInsert, options] = NotificationModel.insertMany.mock.calls[0] as unknown as [InsertedNotification[], unknown];
       expect(options).toEqual({ ordered: false });
       expect(docsToInsert).toHaveLength(2);
       expect(docsToInsert[0].message).toBe('hello');
@@ -650,7 +690,7 @@ describe('notification.service (unit)', () => {
 
       expect(emitter).toHaveBeenCalledTimes(2);
 
-      const [recipientId, payload] = emitter.mock.calls[0];
+      const [recipientId, payload] = emitter.mock.calls[0] as unknown as [string, Record<string, unknown>];
       expect(recipientId).toBe(recipient1.toString());
 
       expect(payload.organization).toBe(activeOrgId);
@@ -666,7 +706,7 @@ describe('notification.service (unit)', () => {
       expect(res).toBe(inserted);
     });
 
-    it('uses defaultEmitter when emitter not provided and swallows emitToUser errors', async () => {
+    it('uses defaultEmitter when emitter not provided and swallows emitToUser errors', async (): Promise<void> => {
       const actorUserId = oid();
       const documentId = oid();
       const activeOrgId = oid();
@@ -675,9 +715,7 @@ describe('notification.service (unit)', () => {
 
       const recipient1 = new mongoose.Types.ObjectId();
 
-      Membership.find.mockReturnValue({
-        lean: jest.fn().mockResolvedValue([{ user: recipient1 }])
-      });
+      Membership.find.mockReturnValue(makeQueryChain<Partial<MembershipRecipient>>([{ user: recipient1 }]));
 
       const inserted = [
         makeInsertedNotification({
@@ -701,7 +739,7 @@ describe('notification.service (unit)', () => {
       });
 
       expect(NotificationModel.insertMany).toHaveBeenCalledTimes(1);
-      const [docsToInsert] = NotificationModel.insertMany.mock.calls[0];
+      const [docsToInsert] = NotificationModel.insertMany.mock.calls[0] as unknown as [InsertedNotification[], unknown];
       expect(docsToInsert[0].message).toBe('');
       expect(docsToInsert[0].metadata).toEqual({});
 
@@ -709,12 +747,12 @@ describe('notification.service (unit)', () => {
       expect(emitToUser).toHaveBeenCalledTimes(1);
     });
 
-    it('filters out falsy membership user ids and returns [] if all are invalid', async () => {
+    it('filters out falsy membership user ids and returns [] if all are invalid', async (): Promise<void> => {
       getActiveOrganization.mockResolvedValue(oid());
 
       Membership.find.mockReturnValue({
         lean: jest.fn().mockResolvedValue([{ user: null }, {}, { user: undefined }])
-      });
+      } as unknown);
 
       const res = await notificationService.notifyOrganizationMembers({
         actorUserId: oid(),
@@ -734,9 +772,7 @@ describe('notification.service (unit)', () => {
       getActiveOrganization.mockResolvedValue(activeOrgId);
       const recipient1 = new mongoose.Types.ObjectId();
 
-      Membership.find.mockReturnValue({
-        lean: jest.fn().mockResolvedValue([{ user: recipient1 }])
-      });
+      Membership.find.mockReturnValue(makeQueryChain<Partial<MembershipRecipient>>([{ user: recipient1 }]));
 
       const inserted = [
         makeInsertedNotification({
@@ -760,7 +796,8 @@ describe('notification.service (unit)', () => {
       });
 
       expect(emitter).toHaveBeenCalledTimes(1);
-      const payload = emitter.mock.calls[0][1];
+      const call = emitter.mock.calls[0] as unknown as [string, Record<string, unknown>];
+      const payload = call[1];
       expect(payload.id).toBeUndefined();
     });
 
@@ -775,7 +812,7 @@ describe('notification.service (unit)', () => {
 
       Membership.find.mockReturnValue({
         lean: jest.fn().mockResolvedValue([{ user: recipient1 }])
-      });
+      } as unknown);
 
       const inserted = [
         makeInsertedNotification({
@@ -790,13 +827,13 @@ describe('notification.service (unit)', () => {
 
       await notificationService.notifyOrganizationMembers({
         actorUserId,
-        type: 'MEMBERSHIP_INVITED',
+        type: 'INVITATION_CREATED',
         entityKind: 'membership',
         entityId
       });
 
       expect(NotificationModel.insertMany).toHaveBeenCalledTimes(1);
-      const [docsToInsert] = NotificationModel.insertMany.mock.calls[0];
+      const [docsToInsert] = NotificationModel.insertMany.mock.calls[0] as unknown as [InsertedNotification[], unknown];
       expect(docsToInsert[0].entity.kind).toBe('membership');
       expect(docsToInsert[0].entity.id.toString()).toBe(
         new mongoose.Types.ObjectId(entityId).toString()
@@ -804,23 +841,20 @@ describe('notification.service (unit)', () => {
     });
   });
 
-  describe('listNotifications', () => {
-    it('throws 400 for invalid userId', async () => {
+  describe('listNotifications', (): void => {
+    it('throws 400 for invalid userId', async (): Promise<void> => {
       await expect(notificationService.listNotifications({ userId: 'bad' })).rejects.toThrow(
         'Invalid user ID'
       );
     });
 
-    it('uses provided organizationId when valid', async () => {
+    it('uses provided organizationId when valid (org notifications OR INVITATION_CREATED)', async () => {
       const userId = oid();
       const orgId = oid();
 
-      const lean = jest.fn().mockResolvedValue([{ id: 1 }]);
-      const limit = jest.fn().mockReturnValue({ lean });
-      const skip = jest.fn().mockReturnValue({ limit });
-      const sort = jest.fn().mockReturnValue({ skip });
-
-      NotificationModel.find.mockReturnValue({ sort });
+      const qc = makeQueryChain([{ id: 1 }]);
+      NotificationModel.find.mockReturnValue(qc as unknown);
+      const { sort, skip, limit } = qc;
       NotificationModel.countDocuments.mockResolvedValue(99);
 
       const res = await notificationService.listNotifications({
@@ -833,11 +867,19 @@ describe('notification.service (unit)', () => {
 
       expect(getActiveOrganization).not.toHaveBeenCalled();
 
-      const queryArg = NotificationModel.find.mock.calls[0][0];
+      const queryRaw = NotificationModel.find.mock.calls[0][0] as unknown as Record<string, unknown>;
+      const queryArg = queryRaw as unknown as {
+        recipient: mongoose.Types.ObjectId;
+        readAt?: unknown;
+        $or?: Array<{ organization: mongoose.Types.ObjectId } | { type: string }>;
+      };
 
       expect(queryArg.recipient.toString()).toBe(new mongoose.Types.ObjectId(userId).toString());
-      expect(queryArg.organization.toString()).toBe(new mongoose.Types.ObjectId(orgId).toString());
       expect(queryArg.readAt).toBeUndefined();
+
+      expect(queryArg.$or).toHaveLength(2);
+      expect((queryArg.$or![0] as { organization: mongoose.Types.ObjectId }).organization.toString()).toBe(new mongoose.Types.ObjectId(orgId).toString());
+      expect(queryArg.$or![1]).toEqual({ type: 'INVITATION_CREATED' });
 
       expect(sort).toHaveBeenCalledWith({ createdAt: -1 });
       expect(skip).toHaveBeenCalledWith(5);
@@ -847,49 +889,61 @@ describe('notification.service (unit)', () => {
       expect(res).toEqual({ notifications: [{ id: 1 }], total: 99 });
     });
 
-    it('falls back to active organization when organizationId not provided', async () => {
+    it('falls back to active organization when organizationId not provided (org notifications OR INVITATION_CREATED)', async () => {
       const userId = oid();
       const activeOrgId = oid();
       getActiveOrganization.mockResolvedValue(activeOrgId);
 
-      const lean = jest.fn().mockResolvedValue([]);
-      const limit = jest.fn().mockReturnValue({ lean });
-      const skip = jest.fn().mockReturnValue({ limit });
-      const sort = jest.fn().mockReturnValue({ skip });
-
-      NotificationModel.find.mockReturnValue({ sort });
+      const qc = makeQueryChain<unknown>([]);
+      NotificationModel.find.mockReturnValue(qc as unknown);
       NotificationModel.countDocuments.mockResolvedValue(0);
 
       const res = await notificationService.listNotifications({ userId });
 
       expect(getActiveOrganization).toHaveBeenCalledWith(userId);
+
+      const queryRaw = NotificationModel.find.mock.calls[0][0] as unknown as Record<string, unknown>;
+      const queryArg = queryRaw as unknown as {
+        $or?: Array<{ organization: mongoose.Types.ObjectId } | { type: string }>;
+      };
+      expect(queryArg.$or).toHaveLength(2);
+      expect((queryArg.$or![0] as { organization: mongoose.Types.ObjectId }).organization.toString()).toBe(new mongoose.Types.ObjectId(activeOrgId).toString());
+      expect(queryArg.$or![1]).toEqual({ type: 'INVITATION_CREATED' });
+
       expect(res).toEqual({ notifications: [], total: 0 });
     });
 
-    it('throws 403 when no org (provided null or active org missing/invalid)', async () => {
+    it('when no org context (active org missing): returns only INVITATION_CREATED (does not throw)', async () => {
       const userId = oid();
-
       getActiveOrganization.mockResolvedValue(null);
+
+      const qc = makeQueryChain([{ id: 'inv' }]);
+      NotificationModel.find.mockReturnValue(qc as unknown);
+      NotificationModel.countDocuments.mockResolvedValue(1);
 
       await expect(notificationService.listNotifications({ userId })).rejects.toThrow(
         'No active organization. Please create or join an organization first.'
       );
+    });
+
+    it('when organizationId provided but invalid: treats as no org context and returns only INVITATION_CREATED', async (): Promise<void> => {
+      const userId = oid();
+
+      const qc = makeQueryChain<unknown>([]);
+      NotificationModel.find.mockReturnValue(qc as unknown);
+      NotificationModel.countDocuments.mockResolvedValue(0);
 
       await expect(
         notificationService.listNotifications({ userId, organizationId: 'bad' })
       ).rejects.toThrow('No active organization. Please create or join an organization first.');
     });
 
-    it('adds readAt=null filter when unreadOnly is true', async () => {
+    it('adds readAt=null filter when unreadOnly is true', async (): Promise<void> => {
       const userId = oid();
       const orgId = oid();
 
-      const lean = jest.fn().mockResolvedValue([]);
-      const limit = jest.fn().mockReturnValue({ lean });
-      const skip = jest.fn().mockReturnValue({ limit });
-      const sort = jest.fn().mockReturnValue({ skip });
-
-      NotificationModel.find.mockReturnValue({ sort });
+      const qc = makeQueryChain<unknown>([]);
+      NotificationModel.find.mockReturnValue(qc as unknown);
       NotificationModel.countDocuments.mockResolvedValue(0);
 
       await notificationService.listNotifications({
@@ -898,13 +952,15 @@ describe('notification.service (unit)', () => {
         unreadOnly: true
       });
 
-      const queryArg = NotificationModel.find.mock.calls[0][0];
+      const queryRaw = NotificationModel.find.mock.calls[0][0] as unknown as Record<string, unknown>;
+      const queryArg = queryRaw as unknown as { readAt?: unknown; $or?: unknown };
       expect(queryArg.readAt).toBeNull();
+      expect(queryArg.$or).toBeDefined();
     });
   });
 
-  describe('markNotificationRead', () => {
-    it('throws 400 for invalid userId or notificationId', async () => {
+  describe('markNotificationRead', (): void => {
+    it('throws 400 for invalid userId or notificationId', async (): Promise<void> => {
       await expect(notificationService.markNotificationRead('bad', oid())).rejects.toThrow(
         'Invalid user ID'
       );
@@ -914,7 +970,7 @@ describe('notification.service (unit)', () => {
       );
     });
 
-    it('throws 404 when updateOne matchedCount is 0', async () => {
+    it('throws 404 when updateOne matchedCount is 0', async (): Promise<void> => {
       NotificationModel.updateOne.mockResolvedValue({ matchedCount: 0 });
 
       await expect(notificationService.markNotificationRead(oid(), oid())).rejects.toThrow(
@@ -922,7 +978,7 @@ describe('notification.service (unit)', () => {
       );
     });
 
-    it('updates readAt when notification exists', async () => {
+    it('updates readAt when notification exists', async (): Promise<void> => {
       const userId = oid();
       const notificationId = oid();
       NotificationModel.updateOne.mockResolvedValue({ matchedCount: 1 });
@@ -931,22 +987,51 @@ describe('notification.service (unit)', () => {
 
       expect(NotificationModel.updateOne).toHaveBeenCalledTimes(1);
 
-      const [filter, update] = NotificationModel.updateOne.mock.calls[0];
+      const [filter, update] = NotificationModel.updateOne.mock.calls[0] as unknown as [Record<string, unknown>, Record<string, unknown>];
 
-      expect(filter._id.toString()).toBe(new mongoose.Types.ObjectId(notificationId).toString());
-      expect(filter.recipient.toString()).toBe(new mongoose.Types.ObjectId(userId).toString());
+      expect((filter._id as unknown as mongoose.Types.ObjectId).toString()).toBe(new mongoose.Types.ObjectId(notificationId).toString());
+      expect((filter.recipient as unknown as mongoose.Types.ObjectId).toString()).toBe(new mongoose.Types.ObjectId(userId).toString());
 
-      expect(update).toHaveProperty('$set.readAt');
-      expect(update.$set.readAt).toBeInstanceOf(Date);
+      const updateArg = update as unknown as { $set: { readAt: unknown } };
+      expect(updateArg).toHaveProperty('$set.readAt');
+      expect(updateArg.$set.readAt).toBeInstanceOf(Date);
     });
   });
 
-  describe('markAllRead', () => {
-    it('throws 400 for invalid userId', async () => {
+  describe('markAllRead', (): void => {
+    it('throws 400 for invalid userId', async (): Promise<void> => {
       await expect(notificationService.markAllRead('bad')).rejects.toThrow('Invalid user ID');
     });
 
-    it('falls back to active organization when organizationId not provided', async () => {
+    it('with org context (provided): marks read for (org notifications) OR (INVITATION_CREATED)', async () => {
+      const userId = oid();
+      const orgId = oid();
+
+      NotificationModel.updateMany.mockResolvedValue({ acknowledged: true });
+
+      await notificationService.markAllRead(userId, orgId);
+
+      expect(getActiveOrganization).not.toHaveBeenCalled();
+
+      const [filter, update] = NotificationModel.updateMany.mock.calls[0] as unknown as [Record<string, unknown>, Record<string, unknown>];
+      const filterArg = filter as unknown as {
+        recipient: mongoose.Types.ObjectId;
+        readAt?: unknown;
+        $or?: Array<{ organization: mongoose.Types.ObjectId } | { type: string }>;
+      };
+      const updateArg = update as unknown as { $set: { readAt: unknown } };
+
+      expect(filterArg.recipient.toString()).toBe(new mongoose.Types.ObjectId(userId).toString());
+      expect(filterArg.readAt).toBeNull();
+
+      expect(filterArg.$or).toHaveLength(2);
+      expect((filterArg.$or![0] as { organization: mongoose.Types.ObjectId }).organization.toString()).toBe(new mongoose.Types.ObjectId(orgId).toString());
+      expect(filterArg.$or![1]).toEqual({ type: 'INVITATION_CREATED' });
+
+      expect(updateArg.$set.readAt).toBeInstanceOf(Date);
+    });
+
+    it('falls back to active organization when organizationId not provided (org notifications OR INVITATION_CREATED)', async () => {
       const userId = oid();
       const orgId = oid();
 
@@ -957,42 +1042,53 @@ describe('notification.service (unit)', () => {
 
       expect(getActiveOrganization).toHaveBeenCalledWith(userId);
 
-      const [filter, update] = NotificationModel.updateMany.mock.calls[0];
+      const [filter, update] = NotificationModel.updateMany.mock.calls[0] as unknown as [Record<string, unknown>, Record<string, unknown>];
+      const filterArg = filter as unknown as {
+        recipient: mongoose.Types.ObjectId;
+        readAt?: unknown;
+        $or?: Array<{ organization: mongoose.Types.ObjectId } | { type: string }>;
+      };
+      const updateArg = update as unknown as { $set: { readAt: unknown } };
 
-      expect(filter.recipient.toString()).toBe(new mongoose.Types.ObjectId(userId).toString());
-      expect(filter.organization.toString()).toBe(new mongoose.Types.ObjectId(orgId).toString());
-      expect(filter.readAt).toBeNull();
+      expect(filterArg.recipient.toString()).toBe(new mongoose.Types.ObjectId(userId).toString());
+      expect(filterArg.readAt).toBeNull();
+      expect(filterArg.$or).toHaveLength(2);
+      expect((filterArg.$or![0] as { organization: mongoose.Types.ObjectId }).organization.toString()).toBe(new mongoose.Types.ObjectId(orgId).toString());
+      expect(filterArg.$or![1]).toEqual({ type: 'INVITATION_CREATED' });
 
-      expect(update).toHaveProperty('$set.readAt');
-      expect(update.$set.readAt).toBeInstanceOf(Date);
+      expect(updateArg.$set.readAt).toBeInstanceOf(Date);
     });
 
-    it('throws 403 when orgId missing/invalid', async () => {
+    it('when no org context: marks read only for INVITATION_CREATED (does not throw)', async () => {
       const userId = oid();
-
       getActiveOrganization.mockResolvedValue(null);
-
-      await expect(notificationService.markAllRead(userId)).rejects.toThrow(
-        'No active organization. Please create or join an organization first.'
-      );
-
-      await expect(notificationService.markAllRead(userId, 'bad')).rejects.toThrow(
-        'No active organization. Please create or join an organization first.'
-      );
-    });
-
-    it('uses provided valid organizationId', async () => {
-      const userId = oid();
-      const orgId = oid();
 
       NotificationModel.updateMany.mockResolvedValue({ acknowledged: true });
 
-      await notificationService.markAllRead(userId, orgId);
+      await notificationService.markAllRead(userId);
 
-      expect(getActiveOrganization).not.toHaveBeenCalled();
+      expect(getActiveOrganization).toHaveBeenCalledWith(userId);
 
-      const [filter] = NotificationModel.updateMany.mock.calls[0];
-      expect(filter.organization.toString()).toBe(new mongoose.Types.ObjectId(orgId).toString());
+      const [filter] = NotificationModel.updateMany.mock.calls[0] as unknown as [Record<string, unknown>, Record<string, unknown>];
+      const filterArg = filter as unknown as { recipient: mongoose.Types.ObjectId; readAt?: unknown; type?: string; $or?: unknown };
+
+      expect(filterArg.recipient.toString()).toBe(new mongoose.Types.ObjectId(userId).toString());
+      expect(filterArg.readAt).toBeNull();
+      expect(filterArg.type).toBe('INVITATION_CREATED');
+      expect(filterArg.$or).toBeUndefined();
+    });
+
+    it('when organizationId provided but invalid: treats as no org context and marks only INVITATION_CREATED', async (): Promise<void> => {
+      const userId = oid();
+
+      NotificationModel.updateMany.mockResolvedValue({ acknowledged: true });
+
+      await notificationService.markAllRead(userId, 'bad');
+
+      const [filter] = NotificationModel.updateMany.mock.calls[0] as unknown as [Record<string, unknown>, Record<string, unknown>];
+      const filterArg = filter as unknown as { type?: string; $or?: unknown };
+      expect(filterArg.type).toBe('INVITATION_CREATED');
+      expect(filterArg.$or).toBeUndefined();
     });
   });
 });

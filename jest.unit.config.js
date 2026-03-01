@@ -36,8 +36,14 @@ module.exports = {
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/index.ts',
+    '!src/app.ts',
     '!src/**/index.ts',
+    '!src/configurations/**',
+    '!src/configurations/**/**',
     '!src/docs/**',
+    '!scripts/**',
+    '!uploads/**',
+    '!storage/**',
     '!**/node_modules/**'
   ],
 
@@ -77,4 +83,14 @@ module.exports = {
       isolatedModules: true
     }
   }
+  ,
+  coveragePathIgnorePatterns: [
+    '<rootDir>/src/configurations/',
+    '<rootDir>/src/app.ts',
+    '<rootDir>/src/index.ts',
+    '<rootDir>/scripts/',
+    '<rootDir>/docs/',
+    '<rootDir>/uploads/',
+    '<rootDir>/storage/'
+  ]
 };

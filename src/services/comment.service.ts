@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import HttpError from '../models/error.model';
 import CommentModel, { IComment } from '../models/comment.model';
-import DocumentModel from '../models/document.model';
+import DocumentModel, { IDocument } from '../models/document.model';
 import { hasActiveMembership } from './membership.service';
 import { notifyOrganizationMembers } from './notification.service';
 import { emitToUser } from '../socket/socket';
@@ -32,7 +32,10 @@ export interface UpdateCommentDto {
  * - Org doc: membership ACTIVE en doc.organization
  * - Personal doc: uploadedBy o sharedWith
  */
-async function ensureDocumentReadAccess(documentId: string, userId: string) {
+async function ensureDocumentReadAccess(
+  documentId: string,
+  userId: string
+): Promise<IDocument> {
   const doc = await DocumentModel.findById(documentId);
   if (!doc) throw new HttpError(404, 'Document not found');
 
@@ -42,7 +45,7 @@ async function ensureDocumentReadAccess(documentId: string, userId: string) {
   } else {
     const hasAccess =
       doc.uploadedBy.toString() === userId.toString() ||
-      doc.sharedWith?.some((id: any) => id.toString() === userId.toString());
+      doc.sharedWith?.some((id) => id.toString() === userId.toString());
 
     if (!hasAccess) throw new HttpError(403, 'Access denied to this document');
   }
@@ -72,13 +75,7 @@ export async function createComment({
   // Only makes sense for org documents.
   if (doc.organization) {
     // Optional: get document name (best-effort)
-    let docName = '';
-    try {
-      // doc.originalname might exist depending on your schema
-      docName = (doc as any).originalname || (doc as any).filename || '';
-    } catch {
-      // ignore
-    }
+    const docName = doc.originalname || doc.filename || '';
 
     await notifyOrganizationMembers({
       actorUserId: userId,
@@ -87,9 +84,9 @@ export async function createComment({
       message: docName ? `New comment on: ${docName}` : 'New comment on a document',
       metadata: {
         documentId,
-        commentId: comment._id?.toString()
+        commentId: comment._id ? String(comment._id) : undefined
       },
-      emitter: (recipientUserId, payload) => {
+      emitter: (recipientUserId: string, payload: unknown) => {
         emitToUser(recipientUserId, 'notification:new', payload);
       }
     });
@@ -135,12 +132,7 @@ export async function updateComment({
   // Treat editing a comment as "DOC_COMMENTED" (simplest + matches your enum),
   // but we include metadata so UI can show "edited comment" if you want.
   if (doc.organization) {
-    let docName = '';
-    try {
-      docName = (doc as any).originalname || (doc as any).filename || '';
-    } catch {
-      // ignore
-    }
+    const docName = doc.originalname || doc.filename || '';
 
     await notifyOrganizationMembers({
       actorUserId: userId,
@@ -149,10 +141,10 @@ export async function updateComment({
       message: docName ? `Comment edited on: ${docName}` : 'Comment edited on a document',
       metadata: {
         documentId: comment.document.toString(),
-        commentId: comment._id?.toString(),
+        commentId: comment._id ? String(comment._id) : undefined,
         edited: true
       },
-      emitter: (recipientUserId, payload) => {
+      emitter: (recipientUserId: string, payload: unknown) => {
         emitToUser(recipientUserId, 'notification:new', payload);
       }
     });

@@ -1,4 +1,7 @@
-import type { NextFunction } from 'express';
+import type { NextFunction, Response } from 'express';
+import type { AuthRequest } from '../../../src/middlewares/auth.middleware';
+
+/* eslint-disable @typescript-eslint/unbound-method */
 
 jest.resetModules();
 
@@ -20,55 +23,56 @@ jest.mock('../../../src/services/comment.service', () => ({
   updateComment: jest.fn()
 }));
 
-const HttpError = require('../../../src/models/error.model').default;
-const commentService = require('../../../src/services/comment.service');
-const commentController = require('../../../src/controllers/comment.controller');
+import HttpError from '../../../src/models/error.model';
+import * as commentService from '../../../src/services/comment.service';
+import * as commentController from '../../../src/controllers/comment.controller';
 
-function makeRes() {
-  const res: any = {};
-  res.status = jest.fn().mockReturnValue(res);
-  res.json = jest.fn().mockReturnValue(res);
+function makeRes(): Response {
+  const res = {
+    status: jest.fn(() => res),
+    json: jest.fn(() => res)
+  } as unknown as Response;
   return res;
 }
 
 describe('comment.controller (unit)', () => {
   afterEach(() => jest.clearAllMocks());
 
-  describe('create', () => {
-    it('returns 400 when content missing', async () => {
-      const req: any = {
-        params: { documentId: 'doc1' },
-        body: {},
-        user: { id: 'user1' }
-      };
+  describe('create', (): void => {
+    it('returns 400 when content missing', async (): Promise<void> => {
+        const req = {
+            params: { documentId: 'doc1' },
+            body: {},
+            user: { id: 'user1' }
+          } as unknown as AuthRequest;
       const res = makeRes();
-      const next = jest.fn() as NextFunction;
+      const next = jest.fn() as jest.MockedFunction<(err?: unknown) => void>;
 
-      await commentController.create(req, res, next);
+      await commentController.create(req as unknown as AuthRequest, res, next as unknown as NextFunction);
 
       expect(commentService.createComment).not.toHaveBeenCalled();
       expect(res.status).not.toHaveBeenCalled();
       expect(res.json).not.toHaveBeenCalled();
 
       expect(next).toHaveBeenCalledTimes(1);
-      const err = (next as any).mock.calls[0][0];
+      const err = next.mock.calls[0][0];
       expect(err).toBeInstanceOf(HttpError);
-      expect(err.statusCode).toBe(400);
-      expect(err.message).toBe('Contenido es requerido');
+      expect((err as HttpError).statusCode).toBe(400);
+      expect((err as Error).message).toBe('Contenido es requerido');
     });
 
-    it('creates comment and returns 201', async () => {
-      const req: any = {
-        params: { documentId: 'doc1' },
-        body: { content: 'hola' },
-        user: { id: 'user1' }
-      };
+    it('creates comment and returns 201', async (): Promise<void> => {
+        const req = {
+            params: { documentId: 'doc1' },
+            body: { content: 'hola' },
+            user: { id: 'user1' }
+          } as unknown as AuthRequest;
       const res = makeRes();
-      const next = jest.fn() as NextFunction;
+      const next = jest.fn() as jest.MockedFunction<(err?: unknown) => void>;
 
-      commentService.createComment.mockResolvedValue({ id: 'c1' });
+      (commentService.createComment as jest.Mock).mockResolvedValue({ id: 'c1' });
 
-      await commentController.create(req, res, next);
+      await commentController.create(req as unknown as AuthRequest, res, next as unknown as NextFunction);
 
       expect(commentService.createComment).toHaveBeenCalledWith({
         documentId: 'doc1',
@@ -87,55 +91,55 @@ describe('comment.controller (unit)', () => {
     });
 
     it('passes errors to next()', async () => {
-      const req: any = {
+      const req = {
         params: { documentId: 'doc1' },
         body: { content: 'hola' },
         user: { id: 'user1' }
-      };
+      } as unknown as AuthRequest;
       const res = makeRes();
-      const next = jest.fn() as NextFunction;
+      const next = jest.fn() as jest.MockedFunction<(err?: unknown) => void>;
 
       const boom = new Error('boom');
-      commentService.createComment.mockRejectedValue(boom);
+      (commentService.createComment as jest.Mock).mockRejectedValue(boom);
 
-      await commentController.create(req, res, next);
+      await commentController.create(req as unknown as AuthRequest, res, next as unknown as NextFunction);
 
       expect(next).toHaveBeenCalledWith(boom);
     });
   });
 
-  describe('listByDocument', () => {
-    it('returns 400 when documentId missing', async () => {
-      const req: any = {
-        params: {},
-        body: {},
-        user: { id: 'user1' }
-      };
+  describe('listByDocument', (): void => {
+    it('returns 400 when documentId missing', async (): Promise<void> => {
+        const req = {
+            params: {},
+            body: {},
+            user: { id: 'user1' }
+          } as unknown as AuthRequest;
       const res = makeRes();
-      const next = jest.fn() as NextFunction;
+      const next = jest.fn() as jest.MockedFunction<(err?: unknown) => void>;
 
-      await commentController.listByDocument(req, res, next);
+      await commentController.listByDocument(req as unknown as AuthRequest, res, next as unknown as NextFunction);
 
       expect(commentService.listComments).not.toHaveBeenCalled();
 
-      const err = (next as any).mock.calls[0][0];
+      const err = next.mock.calls[0][0];
       expect(err).toBeInstanceOf(HttpError);
-      expect(err.statusCode).toBe(400);
-      expect(err.message).toBe('documentId es requerido');
+      expect((err as HttpError).statusCode).toBe(400);
+      expect((err as Error).message).toBe('documentId es requerido');
     });
 
-    it('lists comments and returns count', async () => {
-      const req: any = {
-        params: { documentId: 'doc1' },
-        user: { id: 'user1' },
-        query: {}
-      };
+    it('lists comments and returns count', async (): Promise<void> => {
+        const req = {
+            params: { documentId: 'doc1' },
+            user: { id: 'user1' },
+            query: {}
+          } as unknown as AuthRequest;
       const res = makeRes();
-      const next = jest.fn() as NextFunction;
+      const next = jest.fn() as jest.MockedFunction<(err?: unknown) => void>;
 
-      commentService.listComments.mockResolvedValue([{ id: 'c1' }, { id: 'c2' }]);
+      (commentService.listComments as jest.Mock).mockResolvedValue([{ id: 'c1' }, { id: 'c2' }]);
 
-      await commentController.listByDocument(req, res, next);
+      await commentController.listByDocument(req as unknown as AuthRequest, res, next as unknown as NextFunction);
 
       expect(commentService.listComments).toHaveBeenCalledWith({
         documentId: 'doc1',
@@ -152,54 +156,51 @@ describe('comment.controller (unit)', () => {
     });
 
     it('passes errors to next()', async () => {
-      const req: any = {
-        params: { documentId: 'doc1' },
-        user: { id: 'user1' }
-      };
+      const req = { params: { documentId: 'doc1' }, user: { id: 'user1' } } as unknown as AuthRequest;
       const res = makeRes();
-      const next = jest.fn() as NextFunction;
+      const next = jest.fn() as jest.MockedFunction<(err?: unknown) => void>;
 
       const boom = new Error('boom');
-      commentService.listComments.mockRejectedValue(boom);
+      (commentService.listComments as jest.Mock).mockRejectedValue(boom);
 
-      await commentController.listByDocument(req, res, next);
+      await commentController.listByDocument(req as unknown as AuthRequest, res, next as unknown as NextFunction);
 
       expect(next).toHaveBeenCalledWith(boom);
     });
   });
 
-  describe('update', () => {
-    it('returns 400 when content missing', async () => {
-      const req: any = {
-        params: { id: 'c1' },
-        body: {},
-        user: { id: 'user1' }
-      };
+  describe('update', (): void => {
+    it('returns 400 when content missing', async (): Promise<void> => {
+        const req = {
+            params: { id: 'c1' },
+            body: {},
+            user: { id: 'user1' }
+          } as unknown as AuthRequest;
       const res = makeRes();
-      const next = jest.fn() as NextFunction;
+      const next = jest.fn() as jest.MockedFunction<(err?: unknown) => void>;
 
-      await commentController.update(req, res, next);
+      await commentController.update(req as unknown as AuthRequest, res, next as unknown as NextFunction);
 
       expect(commentService.updateComment).not.toHaveBeenCalled();
 
-      const err = (next as any).mock.calls[0][0];
+      const err = next.mock.calls[0][0];
       expect(err).toBeInstanceOf(HttpError);
-      expect(err.statusCode).toBe(400);
-      expect(err.message).toBe('Contenido es requerido');
+      expect((err as HttpError).statusCode).toBe(400);
+      expect((err as Error).message).toBe('Contenido es requerido');
     });
 
-    it('updates comment and returns success', async () => {
-      const req: any = {
-        params: { id: 'c1' },
-        body: { content: 'nuevo' },
-        user: { id: 'user1' }
-      };
+    it('updates comment and returns success', async (): Promise<void> => {
+        const req = {
+            params: { id: 'c1' },
+            body: { content: 'nuevo' },
+            user: { id: 'user1' }
+          } as unknown as AuthRequest;
       const res = makeRes();
-      const next = jest.fn() as NextFunction;
+      const next = jest.fn() as jest.MockedFunction<(err?: unknown) => void>;
 
-      commentService.updateComment.mockResolvedValue({ id: 'c1', content: 'nuevo' });
+      (commentService.updateComment as jest.Mock).mockResolvedValue({ id: 'c1', content: 'nuevo' });
 
-      await commentController.update(req, res, next);
+      await commentController.update(req as unknown as AuthRequest, res, next as unknown as NextFunction);
 
       expect(commentService.updateComment).toHaveBeenCalledWith({
         commentId: 'c1',
@@ -217,18 +218,18 @@ describe('comment.controller (unit)', () => {
     });
 
     it('passes errors to next()', async () => {
-      const req: any = {
+      const req = {
         params: { id: 'c1' },
         body: { content: 'nuevo' },
         user: { id: 'user1' }
-      };
+      } as unknown as AuthRequest;
       const res = makeRes();
-      const next = jest.fn() as NextFunction;
+      const next = jest.fn() as jest.MockedFunction<(err?: unknown) => void>;
 
       const boom = new Error('boom');
-      commentService.updateComment.mockRejectedValue(boom);
+      (commentService.updateComment as jest.Mock).mockRejectedValue(boom);
 
-      await commentController.update(req, res, next);
+      await commentController.update(req as unknown as AuthRequest, res, next as unknown as NextFunction);
 
       expect(next).toHaveBeenCalledWith(boom);
     });

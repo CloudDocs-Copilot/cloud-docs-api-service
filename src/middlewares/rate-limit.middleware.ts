@@ -1,5 +1,6 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { type RateLimitRequestHandler } from 'express-rate-limit';
 import { Request, Response } from 'express';
+import type { AuthRequest } from './auth.middleware';
 
 // Helper para manejar IPv6 correctamente
 const ipKeyGenerator = (req: Request): string => {
@@ -191,14 +192,14 @@ export const createCustomRateLimiter = (
   windowMinutes: number,
   maxRequests: number,
   message: string = 'Request limit exceeded'
-) => {
+): RateLimitRequestHandler => {
   return rateLimit({
     windowMs: windowMinutes * 60 * 1000,
     max: maxRequests,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: message },
-    handler: (_req: Request, res: Response) => {
+    handler: (_req: Request, res: Response): void => {
       res.status(429).json({
         error: 'Rate Limit Exceeded',
         message: message,
@@ -228,7 +229,8 @@ export const userBasedRateLimiter = rateLimit({
   keyGenerator: (req: Request) => {
     // Si el usuario está autenticado, usa su ID + IP
     // Si no, solo usa la IP
-    const userId = (req as any).user?.id || 'anonymous';
+    const authReq = req as AuthRequest;
+    const userId = authReq.user?.id || 'anonymous';
     const ip = ipKeyGenerator(req);
     return `${userId}-${ip}`;
   },

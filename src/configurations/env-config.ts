@@ -35,7 +35,7 @@ export function loadEnv(rootDir: string = process.cwd()): void {
       if (result.error) {
         console.warn(`⚠️  Warning: Could not load ${file}: ${result.error.message}`);
       } else if (process.env.NODE_ENV !== 'test') {
-        console.log(`✅ Loaded environment from ${file}`);
+        console.warn(`✅ Loaded environment from ${file}`);
       }
     }
   }

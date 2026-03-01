@@ -43,14 +43,26 @@ async function verifyMultitenancy() {
       .populate('user', 'email name')
       .populate('organization', 'name plan');
 
-    for (const membership of memberships) {
-      const user = membership.user as any;
-      const org = membership.organization as any;
+    function isPopulatedUser(u: unknown): u is { email?: string; name?: string } {
+      return typeof u === 'object' && u !== null && 'email' in (u as Record<string, unknown>);
+    }
 
-      console.log(`\n${user?.email || 'Unknown'} → ${org?.name || 'Unknown'}`);
+    function isPopulatedOrg(o: unknown): o is { name?: string; plan?: string } {
+      return typeof o === 'object' && o !== null && 'name' in (o as Record<string, unknown>);
+    }
+
+    for (const membership of memberships) {
+      const rawUser = membership.user;
+      const rawOrg = membership.organization;
+
+      const userEmail = isPopulatedUser(rawUser) ? rawUser.email : undefined;
+      const orgName = isPopulatedOrg(rawOrg) ? rawOrg.name : undefined;
+      const orgPlan = isPopulatedOrg(rawOrg) ? rawOrg.plan : undefined;
+
+      console.log(`\n${userEmail || 'Unknown'} → ${orgName || 'Unknown'}`);
       console.log(`   Role: ${membership.role}`);
       console.log(`   Status: ${membership.status}`);
-      console.log(`   Organization Plan: ${org?.plan || 'Unknown'}`);
+      console.log(`   Organization Plan: ${orgPlan || 'Unknown'}`);
     }
 
     // 4. Verificar integridad de multi-tenancy

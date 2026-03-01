@@ -110,7 +110,7 @@ export class OrganizationBuilder {
   /**
    * Construye solo los datos requeridos para el servicio
    */
-  buildForService() {
+  buildForService(): { name: string; ownerId: string; settings?: OrganizationData['settings'] } {
     return {
       name: this.orgData.name,
       ownerId: this.orgData.ownerId,

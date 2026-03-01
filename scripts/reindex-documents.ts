@@ -46,9 +46,10 @@ async function reindexAllDocuments() {
         console.log(
           `✅ [${indexed}/${documents.length}] Indexado: ${doc.filename || doc.originalname}`
         );
-      } catch (error: any) {
+      } catch (error: unknown) {
         errors++;
-        console.error(`❌ Error indexando ${doc.filename}: ${error.message}`);
+        const msg = error instanceof Error ? error.message : String(error);
+        console.error(`❌ Error indexando ${doc.filename}: ${msg}`);
       }
     }
 
@@ -60,8 +61,9 @@ async function reindexAllDocuments() {
     await mongoose.connection.close();
     console.log('\n✅ Proceso completado');
     process.exit(0);
-  } catch (error: any) {
-    console.error('❌ Error fatal:', error.message);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('❌ Error fatal:', msg);
     process.exit(1);
   }
 }

@@ -5,7 +5,7 @@ import User from '../../../src/models/user.model';
 import Organization from '../../../src/models/organization.model';
 import Folder from '../../../src/models/folder.model';
 
-describe('Document Model - Organization Structure', () => {
+describe('Document Model - Organization Structure', (): void => {
   let mongoServer: MongoMemoryServer;
   let testUserId: mongoose.Types.ObjectId;
   let testOrgId: mongoose.Types.ObjectId;
@@ -56,8 +56,8 @@ describe('Document Model - Organization Structure', () => {
     await User.deleteMany({ _id: { $ne: testUserId } }); // Limpiar usuarios excepto el de prueba
   });
 
-  describe('Required Fields', () => {
-    it('should create document with all required fields', async () => {
+  describe('Required Fields', (): void => {
+    it('should create document with all required fields', async (): Promise<void> => {
       const document = await DocumentModel.create({
         filename: 'test-file.pdf',
         originalname: 'Test File.pdf',
@@ -79,7 +79,7 @@ describe('Document Model - Organization Structure', () => {
       expect(document.mimeType).toBe('application/pdf');
     });
 
-    it('should allow organization field to be optional', async () => {
+    it('should allow organization field to be optional', async (): Promise<void> => {
       const document = await DocumentModel.create({
         filename: 'test.pdf',
         uploadedBy: testUserId,
@@ -93,7 +93,7 @@ describe('Document Model - Organization Structure', () => {
       expect(document.filename).toBe('test.pdf');
     });
 
-    it('should require folder field', async () => {
+    it('should require folder field', async (): Promise<void> => {
       await expect(
         DocumentModel.create({
           filename: 'test.pdf',
@@ -106,7 +106,7 @@ describe('Document Model - Organization Structure', () => {
       ).rejects.toThrow();
     });
 
-    it('should require path field', async () => {
+    it('should require path field', async (): Promise<void> => {
       await expect(
         DocumentModel.create({
           filename: 'test.pdf',
@@ -119,7 +119,7 @@ describe('Document Model - Organization Structure', () => {
       ).rejects.toThrow();
     });
 
-    it('should require size field', async () => {
+    it('should require size field', async (): Promise<void> => {
       await expect(
         DocumentModel.create({
           filename: 'test.pdf',
@@ -132,7 +132,7 @@ describe('Document Model - Organization Structure', () => {
       ).rejects.toThrow();
     });
 
-    it('should require mimeType field', async () => {
+    it('should require mimeType field', async (): Promise<void> => {
       await expect(
         DocumentModel.create({
           filename: 'test.pdf',
@@ -146,8 +146,8 @@ describe('Document Model - Organization Structure', () => {
     });
   });
 
-  describe('File Size Validation', () => {
-    it('should accept valid file size', async () => {
+  describe('File Size Validation', (): void => {
+    it('should accept valid file size', async (): Promise<void> => {
       const document = await DocumentModel.create({
         filename: 'test.pdf',
         uploadedBy: testUserId,
@@ -161,7 +161,7 @@ describe('Document Model - Organization Structure', () => {
       expect(document.size).toBe(5242880);
     });
 
-    it('should prevent negative file size', async () => {
+    it('should prevent negative file size', async (): Promise<void> => {
       await expect(
         DocumentModel.create({
           filename: 'test.pdf',
@@ -190,8 +190,8 @@ describe('Document Model - Organization Structure', () => {
     });
   });
 
-  describe('Path and Filesystem', () => {
-    it('should store complete filesystem path', async () => {
+  describe('Path and Filesystem', (): void => {
+    it('should store complete filesystem path', async (): Promise<void> => {
       const document = await DocumentModel.create({
         filename: 'document.docx',
         uploadedBy: testUserId,
@@ -205,7 +205,7 @@ describe('Document Model - Organization Structure', () => {
       expect(document.path).toBe('/test-org/user-id/folder/document.docx');
     });
 
-    it('should handle nested folder paths', async () => {
+    it('should handle nested folder paths', async (): Promise<void> => {
       const document = await DocumentModel.create({
         filename: 'nested.pdf',
         uploadedBy: testUserId,
@@ -220,8 +220,8 @@ describe('Document Model - Organization Structure', () => {
     });
   });
 
-  describe('MIME Types', () => {
-    it('should store various MIME types', async () => {
+  describe('MIME Types', (): void => {
+    it('should store various MIME types', async (): Promise<void> => {
       const mimeTypes = [
         'application/pdf',
         'image/jpeg',
@@ -247,8 +247,8 @@ describe('Document Model - Organization Structure', () => {
     });
   });
 
-  describe('Organization Association', () => {
-    it('should associate document with organization', async () => {
+  describe('Organization Association', (): void => {
+    it('should associate document with organization', async (): Promise<void> => {
       const document = await DocumentModel.create({
         filename: 'org-doc.pdf',
         uploadedBy: testUserId,
@@ -265,7 +265,7 @@ describe('Document Model - Organization Structure', () => {
       expect(populated?.organization.name).toBe('Test Organization');
     });
 
-    it('should find documents by organization', async () => {
+    it('should find documents by organization', async (): Promise<void> => {
       // Crear documentos en la organización de prueba
       await DocumentModel.create({
         filename: 'doc1.pdf',
@@ -318,8 +318,8 @@ describe('Document Model - Organization Structure', () => {
     });
   });
 
-  describe('Folder Association', () => {
-    it('should associate document with folder', async () => {
+  describe('Folder Association', (): void => {
+    it('should associate document with folder', async (): Promise<void> => {
       const document = await DocumentModel.create({
         filename: 'folder-doc.pdf',
         uploadedBy: testUserId,
@@ -336,7 +336,7 @@ describe('Document Model - Organization Structure', () => {
       expect(populated?.folder.name).toBe('Test Folder');
     });
 
-    it('should find documents in a specific folder', async () => {
+    it('should find documents in a specific folder', async (): Promise<void> => {
       await DocumentModel.create({
         filename: 'doc1.pdf',
         uploadedBy: testUserId,
@@ -362,8 +362,8 @@ describe('Document Model - Organization Structure', () => {
     });
   });
 
-  describe('Sharing Functionality', () => {
-    it('should share document with users', async () => {
+  describe('Sharing Functionality', (): void => {
+    it('should share document with users', async (): Promise<void> => {
       const document = await DocumentModel.create({
         filename: 'shared-doc.pdf',
         uploadedBy: testUserId,
@@ -387,7 +387,7 @@ describe('Document Model - Organization Structure', () => {
       expect(document.sharedWith[0].toString()).toBe(user2._id.toString());
     });
 
-    it('should find documents shared with a user', async () => {
+    it('should find documents shared with a user', async (): Promise<void> => {
       const user2 = await User.create({
         name: 'User 2',
         email: 'user2@example.com',
@@ -421,8 +421,8 @@ describe('Document Model - Organization Structure', () => {
     });
   });
 
-  describe('Indexes', () => {
-    it('should have index on organization and folder', async () => {
+  describe('Indexes', (): void => {
+    it('should have index on organization and folder', async (): Promise<void> => {
       const indexes = await DocumentModel.collection.getIndexes();
       const orgFolderIndex = Object.keys(indexes).find(
         key => key.includes('organization') && key.includes('folder')
@@ -430,7 +430,7 @@ describe('Document Model - Organization Structure', () => {
       expect(orgFolderIndex).toBeDefined();
     });
 
-    it('should have index on organization and uploadedBy', async () => {
+    it('should have index on organization and uploadedBy', async (): Promise<void> => {
       const indexes = await DocumentModel.collection.getIndexes();
       const orgUserIndex = Object.keys(indexes).find(
         key => key.includes('organization') && key.includes('uploadedBy')
@@ -438,7 +438,7 @@ describe('Document Model - Organization Structure', () => {
       expect(orgUserIndex).toBeDefined();
     });
 
-    it('should have index on uploadedBy and createdAt for recent documents', async () => {
+    it('should have index on uploadedBy and createdAt for recent documents', async (): Promise<void> => {
       const indexes = await DocumentModel.collection.getIndexes();
       const recentIndex = Object.keys(indexes).find(
         key => key.includes('uploadedBy') && key.includes('createdAt')
@@ -446,14 +446,14 @@ describe('Document Model - Organization Structure', () => {
       expect(recentIndex).toBeDefined();
     });
 
-    it('should have index on sharedWith', async () => {
+    it('should have index on sharedWith', async (): Promise<void> => {
       const indexes = await DocumentModel.collection.getIndexes();
       const sharedIndex = Object.keys(indexes).find(key => key.includes('sharedWith'));
       expect(sharedIndex).toBeDefined();
     });
   });
 
-  describe('Timestamps', () => {
+  describe('Timestamps', (): void => {
     it('should set uploadedAt, createdAt and updatedAt automatically', async () => {
       const document = await DocumentModel.create({
         filename: 'timestamp-test.pdf',
@@ -471,8 +471,8 @@ describe('Document Model - Organization Structure', () => {
     });
   });
 
-  describe('Backward Compatibility', () => {
-    it('should maintain url field for backward compatibility', async () => {
+  describe('Backward Compatibility', (): void => {
+    it('should maintain url field for backward compatibility', async (): Promise<void> => {
       const document = await DocumentModel.create({
         filename: 'legacy-doc.pdf',
         url: 'https://example.com/files/legacy-doc.pdf',

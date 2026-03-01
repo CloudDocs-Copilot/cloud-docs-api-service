@@ -1,13 +1,27 @@
 import fs from 'fs/promises';
+import * as fsSync from 'fs';
+import path from 'path';
 import crypto from 'crypto';
 import DocumentModel, { IDocument } from '../models/document.model';
-import DeletionAuditModel, { DeletionAction, DeletionStatus } from '../models/deletion-audit.model';
+import DeletionAuditModel, {
+  DeletionAction,
+  DeletionStatus,
+  IDeletionAudit
+} from '../models/deletion-audit.model';
 import HttpError from '../models/error.model';
+import type { FilterQuery } from 'mongoose';
 import { Types } from 'mongoose';
 import searchService from './search.service';
 import notificationService from './notification.service';
 import User from '../models/user.model';
 import { emitToUser } from '../socket/socket';
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
+type ActorInfo = { name?: string; email?: string };
 /**
  * Configuración de retención de papelera (30 días por defecto - cumplimiento GDPR)
  */
@@ -74,9 +88,9 @@ class DeletionService {
     await document.save();
 
     // Crear registro de auditoría
-    const auditData: any = {
-      document: document._id,
-      documentId: document._id,
+    const auditData = {
+      document: new Types.ObjectId(String(document._id)),
+      documentId: String(document._id),
       documentSnapshot: {
         filename: document.filename,
         originalname: document.originalname,
@@ -112,15 +126,17 @@ class DeletionService {
         ''
       ).toString();
       if (orgId) {
-        const actor = await User.findById(context.userId).select('name email').lean();
-        const actorName = (actor as any)?.name || (actor as any)?.email || 'Alguien';
+        const actor = await User.findById(context.userId)
+          .select('name email')
+          .lean<ActorInfo>();
+        const actorName = actor?.name || actor?.email || 'Alguien';
 
         await notificationService.notifyMembersOfOrganization({
           organizationId: orgId,
           actorUserId: context.userId,
           type: 'DOC_DELETED',
           entityKind: 'document',
-          entityId: document._id.toString(),
+          entityId: String(document._id),
           message: `${actorName} movió "${document.originalname || 'un documento'}" a la papelera`,
           metadata: {
             originalname: document.originalname,
@@ -130,13 +146,13 @@ class DeletionService {
             action: 'trash',
             actorName
           },
-          emitter: (recipientUserId: string, payload: any) => {
+          emitter: (recipientUserId: string, payload: unknown) => {
             emitToUser(recipientUserId, 'notification:new', payload);
           }
         });
       }
-    } catch (e: any) {
-      console.error('Failed to create notification (DOC_DELETED on trash):', e.message);
+    } catch (e: unknown) {
+      console.error('Failed to create notification (DOC_DELETED on trash):', getErrorMessage(e));
     }
 
     return document;
@@ -172,9 +188,9 @@ class DeletionService {
     await document.save();
 
     // Crear registro de auditoría
-    const auditData: any = {
-      document: document._id,
-      documentId: document._id,
+    const auditData = {
+      document: new Types.ObjectId(String(document._id)),
+      documentId: String(document._id),
       documentSnapshot: {
         filename: document.filename,
         originalname: document.originalname,
@@ -232,8 +248,8 @@ class DeletionService {
     }
 
     const auditEntry = await DeletionAuditModel.create({
-      document: document._id,
-      documentId: document._id,
+      document: new Types.ObjectId(String(document._id)),
+      documentId: String(document._id),
       documentSnapshot: {
         filename: document.filename,
         originalname: document.originalname,
@@ -274,13 +290,13 @@ class DeletionService {
       } catch (error) {
         console.error('Failed to remove from search index:', error);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Actualizar auditoría con el error
       auditEntry.status = DeletionStatus.FAILED;
-      auditEntry.errorMessage = error.message;
+      auditEntry.errorMessage = getErrorMessage(error);
       await auditEntry.save();
 
-      throw new HttpError(500, `Failed to permanently delete document: ${error.message}`);
+      throw new HttpError(500, `Failed to permanently delete document: ${getErrorMessage(error)}`);
     }
   }
 
@@ -293,28 +309,37 @@ class DeletionService {
     const passes = this.getPassesForMethod(method, options.passes);
 
     try {
+      // Construir ruta absoluta del archivo en storage
+      const storageRoot = path.join(process.cwd(), 'storage');
+      const relativeStoragePath = filePath.startsWith('/') ? filePath.substring(1) : filePath;
+      const absolutePath = path.join(storageRoot, relativeStoragePath);
+
+      console.warn(`[deletion] Attempting to delete file at: ${absolutePath}`);
+
       // Verificar que el archivo existe
-      const stats = await fs.stat(filePath);
+      const stats = await fs.stat(absolutePath);
       const fileSize = stats.size;
 
       // Ejecutar pasadas de sobrescritura
       for (let pass = 0; pass < passes; pass++) {
         const data = this.generateOverwriteData(pass, fileSize, method);
-        await fs.writeFile(filePath, data);
+        await fs.writeFile(absolutePath, data);
         // Forzar sincronización en disco usando writeFileSync temporal
-        const fsSync = require('fs');
-        const fd = fsSync.openSync(filePath, 'r+');
+        const fd = fsSync.openSync(absolutePath, 'r+');
         fsSync.fsyncSync(fd);
         fsSync.closeSync(fd);
       }
 
       // Eliminar el archivo
-      await fs.unlink(filePath);
-    } catch (error: any) {
-      if (error.code === 'ENOENT') {
+      await fs.unlink(absolutePath);
+      console.warn(`[deletion] Successfully deleted file: ${absolutePath}`);
+    } catch (error: unknown) {
+      const err = error as NodeJS.ErrnoException;
+      if (err.code === 'ENOENT') {
         // El archivo ya no existe, continuar
-        console.warn(`File not found during secure deletion: ${filePath}`);
+        console.warn(`[deletion] File not found during secure deletion: ${filePath}`);
       } else {
+        console.error(`[deletion] Error deleting file ${filePath}:`, err.message);
         throw error;
       }
     }
@@ -331,7 +356,7 @@ class DeletionService {
         if (pass === 1) return Buffer.alloc(size, 0xff);
         return crypto.randomBytes(size);
 
-      case 'Gutmann':
+      case 'Gutmann': {
         // Método Gutmann simplificado (35 pasadas con diferentes patrones)
         if (pass < 4) return crypto.randomBytes(size);
         if (pass >= 31) return crypto.randomBytes(size);
@@ -341,6 +366,7 @@ class DeletionService {
           0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff
         ];
         return Buffer.alloc(size, patterns[pass % patterns.length]);
+      }
 
       case 'simple':
       default:
@@ -370,7 +396,7 @@ class DeletionService {
    * Obtiene documentos en la papelera del usuario
    */
   async getTrash(userId: string, organizationId?: string): Promise<IDocument[]> {
-    const query: any = {
+    const query: FilterQuery<IDocument> = {
       uploadedBy: userId,
       isDeleted: true
     };
@@ -392,10 +418,10 @@ class DeletionService {
 
     for (const document of trashedDocuments) {
       try {
-        await this.permanentDelete(document.id, context, options);
+        await this.permanentDelete(String(document._id), context, options);
         deletedCount++;
-      } catch (error) {
-        console.error(`Failed to delete document ${document.id}:`, error);
+      } catch (error: unknown) {
+        console.error(`Failed to delete document ${String(document._id)}:`, getErrorMessage(error));
         // Continuar con los demás documentos
       }
     }
@@ -427,22 +453,22 @@ class DeletionService {
         };
 
         // Usar sobrescritura simple para eliminaciones automáticas (balance entre seguridad y rendimiento)
-        await this.permanentDelete(document.id, context, { method: 'simple' });
+        await this.permanentDelete(String(document._id), context, { method: 'simple' });
         deletedCount++;
-      } catch (error) {
-        console.error(`Auto-delete failed for document ${document.id}:`, error);
+      } catch (error: unknown) {
+        console.error(`Auto-delete failed for document ${String(document._id)}:`, getErrorMessage(error));
         // Continuar con los demás documentos
       }
     }
 
-    console.log(`Auto-deleted ${deletedCount} expired documents`);
+    console.warn(`Auto-deleted ${deletedCount} expired documents`);
     return deletedCount;
   }
 
   /**
    * Obtiene el historial de auditoría de eliminaciones para un documento
    */
-  async getDocumentDeletionHistory(documentId: string): Promise<any[]> {
+  async getDocumentDeletionHistory(documentId: string): Promise<IDeletionAudit[]> {
     return DeletionAuditModel.find({ document: documentId })
       .populate('performedBy', 'username email')
       .sort({ createdAt: -1 });
@@ -451,7 +477,10 @@ class DeletionService {
   /**
    * Obtiene el historial de auditoría de eliminaciones de una organización
    */
-  async getOrganizationDeletionAudit(organizationId: string, limit: number = 100): Promise<any[]> {
+  async getOrganizationDeletionAudit(
+    organizationId: string,
+    limit: number = 100
+  ): Promise<IDeletionAudit[]> {
     return DeletionAuditModel.find({ organization: organizationId })
       .populate('performedBy', 'username email')
       .populate('document', 'filename originalname')

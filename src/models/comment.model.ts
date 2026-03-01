@@ -43,7 +43,7 @@ const commentSchema = new Schema<IComment>(
     toJSON: {
       virtuals: true,
       versionKey: false,
-      transform: (_doc, ret) => {
+      transform: (_doc, ret): Record<string, unknown> => {
         delete ret._id;
         return ret;
       }
@@ -51,7 +51,7 @@ const commentSchema = new Schema<IComment>(
     toObject: {
       virtuals: true,
       versionKey: false,
-      transform: (_doc, ret) => {
+      transform: (_doc, ret): Record<string, unknown> => {
         delete ret._id;
         return ret;
       }

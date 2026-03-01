@@ -13,6 +13,8 @@
 
 import { request, app } from '../../setup';
 import { registerAndLogin, getAuthCookie } from '../../helpers/auth.helper';
+import { bodyOf } from '../../helpers';
+import type { Response } from 'supertest';
 import DocumentModel from '../../../src/models/document.model';
 import UserModel from '../../../src/models/user.model';
 import { DOCUMENT_CATEGORIES } from '../../../src/models/types/ai.types';
@@ -25,7 +27,7 @@ jest.mock('../../../src/services/search.service', () => ({
   getAutocompleteSuggestions: jest.fn().mockResolvedValue([])
 }));
 
-describe('AI Classification & Summarization - Integration Tests', () => {
+describe('AI Classification & Summarization - Integration Tests', (): void => {
   let authCookies: string[];
   let userId: string;
   let organizationId: string;
@@ -51,15 +53,17 @@ describe('AI Classification & Summarization - Integration Tests', () => {
 
     authCookies = auth.cookies;
     userId = auth.userId;
-    organizationId = auth.organizationId!;
+    if (!auth.organizationId) throw new Error('Test setup: organizationId missing');
+    organizationId = auth.organizationId;
 
     // Obtener rootFolder del usuario
     const user = await UserModel.findById(userId);
-    rootFolderId = user?.rootFolder?.toString()!;
+    if (!user?.rootFolder) throw new Error('Test setup: user.rootFolder missing');
+    rootFolderId = user.rootFolder.toString();
   });
 
-  describe('POST /api/ai/documents/:documentId/classify - Manual Classification', () => {
-    it('should classify a document with extracted text', async () => {
+  describe('POST /api/ai/documents/:documentId/classify - Manual Classification', (): void => {
+    it('should classify a document with extracted text', async (): Promise<void> => {
       // Crear documento con texto extraído simulado (tipo contrato)
       const document = await DocumentModel.create({
         filename: 'contrato-servicios.pdf',
@@ -90,33 +94,35 @@ describe('AI Classification & Summarization - Integration Tests', () => {
       });
 
       const response = await request(app)
-        .post(`/api/ai/documents/${document._id}/classify`)
+        .post(`/api/ai/documents/${document._id.toString()}/classify`)
         .set('Cookie', getAuthCookie(authCookies))
         .expect(200);
 
-      expect(response.body.success).toBe(true);
-      expect(response.body.data).toHaveProperty('category');
-      expect(response.body.data).toHaveProperty('confidence');
-      expect(response.body.data).toHaveProperty('tags');
+      const body = bodyOf(response as unknown as Response) as { success: boolean; data?: Record<string, unknown>; error?: string };
+
+      expect(body.success).toBe(true);
+      expect(body.data).toHaveProperty('category');
+      expect(body.data).toHaveProperty('confidence');
+      expect(body.data).toHaveProperty('tags');
 
       // Validar que la categoría es una de las predefinidas
-      expect(DOCUMENT_CATEGORIES).toContain(response.body.data.category);
+      expect(DOCUMENT_CATEGORIES).toContain(body.data?.category as string);
 
       // Validar confianza (0-1)
-      expect(response.body.data.confidence).toBeGreaterThanOrEqual(0);
-      expect(response.body.data.confidence).toBeLessThanOrEqual(1);
+      expect(body.data?.confidence).toBeGreaterThanOrEqual(0);
+      expect(body.data?.confidence).toBeLessThanOrEqual(1);
 
       // Validar que tags es un array
-      expect(Array.isArray(response.body.data.tags)).toBe(true);
+      expect(Array.isArray(body.data?.tags)).toBe(true);
 
       // Verificar que el documento se actualizó en la BD
       const updatedDoc = await DocumentModel.findById(document._id);
-      expect(updatedDoc?.aiCategory).toBe(response.body.data.category);
-      expect(updatedDoc?.aiConfidence).toBe(response.body.data.confidence);
-      expect(updatedDoc?.aiTags).toEqual(response.body.data.tags);
+      expect(updatedDoc?.aiCategory).toBe(body.data?.category);
+      expect(updatedDoc?.aiConfidence).toBe(body.data?.confidence);
+      expect(updatedDoc?.aiTags).toEqual(body.data?.tags as unknown[]);
     });
 
-    it('should return 400 if document has no extracted text', async () => {
+    it('should return 400 if document has no extracted text', async (): Promise<void> => {
       // Documento sin texto extraído
       const document = await DocumentModel.create({
         filename: 'sin-texto.pdf',
@@ -130,15 +136,16 @@ describe('AI Classification & Summarization - Integration Tests', () => {
       });
 
       const response = await request(app)
-        .post(`/api/ai/documents/${document._id}/classify`)
+        .post(`/api/ai/documents/${document._id.toString()}/classify`)
         .set('Cookie', getAuthCookie(authCookies))
         .expect(400);
 
-      expect(response.body.success).toBe(false);
-      expect(response.body.error).toContain('no extracted text');
+      const body = bodyOf(response as unknown as Response) as { success: boolean; data?: Record<string, unknown>; error?: string };
+      expect(body.success).toBe(false);
+      expect(body.error).toContain('no extracted text');
     });
 
-    it('should return 404 for non-existent document', async () => {
+    it('should return 404 for non-existent document', async (): Promise<void> => {
       const fakeId = '507f1f77bcf86cd799439011';
 
       const response = await request(app)
@@ -146,11 +153,12 @@ describe('AI Classification & Summarization - Integration Tests', () => {
         .set('Cookie', getAuthCookie(authCookies))
         .expect(404);
 
-      expect(response.body.success).toBe(false);
-      expect(response.body.error).toContain('not found');
+      const body = bodyOf(response as unknown as Response) as { success: boolean; data?: Record<string, unknown>; error?: string };
+      expect(body.success).toBe(false);
+      expect(body.error).toContain('not found');
     });
 
-    it('should return 403 if user does not have access to document', async () => {
+    it('should return 403 if user does not have access to document', async (): Promise<void> => {
       // Crear otro usuario usando registerAndLogin
       const otherAuth = await registerAndLogin({
         name: 'Other User',
@@ -160,7 +168,8 @@ describe('AI Classification & Summarization - Integration Tests', () => {
 
       // Obtener rootFolder del otro usuario
       const otherUser = await UserModel.findById(otherAuth.userId);
-      const otherRootFolderId = otherUser?.rootFolder?.toString()!;
+      if (!otherUser?.rootFolder) throw new Error('Test setup: other user rootFolder missing');
+      const otherRootFolderId = otherUser.rootFolder.toString();
 
       // Documento de otro usuario
       const document = await DocumentModel.create({
@@ -177,17 +186,18 @@ describe('AI Classification & Summarization - Integration Tests', () => {
 
       // Intentar clasificar con cookies del primer usuario
       const response = await request(app)
-        .post(`/api/ai/documents/${document._id}/classify`)
+        .post(`/api/ai/documents/${document._id.toString()}/classify`)
         .set('Cookie', getAuthCookie(authCookies))
         .expect(403);
 
-      expect(response.body.success).toBe(false);
-      expect(response.body.error).toContain('Access denied');
+      const body = bodyOf(response as unknown as Response) as { success: boolean; data?: Record<string, unknown>; error?: string };
+      expect(body.success).toBe(false);
+      expect(body.error).toContain('Access denied');
     });
   });
 
-  describe('POST /api/ai/documents/:documentId/summarize - Manual Summarization', () => {
-    it('should summarize a document with extracted text', async () => {
+  describe('POST /api/ai/documents/:documentId/summarize - Manual Summarization', (): void => {
+    it('should summarize a document with extracted text', async (): Promise<void> => {
       // Crear documento con texto largo
       const document = await DocumentModel.create({
         filename: 'informe-trimestral.pdf',
@@ -229,29 +239,31 @@ describe('AI Classification & Summarization - Integration Tests', () => {
       });
 
       const response = await request(app)
-        .post(`/api/ai/documents/${document._id}/summarize`)
+        .post(`/api/ai/documents/${document._id.toString()}/summarize`)
         .set('Cookie', getAuthCookie(authCookies))
         .expect(200);
 
-      expect(response.body.success).toBe(true);
-      expect(response.body.data).toHaveProperty('summary');
-      expect(response.body.data).toHaveProperty('keyPoints');
+      const body = bodyOf(response as unknown as Response) as { success: boolean; data?: Record<string, unknown>; error?: string };
+
+      expect(body.success).toBe(true);
+      expect(body.data).toHaveProperty('summary');
+      expect(body.data).toHaveProperty('keyPoints');
 
       // Validar que el resumen es un string no vacío
-      expect(typeof response.body.data.summary).toBe('string');
-      expect(response.body.data.summary.length).toBeGreaterThan(10);
+      expect(typeof body.data?.summary).toBe('string');
+      expect((body.data?.summary as string).length).toBeGreaterThan(10);
 
       // Validar que keyPoints es un array con elementos
-      expect(Array.isArray(response.body.data.keyPoints)).toBe(true);
-      expect(response.body.data.keyPoints.length).toBeGreaterThan(0);
+      expect(Array.isArray(body.data?.keyPoints)).toBe(true);
+      expect((body.data?.keyPoints as unknown[]).length).toBeGreaterThan(0);
 
       // Verificar que el documento se actualizó en la BD
       const updatedDoc = await DocumentModel.findById(document._id);
-      expect(updatedDoc?.aiSummary).toBe(response.body.data.summary);
-      expect(updatedDoc?.aiKeyPoints).toEqual(response.body.data.keyPoints);
+      expect(updatedDoc?.aiSummary).toBe(body.data?.summary);
+      expect(updatedDoc?.aiKeyPoints).toEqual(body.data?.keyPoints as unknown[]);
     });
 
-    it('should return 400 if document has no extracted text', async () => {
+    it('should return 400 if document has no extracted text', async (): Promise<void> => {
       const document = await DocumentModel.create({
         filename: 'vacio.pdf',
         mimeType: 'application/pdf',
@@ -264,17 +276,18 @@ describe('AI Classification & Summarization - Integration Tests', () => {
       });
 
       const response = await request(app)
-        .post(`/api/ai/documents/${document._id}/summarize`)
+        .post(`/api/ai/documents/${document._id.toString()}/summarize`)
         .set('Cookie', getAuthCookie(authCookies))
         .expect(400);
 
-      expect(response.body.success).toBe(false);
-      expect(response.body.error).toContain('no extracted text');
+      const body = bodyOf(response as unknown as Response) as { success: boolean; data?: Record<string, unknown>; error?: string };
+      expect(body.success).toBe(false);
+      expect(body.error).toContain('no extracted text');
     });
   });
 
-  describe('Automatic Classification on Upload', () => {
-    it('should automatically classify and summarize during processing job', async () => {
+  describe('Automatic Classification on Upload', (): void => {
+    it('should automatically classify and summarize during processing job', async (): Promise<void> => {
       // Este test verifica la clasificación y resumen manual
       // (El job automático requiere archivos físicos, se prueba en auto-processing.test.ts)
 
@@ -312,13 +325,13 @@ describe('AI Classification & Summarization - Integration Tests', () => {
 
       // Clasificar documento manualmente
       await request(app)
-        .post(`/api/ai/documents/${document._id}/classify`)
+        .post(`/api/ai/documents/${document._id.toString()}/classify`)
         .set('Cookie', getAuthCookie(authCookies))
         .expect(200);
 
       // Resumir documento manualmente
       await request(app)
-        .post(`/api/ai/documents/${document._id}/summarize`)
+        .post(`/api/ai/documents/${document._id.toString()}/summarize`)
         .set('Cookie', getAuthCookie(authCookies))
         .expect(200);
 
@@ -334,16 +347,17 @@ describe('AI Classification & Summarization - Integration Tests', () => {
       expect(processedDoc?.aiKeyPoints).toBeDefined();
 
       // Validar tipos y valores
-      expect(DOCUMENT_CATEGORIES).toContain(processedDoc!.aiCategory!);
-      expect(processedDoc!.aiConfidence).toBeGreaterThanOrEqual(0);
-      expect(processedDoc!.aiConfidence).toBeLessThanOrEqual(1);
-      expect(Array.isArray(processedDoc!.aiTags)).toBe(true);
-      expect(Array.isArray(processedDoc!.aiKeyPoints)).toBe(true);
+      expect(processedDoc?.aiCategory).toBeDefined();
+      expect(DOCUMENT_CATEGORIES).toContain(processedDoc?.aiCategory as string);
+      expect(processedDoc?.aiConfidence).toBeGreaterThanOrEqual(0);
+      expect(processedDoc?.aiConfidence).toBeLessThanOrEqual(1);
+      expect(Array.isArray(processedDoc?.aiTags)).toBe(true);
+      expect(Array.isArray(processedDoc?.aiKeyPoints)).toBe(true);
     }, 30000); // Timeout extendido para procesamiento AI
   });
 
-  describe('Category Validation', () => {
-    it('should only return valid categories from DOCUMENT_CATEGORIES', async () => {
+  describe('Category Validation', (): void => {
+    it('should only return valid categories from DOCUMENT_CATEGORIES', async (): Promise<void> => {
       const document = await DocumentModel.create({
         filename: 'manual-usuario.pdf',
         mimeType: 'application/pdf',
@@ -372,12 +386,14 @@ describe('AI Classification & Summarization - Integration Tests', () => {
       });
 
       const response = await request(app)
-        .post(`/api/ai/documents/${document._id}/classify`)
+        .post(`/api/ai/documents/${document._id.toString()}/classify`)
         .set('Cookie', getAuthCookie(authCookies))
         .expect(200);
 
+      const body = bodyOf(response as unknown as Response) as { success: boolean; data?: Record<string, unknown>; error?: string };
+
       // La categoría devuelta DEBE estar en la lista predefinida
-      expect(DOCUMENT_CATEGORIES).toContain(response.body.data.category);
+      expect(DOCUMENT_CATEGORIES).toContain(body.data?.category as string);
 
       // Categorías válidas:
       const validCategories = [
@@ -393,12 +409,12 @@ describe('AI Classification & Summarization - Integration Tests', () => {
         'Otro'
       ];
 
-      expect(validCategories).toContain(response.body.data.category);
+      expect(validCategories).toContain(body.data?.category as string);
     });
   });
 
-  describe('Error Handling', () => {
-    it('should handle AI provider errors gracefully', async () => {
+  describe('Error Handling', (): void => {
+    it('should handle AI provider errors gracefully', async (): Promise<void> => {
       // Este test verifica que si el proveedor de IA falla,
       // el endpoint devuelve un error apropiado
 
@@ -415,11 +431,13 @@ describe('AI Classification & Summarization - Integration Tests', () => {
       });
 
       const response = await request(app)
-        .post(`/api/ai/documents/${document._id}/classify`)
+        .post(`/api/ai/documents/${document._id.toString()}/classify`)
         .set('Cookie', getAuthCookie(authCookies))
         .expect(400);
 
-      expect(response.body.success).toBe(false);
+      const body = bodyOf(response as unknown as Response) as { success: boolean; data?: Record<string, unknown>; error?: string };
+
+      expect(body.success).toBe(false);
     });
   });
 });

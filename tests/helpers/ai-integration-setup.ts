@@ -3,43 +3,48 @@
  * Aplica patches dinámicos para evitar llamadas a APIs externas
  */
 
+/* eslint-disable */
+
 const EMBEDDING_DIMENSIONS = 1536;
-const makeVector = () => new Array(EMBEDDING_DIMENSIONS).fill(0.01);
+const makeVector = (): number[] => new Array(EMBEDDING_DIMENSIONS).fill(0.01);
 
 /**
  * Aplica patches a los servicios AI para tests de integración
  * Debe llamarse en beforeAll() de los tests de integración
  */
-export function setupAIIntegrationMocks() {
+export async function setupAIIntegrationMocks(): Promise<void> {
   // Force LLM to use global OpenAI mock
   process.env.USE_OPENAI_GLOBAL_MOCK = 'true';
 
   // Patch embedding service
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const embeddingModule = require('../../src/services/ai/embedding.service');
+  const embeddingModule = (await import('../../src/services/ai/embedding.service')) as unknown as {
+    embeddingService?: {
+      generateEmbedding?: jest.MockedFunction<(text: string) => Promise<number[]>>;
+      generateEmbeddings?: jest.MockedFunction<(texts: string[]) => Promise<number[][]>>;
+      getDimensions?: () => number;
+      getModel?: () => string;
+    };
+  };
+
   if (embeddingModule && embeddingModule.embeddingService) {
-    embeddingModule.embeddingService.generateEmbedding = jest.fn(async (_text: string) =>
-      makeVector()
-    );
-    embeddingModule.embeddingService.generateEmbeddings = jest.fn(async (_texts: string[]) =>
-      _texts.map(() => makeVector())
-    );
+    embeddingModule.embeddingService.generateEmbedding = jest.fn(async (_text: string) => makeVector());
+    embeddingModule.embeddingService.generateEmbeddings = jest.fn(async (_texts: string[]) => _texts.map(() => makeVector()));
     embeddingModule.embeddingService.getDimensions = jest.fn(() => EMBEDDING_DIMENSIONS);
     embeddingModule.embeddingService.getModel = jest.fn(() => 'mock-embedding-model');
   }
 
   // Patch MongoDB Atlas module to use in-memory collection
-  const stores: Record<string, any[]> = {};
+  const stores: Record<string, Record<string, unknown>[]> = {};
 
   const collectionFactory = (name: string) => {
     stores[name] = stores[name] || [];
 
     return {
-      insertMany: async (docs: any[]) => {
+      insertMany: async (docs: Record<string, unknown>[]) => {
         stores[name].push(...docs.map(d => ({ ...d })));
         return { insertedCount: docs.length };
       },
-      deleteMany: async (filter: any) => {
+      deleteMany: async (filter?: Record<string, unknown>) => {
         if (!filter || !filter.documentId) {
           const deleted = stores[name].length;
           stores[name] = [];
@@ -49,47 +54,39 @@ export function setupAIIntegrationMocks() {
         stores[name] = stores[name].filter(d => d.documentId !== filter.documentId);
         return { deletedCount: before - stores[name].length };
       },
-      find: (filter: any) => ({
+      find: (filter?: Record<string, unknown>) => ({
         sort: () => ({
-          toArray: async () => (stores[name] || []).filter(d => d.documentId === filter.documentId)
+          toArray: async () => (stores[name] || []).filter(d => d.documentId === filter?.documentId)
         })
       }),
-      countDocuments: async (filter: any, _opts?: any) => {
-        if (filter && filter.documentId)
-          return (stores[name] || []).filter(d => d.documentId === filter.documentId).length;
+      countDocuments: async (filter?: Record<string, unknown>, _opts?: unknown) => {
+        if (filter && filter.documentId) return (stores[name] || []).filter(d => d.documentId === filter.documentId).length;
         return (stores[name] || []).length;
       },
-      distinct: async (field: string) =>
-        Array.from(new Set((stores[name] || []).map(d => d[field]))),
-      aggregate: (pipeline: any[]) => ({
+      distinct: async (field: string) => Array.from(new Set((stores[name] || []).map(d => d[field] as string))),
+      aggregate: (pipeline: unknown[]) => ({
         toArray: async () => {
           const all = stores[name] || [];
 
-          // Try to detect a $vectorSearch stage to honor filter and limit
-          const vsStage = Array.isArray(pipeline)
-            ? pipeline.find(p => p && (p.$vectorSearch || p['$vectorSearch']))
-            : null;
+          const vsStage = Array.isArray(pipeline) ? pipeline.find(p => p && ((p as any).$vectorSearch || (p as any)['$vectorSearch'])) : null;
 
           let results = all;
 
           if (vsStage) {
-            const stage = vsStage.$vectorSearch || vsStage['$vectorSearch'];
-            // Apply documentId filter if present
+            const stage = (vsStage as any).$vectorSearch || (vsStage as any)['$vectorSearch'];
             const filter = stage && stage.filter;
             if (filter && filter.documentId && filter.documentId.$eq) {
               const docId = filter.documentId.$eq;
               results = results.filter(d => d.documentId === docId);
             }
 
-            // Apply limit if provided
             const limit = stage && stage.limit ? stage.limit : undefined;
             if (typeof limit === 'number') {
               results = results.slice(0, limit);
             }
           }
 
-          // Map to include projected fields and a deterministic score
-          return results.map((d: any, i: number) => ({
+          return results.map((d, i) => ({
             _id: d._id ?? `mock-${i}`,
             documentId: d.documentId,
             content: d.content,
@@ -101,7 +98,7 @@ export function setupAIIntegrationMocks() {
           }));
         }
       }),
-      command: async (_cmd: any) => ({ ok: 1 })
+      command: async (_cmd?: unknown) => ({ ok: 1 })
     };
   };
 
@@ -122,7 +119,7 @@ export function setupAIIntegrationMocks() {
 /**
  * Limpia los mocks aplicados por setupAIIntegrationMocks
  */
-export function cleanupAIIntegrationMocks() {
+export function cleanupAIIntegrationMocks(): void {
   delete process.env.USE_OPENAI_GLOBAL_MOCK;
   jest.restoreAllMocks();
 }

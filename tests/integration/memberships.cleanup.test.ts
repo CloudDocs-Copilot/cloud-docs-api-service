@@ -1,4 +1,5 @@
 import { request, app } from '../setup';
+import type { Response } from 'supertest';
 import { registerAndLogin } from '../helpers/auth.helper';
 import Membership, { MembershipStatus } from '../../src/models/membership.model';
 import Organization from '../../src/models/organization.model';
@@ -11,7 +12,7 @@ import * as path from 'path';
  * Tests para validar que la eliminación de membresía limpia correctamente
  * todos los datos del usuario en la organización
  */
-describe('Membership Removal - Data Cleanup', () => {
+describe('Membership Removal - Data Cleanup', (): void => {
   let ownerCookies: string[];
   let ownerId: string;
   let memberCookies: string[];
@@ -82,8 +83,8 @@ describe('Membership Removal - Data Cleanup', () => {
     memberRootFolderId = memberRootFolder._id.toString();
   });
 
-  describe('Should delete all user data when removing membership', () => {
-    it('should delete rootFolder from database', async () => {
+  describe('Should delete all user data when removing membership', (): void => {
+    it('should delete rootFolder from database', async (): Promise<void> => {
       // Verificar que existe antes
       const rootFolderBefore = await Folder.findById(memberRootFolderId);
       expect(rootFolderBefore).toBeDefined();
@@ -104,7 +105,7 @@ describe('Membership Removal - Data Cleanup', () => {
       expect(rootFolderAfter).toBeNull();
     });
 
-    it('should delete subcarpetas from database', async () => {
+    it('should delete subcarpetas from database', async (): Promise<void> => {
       // Crear subcarpeta dentro del rootFolder
       const subfolderResponse = await request(app)
         .post('/api/folders')
@@ -117,7 +118,7 @@ describe('Membership Removal - Data Cleanup', () => {
         })
         .expect(201);
 
-      const subfolderId = subfolderResponse.body.folder.id;
+      const subfolderId = bodyOf(subfolderResponse).folder?.id as string;
 
       // Verificar que existe
       const subfolderBefore = await Folder.findById(subfolderId);
@@ -139,7 +140,7 @@ describe('Membership Removal - Data Cleanup', () => {
       expect(subfolderAfter).toBeNull();
     });
 
-    it('should delete documents from database', async () => {
+    it('should delete documents from database', async (): Promise<void> => {
       // Crear un documento en el rootFolder del member
       // Primero crear el archivo físico de prueba
       const testContent = 'Test document content';
@@ -187,7 +188,7 @@ describe('Membership Removal - Data Cleanup', () => {
       expect(fs.existsSync(testFilePath)).toBe(false);
     });
 
-    it('should delete membership permanently from database', async () => {
+    it('should delete membership permanently from database', async (): Promise<void> => {
       const membership = await Membership.findOne({
         user: memberId,
         organization: orgId
@@ -207,7 +208,7 @@ describe('Membership Removal - Data Cleanup', () => {
       expect(membershipAfter).toBeNull();
     });
 
-    it('should delete physical storage directory', async () => {
+    it('should delete physical storage directory', async (): Promise<void> => {
       const storageRoot = path.resolve(process.cwd(), 'storage');
       const userPath = path.resolve(storageRoot, orgSlug, memberId);
 
@@ -229,7 +230,7 @@ describe('Membership Removal - Data Cleanup', () => {
       expect(fs.existsSync(userPath)).toBe(false);
     });
 
-    it('should remove user from organization members array', async () => {
+    it('should remove user from organization members array', async (): Promise<void> => {
       const orgBefore = await Organization.findById(orgId);
       expect(orgBefore?.members.map(m => m.toString())).toContain(memberId);
 
@@ -249,7 +250,7 @@ describe('Membership Removal - Data Cleanup', () => {
       expect(orgAfter?.members.map(m => m.toString())).not.toContain(memberId);
     });
 
-    it('should clean user.organization reference if it was active', async () => {
+    it('should clean user.organization reference if it was active', async (): Promise<void> => {
       // Hacer que esta sea la organización activa del user
       await request(app)
         .post('/api/memberships/set-active')
@@ -274,13 +275,14 @@ describe('Membership Removal - Data Cleanup', () => {
         .set('Cookie', memberCookies.join('; '))
         .expect(200);
 
-      expect(userAfter.body.organization).toBeUndefined();
-      expect(userAfter.body.rootFolder).toBeUndefined();
+      const ub = bodyOf(userAfter as unknown as Response);
+      expect(ub.organization).toBeUndefined();
+      expect(ub.rootFolder).toBeUndefined();
     });
   });
 
-  describe('Should handle nested folders and documents', () => {
-    it('should delete all nested folders and documents', async () => {
+  describe('Should handle nested folders and documents', (): void => {
+    it('should delete all nested folders and documents', async (): Promise<void> => {
       // Crear estructura de carpetas anidadas
       // rootFolder -> subfolder1 -> subfolder2 -> documento
       const subfolder1Res = await request(app)
@@ -292,7 +294,7 @@ describe('Membership Removal - Data Cleanup', () => {
           parentId: memberRootFolderId
         })
         .expect(201);
-      const subfolder1Id = subfolder1Res.body.folder.id;
+      const subfolder1Id = bodyOf(subfolder1Res).folder?.id as string;
 
       const subfolder2Res = await request(app)
         .post('/api/folders')
@@ -303,7 +305,7 @@ describe('Membership Removal - Data Cleanup', () => {
           parentId: subfolder1Id
         })
         .expect(201);
-      const subfolder2Id = subfolder2Res.body.folder.id;
+      const subfolder2Id = bodyOf(subfolder2Res).folder?.id as string;
 
       // Crear documento en subfolder2
       const storageRoot = path.resolve(process.cwd(), 'storage');
@@ -347,8 +349,8 @@ describe('Membership Removal - Data Cleanup', () => {
     });
   });
 
-  describe('When user leaves organization voluntarily', () => {
-    it('should clean all data when user leaves', async () => {
+  describe('When user leaves organization voluntarily', (): void => {
+    it('should clean all data when user leaves', async (): Promise<void> => {
       // Crear algunas carpetas y docs
       const subfolderRes = await request(app)
         .post('/api/folders')
@@ -368,8 +370,18 @@ describe('Membership Removal - Data Cleanup', () => {
 
       // Verificar limpieza completa
       expect(await Folder.findById(memberRootFolderId)).toBeNull();
-      expect(await Folder.findById(subfolderRes.body.folder.id)).toBeNull();
+      expect(await Folder.findById(bodyOf(subfolderRes).folder?.id as string)).toBeNull();
       expect(await Membership.findOne({ user: memberId, organization: orgId })).toBeNull();
     });
   });
 });
+
+type MembershipApiBody = {
+  folder?: { id?: string };
+  organization?: unknown;
+  rootFolder?: unknown;
+};
+
+function bodyOf(res: Response): MembershipApiBody {
+  return (res.body as unknown) as MembershipApiBody;
+}

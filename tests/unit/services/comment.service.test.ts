@@ -1,8 +1,3 @@
-import mongoose from 'mongoose';
-
-jest.resetModules();
-
-// ---- Mocks (must be defined before requiring the service) ----
 jest.mock('../../../src/models/comment.model', () => ({
   __esModule: true,
   default: {
@@ -34,24 +29,49 @@ jest.mock('../../../src/socket/socket', () => ({
   emitToUser: jest.fn()
 }));
 
-// If your HttpError is a class, we don’t need to mock it.
-// We'll assert on message strings via rejects.toThrow.
-const CommentModel = require('../../../src/models/comment.model').default;
-const DocumentModel = require('../../../src/models/document.model').default;
-const { hasActiveMembership } = require('../../../src/services/membership.service');
-const { notifyOrganizationMembers } = require('../../../src/services/notification.service');
-const { emitToUser } = require('../../../src/socket/socket');
+import mongoose from 'mongoose';
+import CommentModel from '../../../src/models/comment.model';
+import DocumentModel from '../../../src/models/document.model';
+import { hasActiveMembership } from '../../../src/services/membership.service';
+import { notifyOrganizationMembers } from '../../../src/services/notification.service';
+import { emitToUser } from '../../../src/socket/socket';
+import * as commentService from '../../../src/services/comment.service';
 
-const commentService = require('../../../src/services/comment.service');
+interface MockDocument {
+  _id: mongoose.Types.ObjectId;
+  organization?: mongoose.Types.ObjectId | null;
+  uploadedBy: mongoose.Types.ObjectId;
+  sharedWith?: mongoose.Types.ObjectId[];
+  originalname?: string;
+  filename?: string;
+}
 
-describe('comment.service (unit)', () => {
-  afterEach(() => {
+interface MockComment {
+  _id: mongoose.Types.ObjectId;
+  document: mongoose.Types.ObjectId;
+  organization?: mongoose.Types.ObjectId | null;
+  createdBy: mongoose.Types.ObjectId;
+  content: string;
+  save?: jest.Mock;
+}
+
+type NotifyArgs = { emitter: (id: string, payload: unknown) => void };
+type NotificationPayload = {
+  actorUserId?: string;
+  type?: string;
+  documentId?: string;
+  message?: string;
+  metadata?: Record<string, unknown>;
+};
+
+describe('Comment Service', (): void => {
+  beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  const oid = () => new mongoose.Types.ObjectId().toString();
+  const oid = (): string => new mongoose.Types.ObjectId().toString();
 
-  const makeOrgDoc = (overrides: any = {}) => ({
+  const makeOrgDoc = (overrides: Partial<MockDocument> = {}): MockDocument => ({
     _id: new mongoose.Types.ObjectId(),
     organization: new mongoose.Types.ObjectId(),
     uploadedBy: new mongoose.Types.ObjectId(),
@@ -61,7 +81,7 @@ describe('comment.service (unit)', () => {
     ...overrides
   });
 
-  const makePersonalDoc = (overrides: any = {}) => ({
+  const makePersonalDoc = (overrides: Partial<MockDocument> = {}): MockDocument => ({
     _id: new mongoose.Types.ObjectId(),
     organization: null,
     uploadedBy: new mongoose.Types.ObjectId(),
@@ -69,391 +89,496 @@ describe('comment.service (unit)', () => {
     ...overrides
   });
 
-  describe('createComment', () => {
-    it('throws 400 for invalid documentId', async () => {
+  describe('createComment', (): void => {
+    it('should throw 400 for invalid document ID', async (): Promise<void> => {
+      // Arrange
+      const invalidId = 'bad';
+      const userId = oid();
+      const content = 'Hello';
+
+      // Act & Assert
       await expect(
-        commentService.createComment({ documentId: 'bad', userId: oid(), content: 'hi' })
+        commentService.createComment({ documentId: invalidId, userId, content })
       ).rejects.toThrow('Invalid document ID');
     });
 
-    it('throws 400 for invalid userId', async () => {
+    it('should throw 400 for invalid user ID', async (): Promise<void> => {
+      // Arrange
+      const documentId = oid();
+      const invalidUserId = 'bad';
+      const content = 'Hello';
+
+      // Act & Assert
       await expect(
-        commentService.createComment({ documentId: oid(), userId: 'bad', content: 'hi' })
+        commentService.createComment({ documentId, userId: invalidUserId, content })
       ).rejects.toThrow('Invalid user ID');
     });
 
-    it('throws 400 when content is missing/blank', async () => {
-      await expect(
-        commentService.createComment({ documentId: oid(), userId: oid(), content: '' })
-      ).rejects.toThrow('Content is required');
+    it('should throw 400 when content is empty', async (): Promise<void> => {
+      // Arrange
+      const documentId = oid();
+      const userId = oid();
+      const emptyContent = '';
 
+      // Act & Assert
       await expect(
-        commentService.createComment({ documentId: oid(), userId: oid(), content: '   ' })
+        commentService.createComment({ documentId, userId, content: emptyContent })
       ).rejects.toThrow('Content is required');
     });
 
-    it('throws 404 when document not found', async () => {
-      DocumentModel.findById.mockResolvedValue(null);
+    it('should throw 400 when content is only whitespace', async (): Promise<void> => {
+      // Arrange
+      const documentId = oid();
+      const userId = oid();
+      const whitespaceContent = '   ';
 
+      // Act & Assert
       await expect(
-        commentService.createComment({ documentId: oid(), userId: oid(), content: 'Hello' })
+        commentService.createComment({ documentId, userId, content: whitespaceContent })
+      ).rejects.toThrow('Content is required');
+    });
+
+    it('should throw 404 when document not found', async (): Promise<void> => {
+      // Arrange
+      const documentId = oid();
+      const userId = oid();
+      const content = 'Hello';
+      (DocumentModel.findById as jest.Mock).mockResolvedValue(null);
+
+      // Act & Assert
+      await expect(
+        commentService.createComment({ documentId, userId, content })
       ).rejects.toThrow('Document not found');
     });
 
-    it('org doc: throws 403 when membership inactive', async () => {
+    it('should throw 403 when user has no active membership for org document', async (): Promise<void> => {
+      // Arrange
       const doc = makeOrgDoc();
-      DocumentModel.findById.mockResolvedValue(doc);
-      hasActiveMembership.mockResolvedValue(false);
+      const userId = oid();
+      const content = 'Hello';
+      (DocumentModel.findById as jest.Mock).mockResolvedValue(doc);
+      (hasActiveMembership as jest.Mock).mockResolvedValue(false);
 
+      // Act & Assert
       await expect(
         commentService.createComment({
           documentId: doc._id.toString(),
-          userId: oid(),
-          content: 'Hello'
+          userId,
+          content
         })
       ).rejects.toThrow('Access denied to this document');
     });
 
-    it('personal doc: throws 403 when not uploadedBy and not sharedWith', async () => {
+    it('should throw 403 when user is not uploadedBy or sharedWith for personal document', async (): Promise<void> => {
+      // Arrange
       const userId = oid();
       const doc = makePersonalDoc({
-        uploadedBy: new mongoose.Types.ObjectId(), // different
-        sharedWith: [new mongoose.Types.ObjectId()] // not user
+        uploadedBy: new mongoose.Types.ObjectId(),
+        sharedWith: [new mongoose.Types.ObjectId()]
       });
-      DocumentModel.findById.mockResolvedValue(doc);
+      const content = 'Hello';
+      (DocumentModel.findById as jest.Mock).mockResolvedValue(doc);
 
+      // Act & Assert
       await expect(
-        commentService.createComment({ documentId: doc._id.toString(), userId, content: 'Hello' })
+        commentService.createComment({ documentId: doc._id.toString(), userId, content })
       ).rejects.toThrow('Access denied to this document');
     });
 
-    it('personal doc: allows when user is uploadedBy', async () => {
+    it('should create comment when user is uploadedBy for personal document', async (): Promise<void> => {
+      // Arrange
       const userId = new mongoose.Types.ObjectId();
       const doc = makePersonalDoc({
         uploadedBy: userId,
         sharedWith: []
       });
-
-      DocumentModel.findById.mockResolvedValue(doc);
-
-      const created = {
+      const created: MockComment = {
         _id: new mongoose.Types.ObjectId(),
         document: doc._id,
         organization: null,
         createdBy: userId,
         content: 'Hello'
       };
-      CommentModel.create.mockResolvedValue(created);
+      (DocumentModel.findById as jest.Mock).mockResolvedValue(doc);
+      (CommentModel.create as jest.Mock).mockResolvedValue(created);
 
-      const res = await commentService.createComment({
+      // Act
+      const result = await commentService.createComment({
         documentId: doc._id.toString(),
         userId: userId.toString(),
         content: '  Hello  '
       });
 
+      // Assert
       expect(CommentModel.create).toHaveBeenCalledWith({
         document: doc._id.toString(),
         organization: null,
         createdBy: userId.toString(),
         content: 'Hello'
       });
-      expect(res).toBe(created);
+      expect(result).toBe(created);
       expect(notifyOrganizationMembers).not.toHaveBeenCalled();
     });
 
-    it('personal doc: allows when user is in sharedWith', async () => {
+    it('should create comment when user is in sharedWith for personal document', async (): Promise<void> => {
+      // Arrange
       const userId = new mongoose.Types.ObjectId();
       const doc = makePersonalDoc({
         uploadedBy: new mongoose.Types.ObjectId(),
         sharedWith: [userId]
       });
+      const created: MockComment = {
+        _id: new mongoose.Types.ObjectId(),
+        document: doc._id,
+        organization: null,
+        createdBy: userId,
+        content: 'Hi'
+      };
+      (DocumentModel.findById as jest.Mock).mockResolvedValue(doc);
+      (CommentModel.create as jest.Mock).mockResolvedValue(created);
 
-      DocumentModel.findById.mockResolvedValue(doc);
-      CommentModel.create.mockResolvedValue({ _id: new mongoose.Types.ObjectId() });
-
+      // Act
       await commentService.createComment({
         documentId: doc._id.toString(),
         userId: userId.toString(),
         content: 'Hi'
       });
 
+      // Assert
       expect(CommentModel.create).toHaveBeenCalled();
       expect(notifyOrganizationMembers).not.toHaveBeenCalled();
     });
 
-    it('org doc: creates comment with organization string + triggers notify w/ docName from originalname', async () => {
+    it('should create comment for org document and trigger notification with originalname', async (): Promise<void> => {
+      // Arrange
       const userId = oid();
       const doc = makeOrgDoc({ originalname: 'Pretty Name.docx' });
+      const created: MockComment = {
+        _id: new mongoose.Types.ObjectId(),
+        document: doc._id,
+        organization: doc.organization,
+        createdBy: new mongoose.Types.ObjectId(userId),
+        content: 'hola'
+      };
+      (DocumentModel.findById as jest.Mock).mockResolvedValue(doc);
+      (hasActiveMembership as jest.Mock).mockResolvedValue(true);
+      (CommentModel.create as jest.Mock).mockResolvedValue(created);
+      type NotifyArgs = { emitter: (id: string, payload: unknown) => void };
+      type NotificationPayload = {
+        actorUserId?: string;
+        type?: string;
+        documentId?: string;
+        message?: string;
+        metadata?: Record<string, unknown>;
+      };
+      (notifyOrganizationMembers as unknown as jest.MockedFunction<(args: NotifyArgs) => Promise<void>>).mockImplementation(
+        async (args: NotifyArgs) => {
+          args.emitter('recipient-user-id', { hello: 'world' });
+        }
+      );
 
-      DocumentModel.findById.mockResolvedValue(doc);
-      hasActiveMembership.mockResolvedValue(true);
-
-      const createdComment = { _id: new mongoose.Types.ObjectId() };
-      CommentModel.create.mockResolvedValue(createdComment);
-
-      notifyOrganizationMembers.mockImplementation(async (args: any) => {
-        // exercise emitter
-        args.emitter('recipient-user-id', { hello: 'world' });
-      });
-
-      const res = await commentService.createComment({
+      // Act
+      const result = await commentService.createComment({
         documentId: doc._id.toString(),
         userId,
         content: '  hola  '
       });
 
+      // Assert
       expect(CommentModel.create).toHaveBeenCalledWith({
         document: doc._id.toString(),
-        organization: doc.organization.toString(),
+        organization: doc.organization?.toString(),
         createdBy: userId,
         content: 'hola'
       });
-
       expect(notifyOrganizationMembers).toHaveBeenCalledTimes(1);
-      const payload = notifyOrganizationMembers.mock.calls[0][0];
-
+      const payload = (notifyOrganizationMembers as unknown as jest.MockedFunction<(args: NotifyArgs) => Promise<void>>).mock.calls[0][0] as unknown as NotificationPayload;
       expect(payload.actorUserId).toBe(userId);
       expect(payload.type).toBe('DOC_COMMENTED');
       expect(payload.documentId).toBe(doc._id.toString());
       expect(payload.message).toBe('New comment on: Pretty Name.docx');
       expect(payload.metadata).toMatchObject({
         documentId: doc._id.toString(),
-        commentId: createdComment._id.toString()
+        commentId: created._id.toString()
       });
-
-      // emitter path should call emitToUser with expected event
       expect(emitToUser).toHaveBeenCalledWith('recipient-user-id', 'notification:new', {
         hello: 'world'
       });
-
-      expect(res).toBe(createdComment);
+      expect(result).toBe(created);
     });
 
-    it('org doc: notify uses filename fallback when originalname missing', async () => {
+    it('should use filename fallback when originalname is missing in org document', async (): Promise<void> => {
+      // Arrange
       const userId = oid();
       const doc = makeOrgDoc({ originalname: undefined, filename: 'fallback.pdf' });
+      const created: MockComment = {
+        _id: new mongoose.Types.ObjectId(),
+        document: doc._id,
+        organization: doc.organization,
+        createdBy: new mongoose.Types.ObjectId(userId),
+        content: 'Hi'
+      };
+      (DocumentModel.findById as jest.Mock).mockResolvedValue(doc);
+      (hasActiveMembership as jest.Mock).mockResolvedValue(true);
+      (CommentModel.create as jest.Mock).mockResolvedValue(created);
 
-      DocumentModel.findById.mockResolvedValue(doc);
-      hasActiveMembership.mockResolvedValue(true);
-      CommentModel.create.mockResolvedValue({ _id: new mongoose.Types.ObjectId() });
-
+      // Act
       await commentService.createComment({
         documentId: doc._id.toString(),
         userId,
         content: 'Hi'
       });
 
-      const payload = notifyOrganizationMembers.mock.calls[0][0];
+      // Assert
+      const payload = (notifyOrganizationMembers as unknown as jest.MockedFunction<(args: NotifyArgs) => Promise<void>>).mock.calls[0][0] as unknown as NotificationPayload;
       expect(payload.message).toBe('New comment on: fallback.pdf');
     });
 
-    it('org doc: notify uses generic message when docName not available (also hits try/catch path)', async () => {
+    it('should use generic message when document name is not available', async (): Promise<void> => {
+      // Arrange
       const userId = oid();
-      // Make doc throw on reading originalname/filename
-      const doc = makeOrgDoc({ organization: new mongoose.Types.ObjectId() });
-      Object.defineProperty(doc, 'originalname', {
-        get() {
-          throw new Error('boom');
-        }
-      });
-      Object.defineProperty(doc, 'filename', {
-        get() {
-          throw new Error('boom2');
-        }
-      });
+      const doc = makeOrgDoc({ originalname: undefined, filename: undefined });
+      const created: MockComment = {
+        _id: new mongoose.Types.ObjectId(),
+        document: doc._id,
+        organization: doc.organization,
+        createdBy: new mongoose.Types.ObjectId(userId),
+        content: 'Hi'
+      };
+      (DocumentModel.findById as jest.Mock).mockResolvedValue(doc);
+      (hasActiveMembership as jest.Mock).mockResolvedValue(true);
+      (CommentModel.create as jest.Mock).mockResolvedValue(created);
 
-      DocumentModel.findById.mockResolvedValue(doc);
-      hasActiveMembership.mockResolvedValue(true);
-      CommentModel.create.mockResolvedValue({ _id: new mongoose.Types.ObjectId() });
-
+      // Act
       await commentService.createComment({
         documentId: doc._id.toString(),
         userId,
         content: 'Hi'
       });
 
-      const payload = notifyOrganizationMembers.mock.calls[0][0];
+      // Assert
+      const payload = (notifyOrganizationMembers as unknown as jest.MockedFunction<(args: NotifyArgs) => Promise<void>>).mock.calls[0][0] as unknown as NotificationPayload;
       expect(payload.message).toBe('New comment on a document');
     });
   });
 
-  describe('listComments', () => {
-    it('throws 400 for invalid ids', async () => {
-      await expect(
-        commentService.listComments({ documentId: 'bad', userId: oid() })
-      ).rejects.toThrow('Invalid document ID');
+  describe('listComments', (): void => {
+    it('should throw 400 for invalid document ID', async (): Promise<void> => {
+      // Arrange
+      const invalidId = 'bad';
+      const userId = oid();
 
+      // Act & Assert
       await expect(
-        commentService.listComments({ documentId: oid(), userId: 'bad' })
+        commentService.listComments({ documentId: invalidId, userId })
+      ).rejects.toThrow('Invalid document ID');
+    });
+
+    it('should throw 400 for invalid user ID', async (): Promise<void> => {
+      // Arrange
+      const documentId = oid();
+      const invalidUserId = 'bad';
+
+      // Act & Assert
+      await expect(
+        commentService.listComments({ documentId, userId: invalidUserId })
       ).rejects.toThrow('Invalid user ID');
     });
 
-    it('enforces access then returns chained query (sort/populate/select)', async () => {
+    it('should return sorted and populated comments when user has access', async (): Promise<void> => {
+      // Arrange
       const documentId = new mongoose.Types.ObjectId();
       const userId = new mongoose.Types.ObjectId();
-
-      // personal doc: uploadedBy is user => allowed
       const doc = makePersonalDoc({ _id: documentId, uploadedBy: userId });
-      DocumentModel.findById.mockResolvedValue(doc);
+      const expectedComments = [{ content: 'Comment 1' }, { content: 'Comment 2' }];
 
-      const final = [{ content: 'c1' }, { content: 'c2' }];
+      (DocumentModel.findById as jest.Mock).mockResolvedValue(doc);
 
-      const select = jest.fn().mockResolvedValue(final);
+      const select = jest.fn().mockResolvedValue(expectedComments);
       const populate = jest.fn().mockReturnValue({ select });
       const sort = jest.fn().mockReturnValue({ populate });
-      CommentModel.find.mockReturnValue({ sort });
+      (CommentModel.find as jest.Mock).mockReturnValue({ sort });
 
-      const res = await commentService.listComments({
+      // Act
+      const result = await commentService.listComments({
         documentId: documentId.toString(),
         userId: userId.toString()
       });
 
+      // Assert
       expect(sort).toHaveBeenCalledWith({ createdAt: -1 });
       expect(populate).toHaveBeenCalledWith('createdBy', 'name email avatar');
       expect(select).toHaveBeenCalledWith('-__v');
-      expect(res).toBe(final);
+      expect(result).toBe(expectedComments);
     });
   });
 
-  describe('updateComment', () => {
-    it('throws 400 for invalid ids / blank content', async () => {
+  describe('updateComment', (): void => {
+    it('should throw 400 for invalid comment ID', async (): Promise<void> => {
+      // Arrange
+      const invalidId = 'bad';
+      const userId = oid();
+      const content = 'Updated';
+
+      // Act & Assert
       await expect(
-        commentService.updateComment({ commentId: 'bad', userId: oid(), content: 'x' })
+        commentService.updateComment({ commentId: invalidId, userId, content })
       ).rejects.toThrow('Invalid comment ID');
+    });
 
+    it('should throw 400 for invalid user ID', async (): Promise<void> => {
+      // Arrange
+      const commentId = oid();
+      const invalidUserId = 'bad';
+      const content = 'Updated';
+
+      // Act & Assert
       await expect(
-        commentService.updateComment({ commentId: oid(), userId: 'bad', content: 'x' })
+        commentService.updateComment({ commentId, userId: invalidUserId, content })
       ).rejects.toThrow('Invalid user ID');
+    });
 
+    it('should throw 400 when content is only whitespace', async (): Promise<void> => {
+      // Arrange
+      const commentId = oid();
+      const userId = oid();
+      const whitespaceContent = '   ';
+
+      // Act & Assert
       await expect(
-        commentService.updateComment({ commentId: oid(), userId: oid(), content: '   ' })
+        commentService.updateComment({ commentId, userId, content: whitespaceContent })
       ).rejects.toThrow('Content is required');
     });
 
-    it('throws 404 when comment not found', async () => {
-      CommentModel.findById.mockResolvedValue(null);
+    it('should throw 404 when comment not found', async (): Promise<void> => {
+      // Arrange
+      const commentId = oid();
+      const userId = oid();
+      const content = 'Updated';
+      (CommentModel.findById as jest.Mock).mockResolvedValue(null);
 
+      // Act & Assert
       await expect(
-        commentService.updateComment({ commentId: oid(), userId: oid(), content: 'hello' })
+        commentService.updateComment({ commentId, userId, content })
       ).rejects.toThrow('Comment not found');
     });
 
-    it('throws 403 when editing someone else comment', async () => {
-      const comment = {
+    it('should throw 403 when editing someone else comment', async (): Promise<void> => {
+      // Arrange
+      const comment: MockComment & { save: jest.Mock } = {
         _id: new mongoose.Types.ObjectId(),
         document: new mongoose.Types.ObjectId(),
-        createdBy: new mongoose.Types.ObjectId(), // not user
-        content: 'x',
+        createdBy: new mongoose.Types.ObjectId(),
+        content: 'Original',
         save: jest.fn()
       };
+      const userId = oid();
+      const content = 'Updated';
+      (CommentModel.findById as jest.Mock).mockResolvedValue(comment);
 
-      CommentModel.findById.mockResolvedValue(comment);
-
+      // Act & Assert
       await expect(
         commentService.updateComment({
           commentId: comment._id.toString(),
-          userId: oid(),
-          content: 'hello'
+          userId,
+          content
         })
       ).rejects.toThrow('You can only edit your own comment');
-
       expect(comment.save).not.toHaveBeenCalled();
     });
 
-    it('defense in depth: rechecks doc access and can throw 403 if lost access', async () => {
+    it('should throw 403 if user lost access to document', async (): Promise<void> => {
+      // Arrange
       const userId = new mongoose.Types.ObjectId();
-      const comment = {
+      const comment: MockComment & { save: jest.Mock } = {
         _id: new mongoose.Types.ObjectId(),
         document: new mongoose.Types.ObjectId(),
         createdBy: userId,
-        content: 'x',
+        content: 'Original',
         save: jest.fn()
       };
-
-      CommentModel.findById.mockResolvedValue(comment);
-
-      // Org doc, but membership denied
       const doc = makeOrgDoc({ _id: comment.document });
-      DocumentModel.findById.mockResolvedValue(doc);
-      hasActiveMembership.mockResolvedValue(false);
+      (CommentModel.findById as jest.Mock).mockResolvedValue(comment);
+      (DocumentModel.findById as jest.Mock).mockResolvedValue(doc);
+      (hasActiveMembership as jest.Mock).mockResolvedValue(false);
 
+      // Act & Assert
       await expect(
         commentService.updateComment({
           commentId: comment._id.toString(),
           userId: userId.toString(),
-          content: ' updated '
+          content: 'Updated'
         })
       ).rejects.toThrow('Access denied to this document');
-
       expect(comment.save).not.toHaveBeenCalled();
     });
 
-    it('updates comment content (trim) and does NOT notify for personal doc', async () => {
+    it('should update comment for personal document without notification', async (): Promise<void> => {
+      // Arrange
       const userId = new mongoose.Types.ObjectId();
-      const comment = {
+      const comment: MockComment & { save: jest.Mock } = {
         _id: new mongoose.Types.ObjectId(),
         document: new mongoose.Types.ObjectId(),
         createdBy: userId,
         content: 'old',
         save: jest.fn().mockResolvedValue(undefined)
       };
-
-      CommentModel.findById.mockResolvedValue(comment);
-
-      // Personal doc: user is uploadedBy
       const doc = makePersonalDoc({ _id: comment.document, uploadedBy: userId });
-      DocumentModel.findById.mockResolvedValue(doc);
+      (CommentModel.findById as jest.Mock).mockResolvedValue(comment);
+      (DocumentModel.findById as jest.Mock).mockResolvedValue(doc);
 
-      const res = await commentService.updateComment({
+      // Act
+      const result = await commentService.updateComment({
         commentId: comment._id.toString(),
         userId: userId.toString(),
         content: '  new content  '
       });
 
+      // Assert
       expect(comment.content).toBe('new content');
       expect(comment.save).toHaveBeenCalledTimes(1);
       expect(notifyOrganizationMembers).not.toHaveBeenCalled();
-      expect(res).toBe(comment);
+      expect(result).toBe(comment);
     });
 
-    it('org doc: updates comment and notifies with edited=true and docName fallback', async () => {
+    it('should update comment for org document and trigger notification with edited flag', async (): Promise<void> => {
+      // Arrange
       const userId = new mongoose.Types.ObjectId();
-      const comment = {
+      const comment: MockComment & { save: jest.Mock } = {
         _id: new mongoose.Types.ObjectId(),
         document: new mongoose.Types.ObjectId(),
         createdBy: userId,
         content: 'old',
         save: jest.fn().mockResolvedValue(undefined)
       };
-
-      CommentModel.findById.mockResolvedValue(comment);
-
       const doc = makeOrgDoc({
         _id: comment.document,
         organization: new mongoose.Types.ObjectId(),
         originalname: undefined,
         filename: 'doc-fallback.pdf'
       });
-      DocumentModel.findById.mockResolvedValue(doc);
-      hasActiveMembership.mockResolvedValue(true);
+      (CommentModel.findById as jest.Mock).mockResolvedValue(comment);
+      (DocumentModel.findById as jest.Mock).mockResolvedValue(doc);
+      (hasActiveMembership as jest.Mock).mockResolvedValue(true);
+      (notifyOrganizationMembers as unknown as jest.MockedFunction<(args: NotifyArgs) => Promise<void>>).mockImplementation(
+        async (args: NotifyArgs) => {
+          args.emitter('recipient', { ok: true });
+        }
+      );
 
-      notifyOrganizationMembers.mockImplementation(async (args: any) => {
-        args.emitter('recipient', { ok: true });
-      });
-
-      const res = await commentService.updateComment({
+      // Act
+      const result = await commentService.updateComment({
         commentId: comment._id.toString(),
         userId: userId.toString(),
         content: '  edited  '
       });
 
+      // Assert
       expect(comment.content).toBe('edited');
       expect(comment.save).toHaveBeenCalledTimes(1);
-
       expect(notifyOrganizationMembers).toHaveBeenCalledTimes(1);
-      const payload = notifyOrganizationMembers.mock.calls[0][0];
-
-      expect(payload.actorUserId).toBe(userId.toString()); // service passes string from dto
+      const payload = (notifyOrganizationMembers as unknown as jest.MockedFunction<(args: NotifyArgs) => Promise<void>>).mock.calls[0][0] as unknown as NotificationPayload;
+      expect(payload.actorUserId).toBe(userId.toString());
       expect(payload.type).toBe('DOC_COMMENTED');
       expect(payload.documentId).toBe(comment.document.toString());
       expect(payload.message).toBe('Comment edited on: doc-fallback.pdf');
@@ -462,49 +587,8 @@ describe('comment.service (unit)', () => {
         commentId: comment._id.toString(),
         edited: true
       });
-
       expect(emitToUser).toHaveBeenCalledWith('recipient', 'notification:new', { ok: true });
-      expect(res).toBe(comment);
-    });
-
-    it('org doc: notify uses generic message when docName throws (hits try/catch)', async () => {
-      const userId = new mongoose.Types.ObjectId();
-      const comment = {
-        _id: new mongoose.Types.ObjectId(),
-        document: new mongoose.Types.ObjectId(),
-        createdBy: userId,
-        content: 'old',
-        save: jest.fn().mockResolvedValue(undefined)
-      };
-
-      CommentModel.findById.mockResolvedValue(comment);
-
-      const doc = makeOrgDoc({
-        _id: comment.document,
-        organization: new mongoose.Types.ObjectId()
-      });
-      Object.defineProperty(doc, 'originalname', {
-        get() {
-          throw new Error('boom');
-        }
-      });
-      Object.defineProperty(doc, 'filename', {
-        get() {
-          throw new Error('boom2');
-        }
-      });
-
-      DocumentModel.findById.mockResolvedValue(doc);
-      hasActiveMembership.mockResolvedValue(true);
-
-      await commentService.updateComment({
-        commentId: comment._id.toString(),
-        userId: userId.toString(),
-        content: '  edited  '
-      });
-
-      const payload = notifyOrganizationMembers.mock.calls[0][0];
-      expect(payload.message).toBe('Comment edited on a document');
+      expect(result).toBe(comment);
     });
   });
 });

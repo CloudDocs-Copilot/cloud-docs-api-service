@@ -4,14 +4,14 @@
 import path from 'path';
 import fs from 'fs';
 
-describe('TextExtractionService OCR unit tests', () => {
+describe('TextExtractionService OCR unit tests', (): void => {
   const fixturesDir = path.join(process.cwd(), 'tests', 'fixtures', 'test-files');
 
-  beforeAll(() => {
+  beforeAll((): void => {
     if (!fs.existsSync(fixturesDir)) fs.mkdirSync(fixturesDir, { recursive: true });
   });
 
-  afterAll(() => {
+  afterAll((): void => {
     // cleanup fixture files
     if (fs.existsSync(fixturesDir)) {
       const files = fs.readdirSync(fixturesDir);
@@ -19,7 +19,7 @@ describe('TextExtractionService OCR unit tests', () => {
     }
   });
 
-  it('extracts text from image via OCR when OCR enabled', async () => {
+  it('extracts text from image via OCR when OCR enabled', async (): Promise<void> => {
     jest.resetModules();
     process.env.OCR_ENABLED = 'true';
 
@@ -38,7 +38,8 @@ describe('TextExtractionService OCR unit tests', () => {
       })
     }));
 
-    const { textExtractionService } = require('../../../src/services/ai/text-extraction.service');
+    const mod = await import('../../../src/services/ai/text-extraction.service');
+    const { textExtractionService } = mod;
 
     const res = await textExtractionService.extractText(imgPath, 'image/png');
 
@@ -46,7 +47,7 @@ describe('TextExtractionService OCR unit tests', () => {
     expect(res.wordCount).toBeGreaterThan(0);
   });
 
-  it('falls back to PDF OCR when pdf parsing returns empty text', async () => {
+  it('falls back to PDF OCR when pdf parsing returns empty text', async (): Promise<void> => {
     jest.resetModules();
     process.env.OCR_ENABLED = 'true';
 
@@ -65,9 +66,10 @@ describe('TextExtractionService OCR unit tests', () => {
       })
     }));
 
-    const { textExtractionService } = require('../../../src/services/ai/text-extraction.service');
+    const mod = await import('../../../src/services/ai/text-extraction.service');
+    const { textExtractionService } = mod;
     // stub the internal PDF extractor to return empty text so the OCR fallback is exercised
-    jest.spyOn(textExtractionService as any, 'extractFromPdf').mockResolvedValue({
+    jest.spyOn(textExtractionService as unknown as { extractFromPdf: jest.Mock }, 'extractFromPdf').mockResolvedValue({
       text: '',
       charCount: 0,
       wordCount: 0,
@@ -78,14 +80,15 @@ describe('TextExtractionService OCR unit tests', () => {
     expect(res.text).toBe('OCR from PDF');
   });
 
-  it('rejects image extraction when OCR is disabled', async () => {
+  it('rejects image extraction when OCR is disabled', async (): Promise<void> => {
     jest.resetModules();
     process.env.OCR_ENABLED = 'false';
 
     const imgPath = path.join(fixturesDir, 'dummy2.png');
     fs.writeFileSync(imgPath, 'PNGDATA');
 
-    const { textExtractionService } = require('../../../src/services/ai/text-extraction.service');
+    const mod = await import('../../../src/services/ai/text-extraction.service');
+    const { textExtractionService } = mod;
 
     await expect(textExtractionService.extractText(imgPath, 'image/png')).rejects.toThrow(
       'OCR is disabled'

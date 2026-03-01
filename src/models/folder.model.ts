@@ -26,6 +26,7 @@ export interface IFolderPermission {
  * Define la estructura de datos para las carpetas del sistema
  */
 export interface IFolder extends Document {
+  _id: Types.ObjectId;
   /** Identificador técnico de la carpeta (ej: root_user_{userId} para carpetas raíz) */
   name: string;
   /** Nombre para mostrar (opcional, si no se especifica se usa name) */
@@ -55,7 +56,7 @@ export interface IFolder extends Document {
   /** Método para verificar acceso de un usuario */
   hasAccess(userId: string, requiredRole?: FolderPermissionRole): boolean;
   /** Método para compartir carpeta con un usuario */
-  shareWith(userId: string, role?: FolderPermissionRole): void;
+  shareWith(userId: string | Types.ObjectId, role?: FolderPermissionRole): void;
   /** Método para remover acceso de un usuario */
   unshareWith(userId: string): void;
 }
@@ -159,7 +160,7 @@ const folderSchema = new Schema<IFolder>(
     toJSON: {
       virtuals: true,
       versionKey: false,
-      transform: (_doc, ret) => {
+      transform: (_doc, ret): unknown => {
         delete ret._id;
         return ret;
       }
@@ -167,7 +168,7 @@ const folderSchema = new Schema<IFolder>(
     toObject: {
       virtuals: true,
       versionKey: false,
-      transform: (_doc, ret) => {
+      transform: (_doc, ret): unknown => {
         delete ret._id;
         return ret;
       }
@@ -204,6 +205,7 @@ folderSchema.virtual('visibleName').get(function (this: IFolder) {
  * Método de instancia para verificar si un usuario tiene acceso
  */
 folderSchema.methods.hasAccess = function (
+    this: IFolder,
   userId: string,
   requiredRole?: FolderPermissionRole
 ): boolean {
@@ -236,14 +238,18 @@ folderSchema.methods.hasAccess = function (
   };
 
   return (
-    (roleHierarchy[permission.role as FolderPermissionRole] ?? 0) >= roleHierarchy[requiredRole]
+    (roleHierarchy[permission.role] ?? 0) >= roleHierarchy[requiredRole]
   );
 };
 
 /**
  * Método de instancia para compartir carpeta con un usuario
  */
-folderSchema.methods.shareWith = function (userId: string, role: FolderPermissionRole = 'viewer') {
+folderSchema.methods.shareWith = function (
+    this: IFolder,
+  userId: string | Types.ObjectId,
+  role: FolderPermissionRole = 'viewer'
+): void {
   const userIdStr = userId.toString();
 
   // No compartir con el owner
@@ -261,9 +267,10 @@ folderSchema.methods.shareWith = function (userId: string, role: FolderPermissio
     existingPermission.role = role;
   } else {
     // Agregar nuevo permiso
-    this.permissions.push({ userId: userId as any, role });
+    const objectId = typeof userId === 'string' ? new Types.ObjectId(userId) : userId;
+    this.permissions.push({ userId: objectId, role });
     if (!this.sharedWith.some((id: Types.ObjectId) => id.toString() === userIdStr)) {
-      this.sharedWith.push(userId as any);
+      this.sharedWith.push(objectId);
     }
   }
 };
@@ -271,7 +278,7 @@ folderSchema.methods.shareWith = function (userId: string, role: FolderPermissio
 /**
  * Método de instancia para remover acceso de un usuario
  */
-folderSchema.methods.unshareWith = function (userId: string) {
+folderSchema.methods.unshareWith = function (this: IFolder, userId: string): void {
   const userIdStr = userId.toString();
 
   this.permissions = this.permissions.filter(

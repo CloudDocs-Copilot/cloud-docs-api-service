@@ -3,7 +3,34 @@ import path from 'path';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 
-export function ensureDirs() {
+export interface TestFileResult {
+  filename: string;
+  path: string;
+  relativePath: string;
+  fixturePath: string;
+  size: number;
+  organization: string;
+}
+
+export interface BuiltDocument {
+  _id: mongoose.Types.ObjectId;
+  filename: string;
+  path: string;
+  mimeType: string;
+  size: number;
+  uploadedBy: mongoose.Types.ObjectId;
+  organization: string;
+  folder: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  [k: string]: unknown;
+}
+
+type DocumentOverrides = Partial<BuiltDocument & { content?: Buffer | string }>;
+
+type DocumentModelType = mongoose.Model<Record<string, unknown> & { _id: mongoose.Types.ObjectId }>;
+
+export function ensureDirs(): void {
   const storageBase = path.join(process.cwd(), 'storage');
   const fixturesBase = path.join(process.cwd(), 'tests', 'fixtures', 'test-files');
   if (!fs.existsSync(storageBase)) fs.mkdirSync(storageBase, { recursive: true });
@@ -17,7 +44,7 @@ export function writeTestFile(
     content?: Buffer | string;
     mode?: number;
   } = {}
-) {
+): TestFileResult {
   ensureDirs();
   const {
     organization = `test-org-${Date.now()}`,
@@ -36,23 +63,31 @@ export function writeTestFile(
   const fixturePath = path.join(fixturesDir, name);
   fs.writeFileSync(fixturePath, buffer, { mode });
 
+  // Calculate relative path from storage base
+  const storageBase = path.join(process.cwd(), 'storage');
+  const relativePath = path.relative(storageBase, filePath);
+
   return {
     filename: name,
     path: filePath,
+    relativePath: relativePath.replace(/\\/g, '/'), // Normalize to forward slashes
     fixturePath,
     size: buffer.length,
     organization
   };
 }
 
-export function buildDocumentObject(overrides: any = {}) {
-  const id = overrides._id || new mongoose.Types.ObjectId();
-  const org = overrides.organization || `test-org-${Date.now()}`;
-  const file = overrides.path
+export function buildDocumentObject(overrides: DocumentOverrides = {}): BuiltDocument {
+  const id = overrides._id ?? new mongoose.Types.ObjectId();
+  const org = overrides.organization ?? `test-org-${Date.now()}`;
+  const file: TestFileResult = overrides.path
     ? {
         path: overrides.path,
+        relativePath: overrides.path, // assume already relative
         filename: overrides.filename || path.basename(overrides.path),
-        size: overrides.size || 0
+        size: overrides.size ?? 0,
+        fixturePath: overrides.path,
+        organization: org
       }
     : writeTestFile({
         organization: org,
@@ -60,24 +95,29 @@ export function buildDocumentObject(overrides: any = {}) {
         content: overrides.content
       });
 
-  return {
+  const result: BuiltDocument = {
     _id: id,
     filename: overrides.filename || file.filename,
-    path: file.path,
+    path: file.relativePath,
     mimeType: overrides.mimeType || 'application/octet-stream',
     size: file.size,
-    uploadedBy: overrides.uploadedBy || new mongoose.Types.ObjectId(),
+    uploadedBy: overrides.uploadedBy ?? new mongoose.Types.ObjectId(),
     organization: org,
-    folder: overrides.folder || null,
-    createdAt: overrides.createdAt || new Date(),
-    updatedAt: overrides.updatedAt || new Date(),
-    ...overrides
+    folder: overrides.folder ?? null,
+    createdAt: overrides.createdAt ?? new Date(),
+    updatedAt: overrides.updatedAt ?? new Date()
   };
+
+  return { ...result, ...(overrides as Record<string, unknown>) } as BuiltDocument;
 }
 
-export async function attachExtractedTextToModel(DocumentModel: any, docId: any, text: string) {
+export function attachExtractedTextToModel(
+  DocumentModel: DocumentModelType,
+  docId: mongoose.Types.ObjectId | string,
+  text: string
+): Promise<unknown> {
   if (!DocumentModel) throw new Error('DocumentModel is required');
-  const update: any = {
+  const update: Record<string, unknown> = {
     extractedText: text,
     aiProcessingStatus: 'completed',
     aiProcessedAt: new Date()
@@ -86,24 +126,24 @@ export async function attachExtractedTextToModel(DocumentModel: any, docId: any,
 }
 
 export async function createDocumentWithExtractedText(
-  DocumentModel: any,
-  opts: any = {},
-  extractedText: string = ''
-) {
+  DocumentModel: DocumentModelType,
+  opts: DocumentOverrides = {},
+  extractedText = ''
+): Promise<unknown> {
   if (!DocumentModel) throw new Error('DocumentModel is required');
   const file = writeTestFile({
     organization: opts.organization,
     filename: opts.filename,
-    content: opts.content || 'builder-content'
+    content: opts.content ?? 'builder-content'
   });
   const doc = buildDocumentObject({
     ...opts,
-    path: file.path,
+    path: file.relativePath || file.path, // Use relative path
     filename: file.filename,
     size: file.size,
-    extractedText
+    extractedText: opts.content as Buffer | string
   });
-  const created = await DocumentModel.create(doc);
+  const created = (await DocumentModel.create(doc as unknown)) as { _id: mongoose.Types.ObjectId } & Record<string, unknown>;
   if (extractedText && extractedText.length > 0) {
     await DocumentModel.findByIdAndUpdate(created._id, {
       aiProcessingStatus: 'completed',
@@ -113,7 +153,11 @@ export async function createDocumentWithExtractedText(
   return created;
 }
 
-export async function setAiMetadata(DocumentModel: any, docId: any, metadata: any = {}) {
+export async function setAiMetadata(
+  DocumentModel: DocumentModelType,
+  docId: mongoose.Types.ObjectId | string,
+  metadata: Record<string, unknown> = {}
+): Promise<unknown> {
   if (!DocumentModel) throw new Error('DocumentModel is required');
   const allowed = [
     'aiCategory',
@@ -124,18 +168,19 @@ export async function setAiMetadata(DocumentModel: any, docId: any, metadata: an
     'aiProcessingStatus',
     'aiError'
   ];
-  const update: any = {};
+  const update: Record<string, unknown> = {};
   for (const k of Object.keys(metadata)) {
     if (allowed.includes(k)) update[k] = metadata[k];
   }
-  update.aiProcessedAt = metadata.aiProcessedAt || new Date();
+  const processedAt = metadata.aiProcessedAt instanceof Date ? metadata.aiProcessedAt : new Date();
+  update.aiProcessedAt = processedAt;
   return DocumentModel.findByIdAndUpdate(docId, update, { new: true }).exec();
 }
 
 /**
  * Create a synthetic OCR output file next to the original file (used by OCR fallbacks/mocks)
  */
-export function writeOcrOutput(filePath: string, text: string) {
+export function writeOcrOutput(filePath: string, text: string): string {
   if (!filePath) throw new Error('filePath required');
   const ocrPath = `${filePath}.ocr.txt`;
   fs.writeFileSync(ocrPath, text || '', { mode: 0o644 });
@@ -148,8 +193,8 @@ export function writeOcrOutput(filePath: string, text: string) {
 export function writeEmbeddingFixture(
   filePath: string,
   vectors: number[] | number[][],
-  meta: any = {}
-) {
+  meta: Record<string, unknown> = {}
+): string {
   const base = path.dirname(filePath);
   const name = `${path.basename(filePath)}.emb.json`;
   const out = path.join(base, name);

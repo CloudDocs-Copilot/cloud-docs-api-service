@@ -11,7 +11,7 @@ import * as path from 'path';
 
 let mongoServer: MongoMemoryServer;
 
-describe('AuthService Integration Tests', () => {
+describe('AuthService Integration Tests', (): void => {
   let testOrgId: mongoose.Types.ObjectId;
   let testOrgSlug: string;
 
@@ -79,9 +79,14 @@ describe('AuthService Integration Tests', () => {
     if (fs.existsSync(orgStoragePath)) {
       try {
         fs.rmSync(orgStoragePath, { recursive: true, force: true });
-      } catch (err: any) {
-        if (err && (err.code === 'ENOTEMPTY' || err.code === 'EBUSY' || err.code === 'EPERM')) {
-          console.warn('Warning: could not fully remove orgStoragePath during cleanup:', err.code);
+      } catch (err: unknown) {
+        if (err && typeof err === 'object' && 'code' in err) {
+          const e = err as { code?: string };
+          if (e.code === 'ENOTEMPTY' || e.code === 'EBUSY' || e.code === 'EPERM') {
+            console.warn('Warning: could not fully remove orgStoragePath during cleanup:', e.code);
+          } else {
+            throw err;
+          }
         } else {
           throw err;
         }
@@ -89,8 +94,8 @@ describe('AuthService Integration Tests', () => {
     }
   });
 
-  describe('registerUser', () => {
-    it('should register a new user with organization', async () => {
+  describe('registerUser', (): void => {
+    it('should register a new user with organization', async (): Promise<void> => {
       // 1. Registrar usuario sin organización
       const newUser = await authService.registerUser({
         name: 'John Doe',
@@ -117,7 +122,7 @@ describe('AuthService Integration Tests', () => {
       expect(updatedUser!.rootFolder).toBeDefined();
     });
 
-    it('should create user root folder with correct structure', async () => {
+    it('should create user root folder with correct structure', async (): Promise<void> => {
       // 1. Registrar usuario
       const newUser = await authService.registerUser({
         name: 'Jane Smith',
@@ -146,7 +151,7 @@ describe('AuthService Integration Tests', () => {
       expect(rootFolder!.parent).toBeNull();
     });
 
-    it('should create physical filesystem directory', async () => {
+    it('should create physical filesystem directory', async (): Promise<void> => {
       // 1. Registrar usuario
       const newUser = await authService.registerUser({
         name: 'Test User',
@@ -173,7 +178,7 @@ describe('AuthService Integration Tests', () => {
       expect(fs.statSync(userStoragePath).isDirectory()).toBe(true);
     });
 
-    it('should add user to organization members', async () => {
+    it('should add user to organization members', async (): Promise<void> => {
       // 1. Registrar usuario
       const newUser = await authService.registerUser({
         name: 'Member User',
@@ -199,7 +204,7 @@ describe('AuthService Integration Tests', () => {
       expect(membership!.role).toBe(MembershipRole.MEMBER);
     });
 
-    it('should fail if organization does not exist', async () => {
+    it('should fail if organization does not exist', async (): Promise<void> => {
       // 1. Registrar usuario (esto debe pasar)
       const newUser = await authService.registerUser({
         name: 'Test User',
@@ -217,7 +222,7 @@ describe('AuthService Integration Tests', () => {
       ).rejects.toThrow('Organization not found');
     });
 
-    it('should fail if organization has reached max users', async () => {
+    it('should fail if organization has reached max users', async (): Promise<void> => {
       // FREE plan allows max 3 users, create 2 additional users to reach the limit
 
       // Create first additional user and add to org to use up slot 2
@@ -260,7 +265,7 @@ describe('AuthService Integration Tests', () => {
       ).rejects.toThrow('Organization has reached maximum users limit (3) for free plan');
     });
 
-    it('should fail with invalid password', async () => {
+    it('should fail with invalid password', async (): Promise<void> => {
       await expect(
         authService.registerUser({
           name: 'Test User',
@@ -270,7 +275,7 @@ describe('AuthService Integration Tests', () => {
       ).rejects.toThrow();
     });
 
-    it('should fail with invalid email format', async () => {
+    it('should fail with invalid email format', async (): Promise<void> => {
       await expect(
         authService.registerUser({
           name: 'Test User',
@@ -280,7 +285,7 @@ describe('AuthService Integration Tests', () => {
       ).rejects.toThrow('Invalid email format');
     });
 
-    it('should fail with invalid name', async () => {
+    it('should fail with invalid name', async (): Promise<void> => {
       await expect(
         authService.registerUser({
           name: 'Test@User!',
@@ -290,7 +295,7 @@ describe('AuthService Integration Tests', () => {
       ).rejects.toThrow('Name must contain only alphanumeric characters');
     });
 
-    it('should fail with invalid organization ID', async () => {
+    it('should fail with invalid organization ID', async (): Promise<void> => {
       // 1. Registrar usuario (esto debe pasar)
       const newUser = await authService.registerUser({
         name: 'Test User',
@@ -309,7 +314,7 @@ describe('AuthService Integration Tests', () => {
     });
   });
 
-  describe('loginUser', () => {
+  describe('loginUser', (): void => {
     beforeEach(async () => {
       // Registrar un usuario de prueba
       await authService.registerUser({
@@ -319,7 +324,7 @@ describe('AuthService Integration Tests', () => {
       });
     });
 
-    it('should login user with valid credentials', async () => {
+    it('should login user with valid credentials', async (): Promise<void> => {
       const result = await authService.loginUser({
         email: 'login@test.com',
         password: 'StrongP@ss123'
@@ -332,7 +337,7 @@ describe('AuthService Integration Tests', () => {
       expect(result.user.password).toBeUndefined(); // No debe exponer contraseña
     });
 
-    it('should fail with incorrect password', async () => {
+    it('should fail with incorrect password', async (): Promise<void> => {
       await expect(
         authService.loginUser({
           email: 'login@test.com',
@@ -341,7 +346,7 @@ describe('AuthService Integration Tests', () => {
       ).rejects.toThrow('Invalid password');
     });
 
-    it('should fail with non-existent user', async () => {
+    it('should fail with non-existent user', async (): Promise<void> => {
       await expect(
         authService.loginUser({
           email: 'nonexistent@test.com',
@@ -350,7 +355,7 @@ describe('AuthService Integration Tests', () => {
       ).rejects.toThrow('User not found');
     });
 
-    it('should fail with inactive user', async () => {
+    it('should fail with inactive user', async (): Promise<void> => {
       // Desactivar usuario
       await User.findOneAndUpdate({ email: 'login@test.com' }, { active: false });
 
@@ -362,7 +367,7 @@ describe('AuthService Integration Tests', () => {
       ).rejects.toThrow('User account is not active');
     });
 
-    it('should fail with invalid credentials format', async () => {
+    it('should fail with invalid credentials format', async (): Promise<void> => {
       await expect(
         authService.loginUser({
           email: '',

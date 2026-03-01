@@ -124,7 +124,7 @@ organizationSchema.virtual('memberCount').get(function (this: IOrganization) {
 // Middleware pre-save para generar slug automáticamente si no existe
 organizationSchema.pre('save', async function (next) {
   if (!this.slug || this.isModified('name')) {
-    let slug = generateSlug(this.name);
+    const slug = generateSlug(this.name);
     let slugExists = true;
     let counter = 0;
 
@@ -163,21 +163,27 @@ organizationSchema.pre('save', async function (next) {
 });
 
 // Método de instancia para agregar un miembro
-organizationSchema.methods.addMember = function (userId: string) {
-  if (!this.members.includes(userId as any)) {
-    this.members.push(userId as any);
+organizationSchema.methods.addMember = function (
+  this: IOrganization,
+  userId: string | Types.ObjectId
+): void {
+  const objectId = typeof userId === 'string' ? new Types.ObjectId(userId) : userId;
+  if (!this.members.some((m: Types.ObjectId) => m.toString() === objectId.toString())) {
+    this.members.push(objectId);
   }
 };
 
 // Método de instancia para remover un miembro
-organizationSchema.methods.removeMember = function (userId: string) {
+organizationSchema.methods.removeMember = function (this: IOrganization, userId: string): void {
   this.members = this.members.filter(
     (memberId: Types.ObjectId) => memberId.toString() !== userId.toString()
   );
 };
 
 // Método estático para buscar por slug
-organizationSchema.statics.findBySlug = function (slug: string) {
+organizationSchema.statics.findBySlug = function (
+  slug: string
+): Promise<IOrganization | null> {
   return this.findOne({ slug, active: true });
 };
 

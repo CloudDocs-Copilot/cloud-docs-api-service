@@ -2,6 +2,11 @@ import type http from 'http';
 import { Server, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 
+// Custom socket data type
+interface CustomSocketData {
+  userId: string;
+}
+
 let io: Server | null = null;
 
 type JwtPayload = {
@@ -31,8 +36,8 @@ function getJwtSecret(): string {
 function extractTokenFromHandshake(socket: Socket): string | null {
   // Option A: Authorization: Bearer <token>
   const authHeader =
-    (socket.handshake.headers?.authorization as string | undefined) ||
-    (socket.handshake.headers?.Authorization as string | undefined);
+    socket.handshake.headers?.authorization ||
+    socket.handshake.headers?.Authorization;
 
   if (authHeader && typeof authHeader === 'string') {
     const parts = authHeader.split(' ');
@@ -42,7 +47,8 @@ function extractTokenFromHandshake(socket: Socket): string | null {
   }
 
   // Option B: socket.handshake.auth.token (client can pass it here)
-  const authToken = (socket.handshake.auth as any)?.token;
+  const auth = socket.handshake.auth as Record<string, unknown> | undefined;
+  const authToken = auth?.token;
   if (authToken && typeof authToken === 'string') {
     return authToken;
   }
@@ -89,7 +95,7 @@ export function initSocket(server: http.Server): Server {
   io = new Server(server, {
     path: '/socket.io',
     cors: {
-      origin: (origin, cb) => {
+      origin: (origin, cb): void => {
         // Allow same-origin / server-to-server / curl
         if (!origin) return cb(null, true);
 
@@ -112,13 +118,14 @@ export function initSocket(server: http.Server): Server {
     const userId = getUserIdFromToken(token);
     if (!userId) return next(new Error('Unauthorized'));
 
-    (socket.data as any).userId = userId;
+    (socket.data as CustomSocketData).userId = userId;
     next();
   });
 
   io.on('connection', socket => {
-    const userId = (socket.data as any).userId as string;
-    socket.join(userRoom(userId));
+    const socketData = socket.data as CustomSocketData;
+    const userId = socketData.userId;
+    void socket.join(userRoom(userId));
 
     // Optional: allow the client to confirm it's connected
     socket.emit('socket:connected', { userId });
@@ -135,7 +142,7 @@ export function initSocket(server: http.Server): Server {
  * Emit an event to a specific user (all active sockets of that user).
  * Safe to call even if Socket.IO not initialized yet.
  */
-export function emitToUser(userId: string, event: string, payload: any): void {
+export function emitToUser(userId: string, event: string, payload: unknown): void {
   if (!io) return;
   io.to(userRoom(userId)).emit(event, payload);
 }
@@ -144,7 +151,7 @@ export function emitToUser(userId: string, event: string, payload: any): void {
  * Optional helper if you want to broadcast to an organization room later.
  * (Not used yet, but nice to have for org-wide "announcements".)
  */
-export function emitToOrg(orgId: string, event: string, payload: any): void {
+export function emitToOrg(orgId: string, event: string, payload: unknown): void {
   if (!io) return;
   io.to(`org:${orgId}`).emit(event, payload);
 }

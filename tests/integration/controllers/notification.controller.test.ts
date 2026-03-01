@@ -1,4 +1,5 @@
-import type { NextFunction } from 'express';
+import type { NextFunction, Response } from 'express';
+import type { AuthRequest } from '../../../src/middlewares/auth.middleware';
 
 jest.resetModules();
 
@@ -20,34 +21,35 @@ jest.mock('../../../src/models/error.model', () => {
   return { __esModule: true, default: HttpError };
 });
 
-const notificationService = require('../../../src/services/notification.service');
-const HttpError = require('../../../src/models/error.model').default;
-const controller = require('../../../src/controllers/notification.controller');
+import * as notificationService from '../../../src/services/notification.service';
+import HttpError from '../../../src/models/error.model';
+import * as controller from '../../../src/controllers/notification.controller';
 
-function makeRes() {
-  const res: any = {};
-  res.json = jest.fn().mockReturnValue(res);
+function makeRes(): Response {
+  const res = {
+    json: jest.fn().mockReturnThis()
+  } as unknown as Response;
   return res;
 }
 
 describe('notification.controller (unit)', () => {
   afterEach(() => jest.clearAllMocks());
 
-  describe('list', () => {
+  describe('list', (): void => {
     it('parses query params (defaults) and returns payload', async () => {
-      const req: any = {
+      const req = {
         user: { id: 'user1' },
         query: {} // unread default false, limit 20, skip 0, orgId undefined
-      };
+      } as unknown as AuthRequest;
       const res = makeRes();
-      const next = jest.fn() as NextFunction;
+      const next = jest.fn() as jest.MockedFunction<(err?: unknown) => void>;
 
-      notificationService.listNotifications.mockResolvedValue({
+      (notificationService.listNotifications as jest.Mock).mockResolvedValue({
         notifications: [{ id: 1 }],
         total: 10
       });
 
-      await controller.list(req, res, next);
+      await controller.list(req as unknown as AuthRequest, res, next as unknown as NextFunction);
 
       expect(notificationService.listNotifications).toHaveBeenCalledWith({
         userId: 'user1',
@@ -68,19 +70,19 @@ describe('notification.controller (unit)', () => {
     });
 
     it('parses query params (unread=true, limit, skip, organizationId)', async () => {
-      const req: any = {
+      const req = {
         user: { id: 'user1' },
         query: { unread: 'TRUE', limit: '5', skip: '2', organizationId: 'org1' }
-      };
+      } as unknown as AuthRequest;
       const res = makeRes();
-      const next = jest.fn() as NextFunction;
+      const next = jest.fn() as jest.MockedFunction<(err?: unknown) => void>;
 
-      notificationService.listNotifications.mockResolvedValue({
+      (notificationService.listNotifications as jest.Mock).mockResolvedValue({
         notifications: [],
         total: 0
       });
 
-      await controller.list(req, res, next);
+      await controller.list(req as unknown as AuthRequest, res, next as unknown as NextFunction);
 
       expect(notificationService.listNotifications).toHaveBeenCalledWith({
         userId: 'user1',
@@ -99,52 +101,52 @@ describe('notification.controller (unit)', () => {
     });
 
     it('passes errors to next()', async () => {
-      const req: any = {
+      const req = {
         user: { id: 'user1' },
         query: {}
-      };
+      } as unknown as AuthRequest;
       const res = makeRes();
-      const next = jest.fn() as NextFunction;
+      const next = jest.fn() as jest.MockedFunction<(err?: unknown) => void>;
 
       const boom = new Error('boom');
-      notificationService.listNotifications.mockRejectedValue(boom);
+      (notificationService.listNotifications as jest.Mock).mockRejectedValue(boom);
 
-      await controller.list(req, res, next);
+      await controller.list(req as unknown as AuthRequest, res, next as unknown as NextFunction);
 
       expect(next).toHaveBeenCalledWith(boom);
     });
   });
 
-  describe('markRead', () => {
-    it('returns 400 when id missing', async () => {
-      const req: any = {
+  describe('markRead', (): void => {
+    it('returns 400 when id missing', async (): Promise<void> => {
+      const req = {
         user: { id: 'user1' },
         params: {}
-      };
+      } as unknown as AuthRequest;
       const res = makeRes();
-      const next = jest.fn() as NextFunction;
+      const next = jest.fn() as jest.MockedFunction<(err?: unknown) => void>;
 
-      await controller.markRead(req, res, next);
+      await controller.markRead(req as unknown as AuthRequest, res, next as unknown as NextFunction);
 
       expect(notificationService.markNotificationRead).not.toHaveBeenCalled();
 
-      const err = (next as any).mock.calls[0][0];
+      const err = next.mock.calls[0][0];
       expect(err).toBeInstanceOf(HttpError);
-      expect(err.statusCode).toBe(400);
-      expect(err.message).toBe('Notification ID is required');
+      expect((err as HttpError).statusCode).toBe(400);
+      expect((err as Error).message).toBe('Notification ID is required');
     });
 
-    it('marks notification as read', async () => {
-      const req: any = {
+    it('marks notification as read', async (): Promise<void> => {
+      const req = {
         user: { id: 'user1' },
         params: { id: 'n1' }
-      };
+      } as unknown as AuthRequest;
       const res = makeRes();
-      const next = jest.fn() as NextFunction;
+      const next = jest.fn() as jest.MockedFunction<(err?: unknown) => void>;
 
-      notificationService.markNotificationRead.mockResolvedValue(undefined);
+      (notificationService.markNotificationRead as jest.Mock).mockResolvedValue(undefined);
 
-      await controller.markRead(req, res, next);
+      await controller.markRead(req as unknown as AuthRequest, res, next as unknown as NextFunction);
 
       expect(notificationService.markNotificationRead).toHaveBeenCalledWith('user1', 'n1');
 
@@ -157,34 +159,34 @@ describe('notification.controller (unit)', () => {
     });
 
     it('passes errors to next()', async () => {
-      const req: any = {
+      const req = {
         user: { id: 'user1' },
         params: { id: 'n1' }
-      };
+      } as unknown as AuthRequest;
       const res = makeRes();
-      const next = jest.fn() as NextFunction;
+      const next = jest.fn() as jest.MockedFunction<(err?: unknown) => void>;
 
       const boom = new Error('boom');
-      notificationService.markNotificationRead.mockRejectedValue(boom);
+      (notificationService.markNotificationRead as jest.Mock).mockRejectedValue(boom);
 
-      await controller.markRead(req, res, next);
+      await controller.markRead(req as unknown as AuthRequest, res, next as unknown as NextFunction);
 
       expect(next).toHaveBeenCalledWith(boom);
     });
   });
 
-  describe('markAllRead', () => {
-    it('uses organizationId from body if provided', async () => {
-      const req: any = {
+  describe('markAllRead', (): void => {
+    it('uses organizationId from body if provided', async (): Promise<void> => {
+      const req = {
         user: { id: 'user1' },
         body: { organizationId: 'org1' }
-      };
+      } as unknown as AuthRequest;
       const res = makeRes();
-      const next = jest.fn() as NextFunction;
+      const next = jest.fn() as jest.MockedFunction<(err?: unknown) => void>;
 
-      notificationService.markAllRead.mockResolvedValue(undefined);
+      (notificationService.markAllRead as jest.Mock).mockResolvedValue(undefined);
 
-      await controller.markAllRead(req, res, next);
+      await controller.markAllRead(req as unknown as AuthRequest, res, next as unknown as NextFunction);
 
       expect(notificationService.markAllRead).toHaveBeenCalledWith('user1', 'org1');
 
@@ -195,34 +197,34 @@ describe('notification.controller (unit)', () => {
       expect(next).not.toHaveBeenCalled();
     });
 
-    it('passes undefined organizationId when body missing', async () => {
-      const req: any = {
+    it('passes undefined organizationId when body missing', async (): Promise<void> => {
+      const req = {
         user: { id: 'user1' },
         body: undefined
-      };
+      } as unknown as AuthRequest;
       const res = makeRes();
-      const next = jest.fn() as NextFunction;
+      const next = jest.fn() as jest.MockedFunction<(err?: unknown) => void>;
 
-      notificationService.markAllRead.mockResolvedValue(undefined);
+      (notificationService.markAllRead as jest.Mock).mockResolvedValue(undefined);
 
-      await controller.markAllRead(req, res, next);
+      await controller.markAllRead(req as unknown as AuthRequest, res, next as unknown as NextFunction);
 
       expect(notificationService.markAllRead).toHaveBeenCalledWith('user1', undefined);
       expect(next).not.toHaveBeenCalled();
     });
 
     it('passes errors to next()', async () => {
-      const req: any = {
+      const req = {
         user: { id: 'user1' },
         body: {}
-      };
+      } as unknown as AuthRequest;
       const res = makeRes();
-      const next = jest.fn() as NextFunction;
+      const next = jest.fn() as jest.MockedFunction<(err?: unknown) => void>;
 
       const boom = new Error('boom');
-      notificationService.markAllRead.mockRejectedValue(boom);
+      (notificationService.markAllRead as jest.Mock).mockRejectedValue(boom);
 
-      await controller.markAllRead(req, res, next);
+      await controller.markAllRead(req as unknown as AuthRequest, res, next as unknown as NextFunction);
 
       expect(next).toHaveBeenCalledWith(boom);
     });

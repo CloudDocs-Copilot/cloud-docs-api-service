@@ -6,20 +6,21 @@ import type { IChunkConfig, IChunkWithMetadata } from '../models/types/ai.types'
 export const CHUNK_CONFIG: IChunkConfig = {
   /**
    * Tamaño objetivo de cada chunk en palabras
+   * Reducido para optimizar velocidad de LLM (100 palabras ≈ 500-600 chars)
    */
-  TARGET_WORDS: 800,
+  TARGET_WORDS: 100,
 
   /**
    * Tamaño mínimo de un chunk en palabras
    * Chunks más pequeños se fusionan con el anterior
    */
-  MIN_WORDS: 100,
+  MIN_WORDS: 50,
 
   /**
    * Tamaño máximo de un chunk en palabras
-   * Evita chunks excesivamente grandes
+   * Evita chunks excesivamente grandes (150 palabras ≈ 750-900 chars)
    */
-  MAX_WORDS: 1000,
+  MAX_WORDS: 150,
 
   /**
    * Separadores de párrafo (en orden de prioridad)
@@ -242,3 +243,32 @@ export function addChunkMetadata(chunks: string[]): IChunkWithMetadata[] {
  * Exportar función de conteo de palabras para uso externo
  */
 export { countWords };
+
+/**
+ * Trunca un contexto (array de chunks) para que no exceda un número máximo
+ * aproximado de tokens. Usa una estimación heurística de tokens ~ chars/4.
+ *
+ * @param chunks - array de strings
+ * @param maxTokens - límite aproximado de tokens
+ * @returns subset de chunks que encaja en el límite (al menos 1)
+ */
+export function truncateContext(chunks: string[], maxTokens: number): string[] {
+  if (!Array.isArray(chunks) || chunks.length === 0) return [];
+
+  const estimateTokens = (s: string): number => Math.max(1, Math.ceil(s.length / 4));
+
+  const out: string[] = [];
+  let used = 0;
+
+  for (const c of chunks) {
+    const t = estimateTokens(c);
+    if (used + t > maxTokens) break;
+    out.push(c);
+    used += t;
+  }
+
+  // Ensure at least one chunk is returned to keep callers safe
+  if (out.length === 0 && chunks.length > 0) out.push(chunks[0]);
+
+  return out;
+}

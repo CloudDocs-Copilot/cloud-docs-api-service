@@ -22,7 +22,7 @@ tests/
 │   ├── file.helper.ts
 │   ├── delay.helper.ts
 │   └── index.ts
-├── integration/       # Tests de integración (endpoints completos)
+├── integration/       # Tests de integración (endpoints, sin servidor real)
 │   ├── auth.test.ts
 │   ├── documents.test.ts
 │   ├── folders.test.ts
@@ -30,23 +30,34 @@ tests/
 │   └── url-path-security.test.ts
 ├── unit/             # Tests unitarios (funciones individuales)
 │   └── jwt.service.test.ts
+├── e2e/              # Tests E2E (servidor real corriendo) ⚠️
+│   └── search.e2e.test.ts    # Requiere: npm run dev en otra terminal
 ├── setup.ts          # Configuración global de tests
-└── README.md         # Este archivo
+├── jest.setup.ts     # Setup de Jest
+└── TEST-GUIDE.md     # Este archivo
 ```
+
+⚠️ **Importante:** Tests E2E requieren servidor corriendo. Ver [E2E Testing Guide](../docs/E2E-TESTING-GUIDE.md)
 
 ## 🚀 Ejecutar Tests
 
 ```bash
-# Todos los tests
-npm test
+# Tests sin servidor (pre-commit)
+npm test                    # Unit + Integration (excluye E2E)
+npm run test:unit           # Solo unit tests
+npm run test:integration    # Solo integration tests
+
+# Tests con servidor corriendo (ver docs/E2E-TESTING-GUIDE.md)
+npm run test:e2e            # Solo E2E tests (servidor debe estar en puerto 4000)
+npm run test:all            # TODOS incluidos E2E
 
 # Tests específicos
 npm test -- auth.test.ts
 npm test -- documents.test.ts
-npm test -- url-path-security.test.ts
 
 # Con coverage
-npm run test:coverage
+npm run test:coverage       # Coverage sin E2E
+npm run test:watch          # Watch mode sin E2E
 
 # Watch mode (desarrollo)
 npm test -- --watch

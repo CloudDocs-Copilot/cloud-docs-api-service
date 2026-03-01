@@ -10,7 +10,7 @@ import path from 'path';
 import fs from 'fs';
 import HttpError from '../../../src/models/error.model';
 
-describe('TextExtractionService', () => {
+describe('TextExtractionService', (): void => {
   const testFilesDir = path.join(process.cwd(), 'tests', 'fixtures', 'test-files');
 
   beforeAll(() => {
@@ -31,8 +31,8 @@ describe('TextExtractionService', () => {
     }
   });
 
-  describe('extractText', () => {
-    it('should extract text from TXT file', async () => {
+  describe('extractText', (): void => {
+    it('should extract text from TXT file', async (): Promise<void> => {
       const testContent = 'Este es un archivo de texto plano para testing.';
       const testFile = path.join(testFilesDir, 'test.txt');
       fs.writeFileSync(testFile, testContent);
@@ -45,7 +45,7 @@ describe('TextExtractionService', () => {
       expect(result.mimeType).toBe(SUPPORTED_MIME_TYPES.TXT);
     });
 
-    it('should extract text from MD file', async () => {
+    it('should extract text from MD file', async (): Promise<void> => {
       const testContent = '# Título\n\nEste es un archivo markdown.';
       const testFile = path.join(testFilesDir, 'test.md');
       fs.writeFileSync(testFile, testContent);
@@ -57,7 +57,7 @@ describe('TextExtractionService', () => {
       expect(result.wordCount).toBeGreaterThan(0);
     });
 
-    it('should throw error for non-existent file', async () => {
+    it('should throw error for non-existent file', async (): Promise<void> => {
       const nonExistentFile = path.join(testFilesDir, 'does-not-exist.txt');
 
       await expect(
@@ -69,7 +69,7 @@ describe('TextExtractionService', () => {
       ).rejects.toThrow('File not found');
     });
 
-    it('should throw error for unsupported MIME type', async () => {
+    it('should throw error for unsupported MIME type', async (): Promise<void> => {
       const testFile = path.join(testFilesDir, 'test.txt');
       fs.writeFileSync(testFile, 'content');
 
@@ -82,7 +82,7 @@ describe('TextExtractionService', () => {
       ).rejects.toThrow('Unsupported file type');
     });
 
-    it('should throw error for directory instead of file', async () => {
+    it('should throw error for directory instead of file', async (): Promise<void> => {
       await expect(
         textExtractionService.extractText(testFilesDir, SUPPORTED_MIME_TYPES.TXT)
       ).rejects.toThrow(HttpError);
@@ -93,8 +93,8 @@ describe('TextExtractionService', () => {
     });
   });
 
-  describe('isSupportedMimeType', () => {
-    it('should return true for supported MIME types', () => {
+  describe('isSupportedMimeType', (): void => {
+    it('should return true for supported MIME types', (): void => {
       expect(textExtractionService.isSupportedMimeType(SUPPORTED_MIME_TYPES.PDF)).toBe(true);
       expect(textExtractionService.isSupportedMimeType(SUPPORTED_MIME_TYPES.DOCX)).toBe(true);
       expect(textExtractionService.isSupportedMimeType(SUPPORTED_MIME_TYPES.DOC)).toBe(true);
@@ -104,15 +104,15 @@ describe('TextExtractionService', () => {
       expect(textExtractionService.isSupportedMimeType('image/png')).toBe(true);
     });
 
-    it('should return false for unsupported MIME types', () => {
+    it('should return false for unsupported MIME types', (): void => {
       expect(textExtractionService.isSupportedMimeType('application/json')).toBe(false);
       expect(textExtractionService.isSupportedMimeType('image/webp')).toBe(false);
       expect(textExtractionService.isSupportedMimeType('video/mp4')).toBe(false);
     });
   });
 
-  describe('getSupportedMimeTypes', () => {
-    it('should return array of supported MIME types', () => {
+  describe('getSupportedMimeTypes', (): void => {
+    it('should return array of supported MIME types', (): void => {
       const types = textExtractionService.getSupportedMimeTypes();
 
       expect(Array.isArray(types)).toBe(true);
@@ -126,8 +126,8 @@ describe('TextExtractionService', () => {
     });
   });
 
-  describe('word counting', () => {
-    it('should count words correctly', async () => {
+  describe('word counting', (): void => {
+    it('should count words correctly', async (): Promise<void> => {
       const testCases = [
         { content: 'one two three', expected: 3 },
         { content: 'single', expected: 1 },

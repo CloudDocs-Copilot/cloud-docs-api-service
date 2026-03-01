@@ -41,7 +41,7 @@ class OpenAIClient {
         maxRetries: 3
       });
 
-      console.log('✅ OpenAI client initialized');
+      console.warn('✅ OpenAI client initialized');
     }
 
     return OpenAIClient.instance;
@@ -56,7 +56,7 @@ class OpenAIClient {
       const client = OpenAIClient.getInstance();
       // Hacer una llamada mínima para verificar que la API key es válida
       await client.models.list();
-      console.log('✅ OpenAI API connection successful');
+      console.warn('✅ OpenAI API connection successful');
       return true;
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';

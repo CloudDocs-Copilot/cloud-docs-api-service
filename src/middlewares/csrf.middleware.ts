@@ -36,7 +36,7 @@ const csrfProtection = doubleCsrf({
     process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development'
       ? ['GET', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE']
       : ['GET', 'HEAD', 'OPTIONS'],
-  getSessionIdentifier: (req: Request) => req.ip || 'anonymous'
+  getSessionIdentifier: (req: Request): string => req.ip || 'anonymous'
 });
 // Rutas que NO requieren CSRF (autenticación pública)
 const CSRF_EXCLUDED_ROUTES = [
@@ -48,7 +48,7 @@ const CSRF_EXCLUDED_ROUTES = [
   '/api/auth/reset-password'
 ];
 // Exportar el middleware de protección CSRF
-export const csrfProtectionMiddleware = (req: Request, res: Response, next: NextFunction) => {
+export const csrfProtectionMiddleware = (req: Request, res: Response, next: NextFunction): void => {
   if (CSRF_EXCLUDED_ROUTES.includes(req.path)) {
     return next();
   }

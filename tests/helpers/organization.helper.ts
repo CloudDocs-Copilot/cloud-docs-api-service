@@ -4,18 +4,23 @@
  */
 
 import * as organizationService from '../../src/services/organization.service';
-import User from '../../src/models/user.model';
+import User, { IUser } from '../../src/models/user.model';
 import Organization from '../../src/models/organization.model';
-import Membership, { MembershipRole, MembershipStatus } from '../../src/models/membership.model';
+import Membership, {
+  MembershipRole,
+  MembershipStatus,
+  IMembership
+} from '../../src/models/membership.model';
+import { IOrganization } from '../../src/models/types/organization.types';
 import { anOrganization } from '../builders/organization.builder';
 import { testOrganization } from '../fixtures/organization.fixtures';
 
 export interface OrganizationTestSetup {
-  organization: any;
-  owner: any;
-  ownerMembership: any;
-  additionalUsers?: any[];
-  additionalMemberships?: any[];
+  organization: IOrganization;
+  owner: IUser;
+  ownerMembership: IMembership;
+  additionalUsers?: IUser[];
+  additionalMemberships?: IMembership[];
 }
 
 /**
@@ -62,13 +67,13 @@ export async function createCompleteOrganization(options?: {
   const result: OrganizationTestSetup = {
     organization,
     owner,
-    ownerMembership
+    ownerMembership: ownerMembership as IMembership
   };
 
   // 4. Crear usuarios adicionales si se especificaron
   if (options?.additionalMembers?.length) {
-    const additionalUsers = [];
-    const additionalMemberships = [];
+    const additionalUsers: IUser[] = [];
+    const additionalMemberships: IMembership[] = [];
 
     for (let i = 0; i < options.additionalMembers.length; i++) {
       const member = options.additionalMembers[i];
@@ -99,8 +104,8 @@ export async function createCompleteOrganization(options?: {
         throw new Error(`Membership not found for user ${user.name}`);
       }
 
-      additionalUsers.push(user);
-      additionalMemberships.push(membership);
+      additionalUsers.push(user as IUser);
+      additionalMemberships.push(membership as IMembership);
     }
 
     result.additionalUsers = additionalUsers;
@@ -116,7 +121,7 @@ export async function createCompleteOrganization(options?: {
 export async function createUserWithoutOrganization(options?: {
   name?: string;
   email?: string;
-}): Promise<any> {
+}): Promise<IUser> {
   // Generar email único
   const timestamp = Date.now();
   const defaultEmail = `noorg-${timestamp}@test.com`;
@@ -133,7 +138,7 @@ export async function createUserWithoutOrganization(options?: {
  * Verifica que una organización tenga las propiedades esperadas
  */
 export function assertOrganizationProperties(
-  organization: any,
+  organization: IOrganization,
   expectedProps: {
     name?: string;
     slug?: string;
@@ -141,7 +146,7 @@ export function assertOrganizationProperties(
     memberCount?: number;
     active?: boolean;
   }
-) {
+): void {
   if (expectedProps.name) {
     expect(organization.name).toBe(expectedProps.name);
   }
@@ -162,7 +167,7 @@ export function assertOrganizationProperties(
 /**
  * Verifica que un usuario tenga organización y rootFolder configurados
  */
-export function assertUserOrganizationSetup(user: any, expectedOrgId: string) {
+export function assertUserOrganizationSetup(user: IUser, expectedOrgId: string): void {
   expect(user.organization?.toString()).toBe(expectedOrgId);
   expect(user.rootFolder).toBeDefined();
 }
@@ -171,7 +176,7 @@ export function assertUserOrganizationSetup(user: any, expectedOrgId: string) {
  * Verifica que una membresía tenga las propiedades esperadas
  */
 export function assertMembershipProperties(
-  membership: any,
+  membership: IMembership,
   expectedProps: {
     userId?: string;
     organizationId?: string;
@@ -179,7 +184,7 @@ export function assertMembershipProperties(
     status?: MembershipStatus;
     hasRootFolder?: boolean;
   }
-) {
+): void {
   if (expectedProps.userId) {
     expect(membership.user.toString()).toBe(expectedProps.userId);
   }
@@ -204,7 +209,7 @@ export function assertMembershipProperties(
 /**
  * Limpia todos los datos relacionados con organizaciones y membresías
  */
-export async function cleanupOrganizationData() {
+export async function cleanupOrganizationData(): Promise<void> {
   await Organization.deleteMany({});
   await Membership.deleteMany({});
   // Eliminar usuarios completamente en lugar de solo actualizar campos

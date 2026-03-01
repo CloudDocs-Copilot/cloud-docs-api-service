@@ -4,17 +4,27 @@
 
 // Note: removed unused HttpError import to avoid TS6133 during CI
 
-describe('LLMService', () => {
-  let llmService: any;
-  let mockProvider: any;
+describe('LLMService', (): void => {
+  type LLMServiceShape = {
+    generateResponse: (prompt: string, opts?: unknown) => Promise<string>;
+    generateResponseStream: (prompt: string, onChunk: (chunk: string) => void) => Promise<string>;
+    getDefaultTemperature: () => number;
+  };
 
-  beforeEach(() => {
+  let llmService: LLMServiceShape;
+  let mockProvider: {
+    name: string;
+    generateResponse: jest.Mock<Promise<{ response: string; usage?: unknown }>, [string, unknown?]>;
+    getChatModel: jest.Mock<string, []>;
+  };
+
+  beforeEach(async (): Promise<void> => {
     jest.resetModules();
 
     // Mock provider with predictable behavior
     mockProvider = {
       name: 'mock',
-      generateResponse: jest.fn(),
+      generateResponse: jest.fn<Promise<{ response: string; usage?: unknown }>, [string, unknown?]>(),
       getChatModel: jest.fn(() => 'mock-chat-model')
     };
 
@@ -24,11 +34,11 @@ describe('LLMService', () => {
     }));
 
     // Now require the service under test so it picks up the mocked factory
-    llmService = require('../../../src/services/ai/llm.service').llmService;
+    llmService = ((await import('../../../src/services/ai/llm.service')) as unknown as typeof import('../../../src/services/ai/llm.service')).llmService as LLMServiceShape;
   });
 
-  describe('generateResponse', () => {
-    it('should generate response for a prompt', async () => {
+  describe('generateResponse', (): void => {
+    it('should generate response for a prompt', async (): Promise<void> => {
       mockProvider.generateResponse.mockResolvedValue({
         response: 'This is a test response from the AI model.',
         usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 }
@@ -40,7 +50,7 @@ describe('LLMService', () => {
       expect(mockProvider.generateResponse).toHaveBeenCalledWith('What is AI?', undefined);
     });
 
-    it('should handle empty response from API', async () => {
+    it('should handle empty response from API', async (): Promise<void> => {
       mockProvider.generateResponse.mockResolvedValue({ response: '' });
 
       const result = await llmService.generateResponse('Test prompt');
@@ -48,7 +58,7 @@ describe('LLMService', () => {
       expect(result).toBe('');
     });
 
-    it('should throw error when API fails', async () => {
+    it('should throw error when API fails', async (): Promise<void> => {
       mockProvider.generateResponse.mockRejectedValue(new Error('API unavailable'));
 
       await expect(llmService.generateResponse('Test prompt')).rejects.toThrow(
@@ -56,13 +66,13 @@ describe('LLMService', () => {
       );
     });
 
-    it('should handle missing choices in response', async () => {
+    it('should handle missing choices in response', async (): Promise<void> => {
       mockProvider.generateResponse.mockResolvedValue({ response: '' });
 
       await expect(llmService.generateResponse('Test')).resolves.toBe('');
     });
 
-    it('should handle long prompts', async () => {
+    it('should handle long prompts', async (): Promise<void> => {
       const longPrompt = 'word '.repeat(5000);
 
       mockProvider.generateResponse.mockResolvedValue({ response: 'Response for long prompt' });
@@ -73,7 +83,7 @@ describe('LLMService', () => {
       expect(mockProvider.generateResponse).toHaveBeenCalled();
     });
 
-    it('should use correct temperature setting', async () => {
+    it('should use correct temperature setting', async (): Promise<void> => {
       mockProvider.generateResponse.mockResolvedValue({ response: 'Test response' });
 
       await llmService.generateResponse('Test');
@@ -82,7 +92,7 @@ describe('LLMService', () => {
       expect(llmService.getDefaultTemperature()).toBe(0.3);
     });
 
-    it('should handle special characters in prompt', async () => {
+    it('should handle special characters in prompt', async (): Promise<void> => {
       const specialPrompt = '¿Qué es la IA? 你好 مرحبا';
 
       mockProvider.generateResponse.mockResolvedValue({ response: 'Response with special chars' });
@@ -92,7 +102,7 @@ describe('LLMService', () => {
       expect(result).toBeDefined();
     });
 
-    it('should handle missing usage data gracefully', async () => {
+    it('should handle missing usage data gracefully', async (): Promise<void> => {
       mockProvider.generateResponse.mockResolvedValue({ response: 'Response without usage' });
 
       const result = await llmService.generateResponse('Test');
@@ -101,8 +111,8 @@ describe('LLMService', () => {
     });
   });
 
-  describe('generateResponseStream', () => {
-    it('should handle streaming responses', async () => {
+  describe('generateResponseStream', (): void => {
+    it('should handle streaming responses', async (): Promise<void> => {
       const chunks: string[] = [];
       const onChunk = (chunk: string) => chunks.push(chunk);
 
@@ -116,17 +126,17 @@ describe('LLMService', () => {
     });
   });
 
-  describe('edge cases', () => {
-    it('should handle null or undefined prompt gracefully', async () => {
+  describe('edge cases', (): void => {
+    it('should handle null or undefined prompt gracefully', async (): Promise<void> => {
       mockProvider.generateResponse.mockResolvedValue({ response: 'Response' });
 
       // Should throw error for empty prompt
       await expect(llmService.generateResponse('')).rejects.toThrow('Prompt cannot be empty');
     });
 
-    it('should handle rate limit errors', async () => {
+    it('should handle rate limit errors', async (): Promise<void> => {
       const rateLimitError = new Error('Rate limit exceeded');
-      (rateLimitError as any).status = 429;
+      (rateLimitError as unknown as { status?: number }).status = 429;
 
       mockProvider.generateResponse.mockRejectedValue(rateLimitError);
 
@@ -135,9 +145,9 @@ describe('LLMService', () => {
       );
     });
 
-    it('should handle authentication errors', async () => {
+    it('should handle authentication errors', async (): Promise<void> => {
       const authError = new Error('Invalid API key');
-      (authError as any).status = 401;
+      (authError as unknown as { status?: number }).status = 401;
 
       mockProvider.generateResponse.mockRejectedValue(authError);
 

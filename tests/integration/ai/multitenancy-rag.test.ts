@@ -140,8 +140,8 @@ describe('RAG Multitenancy Security (RFE-AI-005) - Unit Tests', () => {
     await mongoServer.stop();
   });
 
-  describe('🔐 Data Integrity - organizationId in Chunks', () => {
-    it('should include organizationId in all chunks created for org1', async () => {
+  describe('🔐 Data Integrity - organizationId in Chunks', (): void => {
+    it('should include organizationId in all chunks created for org1', async (): Promise<void> => {
       const org1Chunks = await documentProcessor.getDocumentChunks(doc1Id);
 
       expect(org1Chunks.length).toBeGreaterThan(0);
@@ -154,7 +154,7 @@ describe('RAG Multitenancy Security (RFE-AI-005) - Unit Tests', () => {
       });
     });
 
-    it('should include organizationId in all chunks created for org2', async () => {
+    it('should include organizationId in all chunks created for org2', async (): Promise<void> => {
       const org2Chunks = await documentProcessor.getDocumentChunks(doc2Id);
 
       expect(org2Chunks.length).toBeGreaterThan(0);
@@ -167,7 +167,7 @@ describe('RAG Multitenancy Security (RFE-AI-005) - Unit Tests', () => {
       });
     });
 
-    it('should have organizationId in ALL chunks across all documents', async () => {
+    it('should have organizationId in ALL chunks across all documents', async (): Promise<void> => {
       const org1Chunks = await documentProcessor.getDocumentChunks(doc1Id);
       const org2Chunks = await documentProcessor.getDocumentChunks(doc2Id);
       const allChunks = [...org1Chunks, ...org2Chunks];
@@ -183,7 +183,7 @@ describe('RAG Multitenancy Security (RFE-AI-005) - Unit Tests', () => {
     });
   });
 
-  describe('🔐 Parameter Validation - organizationId Required', () => {
+  describe('🔐 Parameter Validation - organizationId Required', (): void => {
     it('should reject search() without organizationId', async () => {
       await expect(ragService.search('test query', '', 5)).rejects.toThrow(
         'Organization ID is required'
@@ -221,7 +221,7 @@ describe('RAG Multitenancy Security (RFE-AI-005) - Unit Tests', () => {
     });
   });
 
-  describe('🔐 Document Processor - organizationId Handling', () => {
+  describe('🔐 Document Processor - organizationId Handling', (): void => {
     it('should reject processDocument() without organizationId', async () => {
       const testDoc = await DocumentModel.create({
         filename: 'test-no-org.txt',
@@ -239,7 +239,7 @@ describe('RAG Multitenancy Security (RFE-AI-005) - Unit Tests', () => {
       ).rejects.toThrow('Organization ID is required');
     });
 
-    it('should create chunks with correct organizationId', async () => {
+    it('should create chunks with correct organizationId', async (): Promise<void> => {
       const testDoc = await DocumentModel.create({
         filename: 'test-with-org.txt',
         originalname: 'Test With Org.txt',
@@ -271,8 +271,8 @@ describe('RAG Multitenancy Security (RFE-AI-005) - Unit Tests', () => {
     });
   });
 
-  describe('📝 Documentation - Vector Search Integration Tests', () => {
-    it('should document that $vectorSearch tests require real Atlas', async () => {
+  describe('📝 Documentation - Vector Search Integration Tests', (): void => {
+    it('should document that $vectorSearch tests require real Atlas', (): void => {
       /**
        * NOTA PARA DESARROLLADORES:
        *

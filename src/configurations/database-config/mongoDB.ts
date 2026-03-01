@@ -6,6 +6,13 @@ import mongoose from 'mongoose';
  */
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/clouddocs';
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
 /**
  * Establece la conexión con la base de datos MongoDB
  *
@@ -13,11 +20,11 @@ const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/clouddocs'
  */
 export async function connectMongo(): Promise<void> {
   try {
-    console.log('[database] Connecting to MongoDB...', MONGO_URI);
+    console.warn('[database] Connecting to MongoDB...', MONGO_URI);
     await mongoose.connect(MONGO_URI);
-    console.log('[database] MongoDB connected');
-  } catch (err: any) {
-    console.error('[database] MongoDB connection error:', err.message);
+    console.warn('[database] MongoDB connected');
+  } catch (err: unknown) {
+    console.error('[database] MongoDB connection error:', getErrorMessage(err));
     throw err;
   }
 }

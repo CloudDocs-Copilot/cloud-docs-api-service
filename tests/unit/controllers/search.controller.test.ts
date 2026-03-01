@@ -6,14 +6,14 @@ import HttpError from '../../../src/models/error.model';
 
 jest.mock('../../../src/services/search.service');
 
-describe('SearchController', () => {
+describe('SearchController', (): void => {
   let mockReq: Partial<AuthRequest>;
   let mockRes: Partial<Response>;
   let mockNext: NextFunction;
 
   beforeEach(() => {
     mockReq = {
-      user: { id: 'user123', email: 'test@example.com', name: 'Test' } as any,
+      user: { id: 'user123', email: 'test@example.com', name: 'Test' } as unknown as { id: string; email: string; name?: string },
       query: {}
     };
     mockRes = {
@@ -26,11 +26,11 @@ describe('SearchController', () => {
     jest.clearAllMocks();
   });
 
-  describe('search', () => {
-    it('should return 400 when q parameter is missing', async () => {
+  describe('search', (): void => {
+    it('should return 400 when q parameter is missing', async (): Promise<void> => {
       mockReq.query = {};
 
-      await searchController.search(mockReq as AuthRequest, mockRes as Response, mockNext);
+      await searchController.search(mockReq as unknown as AuthRequest, mockRes as Response, mockNext);
 
       expect(mockNext).toHaveBeenCalledWith(expect.any(HttpError));
       expect(mockNext).toHaveBeenCalledWith(
@@ -38,15 +38,15 @@ describe('SearchController', () => {
       );
     });
 
-    it('should return 400 when q parameter is not a string', async () => {
-      mockReq.query = { q: 123 as any };
+    it('should return 400 when q parameter is not a string', async (): Promise<void> => {
+      mockReq.query = { q: 123 as unknown };
 
-      await searchController.search(mockReq as AuthRequest, mockRes as Response, mockNext);
+      await searchController.search(mockReq as unknown as AuthRequest, mockRes as Response, mockNext);
 
       expect(mockNext).toHaveBeenCalledWith(expect.any(HttpError));
     });
 
-    it('should call searchDocuments with correct params', async () => {
+    it('should call searchDocuments with correct params', async (): Promise<void> => {
       mockReq.query = { q: 'test query', limit: '10', offset: '5' };
       (searchService.searchDocuments as jest.Mock).mockResolvedValue({
         documents: [],
@@ -54,7 +54,7 @@ describe('SearchController', () => {
         took: 10
       });
 
-      await searchController.search(mockReq as AuthRequest, mockRes as Response, mockNext);
+      await searchController.search(mockReq as unknown as AuthRequest, mockRes as Response, mockNext);
 
       expect(searchService.searchDocuments).toHaveBeenCalledWith({
         query: 'test query',
@@ -69,22 +69,22 @@ describe('SearchController', () => {
       expect(mockRes.json).toHaveBeenCalled();
     });
 
-    it('should handle errors and call next with HttpError', async () => {
+    it('should handle errors and call next with HttpError', async (): Promise<void> => {
       mockReq.query = { q: 'test' };
       (searchService.searchDocuments as jest.Mock).mockRejectedValue(new Error('Search failed'));
 
-      await searchController.search(mockReq as AuthRequest, mockRes as Response, mockNext);
+      await searchController.search(mockReq as unknown as AuthRequest, mockRes as Response, mockNext);
 
       expect(mockNext).toHaveBeenCalledWith(expect.any(HttpError));
       expect(mockNext).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 500 }));
     });
   });
 
-  describe('autocomplete', () => {
-    it('should return 400 when q parameter is missing', async () => {
+  describe('autocomplete', (): void => {
+    it('should return 400 when q parameter is missing', async (): Promise<void> => {
       mockReq.query = {};
 
-      await searchController.autocomplete(mockReq as AuthRequest, mockRes as Response, mockNext);
+      await searchController.autocomplete(mockReq as unknown as AuthRequest, mockRes as Response, mockNext);
 
       expect(mockNext).toHaveBeenCalledWith(expect.any(HttpError));
       expect(mockNext).toHaveBeenCalledWith(
@@ -92,26 +92,26 @@ describe('SearchController', () => {
       );
     });
 
-    it('should call getAutocompleteSuggestions with correct params', async () => {
+    it('should call getAutocompleteSuggestions with correct params', async (): Promise<void> => {
       mockReq.query = { q: 'test', limit: '3' };
       (searchService.getAutocompleteSuggestions as jest.Mock).mockResolvedValue(['test1', 'test2']);
 
-      await searchController.autocomplete(mockReq as AuthRequest, mockRes as Response, mockNext);
+      await searchController.autocomplete(mockReq as unknown as AuthRequest, mockRes as Response, mockNext);
 
-      expect(searchService.getAutocompleteSuggestions).toHaveBeenCalledWith('test', 'user123', 3);
+      expect(searchService.getAutocompleteSuggestions).toHaveBeenCalledWith('test', 'user123', undefined, 3);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: true,
         suggestions: ['test1', 'test2']
       });
     });
 
-    it('should handle errors and call next with HttpError', async () => {
+    it('should handle errors and call next with HttpError', async (): Promise<void> => {
       mockReq.query = { q: 'test' };
       (searchService.getAutocompleteSuggestions as jest.Mock).mockRejectedValue(
         new Error('Failed')
       );
 
-      await searchController.autocomplete(mockReq as AuthRequest, mockRes as Response, mockNext);
+      await searchController.autocomplete(mockReq as unknown as AuthRequest, mockRes as Response, mockNext);
 
       expect(mockNext).toHaveBeenCalledWith(expect.any(HttpError));
     });

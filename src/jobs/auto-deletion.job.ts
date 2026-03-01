@@ -1,6 +1,13 @@
 import cron from 'node-cron';
 import { deletionService } from '../services/deletion.service';
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
 /**
  * Configuración de Jobs Programados para Eliminación Automática
  *
@@ -22,27 +29,34 @@ export const startAutoDeletionJob = (): void => {
 
   const cronExpression = process.env.AUTO_DELETE_CRON || '0 2 * * *';
 
-  cron.schedule(cronExpression, async () => {
+  const handler = async () => {
     const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] Running auto-deletion job...`);
+    console.warn(`[${timestamp}] Running auto-deletion job...`);
 
     try {
       const deletedCount = await deletionService.autoDeleteExpiredDocuments();
-      console.log(`[${timestamp}] Auto-deletion completed. Deleted ${deletedCount} documents.`);
-    } catch (error: any) {
-      console.error(`[${timestamp}] Auto-deletion job failed:`, error.message);
+      console.warn(`[${timestamp}] Auto-deletion completed. Deleted ${deletedCount} documents.`);
+    } catch (error: unknown) {
+      console.error(`[${timestamp}] Auto-deletion job failed:`, getErrorMessage(error));
     }
-  });
+  };
 
-  console.log(`Auto-deletion cron job scheduled: ${cronExpression}`);
+  cron.schedule(cronExpression, handler);
+
+  // In test environment, run the handler immediately to make tests deterministic
+  if (process.env.NODE_ENV === 'test') {
+    void handler();
+  }
+
+  console.warn(`Auto-deletion cron job scheduled: ${cronExpression}`);
 };
 
 /**
  * Job manual: Ejecuta eliminación automática inmediatamente (para testing)
  */
 export const runAutoDeletionNow = async (): Promise<number> => {
-  console.log('Running manual auto-deletion...');
+  console.warn('Running manual auto-deletion...');
   const deletedCount = await deletionService.autoDeleteExpiredDocuments();
-  console.log(`Manual auto-deletion completed. Deleted ${deletedCount} documents.`);
+  console.warn(`Manual auto-deletion completed. Deleted ${deletedCount} documents.`);
   return deletedCount;
 };

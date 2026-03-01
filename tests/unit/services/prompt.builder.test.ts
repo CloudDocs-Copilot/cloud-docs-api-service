@@ -4,9 +4,9 @@
 
 import { buildPrompt } from '../../../src/services/ai/prompt.builder';
 
-describe('Prompt Builder', () => {
-  describe('buildPrompt', () => {
-    it('should build a valid RAG prompt with context', () => {
+describe('Prompt Builder', (): void => {
+  describe('buildPrompt', (): void => {
+    it('should build a valid RAG prompt with context', (): void => {
       const question = '¿Cuáles son los objetivos principales?';
       const chunks = [
         'Los objetivos principales incluyen aumentar las ventas en un 20%.',
@@ -25,7 +25,7 @@ describe('Prompt Builder', () => {
       expect(prompt).toContain('[Fragmento 3]');
     });
 
-    it('should number chunks sequentially', () => {
+    it('should number chunks sequentially', (): void => {
       const question = 'Test question';
       const chunks = ['First chunk', 'Second chunk', 'Third chunk', 'Fourth chunk'];
 
@@ -41,7 +41,7 @@ describe('Prompt Builder', () => {
       expect(prompt).toContain('Fourth chunk');
     });
 
-    it('should include instructions to answer based on context', () => {
+    it('should include instructions to answer based on context', (): void => {
       const question = 'What is the answer?';
       const chunks = ['This is context'];
 
@@ -51,7 +51,7 @@ describe('Prompt Builder', () => {
       expect(prompt.toLowerCase()).toMatch(/context|información|fragmentos|documents/i);
     });
 
-    it('should handle empty chunks array', () => {
+    it('should handle empty chunks array', (): void => {
       const question = '¿Qué información hay?';
       const chunks: string[] = [];
 
@@ -59,7 +59,7 @@ describe('Prompt Builder', () => {
       expect(() => buildPrompt(question, chunks)).toThrow('At least one context chunk is required');
     });
 
-    it('should handle single chunk', () => {
+    it('should handle single chunk', (): void => {
       const question = 'Single chunk test?';
       const chunks = ['Only one piece of information here.'];
 
@@ -70,7 +70,7 @@ describe('Prompt Builder', () => {
       expect(prompt).toContain('Only one piece of information here');
     });
 
-    it('should handle chunks with special characters', () => {
+    it('should handle chunks with special characters', (): void => {
       const question = 'Test with special chars?';
       const chunks = [
         'Text with "quotes" and \'apostrophes\'',
@@ -85,7 +85,7 @@ describe('Prompt Builder', () => {
       expect(prompt).toContain('&');
     });
 
-    it('should handle very long chunks', () => {
+    it('should handle very long chunks', (): void => {
       const question = 'Long chunk test?';
       const longChunk = 'A'.repeat(5000);
       const chunks = [longChunk];
@@ -96,7 +96,7 @@ describe('Prompt Builder', () => {
       expect(prompt.length).toBeGreaterThan(5000);
     });
 
-    it('should handle multilingual content', () => {
+    it('should handle multilingual content', (): void => {
       const question = '¿Qué idiomas se soportan?';
       const chunks = [
         'English content here',
@@ -113,7 +113,7 @@ describe('Prompt Builder', () => {
       expect(prompt).toContain('français');
     });
 
-    it('should maintain chunk order', () => {
+    it('should maintain chunk order', (): void => {
       const question = 'Order test?';
       const chunks = ['First', 'Second', 'Third', 'Fourth', 'Fifth'];
 
@@ -132,7 +132,7 @@ describe('Prompt Builder', () => {
       expect(fifthIndex).toBeGreaterThan(fourthIndex);
     });
 
-    it('should handle chunks with markdown-like content', () => {
+    it('should handle chunks with markdown-like content', (): void => {
       const question = 'Markdown test?';
       const chunks = [
         '# Heading\n\n## Subheading',

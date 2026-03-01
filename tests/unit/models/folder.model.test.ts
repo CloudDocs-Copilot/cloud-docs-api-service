@@ -4,7 +4,7 @@ import Folder from '../../../src/models/folder.model';
 import User from '../../../src/models/user.model';
 import Organization from '../../../src/models/organization.model';
 
-describe('Folder Model - Hierarchical Structure', () => {
+describe('Folder Model - Hierarchical Structure', (): void => {
   let mongoServer: MongoMemoryServer;
   let testUserId: mongoose.Types.ObjectId;
   let testOrgId: mongoose.Types.ObjectId;
@@ -39,8 +39,8 @@ describe('Folder Model - Hierarchical Structure', () => {
     await User.deleteMany({ _id: { $ne: testUserId } }); // Limpiar usuarios excepto el de prueba
   });
 
-  describe('Basic Folder Creation', () => {
-    it('should create folder with required fields', async () => {
+  describe('Basic Folder Creation', (): void => {
+    it('should create folder with required fields', async (): Promise<void> => {
       const folder = await Folder.create({
         name: 'Test Folder',
         type: 'folder',
@@ -60,7 +60,7 @@ describe('Folder Model - Hierarchical Structure', () => {
       expect(folder.path).toBe('/test-org/folder');
     });
 
-    it('should default type to folder', async () => {
+    it('should default type to folder', async (): Promise<void> => {
       const folder = await Folder.create({
         name: 'Default Type Folder',
         owner: testUserId,
@@ -73,7 +73,7 @@ describe('Folder Model - Hierarchical Structure', () => {
       expect(folder.type).toBe('folder');
     });
 
-    it('should allow organization field to be optional', async () => {
+    it('should allow organization field to be optional', async (): Promise<void> => {
       const folder = await Folder.create({
         name: 'No Org Folder',
         type: 'folder',
@@ -88,8 +88,8 @@ describe('Folder Model - Hierarchical Structure', () => {
     });
   });
 
-  describe('Root Folder with Technical Name', () => {
-    it('should create root folder with technical identifier', async () => {
+  describe('Root Folder with Technical Name', (): void => {
+    it('should create root folder with technical identifier', async (): Promise<void> => {
       const rootFolder = await Folder.create({
         name: `root_test-organization_${testUserId}`,
         type: 'root',
@@ -106,7 +106,7 @@ describe('Folder Model - Hierarchical Structure', () => {
       expect(rootFolder.parent).toBeNull();
     });
 
-    it('should use displayName for user-friendly name', async () => {
+    it('should use displayName for user-friendly name', async (): Promise<void> => {
       const rootFolder = await Folder.create({
         name: `root_test-organization_${testUserId}`,
         displayName: 'Mi Unidad',
@@ -123,7 +123,7 @@ describe('Folder Model - Hierarchical Structure', () => {
       expect(rootFolder.visibleName).toBe('Mi Unidad');
     });
 
-    it('should fallback to name if no displayName', async () => {
+    it('should fallback to name if no displayName', async (): Promise<void> => {
       const folder = await Folder.create({
         name: 'technical_name',
         type: 'folder',
@@ -139,8 +139,8 @@ describe('Folder Model - Hierarchical Structure', () => {
     });
   });
 
-  describe('Folder Type Validation', () => {
-    it('should accept valid folder types', async () => {
+  describe('Folder Type Validation', (): void => {
+    it('should accept valid folder types', async (): Promise<void> => {
       const types: ('root' | 'folder' | 'shared')[] = ['root', 'folder', 'shared'];
 
       for (const type of types) {
@@ -158,7 +158,7 @@ describe('Folder Model - Hierarchical Structure', () => {
       }
     });
 
-    it('should reject invalid folder type', async () => {
+    it('should reject invalid folder type', async (): Promise<void> => {
       await expect(
         Folder.create({
           name: 'Invalid Type Folder',
@@ -173,8 +173,8 @@ describe('Folder Model - Hierarchical Structure', () => {
     });
   });
 
-  describe('Parent-Child Relationship', () => {
-    it('should create subfolder with parent reference', async () => {
+  describe('Parent-Child Relationship', (): void => {
+    it('should create subfolder with parent reference', async (): Promise<void> => {
       const parentFolder = await Folder.create({
         name: 'Parent Folder',
         type: 'folder',
@@ -198,7 +198,7 @@ describe('Folder Model - Hierarchical Structure', () => {
       expect(childFolder.parent?.toString()).toBe(parentFolder._id.toString());
     });
 
-    it('should build correct nested path', async () => {
+    it('should build correct nested path', async (): Promise<void> => {
       const root = await Folder.create({
         name: `root_test-organization_${testUserId}`,
         type: 'root',
@@ -232,7 +232,7 @@ describe('Folder Model - Hierarchical Structure', () => {
       expect(level2.path).toBe(`/test-org/${testUserId}/projects/project-a`);
     });
 
-    it('should find children of a parent folder', async () => {
+    it('should find children of a parent folder', async (): Promise<void> => {
       const parent = await Folder.create({
         name: 'Parent',
         type: 'folder',
@@ -268,8 +268,8 @@ describe('Folder Model - Hierarchical Structure', () => {
     });
   });
 
-  describe('Permissions System', () => {
-    it('should share folder with viewer permission', async () => {
+  describe('Permissions System', (): void => {
+    it('should share folder with viewer permission', async (): Promise<void> => {
       const folder = await Folder.create({
         name: 'Shared Folder',
         type: 'folder',
@@ -295,7 +295,7 @@ describe('Folder Model - Hierarchical Structure', () => {
       expect(folder.sharedWith).toContainEqual(otherUser._id);
     });
 
-    it('should share folder with editor permission', async () => {
+    it('should share folder with editor permission', async (): Promise<void> => {
       const folder = await Folder.create({
         name: 'Editor Shared Folder',
         type: 'folder',
@@ -318,7 +318,7 @@ describe('Folder Model - Hierarchical Structure', () => {
       expect(folder.permissions[0].role).toBe('editor');
     });
 
-    it('should update permission role when sharing again', async () => {
+    it('should update permission role when sharing again', async (): Promise<void> => {
       const folder = await Folder.create({
         name: 'Update Permission Folder',
         type: 'folder',
@@ -345,7 +345,7 @@ describe('Folder Model - Hierarchical Structure', () => {
       expect(folder.permissions[0].role).toBe('editor');
     });
 
-    it('should not share folder with owner', async () => {
+    it('should not share folder with owner', async (): Promise<void> => {
       const folder = await Folder.create({
         name: 'Owner Share Folder',
         type: 'folder',
@@ -362,7 +362,7 @@ describe('Folder Model - Hierarchical Structure', () => {
       expect(folder.permissions).toHaveLength(0);
     });
 
-    it('should remove user access with unshareWith', async () => {
+    it('should remove user access with unshareWith', async (): Promise<void> => {
       const folder = await Folder.create({
         name: 'Unshare Folder',
         type: 'folder',
@@ -390,8 +390,8 @@ describe('Folder Model - Hierarchical Structure', () => {
     });
   });
 
-  describe('Access Control', () => {
-    it('should grant owner full access', async () => {
+  describe('Access Control', (): void => {
+    it('should grant owner full access', async (): Promise<void> => {
       const folder = await Folder.create({
         name: 'Owner Access Folder',
         type: 'folder',
@@ -408,7 +408,7 @@ describe('Folder Model - Hierarchical Structure', () => {
       expect(folder.hasAccess(testUserId.toString(), 'viewer')).toBe(true);
     });
 
-    it('should verify viewer access', async () => {
+    it('should verify viewer access', async (): Promise<void> => {
       const folder = await Folder.create({
         name: 'Viewer Access Folder',
         type: 'folder',
@@ -433,7 +433,7 @@ describe('Folder Model - Hierarchical Structure', () => {
       expect(folder.hasAccess(viewer._id.toString(), 'owner')).toBe(false);
     });
 
-    it('should verify editor access', async () => {
+    it('should verify editor access', async (): Promise<void> => {
       const folder = await Folder.create({
         name: 'Editor Access Folder',
         type: 'folder',
@@ -458,7 +458,7 @@ describe('Folder Model - Hierarchical Structure', () => {
       expect(folder.hasAccess(editor._id.toString(), 'owner')).toBe(false);
     });
 
-    it('should deny access to users without permissions', async () => {
+    it('should deny access to users without permissions', async (): Promise<void> => {
       const folder = await Folder.create({
         name: 'No Access Folder',
         type: 'folder',
@@ -479,8 +479,8 @@ describe('Folder Model - Hierarchical Structure', () => {
     });
   });
 
-  describe('Indexes', () => {
-    it('should have index on organization and owner', async () => {
+  describe('Indexes', (): void => {
+    it('should have index on organization and owner', async (): Promise<void> => {
       const indexes = await Folder.collection.getIndexes();
       const orgOwnerIndex = Object.keys(indexes).find(
         key => key.includes('organization') && key.includes('owner')
@@ -488,7 +488,7 @@ describe('Folder Model - Hierarchical Structure', () => {
       expect(orgOwnerIndex).toBeDefined();
     });
 
-    it('should have index on organization and parent', async () => {
+    it('should have index on organization and parent', async (): Promise<void> => {
       const indexes = await Folder.collection.getIndexes();
       const orgParentIndex = Object.keys(indexes).find(
         key => key.includes('organization') && key.includes('parent')
@@ -496,7 +496,7 @@ describe('Folder Model - Hierarchical Structure', () => {
       expect(orgParentIndex).toBeDefined();
     });
 
-    it('should have index on owner and isRoot', async () => {
+    it('should have index on owner and isRoot', async (): Promise<void> => {
       const indexes = await Folder.collection.getIndexes();
       const rootIndex = Object.keys(indexes).find(
         key => key.includes('owner') && key.includes('isRoot')

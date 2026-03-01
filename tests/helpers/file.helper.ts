@@ -6,6 +6,8 @@
 import path from 'path';
 import fs from 'fs';
 import { request, app } from '../setup';
+import { bodyOf } from '.';
+import type { Response } from 'supertest';
 import { DocumentBuilder } from '../builders/document.builder';
 import User from '../../src/models/user.model';
 
@@ -43,8 +45,13 @@ export function deleteTempFiles(filePaths: string[]): void {
  */
 function extractUserIdFromToken(token: string): string | null {
   try {
-    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-    return payload.id || payload.userId || null;
+    const parsed = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString()) as unknown;
+    if (typeof parsed === 'object' && parsed !== null) {
+      const p = parsed as Record<string, unknown>;
+      const id = typeof p.id === 'string' ? p.id : typeof p.userId === 'string' ? p.userId : null;
+      return id;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -63,7 +70,7 @@ export async function uploadTestFile(
     folderId?: string;
     organizationId?: string;
   }
-): Promise<any> {
+): Promise<Response> {
   const builder = new DocumentBuilder()
     .withFilename(options?.filename || 'test-file.txt')
     .withContent(options?.content || 'Test content')
@@ -118,7 +125,7 @@ export async function uploadTestFile(
 
     const response = await req;
 
-    return response;
+    return response as Response;
   } finally {
     DocumentBuilder.deleteTempFile(filePath);
   }
@@ -132,15 +139,15 @@ export async function uploadMultipleFiles(
   authData: string | string[],
   count: number,
   prefix: string = 'file'
-): Promise<any[]> {
-  const results: any[] = [];
+): Promise<unknown[]> {
+  const results: unknown[] = [];
 
   for (let i = 0; i < count; i++) {
     const response = await uploadTestFile(authData, {
       filename: `${prefix}-${i + 1}.txt`,
       content: `Content for ${prefix} ${i + 1}`
     });
-    results.push(response.body);
+    results.push(bodyOf(response as Response));
   }
 
   return results;

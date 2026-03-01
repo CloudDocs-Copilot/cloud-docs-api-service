@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import * as membershipService from '../services/membership.service';
 import HttpError from '../models/error.model';
+import { MembershipRole } from '../models/membership.model';
 
 /**
  * Obtiene todas las organizaciones del usuario autenticado
@@ -20,7 +21,7 @@ export async function getMyOrganizations(
       count: memberships.length,
       data: memberships
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -44,7 +45,7 @@ export async function getOrganizationMembers(
       count: members.length,
       data: members
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -68,7 +69,7 @@ export async function switchOrganization(
       message: 'Active organization switched successfully',
       organizationId
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -91,7 +92,7 @@ export async function leaveOrganization(
       success: true,
       message: 'You have left the organization successfully'
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -132,9 +133,10 @@ export async function setActiveOrganization(
   next: NextFunction
 ): Promise<void> {
   try {
-    const { organizationId } = req.body;
+    const body = req.body as Record<string, unknown>;
+    const organizationId = body.organizationId;
 
-    if (!organizationId) {
+    if (typeof organizationId !== 'string' || !organizationId) {
       return next(new HttpError(400, 'organizationId is required'));
     }
 
@@ -145,7 +147,7 @@ export async function setActiveOrganization(
       message: 'Active organization updated successfully',
       activeOrganization: organizationId
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -162,15 +164,28 @@ export async function inviteUserToOrganization(
 ): Promise<void> {
   try {
     const { organizationId } = req.params;
-    const { userId, role = 'member' } = req.body;
+    const body = req.body as Record<string, unknown>;
+    const userId = body.userId;
+    const roleValue = body.role;
 
-    if (!userId) {
+    if (typeof userId !== 'string' || !userId) {
       return next(new HttpError(400, 'userId is required'));
     }
 
     // Ensure userId is a string and looks like a MongoDB ObjectId to avoid NoSQL injection
-    if (typeof userId !== 'string' || !/^[a-fA-F0-9]{24}$/.test(userId)) {
+    if (!/^[a-fA-F0-9]{24}$/.test(userId)) {
       return next(new HttpError(400, 'Invalid userId format'));
+    }
+
+    // Validate role against MembershipRole enum
+    let role: MembershipRole = MembershipRole.MEMBER; // Default role
+    if (typeof roleValue === 'string') {
+      const validRoles = Object.values(MembershipRole);
+      if (validRoles.includes(roleValue as MembershipRole)) {
+        role = roleValue as MembershipRole;
+      } else {
+        return next(new HttpError(400, 'Invalid role. Valid roles: owner, admin, member, viewer'));
+      }
     }
 
     const invitation = await membershipService.createInvitation({
@@ -185,7 +200,7 @@ export async function inviteUserToOrganization(
       message: 'Invitation sent successfully',
       invitation
     });
-  } catch (err) {
+  } catch (err: unknown) {
     next(err);
   }
 }
@@ -202,11 +217,19 @@ export async function updateMemberRole(
 ): Promise<void> {
   try {
     const { membershipId } = req.params;
-    const { role } = req.body;
+    const body = req.body as Record<string, unknown>;
+    const roleValue = body.role;
 
-    if (!role) {
+    if (typeof roleValue !== 'string' || !roleValue) {
       return next(new HttpError(400, 'role is required'));
     }
+
+    // Validate role against MembershipRole enum
+    const validRoles = Object.values(MembershipRole);
+    if (!validRoles.includes(roleValue as MembershipRole)) {
+      return next(new HttpError(400, 'Invalid role. Valid roles: owner, admin, member, viewer'));
+    }
+    const role = roleValue as MembershipRole;
 
     const membership = await membershipService.updateMembershipRole(
       String(membershipId),

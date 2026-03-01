@@ -117,7 +117,7 @@ export function validateUrl(urlString: string, allowedDomains?: string[]): UrlVa
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(urlString);
-  } catch (error) {
+  } catch {
     errors.push('Invalid URL format');
     return { isValid: false, errors };
   }
@@ -233,7 +233,7 @@ export function sanitizeUrl(urlString: string): string {
     url.hash = '';
 
     return url.toString();
-  } catch (error) {
+  } catch {
     throw new Error('Cannot sanitize invalid URL');
   }
 }
@@ -248,7 +248,7 @@ export function extractBaseDomain(urlString: string): string {
   try {
     const url = new URL(urlString);
     return url.hostname.toLowerCase();
-  } catch (error) {
+  } catch {
     throw new Error('Cannot extract domain from invalid URL');
   }
 }

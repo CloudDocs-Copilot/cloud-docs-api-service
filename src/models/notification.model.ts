@@ -24,7 +24,7 @@ export interface INotification extends MongooseDocument {
 
   // extra info for UI (keep it small)
   message?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 
   readAt?: Date | null;
 

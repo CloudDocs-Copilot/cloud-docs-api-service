@@ -1,5 +1,5 @@
 import { request, app } from '../setup';
-import { mediumDelay, registerAndLogin } from '../helpers';
+import { mediumDelay, registerAndLogin, bodyOf } from '../helpers';
 import { weakPasswordUsers, strongPasswordUser } from '../fixtures';
 import { UserBuilder } from '../builders';
 
@@ -7,8 +7,8 @@ import { UserBuilder } from '../builders';
  * Tests de validación de contraseñas
  * Prueba que las contraseñas cumplan con los requisitos de seguridad
  */
-describe('Password Validation', () => {
-  describe('POST /api/auth/register - Password Strength', () => {
+describe('Password Validation', (): void => {
+  describe('POST /api/auth/register - Password Strength', (): void => {
     // Agregar delay entre cada test para evitar rate limiting
     afterEach(async () => {
       await mediumDelay();
@@ -16,14 +16,14 @@ describe('Password Validation', () => {
 
     // Tests dinámicos usando fixture de contraseñas débiles
     weakPasswordUsers.forEach(testCase => {
-      it(`should reject password: ${testCase.expectedError}`, async () => {
+      it(`should reject password: ${testCase.expectedError}`, async (): Promise<void> => {
         const response = await request(app).post('/api/auth/register').send(testCase).expect(400);
-
-        expect(response.body.error).toContain(testCase.expectedError);
+        const body = bodyOf(response) as Record<string, unknown>;
+        expect((body['error'] as string)).toContain(testCase.expectedError);
       });
     });
 
-    it('should accept strong password', async () => {
+    it('should accept strong password', async (): Promise<void> => {
       // Crear organización de prueba primero
       const auth = await registerAndLogin();
 
@@ -34,14 +34,15 @@ describe('Password Validation', () => {
         .build();
 
       const response = await request(app).post('/api/auth/register').send(user).expect(201);
-
-      expect(response.body).toHaveProperty('user');
-      expect(response.body.user.email).toBe(user.email);
+      const body = bodyOf(response) as Record<string, unknown>;
+      expect(body['user']).toBeDefined();
+      const userObj = body['user'] as Record<string, unknown>;
+      expect(userObj['email']).toBe(user.email);
     });
   });
 
-  describe('PATCH /api/users/:id/password - Change Password Validation', () => {
-    it('should reject weak new password', async () => {
+  describe('PATCH /api/users/:id/password - Change Password Validation', (): void => {
+    it('should reject weak new password', async (): Promise<void> => {
       // Register and login user for this test
       const oldPassword = 'OldPass@123';
       const auth = await registerAndLogin({
@@ -62,10 +63,11 @@ describe('Password Validation', () => {
         })
         .expect(400);
 
-      expect(response.body.error).toContain('Password validation failed');
+      const body = bodyOf(response) as Record<string, unknown>;
+      expect((body['error'] as string)).toContain('Password validation failed');
     });
 
-    it('should reject new password without special character', async () => {
+    it('should reject new password without special character', async (): Promise<void> => {
       // Register and login user for this test
       const oldPassword = 'OldPass@123';
       const auth = await registerAndLogin({
@@ -86,10 +88,11 @@ describe('Password Validation', () => {
         })
         .expect(400);
 
-      expect(response.body.error).toContain('special character');
+      const body = bodyOf(response) as Record<string, unknown>;
+      expect((body['error'] as string)).toContain('special character');
     });
 
-    it('should accept strong new password', async () => {
+    it('should accept strong new password', async (): Promise<void> => {
       // Register and login user for this test
       const oldPassword = 'OldPass@123';
       const auth = await registerAndLogin({
@@ -110,7 +113,8 @@ describe('Password Validation', () => {
         })
         .expect(200);
 
-      expect(response.body.message).toBe('Password updated successfully');
+      const body = bodyOf(response) as Record<string, unknown>;
+      expect((body['message'] as string)).toBe('Password updated successfully');
     });
   });
 });
