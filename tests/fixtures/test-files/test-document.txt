@@ -1,0 +1,5 @@
+Este es un documento de prueba para el procesamiento AI.
+
+Contiene múltiples párrafos.
+
+Y suficiente texto para probar la extracción.

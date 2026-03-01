@@ -9,7 +9,7 @@ import Organization from '../models/organization.model';
 import HttpError from '../models/error.model';
 import { sanitizePathOrThrow, isPathWithinBase } from '../utils/path-sanitizer';
 import { validateFolderAccess } from './folder.service';
-import { getMembership, getActiveOrganization, hasAnyRole } from './membership.service';
+import { getMembership, getActiveOrganization, hasAnyRole, hasActiveMembership } from './membership.service';
 import { MembershipRole } from '../models/membership.model';
 import { PLAN_LIMITS } from '../models/types/organization.types';
 import * as searchService from './search.service';
@@ -71,6 +71,7 @@ export interface RenameDocumentDto {
 
 export interface GetRecentDocumentsDto {
   userId: string;
+  organizationId?: string; // ID de la organización específica
   limit?: number;
 }
 
@@ -800,28 +801,43 @@ export async function copyDocument({
 }
 
 /**
- * Obtener documentos recientes del usuario en su organización activa
+ * Obtener documentos recientes del usuario en una organización específica
  */
 export async function getUserRecentDocuments({
   userId,
-  limit = 10
+  organizationId,
+  limit = 20
 }: GetRecentDocumentsDto): Promise<IDocument[]> {
   // Validar que el ID sea ObjectId válido
   if (!isValidObjectId(userId)) {
     throw new HttpError(400, 'Invalid user ID');
   }
 
-  // Obtener organización activa del usuario
-  const activeOrgId = await getActiveOrganization(userId);
-
-  if (!activeOrgId) {
-    throw new HttpError(
-      403,
-      'No active organization. Please create or join an organization first.'
-    );
+  // Usar organizationId si se proporciona, sino usar la organización activa
+  let orgId: string;
+  if (organizationId) {
+    if (!isValidObjectId(organizationId)) {
+      throw new HttpError(400, 'Invalid organization ID');
+    }
+    // Verificar que el usuario tenga membresía activa en esa organización
+    const hasAccess = await hasActiveMembership(userId, organizationId);
+    if (!hasAccess) {
+      throw new HttpError(403, 'No access to this organization');
+    }
+    orgId = organizationId;
+  } else {
+    // Obtener organización activa del usuario
+    const activeOrgId = await getActiveOrganization(userId);
+    if (!activeOrgId) {
+      throw new HttpError(
+        403,
+        'No active organization. Please create or join an organization first.'
+      );
+    }
+    orgId = activeOrgId;
   }
 
-  const orgObjectId = new mongoose.Types.ObjectId(activeOrgId);
+  const orgObjectId = new mongoose.Types.ObjectId(orgId);
 
   const documents = await DocumentModel.find({
     organization: orgObjectId,
@@ -833,13 +849,13 @@ export async function getUserRecentDocuments({
     .select('-__v')
     .lean();
 
-  // Agregar campo calculado indicando si es propio o compartido
+  // Agregar campo calculado indicando si es propio o visible por organización
   const documentsWithAccessType = documents.map(doc => {
     const { _id, ...rest } = doc as any;
     return {
       ...rest,
       id: _id.toString(),
-      accessType: doc.uploadedBy.toString() === userId.toString() ? 'owner' : 'shared',
+      accessType: doc.uploadedBy.toString() === userId.toString() ? 'owner' : 'org',
       isOwned: doc.uploadedBy.toString() === userId.toString()
     };
   });

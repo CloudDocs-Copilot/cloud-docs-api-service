@@ -113,7 +113,11 @@ export async function getRecent(
   next: NextFunction
 ): Promise<void> {
   try {
-    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
+    // Validar que el límite no exceda 20 documentos
+    if (limit > 20) {
+      return next(new HttpError(400, 'Limit cannot exceed 20 documents'));
+    }
     const organizationId = req.params.organizationId;
 
     if (!organizationId) {
@@ -126,6 +130,7 @@ export async function getRecent(
 
     const docs = await documentService.getUserRecentDocuments({
       userId: req.user!.id,
+      organizationId,
       limit
     });
 

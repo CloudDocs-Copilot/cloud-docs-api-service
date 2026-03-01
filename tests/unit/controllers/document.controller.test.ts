@@ -295,7 +295,8 @@ describe('Document Controller', () => {
 
       expect(documentService.getUserRecentDocuments).toHaveBeenCalledWith({
         userId: mockUserId,
-        limit: 10
+        organizationId: mockOrgId,
+        limit: 20
       });
       expect(mockResponse.json).toHaveBeenCalledWith({
         success: true,
@@ -315,8 +316,24 @@ describe('Document Controller', () => {
 
       expect(documentService.getUserRecentDocuments).toHaveBeenCalledWith({
         userId: mockUserId,
+        organizationId: mockOrgId,
         limit: 5
       });
+    });
+
+    it('should reject limit exceeding 20 documents', async () => {
+      mockRequest.params = { organizationId: mockOrgId };
+      mockRequest.query = { limit: '25' };
+
+      await getRecent(mockRequest as AuthRequest, mockResponse as Response, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(
+        expect.objectContaining({
+          statusCode: 400,
+          message: 'Limit cannot exceed 20 documents'
+        })
+      );
+      expect(documentService.getUserRecentDocuments).not.toHaveBeenCalled();
     });
 
     it('should return 400 when organizationId is missing', async () => {

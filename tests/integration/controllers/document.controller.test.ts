@@ -246,7 +246,7 @@ describe('document.controller (unit)', () => {
       expect(mockGetUserRecentDocuments).not.toHaveBeenCalled();
     });
 
-    it('should default limit=10 and return docs', async () => {
+    it('should default limit=20 and return docs', async () => {
       const { getRecent } = require('../../../src/controllers/document.controller');
       mockGetUserRecentDocuments.mockResolvedValue([{ _id: 1 }, { _id: 2 }]);
 
@@ -256,7 +256,7 @@ describe('document.controller (unit)', () => {
 
       await getRecent(req, res, next);
 
-      expect(mockGetUserRecentDocuments).toHaveBeenCalledWith({ userId: USER_ID, limit: 10 });
+      expect(mockGetUserRecentDocuments).toHaveBeenCalledWith({ userId: USER_ID, organizationId: ORG_ID, limit: 20 });
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({ success: true, count: 2, documents: expect.any(Array) })
       );
@@ -276,7 +276,7 @@ describe('document.controller (unit)', () => {
 
       await getRecent(req, res, next);
 
-      expect(mockGetUserRecentDocuments).toHaveBeenCalledWith({ userId: USER_ID, limit: 2 });
+      expect(mockGetUserRecentDocuments).toHaveBeenCalledWith({ userId: USER_ID, organizationId: ORG_ID, limit: 2 });
     });
   });
 
