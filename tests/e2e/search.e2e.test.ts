@@ -10,6 +10,8 @@
  * - Backend corriendo en localhost:4000
  */
 
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any */
+
 import axios, { AxiosResponse } from 'axios';
 import { basicUser } from '../fixtures/user.fixtures';
 

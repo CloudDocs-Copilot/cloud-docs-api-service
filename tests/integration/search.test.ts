@@ -5,6 +5,8 @@ import UserModel from '../../src/models/user.model';
 import MembershipModel from '../../src/models/membership.model';
 import FolderModel from '../../src/models/folder.model';
 import * as searchService from '../../src/services/search.service';
+import { bodyOf } from '../helpers';
+import type { Response } from 'supertest';
 import { signToken } from '../../src/services/jwt.service';
 
 // Mock the search service with data-driven responses for this test suite
@@ -154,7 +156,7 @@ describe('Search API - Elasticsearch Integration', () => {
         .set('Authorization', `Bearer ${authToken}`)
         .set('X-Organization-ID', organizationId);
       expect(response.status).toBe(200);
-      const body = response.body as { success?: boolean; data?: Array<Record<string, unknown>>; total?: number };
+      const body = bodyOf(response as Response) as { success?: boolean; data?: Array<Record<string, unknown>>; total?: number };
       expect(body.success).toBe(true);
       expect(body.data?.length).toBeGreaterThan(0);
       expect(body.total).toBeGreaterThan(0);
@@ -167,7 +169,7 @@ describe('Search API - Elasticsearch Integration', () => {
         .set('Authorization', `Bearer ${authToken}`)
         .set('X-Organization-ID', organizationId);
       expect(response.status).toBe(200);
-      const body = response.body as { success?: boolean; data?: Array<Record<string, unknown>> };
+      const body = bodyOf(response as Response) as { success?: boolean; data?: Array<Record<string, unknown>> };
       expect(body.success).toBe(true);
       expect(body.data?.length).toBeGreaterThan(0);
     });
@@ -179,7 +181,7 @@ describe('Search API - Elasticsearch Integration', () => {
         .set('Authorization', `Bearer ${authToken}`)
         .set('X-Organization-ID', organizationId);
       expect(response.status).toBe(200);
-      const body = response.body as { success?: boolean; data?: Array<Record<string, unknown>> };
+      const body = bodyOf(response as Response) as { success?: boolean; data?: Array<Record<string, unknown>> };
       expect(body.success).toBe(true);
       expect(body.data?.length).toBeGreaterThan(0);
     });
@@ -194,7 +196,7 @@ describe('Search API - Elasticsearch Integration', () => {
         .set('Authorization', `Bearer ${authToken}`)
         .set('X-Organization-ID', organizationId);
       expect(response.status).toBe(200);
-      const body = response.body as { success?: boolean; data?: Array<Record<string, unknown>> };
+      const body = bodyOf(response as Response) as { success?: boolean; data?: Array<Record<string, unknown>> };
       expect(body.success).toBe(true);
       (body.data || []).forEach((doc) => {
         expect(String(doc.mimeType || '')).toBe('application/pdf');
@@ -212,7 +214,7 @@ describe('Search API - Elasticsearch Integration', () => {
         .set('Authorization', `Bearer ${authToken}`)
         .set('X-Organization-ID', organizationId);
       expect(response.status).toBe(200);
-      const body = response.body as { data?: Array<Record<string, unknown>> };
+      const body = bodyOf(response as Response) as { data?: Array<Record<string, unknown>> };
       expect(body.data?.length).toBeLessThanOrEqual(2);
     });
 
@@ -240,7 +242,7 @@ describe('Search API - Elasticsearch Integration', () => {
         .set('X-Organization-ID', organizationId);
 
       expect(response.status).toBe(200);
-      const body = response.body as { data?: Array<Record<string, unknown>> };
+      const body = bodyOf(response as Response) as { data?: Array<Record<string, unknown>> };
       (body.data || []).forEach((doc) => {
         expect(String(doc.organization || '')).toBe(organizationId);
       });
@@ -256,8 +258,9 @@ describe('Search API - Elasticsearch Integration', () => {
         .set('X-Organization-ID', organizationId);
 
       expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(Array.isArray(response.body.suggestions)).toBe(true);
+      const b = bodyOf(response as Response) as Record<string, unknown>;
+      expect(b['success']).toBe(true);
+      expect(Array.isArray(b['suggestions'])).toBe(true);
     });
 
     it('debe limitar el número de sugerencias', async () => {
@@ -271,7 +274,8 @@ describe('Search API - Elasticsearch Integration', () => {
         .set('X-Organization-ID', organizationId);
 
       expect(response.status).toBe(200);
-      expect(response.body.suggestions.length).toBeLessThanOrEqual(3);
+      const b2 = bodyOf(response as Response) as Record<string, unknown>;
+      expect((b2['suggestions'] as unknown[]).length).toBeLessThanOrEqual(3);
     });
 
     it('debe retornar 400 si falta el parámetro q', async () => {

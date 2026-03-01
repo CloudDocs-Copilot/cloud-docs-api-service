@@ -1,6 +1,6 @@
 import { request, app } from '../setup';
 import type { Response } from 'supertest';
-import { registerAndLogin } from '../helpers';
+import { registerAndLogin, bodyOf } from '../helpers';
 import { folderUser, basicFolder, duplicateFolder, multipleFolders } from '../fixtures';
 import { FolderBuilder } from '../builders';
 
@@ -31,9 +31,7 @@ describe('Folder Endpoints', (): void => {
     rootFolderId = user?.rootFolder?.toString() || '';
   });
 
-  function bodyOf(res: Response): Record<string, unknown> {
-    return (res.body as unknown) as Record<string, unknown>;
-  }
+
 
   describe('POST /api/folders', (): void => {
     it('should create a new folder', async (): Promise<void> => {
@@ -48,7 +46,7 @@ describe('Folder Endpoints', (): void => {
         })
         .expect(201);
 
-      const body = response.body as unknown as Record<string, unknown>;
+      const body = bodyOf(response as Response) as Record<string, unknown>;
       expect(body['success']).toBe(true);
       const folder = body['folder'] as Record<string, unknown>;
       expect(folder).toBeDefined();
@@ -63,7 +61,7 @@ describe('Folder Endpoints', (): void => {
         .send({ name: basicFolder.name })
         .expect(401);
 
-      expect(response.body).toHaveProperty('error');
+      expect(bodyOf(response)).toHaveProperty('error');
     });
 
     it('should allow duplicate name in same parent (folders identified by path)', async () => {
@@ -117,7 +115,7 @@ describe('Folder Endpoints', (): void => {
         .set('Cookie', tokenCookie?.split(';')[0] || '')
         .expect(200);
 
-      const body = response.body as unknown as Record<string, unknown>;
+      const body = bodyOf(response as Response) as Record<string, unknown>;
       expect(body['success']).toBe(true);
       const folders = body['folders'] as unknown[];
       expect(Array.isArray(folders)).toBe(true);
@@ -142,7 +140,7 @@ describe('Folder Endpoints', (): void => {
           parentId: rootFolderId
         });
 
-      const crBody = createResponse.body as unknown as Record<string, unknown>;
+      const crBody = bodyOf(createResponse as Response) as Record<string, unknown>;
       const folderId = ((crBody['folder'] as Record<string, unknown>)['id'] as string) || '';
 
       await request(app)
@@ -172,7 +170,7 @@ describe('Folder Endpoints', (): void => {
           parentId: rootFolderId
         });
 
-      const crBody = bodyOf(createResponse);
+      const crBody = bodyOf<Record<string, unknown>>(createResponse);
       const folderId = ((crBody['folder'] as Record<string, unknown>)['id'] as string) || '';
 
       const response = await request(app)
@@ -181,7 +179,7 @@ describe('Folder Endpoints', (): void => {
         .send({ name: newName })
         .expect(200);
 
-      const body = response.body as unknown as Record<string, unknown>;
+      const body = bodyOf(response as Response) as Record<string, unknown>;
       expect(body['success']).toBe(true);
       const folder = body['folder'] as Record<string, unknown>;
       expect(folder['name']).toBe(newName);

@@ -13,6 +13,8 @@
 
 import { request, app } from '../../setup';
 import { registerAndLogin, getAuthCookie } from '../../helpers/auth.helper';
+import { bodyOf } from '../../helpers';
+import type { Response } from 'supertest';
 import DocumentModel from '../../../src/models/document.model';
 import UserModel from '../../../src/models/user.model';
 import { DOCUMENT_CATEGORIES } from '../../../src/models/types/ai.types';
@@ -96,7 +98,7 @@ describe('AI Classification & Summarization - Integration Tests', (): void => {
         .set('Cookie', getAuthCookie(authCookies))
         .expect(200);
 
-      const body = response.body as unknown as { success: boolean; data?: Record<string, unknown>; error?: string };
+      const body = bodyOf(response as unknown as Response) as { success: boolean; data?: Record<string, unknown>; error?: string };
 
       expect(body.success).toBe(true);
       expect(body.data).toHaveProperty('category');
@@ -138,7 +140,7 @@ describe('AI Classification & Summarization - Integration Tests', (): void => {
         .set('Cookie', getAuthCookie(authCookies))
         .expect(400);
 
-      const body = response.body as unknown as { success: boolean; data?: Record<string, unknown>; error?: string };
+      const body = bodyOf(response as unknown as Response) as { success: boolean; data?: Record<string, unknown>; error?: string };
       expect(body.success).toBe(false);
       expect(body.error).toContain('no extracted text');
     });
@@ -151,7 +153,7 @@ describe('AI Classification & Summarization - Integration Tests', (): void => {
         .set('Cookie', getAuthCookie(authCookies))
         .expect(404);
 
-      const body = response.body as unknown as { success: boolean; data?: Record<string, unknown>; error?: string };
+      const body = bodyOf(response as unknown as Response) as { success: boolean; data?: Record<string, unknown>; error?: string };
       expect(body.success).toBe(false);
       expect(body.error).toContain('not found');
     });
@@ -188,7 +190,7 @@ describe('AI Classification & Summarization - Integration Tests', (): void => {
         .set('Cookie', getAuthCookie(authCookies))
         .expect(403);
 
-      const body = response.body as unknown as { success: boolean; data?: Record<string, unknown>; error?: string };
+      const body = bodyOf(response as unknown as Response) as { success: boolean; data?: Record<string, unknown>; error?: string };
       expect(body.success).toBe(false);
       expect(body.error).toContain('Access denied');
     });
@@ -241,7 +243,7 @@ describe('AI Classification & Summarization - Integration Tests', (): void => {
         .set('Cookie', getAuthCookie(authCookies))
         .expect(200);
 
-      const body = response.body as unknown as { success: boolean; data?: Record<string, unknown>; error?: string };
+      const body = bodyOf(response as unknown as Response) as { success: boolean; data?: Record<string, unknown>; error?: string };
 
       expect(body.success).toBe(true);
       expect(body.data).toHaveProperty('summary');
@@ -278,7 +280,7 @@ describe('AI Classification & Summarization - Integration Tests', (): void => {
         .set('Cookie', getAuthCookie(authCookies))
         .expect(400);
 
-      const body = response.body as unknown as { success: boolean; data?: Record<string, unknown>; error?: string };
+      const body = bodyOf(response as unknown as Response) as { success: boolean; data?: Record<string, unknown>; error?: string };
       expect(body.success).toBe(false);
       expect(body.error).toContain('no extracted text');
     });
@@ -388,7 +390,7 @@ describe('AI Classification & Summarization - Integration Tests', (): void => {
         .set('Cookie', getAuthCookie(authCookies))
         .expect(200);
 
-      const body = response.body as unknown as { success: boolean; data?: Record<string, unknown>; error?: string };
+      const body = bodyOf(response as unknown as Response) as { success: boolean; data?: Record<string, unknown>; error?: string };
 
       // La categoría devuelta DEBE estar en la lista predefinida
       expect(DOCUMENT_CATEGORIES).toContain(body.data?.category as string);
@@ -433,7 +435,7 @@ describe('AI Classification & Summarization - Integration Tests', (): void => {
         .set('Cookie', getAuthCookie(authCookies))
         .expect(400);
 
-      const body = response.body as unknown as { success: boolean; data?: Record<string, unknown>; error?: string };
+      const body = bodyOf(response as unknown as Response) as { success: boolean; data?: Record<string, unknown>; error?: string };
 
       expect(body.success).toBe(false);
     });

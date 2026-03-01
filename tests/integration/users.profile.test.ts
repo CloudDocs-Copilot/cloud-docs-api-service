@@ -1,4 +1,5 @@
 import { request, app } from '../setup';
+import { bodyOf } from '../helpers';
 import type { Response } from 'supertest';
 import { UserBuilder } from '../builders/user.builder';
 import Organization from '../../src/models/organization.model';
@@ -49,7 +50,7 @@ describe('User Profile Management', (): void => {
     const registerResponse = await request(app).post('/api/auth/register').send(userData);
 
     // En algunos casos register devuelve user, en otros _id
-    const regBody = registerResponse.body as unknown as Record<string, unknown>;
+    const regBody = bodyOf(registerResponse as unknown as Response) as Record<string, unknown>;
     const regUser = regBody['user'] as Record<string, unknown>;
     userId = (regUser['id'] as string) || (regUser['_id'] as string);
 
@@ -59,7 +60,7 @@ describe('User Profile Management', (): void => {
       .send({ email: userData.email, password: userData.password });
 
     // Extraer token (puede venir en body O en cookie, testea ambos)
-    const loginBody = loginResponse.body as unknown as Record<string, unknown>;
+    const loginBody = bodyOf(loginResponse as unknown as Response) as Record<string, unknown>;
     const maybeToken = (loginBody['token'] as string) || getTokenFromCookie(loginResponse as Response);
     if (!maybeToken) throw new Error('Login failed to provide token');
     token = maybeToken;
@@ -80,7 +81,7 @@ describe('User Profile Management', (): void => {
         .send(updateData)
         .expect(200);
 
-      const body = response.body as unknown as Record<string, unknown>;
+      const body = bodyOf(response as unknown as Response) as Record<string, unknown>;
       const user = body['user'] as Record<string, unknown>;
       const preferences = (user['preferences'] as Record<string, unknown>) || {};
 
@@ -104,7 +105,7 @@ describe('User Profile Management', (): void => {
         .send({ name: newName }) // No enviamos preferences
         .expect(200);
 
-      const body = response.body as unknown as Record<string, unknown>;
+      const body = bodyOf(response as unknown as Response) as Record<string, unknown>;
       const user = body['user'] as Record<string, unknown>;
 
       expect(user['name']).toBe(newName);
@@ -126,7 +127,7 @@ describe('User Profile Management', (): void => {
         .send({ avatar: avatarUrl })
         .expect(200);
 
-      const body = response.body as unknown as Record<string, unknown>;
+      const body = bodyOf(response as unknown as Response) as Record<string, unknown>;
       const user = body['user'] as Record<string, unknown>;
       expect(user['avatar']).toBe(avatarUrl);
     });
@@ -140,7 +141,7 @@ describe('User Profile Management', (): void => {
         .attach('avatar', buffer, 'test-avatar.png')
         .expect(200);
 
-      const body = response.body as unknown as Record<string, unknown>;
+      const body = bodyOf(response as unknown as Response) as Record<string, unknown>;
       const user = body['user'] as Record<string, unknown>;
       expect(user['avatar']).toMatch(/\/uploads\/.*\.png$/);
     });

@@ -1,9 +1,9 @@
 import { request, app } from '../setup';
 import { registerAndLogin } from '../helpers/auth.helper';
+import { bodyOf } from '../helpers';
 import Membership, { MembershipRole, MembershipStatus } from '../../src/models/membership.model';
 import { Response } from 'supertest';
 
-const bodyOf = (res: Response) => res.body as unknown as Record<string, unknown>;
 import User from '../../src/models/user.model';
 import Organization from '../../src/models/organization.model';
 
@@ -45,7 +45,7 @@ describe('Membership Endpoints', (): void => {
       .expect(201);
 
     {
-      const b = orgResponse.body as unknown as Record<string, unknown>;
+      const b = bodyOf<Record<string, unknown>>(orgResponse as Response) as Record<string, unknown>;
       const orgObj = b['organization'] as Record<string, unknown>;
       organizationId = (orgObj['id'] as string) || (orgObj['_id'] as string) || '';
     }
@@ -117,7 +117,7 @@ describe('Membership Endpoints', (): void => {
       .expect(201);
 
     {
-      const b = secondOrgResponse.body as unknown as Record<string, unknown>;
+      const b = bodyOf<Record<string, unknown>>(secondOrgResponse as Response) as Record<string, unknown>;
       const orgObj = b['organization'] as Record<string, unknown>;
       secondOrgId = (orgObj['id'] as string) || (orgObj['_id'] as string) || '';
     }
@@ -131,12 +131,12 @@ describe('Membership Endpoints', (): void => {
         .expect(200);
 
       {
-        const b = bodyOf(response);
+        const b = bodyOf<Record<string, unknown>>(response);
         expect(b['success']).toBe(true);
         expect(b['data']).toBeDefined();
         expect(b['count']).toBeDefined();
       }
-      const b = bodyOf(response);
+      const b = bodyOf<Record<string, unknown>>(response);
       expect(Array.isArray(b['data'])).toBe(true);
       expect(((b['data'] as unknown[]) || []).length).toBeGreaterThanOrEqual(2); // Owner is in 2 orgs
     });
@@ -144,7 +144,7 @@ describe('Membership Endpoints', (): void => {
     it('should fail without authentication', async (): Promise<void> => {
       const response = await request(app).get('/api/memberships/my-organizations').expect(401);
 
-      expect(bodyOf(response)['error']).toBeDefined();
+      expect(bodyOf<Record<string, unknown>>(response)['error']).toBeDefined();
     });
   });
 
@@ -155,7 +155,7 @@ describe('Membership Endpoints', (): void => {
         .set('Cookie', ownerCookies.join('; '))
         .expect(200);
 
-      const b = bodyOf(response);
+      const b = bodyOf<Record<string, unknown>>(response);
       expect(b['success']).toBe(true);
       expect(b['organizationId']).toBeDefined();
       expect(b['organizationId']).toBe(organizationId);
@@ -164,7 +164,7 @@ describe('Membership Endpoints', (): void => {
     it('should fail without authentication', async (): Promise<void> => {
       const response = await request(app).get('/api/memberships/active-organization').expect(401);
 
-      expect(bodyOf(response)['error']).toBeDefined();
+      expect(bodyOf<Record<string, unknown>>(response)['error']).toBeDefined();
     });
   });
 
@@ -176,7 +176,7 @@ describe('Membership Endpoints', (): void => {
         .send({ organizationId: secondOrgId })
         .expect(200);
 
-      const b = bodyOf(response);
+      const b = bodyOf<Record<string, unknown>>(response);
       expect(b['message']).toBeDefined();
       expect(b['activeOrganization']).toBeDefined();
       expect(b['activeOrganization']).toBe(secondOrgId);
@@ -193,7 +193,7 @@ describe('Membership Endpoints', (): void => {
         .send({})
         .expect(400);
 
-      expect(bodyOf(response)['error']).toBeDefined();
+      expect(bodyOf<Record<string, unknown>>(response)['error']).toBeDefined();
     });
 
     it('should fail for organization where user is not member', async (): Promise<void> => {
@@ -203,7 +203,7 @@ describe('Membership Endpoints', (): void => {
         .send({ organizationId: secondOrgId })
         .expect(403);
 
-      expect(response.body).toHaveProperty('error');
+      expect(bodyOf(response)).toHaveProperty('error');
     });
 
     it('should fail without authentication', async (): Promise<void> => {
@@ -212,7 +212,7 @@ describe('Membership Endpoints', (): void => {
         .send({ organizationId: organizationId })
         .expect(401);
 
-      expect(response.body).toHaveProperty('error');
+      expect(bodyOf(response)).toHaveProperty('error');
     });
   });
 
@@ -223,7 +223,7 @@ describe('Membership Endpoints', (): void => {
         .set('Cookie', ownerCookies.join('; '))
         .expect(200);
 
-      const b = bodyOf(response);
+      const b = bodyOf<Record<string, unknown>>(response);
       expect(b['success']).toBe(true);
       expect(b['count']).toBeDefined();
       expect(Array.isArray(b['data'])).toBe(true);
@@ -243,7 +243,7 @@ describe('Membership Endpoints', (): void => {
         .set('Cookie', nonMemberAuth.cookies.join('; '))
         .expect(403);
 
-      expect(response.body).toHaveProperty('error');
+      expect(bodyOf<Record<string, unknown>>(response)).toHaveProperty('error');
     });
 
     it('should fail without authentication', async (): Promise<void> => {
@@ -251,7 +251,7 @@ describe('Membership Endpoints', (): void => {
         .get(`/api/memberships/organization/${organizationId}/members`)
         .expect(401);
 
-      expect(response.body).toHaveProperty('error');
+      expect(bodyOf(response)).toHaveProperty('error');
     });
   });
 
@@ -271,7 +271,7 @@ describe('Membership Endpoints', (): void => {
         .expect(201);
 
       // La API ahora devuelve 'invitation' porque crea invitaciones PENDING
-      const body = response.body as unknown as Record<string, unknown>;
+      const body = bodyOf<Record<string, unknown>>(response as Response) as Record<string, unknown>;
       expect(body['invitation']).toBeDefined();
       const invitation = body['invitation'] as Record<string, unknown>;
       expect(invitation['role']).toBe('member');
@@ -299,9 +299,10 @@ describe('Membership Endpoints', (): void => {
         .expect(201);
 
       // La API ahora devuelve 'invitation' porque crea invitaciones PENDING
-      expect(response.body).toHaveProperty('invitation');
-      expect(response.body.invitation.role).toBe('admin');
-      expect(response.body.invitation.status).toBe('pending');
+      expect(bodyOf<Record<string, unknown>>(response)).toHaveProperty('invitation');
+      const inv = bodyOf<Record<string, unknown>>(response)['invitation'] as Record<string, unknown>;
+      expect(inv['role']).toBe('admin');
+      expect(inv['status']).toBe('pending');
     });
 
     it('should fail without userId', async (): Promise<void> => {
@@ -311,7 +312,7 @@ describe('Membership Endpoints', (): void => {
         .send({ role: 'member' })
         .expect(400);
 
-      expect(response.body).toHaveProperty('error');
+      expect(bodyOf<Record<string, unknown>>(response)).toHaveProperty('error');
     });
 
     it('should fail if user already member', async (): Promise<void> => {
@@ -321,7 +322,7 @@ describe('Membership Endpoints', (): void => {
         .send({ userId: adminUserId })
         .expect(409);
 
-      expect(response.body).toHaveProperty('error');
+      expect(bodyOf<Record<string, unknown>>(response)).toHaveProperty('error');
     });
 
     it('should fail without authentication', async (): Promise<void> => {
@@ -337,7 +338,7 @@ describe('Membership Endpoints', (): void => {
         .send({ userId: tempUserAuth.userId })
         .expect(401);
 
-      expect(response.body).toHaveProperty('error');
+      expect(bodyOf<Record<string, unknown>>(response)).toHaveProperty('error');
     });
   });
 
@@ -351,8 +352,9 @@ describe('Membership Endpoints', (): void => {
         .send({ role: 'admin' })
         .expect(200);
 
-      expect(response.body).toHaveProperty('membership');
-      expect(response.body.membership.role).toBe('admin');
+      expect(bodyOf<Record<string, unknown>>(response)).toHaveProperty('membership');
+      const mem = bodyOf<Record<string, unknown>>(response)['membership'] as Record<string, unknown>;
+      expect(mem['role']).toBe('admin');
 
       // Verify in database
       const membership = await Membership.findById(memberMembershipId);
@@ -366,7 +368,7 @@ describe('Membership Endpoints', (): void => {
         .send({})
         .expect(400);
 
-      expect(response.body).toHaveProperty('error');
+      expect(bodyOf(response)).toHaveProperty('error');
     });
 
     it('should fail when trying to change owner role', async (): Promise<void> => {
@@ -381,7 +383,7 @@ describe('Membership Endpoints', (): void => {
         .send({ role: 'member' })
         .expect(400); // Updated expected status code to 400
 
-      expect(response.body).toHaveProperty('error');
+      expect(bodyOf(response)).toHaveProperty('error');
     });
 
     it('should fail for non-owner user', async (): Promise<void> => {
@@ -391,7 +393,7 @@ describe('Membership Endpoints', (): void => {
         .send({ role: 'member' })
         .expect(403);
 
-      expect(response.body).toHaveProperty('error');
+      expect(bodyOf(response)).toHaveProperty('error');
     });
 
     it('should fail with invalid membershipId', async (): Promise<void> => {
@@ -402,7 +404,7 @@ describe('Membership Endpoints', (): void => {
         .send({ role: 'member' })
         .expect(404);
 
-      expect(response.body).toHaveProperty('error');
+      expect(bodyOf(response)).toHaveProperty('error');
     });
 
     it('should fail without authentication', async (): Promise<void> => {
@@ -411,7 +413,7 @@ describe('Membership Endpoints', (): void => {
         .send({ role: 'member' })
         .expect(401);
 
-      expect(response.body).toHaveProperty('error');
+      expect(bodyOf(response)).toHaveProperty('error');
     });
   });
 
@@ -443,7 +445,7 @@ describe('Membership Endpoints', (): void => {
         .set('Cookie', ownerCookies.join('; '))
         .expect(200);
 
-      expect(response.body).toHaveProperty('message');
+      expect(bodyOf(response)).toHaveProperty('message');
 
       // Verify membership is permanently deleted (not suspended)
       const membership = await Membership.findById(toRemoveMembership?._id);
@@ -477,7 +479,7 @@ describe('Membership Endpoints', (): void => {
         .set('Cookie', adminCookies.join('; '))
         .expect(200);
 
-      expect(response.body).toHaveProperty('message');
+      expect(bodyOf(response)).toHaveProperty('message');
     });
 
     it('should fail when trying to remove owner', async (): Promise<void> => {
@@ -491,7 +493,7 @@ describe('Membership Endpoints', (): void => {
         .set('Cookie', adminCookies.join('; '))
         .expect(400);
 
-      expect(response.body).toHaveProperty('error');
+      expect(bodyOf(response)).toHaveProperty('error');
     });
 
     it('should fail for regular member', async (): Promise<void> => {
@@ -500,7 +502,7 @@ describe('Membership Endpoints', (): void => {
         .set('Cookie', memberCookies.join('; '))
         .expect(403);
 
-      expect(response.body).toHaveProperty('error');
+      expect(bodyOf(response)).toHaveProperty('error');
     });
 
     it('should fail with invalid membershipId', async (): Promise<void> => {
@@ -510,7 +512,7 @@ describe('Membership Endpoints', (): void => {
         .set('Cookie', ownerCookies.join('; '))
         .expect(404);
 
-      expect(response.body).toHaveProperty('error');
+      expect(bodyOf(response)).toHaveProperty('error');
     });
 
     it('should fail without authentication', async (): Promise<void> => {
@@ -518,7 +520,7 @@ describe('Membership Endpoints', (): void => {
         .delete(`/api/memberships/organization/${organizationId}/members/${memberMembershipId}`)
         .expect(401);
 
-      expect(response.body).toHaveProperty('error');
+      expect(bodyOf(response)).toHaveProperty('error');
     });
   });
 
@@ -558,7 +560,7 @@ describe('Membership Endpoints', (): void => {
         .set('Cookie', toLeaveAuth.cookies.join('; '))
         .expect(200);
 
-      expect(response.body).toHaveProperty('message');
+      expect(bodyOf(response)).toHaveProperty('message');
 
       // Verify membership is permanently deleted (not suspended)
       const membership = await Membership.findOne({
@@ -574,7 +576,7 @@ describe('Membership Endpoints', (): void => {
         .set('Cookie', ownerCookies.join('; '))
         .expect(400); // Updated expected status code to 400
 
-      expect(response.body).toHaveProperty('error');
+      expect(bodyOf(response)).toHaveProperty('error');
     });
 
     it('should fail without authentication', async (): Promise<void> => {
@@ -582,7 +584,7 @@ describe('Membership Endpoints', (): void => {
         .delete(`/api/memberships/${organizationId}/leave`)
         .expect(401);
 
-      expect(response.body).toHaveProperty('error');
+      expect(bodyOf(response)).toHaveProperty('error');
     });
   });
 });

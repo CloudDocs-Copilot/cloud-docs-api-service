@@ -145,7 +145,18 @@ export async function deleteUser(id: string): Promise<IUser> {
  */
 export async function updateAvatar(id: string, { avatar }: UpdateAvatarDto): Promise<IUser> {
   const user = await User.findById(id);
-  if (!user) throw new HttpError(404, 'User not found');
+  if (!user) {
+    try {
+      // Debug information for intermittent test failures: log id and total users
+      // eslint-disable-next-line no-console
+      console.warn('[user.service] updateAvatar - user not found for id:', id);
+      // eslint-disable-next-line no-console
+      console.warn('[user.service] total users in collection:', await User.countDocuments());
+    } catch (e) {
+      // ignore logging errors
+    }
+    throw new HttpError(404, 'User not found');
+  }
 
   user.avatar = avatar;
   await user.save();

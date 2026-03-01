@@ -1,5 +1,7 @@
 import { request, app } from '../setup';
 import { registerAndLogin } from '../helpers/auth.helper';
+import { bodyOf } from '../helpers';
+import type { Response } from 'supertest';
 import Membership, { MembershipStatus } from '../../src/models/membership.model';
 import Organization from '../../src/models/organization.model';
 import Folder from '../../src/models/folder.model';
@@ -76,7 +78,7 @@ describe('Multi-Organization Membership Flow', (): void => {
         .send({ userId: userAId, role: 'member' })
         .expect(201);
 
-      const inviteBody = inviteResponse.body as unknown as Record<string, unknown>;
+      const inviteBody = bodyOf(inviteResponse as unknown as Response) as Record<string, unknown>;
       expect(inviteBody['success']).toBe(true);
       expect(inviteBody['invitation']).toBeDefined();
 
@@ -111,7 +113,7 @@ describe('Multi-Organization Membership Flow', (): void => {
         .set('Cookie', userACookies.join('; '))
         .expect(200);
 
-      const acceptBody = acceptResponse.body as unknown as Record<string, unknown>;
+      const acceptBody = bodyOf(acceptResponse as unknown as Response) as Record<string, unknown>;
       expect(acceptBody['success']).toBe(true);
       const membership = acceptBody['membership'] as Record<string, unknown>;
       expect(membership['status']).toBe(MembershipStatus.ACTIVE);
@@ -162,7 +164,7 @@ describe('Multi-Organization Membership Flow', (): void => {
         .send({ userId: userAId, role: 'member' })
         .expect(409);
 
-      const duplicateBody = duplicateResponse.body as unknown as Record<string, unknown>;
+      const duplicateBody = bodyOf(duplicateResponse as unknown as Response) as Record<string, unknown>;
       expect(duplicateBody['success']).toBe(false);
     });
 
@@ -191,7 +193,7 @@ describe('Multi-Organization Membership Flow', (): void => {
         .set('Cookie', userACookies.join('; '))
         .expect(400);
 
-      const retryBody = retryResponse.body as unknown as Record<string, unknown>;
+      const retryBody = bodyOf(retryResponse as unknown as Response) as Record<string, unknown>;
       expect(retryBody['success']).toBe(false);
     });
   });

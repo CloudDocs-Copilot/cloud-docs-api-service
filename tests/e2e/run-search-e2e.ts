@@ -5,6 +5,8 @@
  * Ejecutar con: npx ts-node tests/e2e/run-search-e2e.ts
  */
 
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any */
+
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import { wrapper } from 'axios-cookiejar-support';
 import { CookieJar } from 'tough-cookie';

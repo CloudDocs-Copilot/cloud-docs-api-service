@@ -3,7 +3,7 @@ import type { Response } from 'supertest';
 import app from '../../src/app';
 import DocumentModel from '../../src/models/document.model';
 import DeletionAudit from '../../src/models/deletion-audit.model';
-import { registerAndLogin, uploadTestFile } from '../helpers';
+import { registerAndLogin, uploadTestFile, bodyOf } from '../helpers';
 
 describe('Deletion Routes', (): void => {
   let authCookies: string[];
@@ -29,15 +29,13 @@ describe('Deletion Routes', (): void => {
     });
 
     {
-      const b = uploadResponse.body as unknown as Record<string, unknown>;
+      const b = bodyOf(uploadResponse as unknown as Response) as Record<string, unknown>;
       document = b['document'] as Record<string, unknown>;
       documentId = document['id'] as string;
     }
   });
 
-  function bodyOf(res: Response): Record<string, unknown> {
-    return (res.body as unknown) as Record<string, unknown>;
-  }
+  
 
   describe('POST /api/deletion/:id/trash', (): void => {
     it('should move document to trash successfully', async (): Promise<void> => {
@@ -49,7 +47,7 @@ describe('Deletion Routes', (): void => {
         .send({ reason: 'Test deletion' })
         .expect(200);
 
-      const body = response.body as unknown as Record<string, unknown>;
+      const body = bodyOf(response as unknown as Response) as Record<string, unknown>;
       expect(body['success']).toBe(true);
       expect((body['message'] as string)).toContain('moved to trash');
       const data = body['data'] as Record<string, unknown>;
@@ -114,7 +112,7 @@ describe('Deletion Routes', (): void => {
         .send()
         .expect(200);
 
-      const body = response.body as unknown as Record<string, unknown>;
+      const body = bodyOf(response as unknown as Response) as Record<string, unknown>;
       expect(body['success']).toBe(true);
       expect((body['message'] as string)).toContain('restored');
       const data = body['data'] as Record<string, unknown>;
@@ -167,7 +165,7 @@ describe('Deletion Routes', (): void => {
         .set('Cookie', tokenCookie?.split(';')[0] || '')
         .expect(200);
 
-      const body = response.body as unknown as Record<string, unknown>;
+      const body = bodyOf(response as unknown as Response) as Record<string, unknown>;
       expect(body['success']).toBe(true);
       const data = body['data'] as unknown[];
       expect(data).toHaveLength(1);
@@ -190,7 +188,7 @@ describe('Deletion Routes', (): void => {
         .set('Cookie', tokenCookie?.split(';')[0] || '')
         .expect(200);
 
-      const b = bodyOf(response);
+      const b = bodyOf<Record<string, unknown>>(response);
       expect(b['success']).toBe(true);
       expect((b['data'] as unknown[])).toHaveLength(0);
     });
@@ -202,8 +200,7 @@ describe('Deletion Routes', (): void => {
         .get('/api/deletion/trash?page=1&limit=10')
         .set('Cookie', tokenCookie?.split(';')[0] || '')
         .expect(200);
-
-      const body = response.body as unknown as Record<string, unknown>;
+      const body = bodyOf(response as unknown as Response) as Record<string, unknown>;
       expect(body['success']).toBe(true);
       const pagination = body['pagination'] as Record<string, unknown>;
       expect(pagination).toBeDefined();
@@ -231,7 +228,7 @@ describe('Deletion Routes', (): void => {
         .send({ secureDeleteMethod: 'simple' })
         .expect(200);
 
-      const body = response.body as unknown as Record<string, unknown>;
+      const body = bodyOf(response as unknown as Response) as Record<string, unknown>;
       expect(body['success']).toBe(true);
       expect((body['message'] as string)).toContain('permanently deleted');
 
@@ -284,7 +281,7 @@ describe('Deletion Routes', (): void => {
         .send({ secureDeleteMethod: 'simple' })
         .expect(200);
 
-      const body = response.body as unknown as Record<string, unknown>;
+      const body = bodyOf(response as unknown as Response) as Record<string, unknown>;
       expect(body['success']).toBe(true);
       const data = body['data'] as Record<string, unknown>;
       expect((data['deletedCount'] as number)).toBe(1);
@@ -313,7 +310,7 @@ describe('Deletion Routes', (): void => {
         .send()
         .expect(200);
 
-      const body = response.body as unknown as Record<string, unknown>;
+      const body = bodyOf(response as unknown as Response) as Record<string, unknown>;
       const data = body['data'] as Record<string, unknown>;
       expect((data['deletedCount'] as number)).toBe(0);
     });

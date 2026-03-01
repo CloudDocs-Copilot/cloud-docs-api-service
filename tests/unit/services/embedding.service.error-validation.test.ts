@@ -1,5 +1,3 @@
-import HttpError from '../../../src/models/error.model';
-
 type EmbeddingServiceType = {
   generateEmbedding: (text: string) => Promise<number[]>;
   generateEmbeddings: (texts: string[]) => Promise<number[][]>;

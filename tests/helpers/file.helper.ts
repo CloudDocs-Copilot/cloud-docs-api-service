@@ -6,6 +6,8 @@
 import path from 'path';
 import fs from 'fs';
 import { request, app } from '../setup';
+import { bodyOf } from '.';
+import type { Response } from 'supertest';
 import { DocumentBuilder } from '../builders/document.builder';
 import User from '../../src/models/user.model';
 
@@ -68,7 +70,7 @@ export async function uploadTestFile(
     folderId?: string;
     organizationId?: string;
   }
-): Promise<{ body?: unknown }> {
+): Promise<Response> {
   const builder = new DocumentBuilder()
     .withFilename(options?.filename || 'test-file.txt')
     .withContent(options?.content || 'Test content')
@@ -123,7 +125,7 @@ export async function uploadTestFile(
 
     const response = await req;
 
-    return response;
+    return response as Response;
   } finally {
     DocumentBuilder.deleteTempFile(filePath);
   }
@@ -145,7 +147,7 @@ export async function uploadMultipleFiles(
       filename: `${prefix}-${i + 1}.txt`,
       content: `Content for ${prefix} ${i + 1}`
     });
-    results.push(response.body);
+    results.push(bodyOf(response as Response));
   }
 
   return results;

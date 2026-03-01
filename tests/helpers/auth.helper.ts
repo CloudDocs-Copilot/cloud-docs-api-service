@@ -7,6 +7,7 @@ import { request, app } from '../setup';
 import { UserBuilder } from '../builders/user.builder';
 import Organization from '../../src/models/organization.model';
 import mongoose from 'mongoose';
+import { bodyOf } from '.';
 
 export interface AuthResult {
   token: string;
@@ -88,7 +89,7 @@ export async function loginUser(email: string, password: string): Promise<AuthRe
     if (tokenCookie) token = tokenCookie.split(';')[0].split('=')[1];
   }
 
-  const body = response.body as { user: { id: string; email: string; name: string } };
+  const body = bodyOf<{ user: { id: string; email: string; name: string } }>(response);
 
   return {
     token,
@@ -131,7 +132,7 @@ export async function registerAndLogin(userData?: {
 
     const orgResponse = await request(app).post('/api/organizations').set('Cookie', cookieHeader).send({ name: `Test Org ${Date.now()}` });
     if (orgResponse.status === 201) {
-      const orgBody = orgResponse.body as { organization: { id: string } };
+      const orgBody = bodyOf<{ organization: { id: string } }>(orgResponse);
       organizationId = orgBody.organization.id;
     }
   }

@@ -15,27 +15,27 @@ const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/clouddocs'
 async function seedE2EUser() {
   try {
     await mongoose.connect(MONGO_URI);
-    console.log('✅ Conectado a MongoDB');
+    console.warn('✅ Conectado a MongoDB');
 
     // Verificar si ya existe
     const existing = await User.findOne({ email: basicUser.email });
     if (existing) {
-      console.log(`⚠️  Usuario ${basicUser.email} ya existe`);
-      console.log(`   Actualizando contraseña a: ${basicUser.password}`);
+      console.warn(`⚠️  Usuario ${basicUser.email} ya existe`);
+      console.warn(`   Actualizando contraseña a: ${basicUser.password}`);
       
       // Actualizar contraseña
       const hashedPassword = await bcrypt.hash(basicUser.password, 10);
       existing.password = hashedPassword;
       await existing.save();
       
-      console.log(`✅ Contraseña actualizada`);
-      console.log(`   ID: ${existing._id}`);
+      console.warn(`✅ Contraseña actualizada`);
+      console.warn(`   ID: ${existing._id}`);
       
       // Verificar organización
       const membership = await Membership.findOne({ user: existing._id });
       if (membership) {
         const org = await Organization.findById(membership.organization);
-        console.log(`   Organización: ${org?.name} (${org?._id})`);
+        console.warn(`   Organización: ${org?.name} (${org?._id})`);
       }
       
       await mongoose.disconnect();
@@ -56,7 +56,7 @@ async function seedE2EUser() {
       ]
     });
     await organization.save();
-    console.log(`✅ Organización creada: ${organization.name}`);
+    console.warn(`✅ Organización creada: ${organization.name}`);
 
     // Hash password
     const hashedPassword = await bcrypt.hash(basicUser.password, 10);
@@ -70,7 +70,7 @@ async function seedE2EUser() {
       verified: true
     });
     await user.save();
-    console.log(`✅ Usuario creado: ${user.email}`);
+    console.warn(`✅ Usuario creado: ${user.email}`);
 
     // Crear membership (owner de la organización)
     const membership = new Membership({
@@ -80,18 +80,23 @@ async function seedE2EUser() {
       status: 'active'
     });
     await membership.save();
-    console.log(`✅ Membership creada: ${user.email} → ${organization.name} (owner)`);
+    console.warn(`✅ Membership creada: ${user.email} → ${organization.name} (owner)`);
 
-    console.log('\n📋 Credenciales para tests E2E:');
-    console.log(`   Email: ${basicUser.email}`);
-    console.log(`   Password: ${basicUser.password}`);
-    console.log(`   User ID: ${user._id}`);
-    console.log(`   Org ID: ${organization._id}`);
+    console.warn('\n📋 Credenciales para tests E2E:');
+    console.warn(`   Email: ${basicUser.email}`);
+    console.warn(`   Password: ${basicUser.password}`);
+    console.warn(`   User ID: ${user._id}`);
+    console.warn(`   Org ID: ${organization._id}`);
 
     await mongoose.disconnect();
-    console.log('\n✅ Seed completado');
+    console.warn('\n✅ Seed completado');
   } catch (error) {
-    console.error('❌ Error en seed:', error);
+    if (typeof error === 'object' && error !== null) {
+      const e = error as { message?: string };
+      console.error('❌ Error en seed:', e.message ?? error);
+    } else {
+      console.error('❌ Error en seed:', String(error));
+    }
     await mongoose.disconnect();
     process.exit(1);
   }

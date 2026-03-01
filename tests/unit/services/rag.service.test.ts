@@ -338,7 +338,7 @@ describe('RAGService', (): void => {
     });
 
     it('should handle empty document', async (): Promise<void> => {
-      const mockEmbedding = Array(1536).fill(0.5);
+      const mockEmbedding: number[] = Array<number>(1536).fill(0.5);
 
       (embeddingService.generateEmbedding as jest.Mock).mockResolvedValue(mockEmbedding);
 

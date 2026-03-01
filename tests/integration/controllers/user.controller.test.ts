@@ -4,6 +4,7 @@ import request from 'supertest';
 import app from '../../../src/app';
 import User from '../../../src/models/user.model';
 import * as jwtService from '../../../src/services/jwt.service';
+import { bodyOf } from '../../helpers';
 import bcrypt from 'bcryptjs';
 
 describe('UserController Integration Tests', (): void => {
@@ -17,9 +18,22 @@ describe('UserController Integration Tests', (): void => {
   beforeAll(async () => {
     mongoServer = await MongoMemoryServer.create();
     const mongoUri = mongoServer.getUri();
+    if (mongoose.connection.readyState !== mongoose.ConnectionStates.disconnected) {
+      await mongoose.disconnect();
+    }
     await mongoose.connect(mongoUri);
+    // DB connection ready; user fixtures are created per-test in beforeEach
+  });
 
-    // Crear usuarios de prueba
+  afterAll(async () => {
+    await mongoose.disconnect();
+    await mongoServer.stop();
+  });
+
+  // Create fresh users before each test. The global `afterEach` in
+  // `tests/setup.ts` clears collections after every test, so creating
+  // fixtures in `beforeEach` ensures each test gets a clean set.
+  beforeEach(async () => {
     const user1 = await User.create({
       name: 'Test User',
       email: 'user@test.com',
@@ -29,8 +43,8 @@ describe('UserController Integration Tests', (): void => {
     });
     testUserId = user1._id;
 
-    // Esperar para asegurar que tokenCreatedAt > user.updatedAt
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Small delay to ensure timestamps differ where necessary
+    await new Promise(resolve => setTimeout(resolve, 10));
 
     testToken = jwtService.signToken({
       id: testUserId.toString(),
@@ -56,33 +70,16 @@ describe('UserController Integration Tests', (): void => {
     });
     adminUserId = adminUser._id;
 
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 10));
 
     adminToken = jwtService.signToken({
       id: adminUserId.toString(),
       email: 'admin@test.com',
       role: 'admin'
     });
-  });
 
-  afterAll(async () => {
-    await mongoose.disconnect();
-    await mongoServer.stop();
-  });
-
-  afterEach(async () => {
-    // Limpiar solo los usuarios creados durante los tests
-    await User.deleteMany({
-      _id: { $nin: [testUserId, testUser2Id, adminUserId] }
-    });
-
-    // Restaurar usuarios de prueba al estado original si fueron modificados
-    await User.findByIdAndUpdate(testUserId, {
-      name: 'Test User',
-      email: 'user@test.com',
-      active: true,
-      avatar: null
-    });
+    // eslint-disable-next-line no-console
+    console.log('[TEST-SETUP] created users:', { testUserId: testUserId?.toString(), testUser2Id: testUser2Id?.toString(), adminUserId: adminUserId?.toString() });
   });
 
   describe('PATCH /api/users/:id/avatar - Update Avatar', (): void => {
@@ -96,7 +93,7 @@ describe('UserController Integration Tests', (): void => {
           .send({ avatar: avatarUrl })
           .expect(200);
 
-        const body = response.body as unknown as Record<string, unknown>;
+        const body = bodyOf(response as unknown as Response) as Record<string, unknown>;
 
         expect(body).toHaveProperty('message', 'Avatar updated successfully');
         expect((body.user as Record<string, unknown>)).toHaveProperty('avatar', avatarUrl);
@@ -127,7 +124,7 @@ describe('UserController Integration Tests', (): void => {
           .send({ avatar: dataUrl })
           .expect(200);
 
-        const body = response.body as unknown as Record<string, unknown>;
+        const body = bodyOf(response as unknown as Response) as Record<string, unknown>;
         expect((body.user as Record<string, unknown>)).toHaveProperty('avatar', dataUrl);
       });
 
@@ -141,7 +138,7 @@ describe('UserController Integration Tests', (): void => {
           .send({ avatar: '' })
           .expect(200);
 
-        const body = response.body as unknown as Record<string, unknown>;
+        const body = bodyOf(response as unknown as Response) as Record<string, unknown>;
         expect((body.user as Record<string, unknown>)).toHaveProperty('avatar', '');
       });
 
@@ -154,7 +151,7 @@ describe('UserController Integration Tests', (): void => {
           .send({ avatar: relativePath })
           .expect(200);
 
-        const body = response.body as unknown as Record<string, unknown>;
+        const body = bodyOf(response as unknown as Response) as Record<string, unknown>;
         expect((body.user as Record<string, unknown>)).toHaveProperty('avatar', relativePath);
       });
     });
@@ -167,7 +164,7 @@ describe('UserController Integration Tests', (): void => {
           .send({ })
           .expect(400);
 
-        const body = response.body as unknown as Record<string, unknown>;
+        const body = bodyOf(response as unknown as Response) as Record<string, unknown>;
         expect(body).toHaveProperty('error', 'Avatar file or URL is required');
       });
 
@@ -180,7 +177,7 @@ describe('UserController Integration Tests', (): void => {
           .send({ avatar: longUrl })
           .expect(400);
 
-        const body = response.body as unknown as Record<string, unknown>;
+        const body = bodyOf(response as unknown as Response) as Record<string, unknown>;
         expect(body).toHaveProperty('error');
         expect(String(body.error)).toMatch(/cannot exceed 2048 characters/i);
       });
@@ -195,7 +192,7 @@ describe('UserController Integration Tests', (): void => {
           .send({ avatar: 'https://example.com/avatar.jpg' })
           .expect(403);
 
-        const body = response.body as unknown as Record<string, unknown>;
+        const body = bodyOf(response as unknown as Response) as Record<string, unknown>;
         expect(body).toHaveProperty('error', 'Forbidden');
       });
     });
@@ -215,7 +212,8 @@ describe('UserController Integration Tests', (): void => {
           .send({ avatar: 'https://example.com/avatar.jpg' })
           .expect(403);
 
-        expect(response.body).toHaveProperty('error', 'Forbidden');
+        const b = bodyOf(response as unknown as Response) as Record<string, unknown>;
+        expect(b['error']).toBe('Forbidden');
       });
 
       it('should fail with invalid token', async (): Promise<void> => {
@@ -253,7 +251,7 @@ describe('UserController Integration Tests', (): void => {
           .send({ avatar: null })
           .expect(400);
 
-        const body = response.body as unknown as Record<string, unknown>;
+        const body = bodyOf(response as unknown as Response) as Record<string, unknown>;
         expect(body).toHaveProperty('error', 'Avatar URL is required');
       });
 
@@ -267,7 +265,7 @@ describe('UserController Integration Tests', (): void => {
           .expect(200);
 
         // Mongoose trim debe eliminar espacios
-        const body = response.body as unknown as Record<string, unknown>;
+        const body = bodyOf(response as unknown as Response) as Record<string, unknown>;
         expect((body.user as Record<string, unknown>).avatar).toBe('https://example.com/avatar.jpg');
       });
 
@@ -285,7 +283,7 @@ describe('UserController Integration Tests', (): void => {
             .send({ avatar: url })
             .expect(200);
 
-          const body = response.body as unknown as Record<string, unknown>;
+          const body = bodyOf(response as unknown as Response) as Record<string, unknown>;
           expect((body.user as Record<string, unknown>).avatar).toBe(url);
         }
 
@@ -301,7 +299,7 @@ describe('UserController Integration Tests', (): void => {
           .send({ avatar: 'https://example.com/avatar.jpg' })
           .expect(200);
 
-        const body = response.body as unknown as Record<string, unknown>;
+        const body = bodyOf(response as unknown as Response) as Record<string, unknown>;
         expect((body.user as Record<string, unknown>)).not.toHaveProperty('password');
       });
 
@@ -333,7 +331,7 @@ describe('UserController Integration Tests', (): void => {
           .expect(200);
 
         // Aunque se guarda, el frontend debe sanitizar al mostrar
-        const bodyXss = response.body as unknown as Record<string, unknown>;
+        const bodyXss = bodyOf(response as unknown as Response) as Record<string, unknown>;
         expect((bodyXss.user as Record<string, unknown>).avatar).toBe(xssPayload);
       });
 
@@ -347,7 +345,7 @@ describe('UserController Integration Tests', (): void => {
           .expect(200);
 
         // MongoDB no es vulnerable a SQL injection
-        const bodySql = response.body as unknown as Record<string, unknown>;
+        const bodySql = bodyOf(response as unknown as Response) as Record<string, unknown>;
         expect((bodySql.user as Record<string, unknown>).avatar).toBe(sqlInjection);
       });
     });
@@ -411,7 +409,7 @@ describe('UserController Integration Tests', (): void => {
           .set('Authorization', `Bearer ${adminToken}`)
           .expect(200);
 
-        const list = response.body as unknown as unknown[];
+        const list = bodyOf<unknown[]>(response);
         expect(Array.isArray(list)).toBe(true);
         expect(list.length).toBeGreaterThanOrEqual(3);
       });
@@ -432,7 +430,7 @@ describe('UserController Integration Tests', (): void => {
           .send({ name: 'Updated Name', email: 'updated@test.com' })
           .expect(200);
 
-        const bodyUp = response.body as unknown as Record<string, unknown>;
+        const bodyUp = bodyOf(response) as Record<string, unknown>;
         expect((bodyUp.user as Record<string, unknown>).name).toBe('Updated Name');
         expect((bodyUp.user as Record<string, unknown>).email).toBe('updated@test.com');
       });
@@ -444,7 +442,7 @@ describe('UserController Integration Tests', (): void => {
           .send({ name: 'Only Name' })
           .expect(200);
 
-        const bodyPartial = response.body as unknown as Record<string, unknown>;
+        const bodyPartial = bodyOf(response) as Record<string, unknown>;
         expect((bodyPartial.user as Record<string, unknown>).name).toBe('Only Name');
         // El email debe permanecer igual
         expect((bodyPartial.user as Record<string, unknown>).email).toBe('user@test.com');
