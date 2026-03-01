@@ -7,6 +7,7 @@ import DocumentModel from '../models/document.model';
 import type { IDocument } from '../models/document.model';
 import HttpError from '../models/error.model';
 import mongoose from 'mongoose';
+import { documentProcessor } from './document-processor.service';
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -428,6 +429,12 @@ export async function deleteFolder({
         console.error('[force-delete-doc-file-error]', { id: String(doc._id), err: getErrorMessage(e) });
       }
       await DocumentModel.findByIdAndDelete(doc._id);
+      // Eliminar chunks vectoriales del documento
+      try {
+        await documentProcessor.deleteDocumentChunks(String(doc._id));
+      } catch (e: unknown) {
+        console.error('[folder-delete-chunks-error]', { id: String(doc._id), err: getErrorMessage(e) });
+      }
     }
   }
 
@@ -481,6 +488,12 @@ async function deleteSubfoldersRecursively(folderId: string): Promise<void> {
         console.error('[recursive-delete-doc-error]', { id: String(doc._id), err: getErrorMessage(e) });
       }
       await DocumentModel.findByIdAndDelete(doc._id);
+      // Eliminar chunks vectoriales del documento
+      try {
+        await documentProcessor.deleteDocumentChunks(String(doc._id));
+      } catch (e: unknown) {
+        console.error('[recursive-delete-chunks-error]', { id: String(doc._id), err: getErrorMessage(e) });
+      }
     }
 
     // Eliminar la subcarpeta

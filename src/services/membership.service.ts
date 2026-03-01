@@ -8,6 +8,7 @@ import User from '../models/user.model';
 import Folder, { IFolder } from '../models/folder.model';
 import DocumentModel from '../models/document.model';
 import HttpError from '../models/error.model';
+import { documentProcessor } from './document-processor.service';
 import { SubscriptionPlan } from '../models/types/organization.types';
 import { sendConfirmationEmail } from '../mail/emailService';
 import {
@@ -865,6 +866,12 @@ async function deleteFolderContentsRecursively(folderId: string): Promise<void> 
       }
       // Eliminar registro de documento
       await DocumentModel.findByIdAndDelete(doc._id);
+      // Eliminar chunks vectoriales del documento
+      try {
+        await documentProcessor.deleteDocumentChunks(String(doc._id));
+      } catch (e: unknown) {
+        console.error('[membership-delete-chunks-error]', { id: String(doc._id), err: getErrorMessage(e) });
+      }
     }
 
     // Eliminar registro de subcarpeta
@@ -882,6 +889,12 @@ async function deleteFolderContentsRecursively(folderId: string): Promise<void> 
       console.error('[delete-doc-error]', { id: String(doc._id), path: doc.path, err: getErrorMessage(e) });
     }
     await DocumentModel.findByIdAndDelete(doc._id);
+    // Eliminar chunks vectoriales del documento
+    try {
+      await documentProcessor.deleteDocumentChunks(String(doc._id));
+    } catch (e: unknown) {
+      console.error('[membership-delete-chunks-error]', { id: String(doc._id), err: getErrorMessage(e) });
+    }
   }
 }
 

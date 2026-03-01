@@ -44,6 +44,12 @@ jest.mock('../../../src/services/ai/text-extraction.service', () => ({
   }
 }));
 
+jest.mock('../../../src/services/document-processor.service', () => ({
+  documentProcessor: {
+    deleteDocumentChunks: jest.fn().mockResolvedValue(0)
+  }
+}));
+
 import * as membershipService from '../../../src/services/membership.service';
 import * as folderService from '../../../src/services/folder.service';
 import * as searchService from '../../../src/services/search.service';
@@ -51,6 +57,7 @@ import * as notificationService from '../../../src/services/notification.service
 import * as aiJob from '../../../src/jobs/process-document-ai.job';
 import { textExtractionService } from '../../../src/services/ai/text-extraction.service';
 import { emitToUser } from '../../../src/socket/socket';
+import { documentProcessor } from '../../../src/services/document-processor.service';
 
 let mongoServer: MongoMemoryServer;
 
@@ -979,6 +986,36 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
       await expect(
         documentService.deleteDocument({ id: doc._id.toString(), userId: testUserId.toString() })
       ).resolves.toBeDefined();
+    });
+
+    it('should call deleteDocumentChunks when document is deleted', async (): Promise<void> => {
+      (membershipService.hasAnyRole as jest.Mock).mockResolvedValueOnce(true);
+      (documentProcessor.deleteDocumentChunks as jest.Mock).mockResolvedValueOnce(3);
+
+      const filename = `chunk-del-${Date.now()}.txt`;
+      const docPath = `/${testOrgSlug}/${testUserId.toString()}/Documents/${filename}`;
+      const physical = physicalFromDocPath(docPath);
+      ensureDir(path.dirname(physical));
+      fs.writeFileSync(physical, 'chunk-content');
+
+      const doc = await Document.create({
+        filename,
+        originalname: 'chunk-test.txt',
+        mimeType: 'text/plain',
+        size: 13,
+        uploadedBy: testUserId,
+        folder: docsFolderId,
+        organization: testOrgId,
+        path: docPath,
+        url: `/storage${docPath}`
+      });
+
+      await documentService.deleteDocument({
+        id: doc._id.toString(),
+        userId: testUser2Id.toString()
+      });
+
+      expect(documentProcessor.deleteDocumentChunks).toHaveBeenCalledWith(doc._id.toString());
     });
   });
 

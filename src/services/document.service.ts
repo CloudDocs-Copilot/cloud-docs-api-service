@@ -19,6 +19,7 @@ import { processDocumentAI } from '../jobs/process-document-ai.job';
 import { textExtractionService } from './ai/text-extraction.service';
 import { extractContentFromDocument } from '../utils/pdf-extractor';
 import { getDocumentSelect } from '../utils/document-fields.util';
+import { documentProcessor } from './document-processor.service';
 
 /**
  * Valida si un string es un ObjectId válido de MongoDB
@@ -470,12 +471,20 @@ export async function deleteDocument({ id, userId }: DeleteDocumentDto): Promise
 
   const deleted = await DocumentModel.findByIdAndDelete(id);
 
-  // Eliminar documento del índice de Elasticsearch
+  // Eliminar documento del índice de Elasticsearch y chunks vectoriales
   if (deleted) {
     try {
       await searchService.removeDocumentFromIndex(id);
     } catch (error: unknown) {
       console.error('Failed to remove document from search index:', getErrorMessage(error));
+      // No lanzar error para no bloquear la eliminación
+    }
+
+    // Eliminar chunks de MongoDB Atlas (vector search)
+    try {
+      await documentProcessor.deleteDocumentChunks(id);
+    } catch (error: unknown) {
+      console.error('Failed to delete document chunks:', getErrorMessage(error));
       // No lanzar error para no bloquear la eliminación
     }
   }
