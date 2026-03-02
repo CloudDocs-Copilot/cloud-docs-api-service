@@ -27,7 +27,7 @@ describe('folder.service (unit)', () => {
     const mod = await import('../../../src/services/folder.service');
     const folderService = mod as unknown as typeof import('../../../src/services/folder.service');
     await expect(folderService.validateFolderAccess('bad-id', 'user')).rejects.toThrow(
-      'Invalid folder ID'
+      'ID de carpeta inválido'
     );
   });
 
@@ -39,7 +39,7 @@ describe('folder.service (unit)', () => {
     const mod = await import('../../../src/services/folder.service');
     const folderService = mod as unknown as typeof import('../../../src/services/folder.service');
     await expect(folderService.validateFolderAccess(id, 'user')).rejects.toThrow(
-      'Folder not found'
+      'Carpeta no encontrada'
     );
   });
 
@@ -51,7 +51,7 @@ describe('folder.service (unit)', () => {
     const mod = await import('../../../src/services/folder.service');
     const folderService = mod as unknown as typeof import('../../../src/services/folder.service');
     await expect(folderService.validateFolderAccess(id, 'user')).rejects.toThrow(
-      'User does not have access to this folder'
+      'El usuario no tiene acceso a esta carpeta'
     );
   });
 
@@ -68,7 +68,11 @@ describe('folder.service (unit)', () => {
 
   it('getUserFolderTree returns null when no folders', async (): Promise<void> => {
     const Folder = await import('../../../src/models/folder.model');
-    (Folder as unknown as { find: jest.Mock }).find.mockReturnValue({ sort: jest.fn().mockResolvedValue([]) } as unknown);
+    (Folder as unknown as { find: jest.Mock }).find.mockReturnValue({ 
+      sort: jest.fn().mockReturnValue({ 
+        lean: jest.fn().mockResolvedValue([]) 
+      }) 
+    } as unknown);
 
     const mod = await import('../../../src/services/folder.service');
     const folderService = mod as unknown as typeof import('../../../src/services/folder.service');
@@ -82,29 +86,38 @@ describe('folder.service (unit)', () => {
 
   it('getUserFolderTree builds a tree', async (): Promise<void> => {
     const Folder = await import('../../../src/models/folder.model');
+    const Document = await import('../../../src/models/document.model');
     const rootId = new mongoose.Types.ObjectId();
     const childId = new mongoose.Types.ObjectId();
+    // Con lean() los objetos son planos, sin toObject()
     const folders = [
       {
         _id: rootId,
         parent: null,
         path: '/root',
-        name: 'root',
-        toObject() {
-          return { _id: rootId, parent: null, path: '/root', name: 'root' };
-        }
+        name: 'root'
       },
       {
         _id: childId,
         parent: rootId,
         path: '/root/child',
-        name: 'child',
-        toObject() {
-          return { _id: childId, parent: rootId, path: '/root/child', name: 'child' };
-        }
+        name: 'child'
       }
     ];
-    (Folder as unknown as { find: jest.Mock }).find.mockReturnValue({ sort: jest.fn().mockResolvedValue(folders) } as unknown);
+    (Folder as unknown as { find: jest.Mock }).find.mockReturnValue({ 
+      sort: jest.fn().mockReturnValue({ 
+        lean: jest.fn().mockResolvedValue(folders) 
+      }) 
+    } as unknown);
+    
+    // Mock DocumentModel.find para que no falle
+    (Document as unknown as { default: { find: jest.Mock } }).default.find = jest.fn().mockReturnValue({
+      sort: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          lean: jest.fn().mockResolvedValue([])
+        })
+      })
+    });
 
     const mod = await import('../../../src/services/folder.service');
     const folderService = mod as unknown as typeof import('../../../src/services/folder.service');
@@ -123,6 +136,6 @@ describe('folder.service (unit)', () => {
     const folderService = mod as unknown as typeof import('../../../src/services/folder.service');
     await expect(
       folderService.createFolder({ name: '', owner: '', organizationId: '', parentId: '' } as unknown as { name: string; owner: string; organizationId: string; parentId: string })
-    ).rejects.toThrow('Folder name is required');
+    ).rejects.toThrow('El nombre de la carpeta es requerido');
   });
 });
