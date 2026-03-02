@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { verifyToken } from '../services/jwt.service';
 import HttpError from '../models/error.model';
 import User from '../models/user.model';
-import { AUTH_COOKIE_OPTIONS, getAuthCookieOptions } from '../utils/cookie-options';
+import { getAuthCookieOptions } from '../utils/cookie-options';
 
 export interface AuthRequest extends Request {
   user?: {
