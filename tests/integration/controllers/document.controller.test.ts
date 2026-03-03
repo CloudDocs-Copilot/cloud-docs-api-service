@@ -51,6 +51,14 @@ jest.mock('mammoth', () => ({
   convertToHtml: (...args: any[]) => mockMammothConvertToHtml(...args)
 }));
 
+// Mock the Organization model
+jest.mock('../../../src/models/organization.model', () => ({
+  __esModule: true,
+  default: {
+    findById: jest.fn().mockResolvedValue({ slug: 'test-org' })
+  }
+}));
+
 type MockRes = {
   status: jest.Mock;
   json: jest.Mock;
@@ -529,13 +537,14 @@ describe('document.controller (unit)', () => {
       const { download } = require('../../../src/controllers/document.controller');
       mockFindDocumentById.mockResolvedValue({
         _id: DOC_ID,
-        organization: null,
+        organization: new mongoose.Types.ObjectId(ORG_ID),
         uploadedBy: new mongoose.Types.ObjectId(USER_ID),
         sharedWith: [],
         filename: 'a.pdf',
         originalname: 'nice.pdf',
         path: '/org/a.pdf'
       });
+      mockHasActiveMembership.mockResolvedValue(true);
       mockValidateDownloadPath.mockResolvedValue('/abs/uploads/a.pdf');
 
       const req: any = { user: { id: USER_ID }, params: { id: DOC_ID } };
@@ -551,13 +560,14 @@ describe('document.controller (unit)', () => {
       const { download } = require('../../../src/controllers/document.controller');
       mockFindDocumentById.mockResolvedValue({
         _id: DOC_ID,
-        organization: null,
+        organization: new mongoose.Types.ObjectId(ORG_ID),
         uploadedBy: new mongoose.Types.ObjectId(USER_ID),
         sharedWith: [],
         filename: 'a.pdf',
         originalname: 'nice.pdf',
         path: '/org/a.pdf'
       });
+      mockHasActiveMembership.mockResolvedValue(true);
 
       mockValidateDownloadPath
         .mockRejectedValueOnce(new Error('nope'))
@@ -576,13 +586,14 @@ describe('document.controller (unit)', () => {
       const { download } = require('../../../src/controllers/document.controller');
       mockFindDocumentById.mockResolvedValue({
         _id: DOC_ID,
-        organization: null,
+        organization: new mongoose.Types.ObjectId(ORG_ID),
         uploadedBy: new mongoose.Types.ObjectId(USER_ID),
         sharedWith: [],
         filename: 'a.pdf',
         originalname: 'nice.pdf',
         path: '/org/a.pdf'
       });
+      mockHasActiveMembership.mockResolvedValue(true);
 
       mockValidateDownloadPath
         .mockRejectedValueOnce(new Error('no uploads'))
@@ -617,13 +628,14 @@ describe('document.controller (unit)', () => {
       const { preview } = require('../../../src/controllers/document.controller');
       mockFindDocumentById.mockResolvedValue({
         _id: DOC_ID,
-        organization: null,
+        organization: new mongoose.Types.ObjectId(ORG_ID),
         uploadedBy: new mongoose.Types.ObjectId(USER_ID),
         sharedWith: [],
         path: 'org/file.pdf',
         originalname: 'file.pdf',
         mimeType: 'application/pdf'
       });
+      mockHasActiveMembership.mockResolvedValue(true);
 
       mockValidateDownloadPath
         .mockRejectedValueOnce(new Error('fail first'))
@@ -647,13 +659,14 @@ describe('document.controller (unit)', () => {
       const { preview } = require('../../../src/controllers/document.controller');
       mockFindDocumentById.mockResolvedValue({
         _id: DOC_ID,
-        organization: null,
+        organization: new mongoose.Types.ObjectId(ORG_ID),
         uploadedBy: new mongoose.Types.ObjectId(USER_ID),
         sharedWith: [],
         path: 'org/file.docx',
         originalname: 'file.docx',
         mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
       });
+      mockHasActiveMembership.mockResolvedValue(true);
 
       mockValidateDownloadPath.mockResolvedValue('/abs/storage/org/file.docx');
       mockMammothConvertToHtml.mockResolvedValue({ value: '<p>Hello</p>' });
@@ -673,13 +686,14 @@ describe('document.controller (unit)', () => {
       const { preview } = require('../../../src/controllers/document.controller');
       mockFindDocumentById.mockResolvedValue({
         _id: DOC_ID,
-        organization: null,
+        organization: new mongoose.Types.ObjectId(ORG_ID),
         uploadedBy: new mongoose.Types.ObjectId(USER_ID),
         sharedWith: [],
         path: 'org/file.docx',
         originalname: 'file.docx',
         mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
       });
+      mockHasActiveMembership.mockResolvedValue(true);
 
       mockValidateDownloadPath.mockResolvedValue('/abs/storage/org/file.docx');
       mockMammothConvertToHtml.mockRejectedValue(new Error('bad docx'));

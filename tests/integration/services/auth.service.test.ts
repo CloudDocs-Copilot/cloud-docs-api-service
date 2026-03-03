@@ -145,7 +145,7 @@ describe('AuthService Integration Tests', (): void => {
       expect(rootFolder!.type).toBe('root');
       // El nombre ahora incluye el slug de la organización: root_{orgSlug}_{userId}
       expect(rootFolder!.name).toBe(`root_${testOrgSlug}_${newUser._id}`);
-      expect(rootFolder!.displayName).toBe('RootFolder');
+      expect(rootFolder!.displayName).toBe('Test Organization'); // Changed in US-103: uses org name for better UX
       expect(rootFolder!.organization).toEqual(testOrgId);
       expect(rootFolder!.owner).toEqual(newUser._id);
       expect(rootFolder!.parent).toBeNull();
