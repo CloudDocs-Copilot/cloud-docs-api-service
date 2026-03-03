@@ -33,7 +33,7 @@ export async function extractTextFromPDF(filePath: string): Promise<string> {
       console.warn(`⚠️  PDF content truncated to ${MAX_CONTENT_LENGTH} characters: ${filePath}`);
     }
     
-    console.log(`📄 Extracted ${text.length} characters from PDF: ${filePath}`);
+    console.warn(`📄 Extracted ${text.length} characters from PDF: ${filePath}`);
     return text;
     
   } catch (error) {
@@ -66,7 +66,7 @@ export async function extractTextFromWord(filePath: string): Promise<string> {
       console.warn(`⚠️  Word content truncated to ${MAX_CONTENT_LENGTH} characters: ${filePath}`);
     }
     
-    console.log(`📝 Extracted ${text.length} characters from Word: ${filePath}`);
+    console.warn(`📝 Extracted ${text.length} characters from Word: ${filePath}`);
     return text;
     
   } catch (error) {

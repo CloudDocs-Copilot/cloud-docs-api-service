@@ -15,16 +15,15 @@ import {
 } from '../../../src/controllers/document.controller';
 import * as documentService from '../../../src/services/document.service';
 import HttpError from '../../../src/models/error.model';
-import { IDocument } from '../../../src/models/document.model';
 
 jest.mock('../../../src/services/document.service');
 jest.mock('../../../src/utils/path-sanitizer');
 jest.mock('../../../src/services/membership.service');
 
-describe('Document Controller', (): void => {
+describe('Document Controller', () => {
   let mockRequest: Partial<AuthRequest>;
   let mockResponse: Partial<Response>;
-  let mockNext: jest.MockedFunction<(err?: unknown) => void>;
+  let mockNext: jest.Mock;
 
   const mockUserId = new mongoose.Types.ObjectId().toString();
   const mockOrgId = new mongoose.Types.ObjectId().toString();
@@ -32,7 +31,7 @@ describe('Document Controller', (): void => {
 
   beforeEach(() => {
     mockRequest = {
-      user: { id: mockUserId, email: 'test@example.com' } as AuthRequest['user'],
+      user: { id: mockUserId, email: 'test@example.com' } as any,
       body: {},
       params: {},
       query: {},
@@ -44,12 +43,12 @@ describe('Document Controller', (): void => {
       sendFile: jest.fn().mockReturnThis(),
       setHeader: jest.fn().mockReturnThis()
     };
-    mockNext = jest.fn() as jest.MockedFunction<(err?: unknown) => void>;
+    mockNext = jest.fn();
     jest.clearAllMocks();
   });
 
-  describe('upload', (): void => {
-    it('should upload document successfully', async (): Promise<void> => {
+  describe('upload', () => {
+    it('should upload document successfully', async () => {
       const mockFile = {
         originalname: 'test.pdf',
         filename: 'test-123.pdf',
@@ -85,7 +84,7 @@ describe('Document Controller', (): void => {
       expect(mockNext).not.toHaveBeenCalled();
     });
 
-    it('should return 400 when file is missing', async (): Promise<void> => {
+    it('should return 400 when file is missing', async () => {
       mockRequest.file = undefined;
 
       await upload(mockRequest as AuthRequest, mockResponse as Response, mockNext);
@@ -94,7 +93,7 @@ describe('Document Controller', (): void => {
       expect(documentService.uploadDocument).not.toHaveBeenCalled();
     });
 
-    it('should upload document with folderId', async (): Promise<void> => {
+    it('should upload document with folderId', async () => {
       const mockFile = {
         originalname: 'test.pdf',
         filename: 'test-123.pdf',
@@ -118,7 +117,7 @@ describe('Document Controller', (): void => {
       });
     });
 
-    it('should handle upload errors', async (): Promise<void> => {
+    it('should handle upload errors', async () => {
       const mockFile = { originalname: 'test.pdf' } as Express.Multer.File;
       mockRequest.file = mockFile;
 
@@ -130,7 +129,7 @@ describe('Document Controller', (): void => {
       expect(mockNext).toHaveBeenCalledWith(error);
     });
 
-    it('should handle database errors during upload', async (): Promise<void> => {
+    it('should handle database errors during upload', async () => {
       const mockFile = { originalname: 'test.pdf' } as Express.Multer.File;
       mockRequest.file = mockFile;
 
@@ -143,8 +142,8 @@ describe('Document Controller', (): void => {
     });
   });
 
-  describe('replaceFile', (): void => {
-    it('should replace document file successfully', async (): Promise<void> => {
+  describe('replaceFile', () => {
+    it('should replace document file successfully', async () => {
       const mockFile = { originalname: 'new-file.pdf' } as Express.Multer.File;
       mockRequest.file = mockFile;
       mockRequest.params = { id: mockDocId };
@@ -166,7 +165,7 @@ describe('Document Controller', (): void => {
       });
     });
 
-    it('should return 400 when file is missing', async (): Promise<void> => {
+    it('should return 400 when file is missing', async () => {
       mockRequest.file = undefined;
       mockRequest.params = { id: mockDocId };
 
@@ -175,7 +174,7 @@ describe('Document Controller', (): void => {
       expect(mockNext).toHaveBeenCalledWith(new HttpError(400, 'File is required'));
     });
 
-    it('should return 404 when document not found', async (): Promise<void> => {
+    it('should return 404 when document not found', async () => {
       const mockFile = { originalname: 'new-file.pdf' } as Express.Multer.File;
       mockRequest.file = mockFile;
       mockRequest.params = { id: 'non-existent-id' };
@@ -188,7 +187,7 @@ describe('Document Controller', (): void => {
       expect(mockNext).toHaveBeenCalledWith(new HttpError(404, 'Document not found'));
     });
 
-    it('should pass through other errors', async (): Promise<void> => {
+    it('should pass through other errors', async () => {
       const mockFile = { originalname: 'new-file.pdf' } as Express.Multer.File;
       mockRequest.file = mockFile;
       mockRequest.params = { id: mockDocId };
@@ -202,8 +201,8 @@ describe('Document Controller', (): void => {
     });
   });
 
-  describe('list', (): void => {
-    it('should list user documents successfully', async (): Promise<void> => {
+  describe('list', () => {
+    it('should list user documents successfully', async () => {
       const mockDocuments = [
         { _id: '1', filename: 'doc1.pdf' },
         { _id: '2', filename: 'doc2.pdf' }
@@ -221,7 +220,7 @@ describe('Document Controller', (): void => {
       });
     });
 
-    it('should return empty array when user has no documents', async (): Promise<void> => {
+    it('should return empty array when user has no documents', async () => {
       (documentService.listDocuments as jest.Mock).mockResolvedValue([]);
 
       await list(mockRequest as AuthRequest, mockResponse as Response, mockNext);
@@ -233,7 +232,7 @@ describe('Document Controller', (): void => {
       });
     });
 
-    it('should handle errors when listing documents', async (): Promise<void> => {
+    it('should handle errors when listing documents', async () => {
       const error = new Error('Database error');
       (documentService.listDocuments as jest.Mock).mockRejectedValue(error);
 
@@ -243,8 +242,8 @@ describe('Document Controller', (): void => {
     });
   });
 
-  describe('listSharedToMe', (): void => {
-    it('should list shared documents successfully', async (): Promise<void> => {
+  describe('listSharedToMe', () => {
+    it('should list shared documents successfully', async () => {
       const mockSharedDocs = [
         { _id: '1', filename: 'shared1.pdf', sharedBy: 'user123' },
         { _id: '2', filename: 'shared2.pdf', sharedBy: 'user456' }
@@ -262,7 +261,7 @@ describe('Document Controller', (): void => {
       });
     });
 
-    it('should return empty array when no documents are shared', async (): Promise<void> => {
+    it('should return empty array when no documents are shared', async () => {
       (documentService.listSharedDocumentsToUser as jest.Mock).mockResolvedValue([]);
 
       await listSharedToMe(mockRequest as AuthRequest, mockResponse as Response, mockNext);
@@ -274,7 +273,7 @@ describe('Document Controller', (): void => {
       });
     });
 
-    it('should handle errors when listing shared documents', async (): Promise<void> => {
+    it('should handle errors when listing shared documents', async () => {
       const error = new Error('Database error');
       (documentService.listSharedDocumentsToUser as jest.Mock).mockRejectedValue(error);
 
@@ -284,8 +283,8 @@ describe('Document Controller', (): void => {
     });
   });
 
-  describe('getRecent', (): void => {
-    it('should get recent documents with default limit', async (): Promise<void> => {
+  describe('getRecent', () => {
+    it('should get recent documents with default limit', async () => {
       mockRequest.params = { organizationId: mockOrgId };
       mockRequest.query = {};
 
@@ -296,7 +295,8 @@ describe('Document Controller', (): void => {
 
       expect(documentService.getUserRecentDocuments).toHaveBeenCalledWith({
         userId: mockUserId,
-        limit: 10
+        organizationId: mockOrgId,
+        limit: 20
       });
       expect(mockResponse.json).toHaveBeenCalledWith({
         success: true,
@@ -305,22 +305,38 @@ describe('Document Controller', (): void => {
       });
     });
 
-    it('should get recent documents with custom limit', async (): Promise<void> => {
+    it('should get recent documents with custom limit', async () => {
       mockRequest.params = { organizationId: mockOrgId };
       mockRequest.query = { limit: '5' };
 
-      const mockRecentDocs: IDocument[] = [];
+      const mockRecentDocs: any[] = [];
       (documentService.getUserRecentDocuments as jest.Mock).mockResolvedValue(mockRecentDocs);
 
       await getRecent(mockRequest as AuthRequest, mockResponse as Response, mockNext);
 
       expect(documentService.getUserRecentDocuments).toHaveBeenCalledWith({
         userId: mockUserId,
+        organizationId: mockOrgId,
         limit: 5
       });
     });
 
-    it('should return 400 when organizationId is missing', async (): Promise<void> => {
+    it('should reject limit exceeding 20 documents', async () => {
+      mockRequest.params = { organizationId: mockOrgId };
+      mockRequest.query = { limit: '25' };
+
+      await getRecent(mockRequest as AuthRequest, mockResponse as Response, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(
+        expect.objectContaining({
+          statusCode: 400,
+          message: 'Limit cannot exceed 20 documents'
+        })
+      );
+      expect(documentService.getUserRecentDocuments).not.toHaveBeenCalled();
+    });
+
+    it('should return 400 when organizationId is missing', async () => {
       mockRequest.params = {};
 
       await getRecent(mockRequest as AuthRequest, mockResponse as Response, mockNext);
@@ -328,7 +344,7 @@ describe('Document Controller', (): void => {
       expect(mockNext).toHaveBeenCalledWith(new HttpError(400, 'Organization ID is required'));
     });
 
-    it('should return 400 when organizationId is invalid', async (): Promise<void> => {
+    it('should return 400 when organizationId is invalid', async () => {
       mockRequest.params = { organizationId: 'invalid-id' };
 
       await getRecent(mockRequest as AuthRequest, mockResponse as Response, mockNext);
@@ -336,7 +352,7 @@ describe('Document Controller', (): void => {
       expect(mockNext).toHaveBeenCalledWith(new HttpError(400, 'Invalid Organization ID'));
     });
 
-    it('should handle errors when getting recent documents', async (): Promise<void> => {
+    it('should handle errors when getting recent documents', async () => {
       mockRequest.params = { organizationId: mockOrgId };
       mockRequest.query = {};
 
@@ -349,26 +365,11 @@ describe('Document Controller', (): void => {
     });
   });
 
-  describe('getById', (): void => {
-    it('should get document by ID successfully', async (): Promise<void> => {
+  describe('getById', () => {
+    it('should get document by ID successfully', async () => {
       mockRequest.params = { id: mockDocId };
 
-      const mockDocument: IDocument = {
-        _id: new mongoose.Types.ObjectId(),
-        filename: 'document.pdf',
-        mimeType: 'application/pdf',
-        size: 123,
-        uploadedBy: new mongoose.Types.ObjectId(),
-        organization: new mongoose.Types.ObjectId(),
-        folder: new mongoose.Types.ObjectId(),
-        path: '/uploads/document.pdf',
-        uploadedAt: new Date(),
-        sharedWith: [],
-        isDeleted: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        // Add additional required fields with mock values as needed for your IDocument interface
-      } as unknown as IDocument;
+      const mockDocument = { _id: mockDocId, filename: 'document.pdf' };
       (documentService.findDocumentById as jest.Mock).mockResolvedValue(mockDocument);
 
       await getById(mockRequest as AuthRequest, mockResponse as Response, mockNext);
@@ -376,7 +377,7 @@ describe('Document Controller', (): void => {
       expect(documentService.findDocumentById).toHaveBeenCalledWith(mockDocId);
     });
 
-    it('should return 404 when document not found', async (): Promise<void> => {
+    it('should return 404 when document not found', async () => {
       mockRequest.params = { id: 'non-existent-id' };
 
       (documentService.findDocumentById as jest.Mock).mockResolvedValue(null);
@@ -387,30 +388,12 @@ describe('Document Controller', (): void => {
     });
   });
 
-  describe('share', (): void => {
-    it('should share document successfully', async (): Promise<void> => {
+  describe('share', () => {
+    it('should share document successfully', async () => {
       mockRequest.params = { id: mockDocId };
       mockRequest.body = { userIds: ['user456', 'user789'] };
 
-      const mockSharedDoc: IDocument = {
-        _id: new mongoose.Types.ObjectId(),
-        filename: 'shared.pdf',
-        mimeType: 'application/pdf',
-        size: 123,
-        uploadedBy: new mongoose.Types.ObjectId(),
-        organization: new mongoose.Types.ObjectId(),
-        folder: new mongoose.Types.ObjectId(),
-        path: '/uploads/shared.pdf',
-        uploadedAt: new Date(),
-        isDeleted: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        sharedWith: [
-          new mongoose.Types.ObjectId('64b7f7f7f7f7f7f7f7f7f7f7'),
-          new mongoose.Types.ObjectId('64b7f7f7f7f7f7f7f7f7f7f8')
-        ],
-        // Add any additional required fields with mock values as needed
-      } as unknown as IDocument;
+      const mockSharedDoc = { _id: mockDocId, sharedWith: ['user456', 'user789'] };
       (documentService.shareDocument as jest.Mock).mockResolvedValue(mockSharedDoc);
 
       await share(mockRequest as AuthRequest, mockResponse as Response, mockNext);
@@ -423,7 +406,7 @@ describe('Document Controller', (): void => {
       });
     });
 
-    it('should return 400 when userIds is missing', async (): Promise<void> => {
+    it('should return 400 when userIds is missing', async () => {
       mockRequest.params = { id: mockDocId };
       mockRequest.body = {};
 
@@ -432,7 +415,7 @@ describe('Document Controller', (): void => {
       expect(mockNext).toHaveBeenCalledWith(new HttpError(400, 'User IDs array is required'));
     });
 
-    it('should return 400 when userIds is not an array', async (): Promise<void> => {
+    it('should return 400 when userIds is not an array', async () => {
       mockRequest.params = { id: mockDocId };
       mockRequest.body = { userIds: 'user456' };
 
@@ -441,7 +424,7 @@ describe('Document Controller', (): void => {
       expect(mockNext).toHaveBeenCalledWith(new HttpError(400, 'User IDs array is required'));
     });
 
-    it('should return 400 when userIds is empty array', async (): Promise<void> => {
+    it('should return 400 when userIds is empty array', async () => {
       mockRequest.params = { id: mockDocId };
       mockRequest.body = { userIds: [] };
 
@@ -450,7 +433,7 @@ describe('Document Controller', (): void => {
       expect(mockNext).toHaveBeenCalledWith(new HttpError(400, 'User IDs array is required'));
     });
 
-    it('should return 404 when document not found', async (): Promise<void> => {
+    it('should return 404 when document not found', async () => {
       mockRequest.params = { id: mockDocId };
       mockRequest.body = { userIds: ['user456'] };
 
@@ -462,7 +445,7 @@ describe('Document Controller', (): void => {
       expect(mockNext).toHaveBeenCalledWith(new HttpError(404, 'Document not found'));
     });
 
-    it('should handle errors when sharing document', async (): Promise<void> => {
+    it('should handle errors when sharing document', async () => {
       mockRequest.params = { id: mockDocId };
       mockRequest.body = { userIds: ['user456'] };
 
@@ -475,27 +458,12 @@ describe('Document Controller', (): void => {
     });
   });
 
-  describe('move', (): void => {
-    it('should move document successfully', async (): Promise<void> => {
+  describe('move', () => {
+    it('should move document successfully', async () => {
       mockRequest.params = { id: mockDocId };
       mockRequest.body = { targetFolderId: 'folder-456' };
 
-      const mockMovedDoc: IDocument = {
-        _id: new mongoose.Types.ObjectId(),
-        filename: 'moved.pdf',
-        mimeType: 'application/pdf',
-        size: 123,
-        uploadedBy: new mongoose.Types.ObjectId(),
-        organization: new mongoose.Types.ObjectId(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        folder: new mongoose.Types.ObjectId(),
-        path: '/uploads/moved.pdf',
-        uploadedAt: new Date(),
-        sharedWith: [],
-        isDeleted: false,
-        // Add any additional required fields with mock values as needed
-      } as unknown as IDocument;
+      const mockMovedDoc = { _id: mockDocId, folder: 'folder-456' };
       (documentService.moveDocument as jest.Mock).mockResolvedValue(mockMovedDoc);
 
       await move(mockRequest as AuthRequest, mockResponse as Response, mockNext);
@@ -508,7 +476,7 @@ describe('Document Controller', (): void => {
       });
     });
 
-    it('should return 400 when targetFolderId is missing', async (): Promise<void> => {
+    it('should return 400 when targetFolderId is missing', async () => {
       mockRequest.params = { id: mockDocId };
       mockRequest.body = {};
 
@@ -517,7 +485,7 @@ describe('Document Controller', (): void => {
       expect(mockNext).toHaveBeenCalledWith(new HttpError(400, 'Target folder ID is required'));
     });
 
-    it('should handle errors when moving document', async (): Promise<void> => {
+    it('should handle errors when moving document', async () => {
       mockRequest.params = { id: mockDocId };
       mockRequest.body = { targetFolderId: 'folder-456' };
 
@@ -530,26 +498,12 @@ describe('Document Controller', (): void => {
     });
   });
 
-  describe('copy', (): void => {
-    it('should copy document successfully', async (): Promise<void> => {
+  describe('copy', () => {
+    it('should copy document successfully', async () => {
       mockRequest.params = { id: mockDocId };
       mockRequest.body = { targetFolderId: 'folder-789' };
 
-      const mockCopiedDoc: IDocument = {
-        _id: new mongoose.Types.ObjectId(),
-        filename: 'document-copy.pdf',
-        mimeType: 'application/pdf',
-        size: 123,
-        uploadedBy: new mongoose.Types.ObjectId(),
-        organization: new mongoose.Types.ObjectId(),
-        folder: new mongoose.Types.ObjectId(),
-        path: '/uploads/document-copy.pdf',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        uploadedAt: new Date(),
-        sharedWith: [],
-        // Add any additional required fields with mock values as needed
-      } as unknown as IDocument;
+      const mockCopiedDoc = { _id: 'new-doc-id', filename: 'document-copy.pdf' };
       (documentService.copyDocument as jest.Mock).mockResolvedValue(mockCopiedDoc);
 
       await copy(mockRequest as AuthRequest, mockResponse as Response, mockNext);
@@ -563,7 +517,7 @@ describe('Document Controller', (): void => {
       });
     });
 
-    it('should return 400 when targetFolderId is missing', async (): Promise<void> => {
+    it('should return 400 when targetFolderId is missing', async () => {
       mockRequest.params = { id: mockDocId };
       mockRequest.body = {};
 
@@ -572,7 +526,7 @@ describe('Document Controller', (): void => {
       expect(mockNext).toHaveBeenCalledWith(new HttpError(400, 'Target folder ID is required'));
     });
 
-    it('should handle errors when copying document', async (): Promise<void> => {
+    it('should handle errors when copying document', async () => {
       mockRequest.params = { id: mockDocId };
       mockRequest.body = { targetFolderId: 'folder-789' };
 
@@ -585,8 +539,8 @@ describe('Document Controller', (): void => {
     });
   });
 
-  describe('remove', (): void => {
-    it('should remove document successfully', async (): Promise<void> => {
+  describe('remove', () => {
+    it('should remove document successfully', async () => {
       mockRequest.params = { id: mockDocId };
 
       (documentService.deleteDocument as jest.Mock).mockResolvedValue(undefined);
@@ -596,7 +550,7 @@ describe('Document Controller', (): void => {
       expect(documentService.deleteDocument).toHaveBeenCalled();
     });
 
-    it('should handle errors when removing document', async (): Promise<void> => {
+    it('should handle errors when removing document', async () => {
       mockRequest.params = { id: mockDocId };
 
       const error = new Error('Document not found');
@@ -608,8 +562,8 @@ describe('Document Controller', (): void => {
     });
   });
 
-  describe('Edge cases', (): void => {
-    it('should handle missing user in request', async (): Promise<void> => {
+  describe('Edge cases', () => {
+    it('should handle missing user in request', async () => {
       mockRequest.user = undefined;
 
       await upload(mockRequest as AuthRequest, mockResponse as Response, mockNext);
@@ -618,7 +572,7 @@ describe('Document Controller', (): void => {
       expect(mockNext).toHaveBeenCalled();
     });
 
-    it('should handle invalid document IDs', async (): Promise<void> => {
+    it('should handle invalid document IDs', async () => {
       mockRequest.params = { id: 'invalid-object-id' };
 
       const error = new Error('Invalid ID');
@@ -629,7 +583,7 @@ describe('Document Controller', (): void => {
       expect(mockNext).toHaveBeenCalledWith(error);
     });
 
-    it('should handle concurrent operations', async (): Promise<void> => {
+    it('should handle concurrent operations', async () => {
       mockRequest.params = { id: mockDocId };
 
       const mockDocument = { _id: mockDocId, filename: 'test.pdf' };

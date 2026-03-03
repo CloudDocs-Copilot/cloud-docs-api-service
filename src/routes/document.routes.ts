@@ -64,13 +64,6 @@ router.get(
 );
 
 /**
- * @route   GET /api/documents/:id
- * @desc    Obtiene un documento por ID
- * @access  Document owner or shared users
- */
-router.get('/:id', documentController.getById);
-
-/**
  * @route   GET /api/documents/download/:id
  * @desc    Descarga un documento
  * @access  Document owner or shared users
@@ -85,6 +78,14 @@ router.get('/download/:id', documentController.download);
 router.get('/preview/:id', documentController.preview);
 
 /**
+ * @route   GET /api/documents/:id
+ * @desc    Obtiene un documento por ID
+ * @access  Document owner or shared users
+ * IMPORTANTE: Esta ruta debe ir DESPUÉS de /download y /preview
+ */
+router.get('/:id', documentController.getById);
+
+/**
  * @route   POST /api/documents/:id/share
  * @desc    Comparte un documento con otros usuarios
  * @access  Document owner
@@ -97,6 +98,13 @@ router.post('/:id/share', documentController.share);
  * @access  Document owner
  */
 router.post('/:id/move', documentController.move);
+
+/**
+ * @route   PATCH /api/documents/:id/rename
+ * @desc    Renombra un documento
+ * @access  Document owner
+ */
+router.patch('/:id/rename', documentController.rename);
 
 /**
  * @route   POST /api/documents/:id/copy

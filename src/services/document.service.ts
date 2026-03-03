@@ -9,7 +9,7 @@ import Organization from '../models/organization.model';
 import HttpError from '../models/error.model';
 import { sanitizePathOrThrow, isPathWithinBase } from '../utils/path-sanitizer';
 import { validateFolderAccess } from './folder.service';
-import { getMembership, getActiveOrganization, hasAnyRole } from './membership.service';
+import { getMembership, getActiveOrganization, hasAnyRole, hasActiveMembership } from './membership.service';
 import { MembershipRole } from '../models/membership.model';
 import { PLAN_LIMITS } from '../models/types/organization.types';
 import * as searchService from './search.service';
@@ -17,9 +17,6 @@ import * as notificationService from './notification.service';
 import { emitToUser } from '../socket/socket';
 import { processDocumentAI } from '../jobs/process-document-ai.job';
 import { textExtractionService } from './ai/text-extraction.service';
-import { extractContentFromDocument } from '../utils/pdf-extractor';
-import { getDocumentSelect } from '../utils/document-fields.util';
-import { documentProcessor } from './document-processor.service';
 
 /**
  * Valida si un string es un ObjectId válido de MongoDB
@@ -29,23 +26,6 @@ import { documentProcessor } from './document-processor.service';
  */
 function isValidObjectId(id: string): boolean {
   return mongoose.Types.ObjectId.isValid(id);
-}
-
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return String(error);
-}
-
-interface NotificationActor {
-  name?: string;
-  email?: string;
-}
-
-interface UserIdOnly {
-  _id: mongoose.Types.ObjectId;
 }
 
 export interface ShareDocumentDto {
@@ -83,8 +63,15 @@ export interface CopyDocumentDto {
   targetFolderId: string;
 }
 
+export interface RenameDocumentDto {
+  documentId: string;
+  userId: string;
+  filename: string; // Nuevo nombre del archivo (con extensión)
+}
+
 export interface GetRecentDocumentsDto {
   userId: string;
+  organizationId?: string; // ID de la organización específica
   limit?: number;
 }
 
@@ -105,87 +92,48 @@ export async function shareDocument({
 
   const doc = await DocumentModel.findById(id);
   if (!doc) throw new Error('Document not found');
-
   if (String(doc.uploadedBy) !== String(userId)) throw new HttpError(403, 'Forbidden');
+
+  // Si el documento pertenece a una organización, por defecto ya es visible para todos los miembros activos.
+  // Mantener endpoint por compatibilidad, pero no es necesario para "org-wide access".
+  if (doc.organization) {
+    try {
+      const actor = await User.findById(userId).select('name email').lean() as { name?: string; email?: string } | null;
+      const actorName = actor?.name || actor?.email || 'Alguien';
+
+      await notificationService.notifyOrganizationMembers({
+        actorUserId: userId,
+        type: 'DOC_SHARED',
+        documentId: doc._id.toString(),
+        message: `${actorName} compartió "${doc.originalname || 'un documento'}"`,
+        metadata: {
+          originalname: doc.originalname,
+          folderId: doc.folder?.toString?.(),
+          actorName
+        },
+        emitter: (recipientUserId, payload) => {
+          emitToUser(recipientUserId, 'notification:new', payload);
+        }
+      });
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+      console.error('Failed to create notification (DOC_SHARED):', errorMessage);
+    }
+
+    return doc;
+  }
 
   // Filtra el owner de la lista de usuarios con los que compartir
   const filteredIds = uniqueIds.filter(id => String(id) !== String(userId));
-  if (filteredIds.length === 0) {
+  if (filteredIds.length === 0)
     throw new HttpError(400, 'Cannot share document with yourself as the owner');
-  }
 
-  // Org context: validate recipients are ACTIVE members in the same active org as actor
-  if (doc.organization) {
-    const activeOrgId = await getActiveOrganization(userId);
-    if (!activeOrgId) {
-      throw new HttpError(
-        403,
-        'No active organization. Please create or join an organization first.'
-      );
-    }
-
-    if (doc.organization.toString() !== activeOrgId) {
-      throw new HttpError(403, 'Document does not belong to your active organization');
-    }
-
-    const allowedRecipientIds: string[] = [];
-    for (const recipientId of filteredIds) {
-      const membership = await getMembership(recipientId, activeOrgId);
-      if (membership) {
-        allowedRecipientIds.push(recipientId);
-      }
-    }
-
-    if (allowedRecipientIds.length === 0) {
-      throw new HttpError(400, 'No valid users found to share with');
-    }
-
-    const allowedObjectIds = allowedRecipientIds.map(id => new mongoose.Types.ObjectId(id));
-
-    const updated = await DocumentModel.findByIdAndUpdate(
-      id,
-      { $addToSet: { sharedWith: { $each: allowedObjectIds } } },
-      { new: true }
-    );
-
-    // Notifications: only to selected recipients (persisted + realtime)
-    try {
-      const actor = await User.findById(userId).select('name email').lean<NotificationActor>();
-      const actorName = actor?.name || actor?.email || 'Alguien';
-
-      for (const recipientId of allowedRecipientIds) {
-        await notificationService.createNotificationForUser({
-          organizationId: activeOrgId,
-          recipientUserId: recipientId,
-          actorUserId: userId,
-          type: 'DOC_SHARED',
-          entityKind: 'document',
-          entityId: doc._id.toString(),
-          message: `${actorName} compartió "${doc.originalname || 'un documento'}" contigo`,
-          metadata: {
-            originalname: doc.originalname,
-            folderId: doc.folder?.toString?.(),
-            actorName
-          },
-          emitter: (recipientUserId, payload) => {
-            emitToUser(recipientUserId, 'notification:new', payload);
-          }
-        });
-      }
-    } catch (error: unknown) {
-      console.error('Failed to create notification (DOC_SHARED):', getErrorMessage(error));
-    }
-
-    return updated;
-  }
-
-  // Personal docs (legacy): only share to existing users
+  // Convertir strings a ObjectIds para prevenir inyección NoSQL
   const filteredObjectIds = filteredIds.map(id => new mongoose.Types.ObjectId(id));
 
-  const existingUsers = await User.find({ _id: { $in: filteredObjectIds } }, { _id: 1 }).lean<
-    UserIdOnly[]
-  >();
-  const existingIds = existingUsers.map(user => user._id);
+  // Opcionalmente, filtra solo usuarios existentes
+  const existingUsers = await User.find({ _id: { $in: filteredObjectIds } }, { _id: 1 }).lean();
+  const existingIds = existingUsers.map(u => u._id);
   if (existingIds.length === 0) throw new HttpError(400, 'No valid users found to share with');
 
   const updated = await DocumentModel.findByIdAndUpdate(
@@ -193,12 +141,12 @@ export async function shareDocument({
     { $addToSet: { sharedWith: { $each: existingIds } } },
     { new: true }
   );
-
   return updated;
 }
 
 /**
  * Lista documentos compartidos al usuario (por otros usuarios) en su organización activa
+ * NOTA: Se filtra únicamente por organización y se excluyen los documentos subidos por el usuario.
  */
 export async function listSharedDocumentsToUser(userId: string): Promise<IDocument[]> {
   if (!isValidObjectId(userId)) {
@@ -218,16 +166,15 @@ export async function listSharedDocumentsToUser(userId: string): Promise<IDocume
 
   const docs = await DocumentModel.find({
     organization: orgObjectId,
-    sharedWith: userObjectId,
     uploadedBy: { $ne: userObjectId },
     isDeleted: false
   })
     .sort({ createdAt: -1 })
     .populate('folder', 'name displayName path')
-    .select(getDocumentSelect('list')) // 🤖 Incluye campos AI explícitamente
+    .select('-__v')
     .lean();
 
-  return docs as unknown as IDocument[];
+  return docs as IDocument[];
 }
 
 /**
@@ -293,9 +240,8 @@ export async function replaceDocumentFile({
   }
 
   // Validar tipo de archivo permitido según el plan
-  // Fuente única de verdad: PLAN_LIMITS (no settings de BD, que puede estar desactualizado)
   const fileExt = path.extname(file.originalname).slice(1).toLowerCase();
-  const allowedTypes = PLAN_LIMITS[organization.plan].allowedFileTypes;
+  const allowedTypes = organization.settings.allowedFileTypes;
 
   if (!allowedTypes.includes('*') && !allowedTypes.includes(fileExt)) {
     throw new HttpError(
@@ -357,13 +303,15 @@ export async function replaceDocumentFile({
 
     fs.renameSync(tempPath, physicalPath);
   } catch (error: unknown) {
-    console.error('File replace error:', getErrorMessage(error));
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('File replace error:', errorMessage);
     try {
       if (fs.existsSync(tempPath)) {
         fs.unlinkSync(tempPath);
       }
-    } catch (cleanupError: unknown) {
-      console.error('Temp file cleanup error:', getErrorMessage(cleanupError));
+    } catch (e: unknown) {
+      const cleanupError = e instanceof Error ? e.message : 'Unknown error';
+      console.error('Temp file cleanup error:', cleanupError);
     }
     throw new HttpError(500, 'Failed to replace file in storage');
   }
@@ -379,7 +327,8 @@ export async function replaceDocumentFile({
   try {
     await searchService.indexDocument(doc);
   } catch (error: unknown) {
-    console.error('Failed to index document in search:', getErrorMessage(error));
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Failed to index document in search:', errorMessage);
   }
 
   // Notificación (persistida) a miembros de la organización (excluye al actor)
@@ -398,8 +347,9 @@ export async function replaceDocumentFile({
           emitToUser(recipientUserId, 'notification:new', payload);
         }
       });
-    } catch (error: unknown) {
-      console.error('Failed to create notification (DOC_EDITED):', getErrorMessage(error));
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+      console.error('Failed to create notification (DOC_EDITED):', errorMessage);
     }
   }
 
@@ -438,13 +388,28 @@ export async function deleteDocument({ id, userId }: DeleteDocumentDto): Promise
 
   // Elimina el archivo físico
   try {
-    if (doc.path) {
-      const storageRoot = path.join(process.cwd(), 'storage');
-      const relativePath = doc.path.startsWith('/') ? doc.path.substring(1) : doc.path;
-      const filePath = path.join(storageRoot, relativePath);
+    if (doc.path && doc.organization) {
+      const org = await Organization.findById(doc.organization);
+      if (org) {
+        const storageRoot = path.join(process.cwd(), 'storage');
+        // Sanitizar org.slug para prevenir path traversal
+        const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+        // Sanitizar componentes del path
+        let pathComponents = doc.path.split('/').filter(p => p).map(component => 
+          component.replace(/[^a-z0-9_.-]/gi, '-')
+        );
+        
+        // Eliminar slug si está duplicado al inicio
+        if (pathComponents.length > 0 && pathComponents[0] === safeSlug) {
+          pathComponents.shift();
+        }
 
-      if (isPathWithinBase(filePath, storageRoot) && fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+        const filePath = path.join(storageRoot, safeSlug, ...pathComponents);
+        
+        // Validar que el path está dentro de storageRoot
+        if (isPathWithinBase(filePath, storageRoot) && fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
       }
     }
 
@@ -458,8 +423,9 @@ export async function deleteDocument({ id, userId }: DeleteDocumentDto): Promise
         fs.unlinkSync(uploadsPath);
       }
     }
-  } catch (error: unknown) {
-    console.error('File deletion error:', getErrorMessage(error));
+  } catch (e: unknown) {
+    const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+    console.error('File deletion error:', errorMessage);
   }
 
   // Actualizar almacenamiento usado del usuario
@@ -471,20 +437,13 @@ export async function deleteDocument({ id, userId }: DeleteDocumentDto): Promise
 
   const deleted = await DocumentModel.findByIdAndDelete(id);
 
-  // Eliminar documento del índice de Elasticsearch y chunks vectoriales
+  // Eliminar documento del índice de Elasticsearch
   if (deleted) {
     try {
       await searchService.removeDocumentFromIndex(id);
     } catch (error: unknown) {
-      console.error('Failed to remove document from search index:', getErrorMessage(error));
-      // No lanzar error para no bloquear la eliminación
-    }
-
-    // Eliminar chunks de MongoDB Atlas (vector search)
-    try {
-      await documentProcessor.deleteDocumentChunks(id);
-    } catch (error: unknown) {
-      console.error('Failed to delete document chunks:', getErrorMessage(error));
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Failed to remove document from search index:', errorMessage);
       // No lanzar error para no bloquear la eliminación
     }
   }
@@ -492,7 +451,7 @@ export async function deleteDocument({ id, userId }: DeleteDocumentDto): Promise
   // Notificación (persistida) a miembros de la organización (excluye al actor)
   if (doc.organization) {
     try {
-      const actor = await User.findById(userId).select('name email').lean<NotificationActor>();
+      const actor = await User.findById(userId).select('name email').lean() as { name?: string; email?: string } | null;
       const actorName = actor?.name || actor?.email || 'Alguien';
 
       await notificationService.notifyOrganizationMembers({
@@ -509,8 +468,9 @@ export async function deleteDocument({ id, userId }: DeleteDocumentDto): Promise
           emitToUser(recipientUserId, 'notification:new', payload);
         }
       });
-    } catch (error: unknown) {
-      console.error('Failed to create notification (DOC_DELETED):', getErrorMessage(error));
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+      console.error('Failed to create notification (DOC_DELETED):', errorMessage);
     }
   }
 
@@ -556,10 +516,11 @@ export async function moveDocument({
     }
   }
 
-  // Validar existencia de organización si aplica
+  // Obtener organización si existe
+  let org = null;
   if (doc.organization) {
-    const organization = await Organization.findById(doc.organization);
-    if (!organization) throw new HttpError(404, 'Organization not found');
+    org = await Organization.findById(doc.organization);
+    if (!org) throw new HttpError(404, 'Organization not found');
   }
 
   // Construir nuevo path
@@ -567,13 +528,32 @@ export async function moveDocument({
   const safeFilename = sanitizePathOrThrow(doc.filename || '', storageRoot);
   const newDocPath = `${targetFolder.path}/${safeFilename}`;
 
-  const oldRelativePath = (doc.path || '').startsWith('/')
-    ? (doc.path || '').substring(1)
-    : doc.path || '';
-  const newRelativePath = newDocPath.startsWith('/') ? newDocPath.substring(1) : newDocPath;
-
-  const oldPhysicalPath = path.join(storageRoot, oldRelativePath);
-  const newPhysicalPath = path.join(storageRoot, newRelativePath);
+  // Construir paths físicos SANITIZADOS (igual que en uploadDocument)
+  const safeSlug = org ? org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '') : '';
+  
+  // Path actual del documento (sanitizado)
+  const oldPathComponents = (doc.path || '').split('/').filter(p => p).map(component =>
+    component.replace(/[^a-z0-9_.-]/gi, '-')
+  );
+  // Eliminar slug si ya está al inicio
+  if (oldPathComponents.length > 0 && oldPathComponents[0] === safeSlug && safeSlug) {
+    oldPathComponents.shift();
+  }
+  const oldPhysicalPath = safeSlug 
+    ? path.join(storageRoot, safeSlug, ...oldPathComponents)
+    : path.join(storageRoot, ...oldPathComponents);
+  
+  // Nuevo path del documento (sanitizado)
+  const newPathComponents = targetFolder.path.split('/').filter(p => p).map(component =>
+    component.replace(/[^a-z0-9_.-]/gi, '-')
+  );
+  // Eliminar slug si ya está al inicio
+  if (newPathComponents.length > 0 && newPathComponents[0] === safeSlug && safeSlug) {
+    newPathComponents.shift();
+  }
+  const newPhysicalPath = safeSlug
+    ? path.join(storageRoot, safeSlug, ...newPathComponents, safeFilename)
+    : path.join(storageRoot, ...newPathComponents, safeFilename);
 
   // Mover archivo físico
   try {
@@ -593,16 +573,115 @@ export async function moveDocument({
 
       fs.renameSync(oldPhysicalPath, newPhysicalPath);
     }
-  } catch (error: unknown) {
-    console.error('File move error:', getErrorMessage(error));
+  } catch (e: unknown) {
+    const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+    console.error('File move error:', errorMessage);
     throw new HttpError(500, 'Failed to move file in storage');
   }
 
   // Actualizar documento en BD
-  doc.folder = targetFolder._id;
+  doc.folder = targetFolder._id as mongoose.Types.ObjectId;
   doc.path = newDocPath;
   doc.url = `/storage${newDocPath}`;
   await doc.save();
+
+  return doc;
+}
+
+/**
+ * Renombra un documento
+ */
+export async function renameDocument({
+  documentId,
+  userId,
+  filename
+}: RenameDocumentDto): Promise<IDocument> {
+  if (!isValidObjectId(documentId)) throw new HttpError(400, 'Invalid document ID');
+  if (!filename || !filename.trim()) throw new HttpError(400, 'Filename is required');
+
+  const doc = await DocumentModel.findById(documentId);
+  if (!doc) throw new HttpError(404, 'Document not found');
+
+  // Solo el propietario puede renombrar
+  if (String(doc.uploadedBy) !== String(userId)) {
+    throw new HttpError(403, 'Only document owner can rename it');
+  }
+
+  const folder = await Folder.findById(doc.folder);
+  if (!folder) throw new HttpError(404, 'Document folder not found');
+
+  // Validar que la extensión se mantiene
+  const oldExt = path.extname(doc.filename || '').toLowerCase();
+  const newExt = path.extname(filename).toLowerCase();
+  
+  if (oldExt !== newExt) {
+    throw new HttpError(400, `Cannot change file extension from ${oldExt} to ${newExt}`);
+  }
+
+  // Obtener organización si existe
+  let org = null;
+  if (doc.organization) {
+    org = await Organization.findById(doc.organization);
+    if (!org) throw new HttpError(404, 'Organization not found');
+  }
+
+  // Sanitizar nuevo filename
+  const storageRoot = path.join(process.cwd(), 'storage');
+  const safeFilename = sanitizePathOrThrow(filename.trim(), storageRoot);
+
+  // Construir paths
+  const safeSlug = org 
+    ? org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '')
+    : 'users';
+  
+  const oldPathComponents = (doc.path || '').split('/').filter(p => p).map(component => 
+    component.replace(/[^a-z0-9_.-]/gi, '-')
+  );
+  
+  const newDocPath = `${folder.path}/${safeFilename}`;
+  const newPathComponents = newDocPath.split('/').filter(p => p).map(component => 
+    component.replace(/[^a-z0-9_.-]/gi, '-')
+  );
+  
+  const oldPhysicalPath = path.join(storageRoot, safeSlug, ...oldPathComponents);
+  const newPhysicalPath = path.join(storageRoot, safeSlug, ...newPathComponents);
+
+  // Validar que el nuevo nombre no exista ya en la misma carpeta
+  const existingDoc = await DocumentModel.findOne({
+    folder: doc.folder,
+    filename: safeFilename,
+    _id: { $ne: doc._id }
+  });
+
+  if (existingDoc) {
+    throw new HttpError(409, `A document named '${safeFilename}' already exists in this folder`);
+  }
+
+  // Renombrar archivo físico
+  try {
+    if (fs.existsSync(oldPhysicalPath)) {
+      fs.renameSync(oldPhysicalPath, newPhysicalPath);
+    }
+  } catch (e: unknown) {
+    const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+    console.error('File rename error:', errorMessage);
+    throw new HttpError(500, 'Failed to rename file in storage');
+  }
+
+  // Actualizar documento en BD
+  doc.filename = safeFilename;
+  doc.originalname = safeFilename; // Actualizar también originalname
+  doc.path = newDocPath;
+  doc.url = `/storage/${safeSlug}${newDocPath}`;
+  await doc.save();
+
+  // Actualizar índice de búsqueda si está habilitado
+  try {
+    await searchService.indexDocument(doc);
+  } catch (e) {
+    // Si falla la indexación, no afecta la operación principal
+    console.warn('Failed to index renamed document:', e);
+  }
 
   return doc;
 }
@@ -706,8 +785,9 @@ export async function copyDocument({
     } else {
       throw new HttpError(500, 'Source file not found in storage');
     }
-  } catch (error: unknown) {
-    console.error('File copy error:', getErrorMessage(error));
+  } catch (e: unknown) {
+    const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+    console.error('File copy error:', errorMessage);
     throw new HttpError(500, 'Failed to copy file in storage');
   }
 
@@ -732,45 +812,69 @@ export async function copyDocument({
 }
 
 /**
- * Obtener documentos recientes del usuario en su organización activa
+ * Obtener documentos recientes del usuario en una organización específica
  */
 export async function getUserRecentDocuments({
   userId,
-  limit = 10
+  organizationId,
+  limit = 20
 }: GetRecentDocumentsDto): Promise<IDocument[]> {
   // Validar que el ID sea ObjectId válido
   if (!isValidObjectId(userId)) {
     throw new HttpError(400, 'Invalid user ID');
   }
 
-  // Obtener organización activa del usuario
-  const activeOrgId = await getActiveOrganization(userId);
-
-  if (!activeOrgId) {
-    throw new HttpError(
-      403,
-      'No active organization. Please create or join an organization first.'
-    );
+  // Usar organizationId si se proporciona, sino usar la organización activa
+  let orgId: string;
+  if (organizationId) {
+    if (!isValidObjectId(organizationId)) {
+      throw new HttpError(400, 'Invalid organization ID');
+    }
+    // Verificar que el usuario tenga membresía activa en esa organización
+    const hasAccess = await hasActiveMembership(userId, organizationId);
+    if (!hasAccess) {
+      throw new HttpError(403, 'No access to this organization');
+    }
+    orgId = organizationId;
+  } else {
+    // Obtener organización activa del usuario
+    const activeOrgId = await getActiveOrganization(userId);
+    if (!activeOrgId) {
+      throw new HttpError(
+        403,
+        'No active organization. Please create or join an organization first.'
+      );
+    }
+    orgId = activeOrgId;
   }
 
-  const orgObjectId = new mongoose.Types.ObjectId(activeOrgId);
+  const orgObjectId = new mongoose.Types.ObjectId(orgId);
 
   const documents = await DocumentModel.find({
     organization: orgObjectId,
-    deletedAt: null // Excluir documentos en papelera
+    isDeleted: false // Excluir documentos en papelera
   })
     .sort({ createdAt: -1 })
     .limit(limit)
     .populate('folder', 'name displayName path')
-    .select(getDocumentSelect('list')) // 🤖 Incluye campos AI explícitamente
+    .select('-__v')
     .lean();
 
   // Agregar campo calculado indicando si es propio o visible por organización
-  const documentsWithAccessType = documents.map(doc => ({
-    ...doc,
-    accessType: doc.uploadedBy.toString() === userId.toString() ? 'owner' : 'org',
-    isOwned: doc.uploadedBy.toString() === userId.toString()
-  }));
+  const documentsWithAccessType = documents.map(doc => {
+    interface DocumentWithId {
+      _id: mongoose.Types.ObjectId;
+      uploadedBy: mongoose.Types.ObjectId;
+      [key: string]: unknown;
+    }
+    const { _id, ...rest } = doc as DocumentWithId;
+    return {
+      ...rest,
+      id: _id.toString(),
+      accessType: doc.uploadedBy.toString() === userId.toString() ? 'owner' : 'org',
+      isOwned: doc.uploadedBy.toString() === userId.toString()
+    };
+  });
 
   return documentsWithAccessType as unknown as IDocument[];
 }
@@ -859,7 +963,11 @@ export async function uploadDocument({
   }
 
   // Validar almacenamiento total de la organización
-  const totalOrgStorage = await User.aggregate<{ _id: null; total: number }>([
+  interface StorageAggregate {
+    _id: null;
+    total: number;
+  }
+  const totalOrgStorage = await User.aggregate<StorageAggregate>([
     { $match: { organization: new mongoose.Types.ObjectId(activeOrgId) } },
     { $group: { _id: null, total: { $sum: '$storageUsed' } } }
   ]);
@@ -875,9 +983,8 @@ export async function uploadDocument({
   }
 
   // Validar tipo de archivo permitido según el plan
-  // Fuente única de verdad: PLAN_LIMITS (no settings de BD, que puede estar desactualizado)
   const fileExt = path.extname(file.originalname).slice(1).toLowerCase();
-  const allowedTypes = PLAN_LIMITS[organization.plan].allowedFileTypes;
+  const allowedTypes = organization.settings.allowedFileTypes;
 
   if (!allowedTypes.includes('*') && !allowedTypes.includes(fileExt)) {
     throw new HttpError(
@@ -895,11 +1002,24 @@ export async function uploadDocument({
   // Construir paths de destino
   const documentPath = `${folder.path}/${sanitizedFilename}`;
   const storageRoot = path.join(process.cwd(), 'storage');
-
-  const relativeStoragePath = documentPath.startsWith('/')
-    ? documentPath.substring(1)
-    : documentPath;
-  const physicalPath = path.join(storageRoot, relativeStoragePath);
+  
+  // Sanitizar org.slug y folder.path para prevenir path traversal
+  const safeSlug = organization.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+  let folderPathComponents = folder.path.split('/').filter(p => p).map(component => 
+    component.replace(/[^a-z0-9_.-]/gi, '-')
+  );
+  
+  // Eliminar slug del path si ya está presente al inicio
+  if (folderPathComponents.length > 0 && folderPathComponents[0] === safeSlug) {
+    folderPathComponents.shift();
+  }
+  
+  const physicalPath = path.join(
+    storageRoot, 
+    safeSlug,
+    ...folderPathComponents,
+    sanitizedFilename
+  );
 
   // Validar que el path de destino está dentro del directorio storage
   // (validación final por defensa en profundidad)
@@ -921,9 +1041,20 @@ export async function uploadDocument({
 
     candidatePaths.push(tempPath);
 
+    // Define extended file interface for multer properties
+    // Note: Express.Multer.File already has some of these properties
+    // We use an intersection type to safely access additional properties
+    interface FileWithExtras {
+      path?: string;
+      destination?: string;
+      filename?: string;
+      buffer?: Buffer;
+    }
+    const extendedFile = file as Express.Multer.File & FileWithExtras;
+
     // Sanitizar y validar file.path si existe
-    if (file.path) {
-      const filePath = file.path.toString();
+    if (extendedFile.path) {
+      const filePath = extendedFile.path.toString();
       const resolvedPath = path.resolve(filePath);
       // Validar que está dentro de uploads o temp
       if (
@@ -935,9 +1066,9 @@ export async function uploadDocument({
     }
 
     // Sanitizar destination + filename si existen
-    if (file.destination && file.filename) {
-      const destination = file.destination.toString();
-      const filename = file.filename.toString();
+    if (extendedFile.destination && extendedFile.filename) {
+      const destination = extendedFile.destination.toString();
+      const filename = extendedFile.filename.toString();
       const combined = path.join(destination, filename);
       const resolvedCombined = path.resolve(combined);
       // Validar que está dentro de uploads
@@ -973,8 +1104,8 @@ export async function uploadDocument({
     }
 
     // If not moved and buffer is present (memory storage), write buffer to destination
-    if (!moved && file.buffer) {
-      fs.writeFileSync(physicalPath, file.buffer);
+    if (!moved && extendedFile.buffer) {
+      fs.writeFileSync(physicalPath, extendedFile.buffer as Buffer);
       moved = true;
     }
 
@@ -982,7 +1113,8 @@ export async function uploadDocument({
       throw new HttpError(500, 'Uploaded file not found in temp directory');
     }
   } catch (error: unknown) {
-    console.error('File move error:', getErrorMessage(error));
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('File move error:', errorMessage);
     throw new HttpError(500, 'Failed to move file to storage');
   }
 
@@ -1002,19 +1134,6 @@ export async function uploadDocument({
 
   const doc = await DocumentModel.create(docData);
 
-  // Extraer contenido del documento (si es PDF)
-  try {
-    const extractedContent = await extractContentFromDocument(physicalPath, docData.mimeType);
-    if (extractedContent) {
-      doc.extractedContent = extractedContent;
-      await doc.save();
-      console.warn(`✅ Content extracted for document: ${doc.filename}`);
-    }
-  } catch (error: unknown) {
-    console.error(`⚠️  Failed to extract content from ${doc.filename}:`, getErrorMessage(error));
-    // No lanzar error, la extracción de contenido no es crítica
-  }
-
   // Actualizar almacenamiento usado del usuario
   user.storageUsed = currentUsage + fileSize;
   await user.save();
@@ -1022,14 +1141,12 @@ export async function uploadDocument({
   // 🤖 RFE-AI-002: Disparar procesamiento AI asíncrono (no bloquea respuesta al usuario)
   if (textExtractionService.isSupportedMimeType(doc.mimeType)) {
     processDocumentAI(doc._id.toString()).catch((error: unknown) => {
-      console.error(
-        `[upload] Failed to process document ${String(doc._id)} with AI:`,
-        getErrorMessage(error)
-      );
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`[upload] Failed to process document ${doc._id} with AI:`, errorMessage);
     });
   } else {
     console.warn(
-      `[upload] Document ${String(doc._id)} has unsupported MIME type for AI processing: ${doc.mimeType}`
+      `[upload] Document ${doc._id} has unsupported MIME type for AI processing: ${doc.mimeType}`
     );
   }
 
@@ -1037,11 +1154,33 @@ export async function uploadDocument({
   try {
     await searchService.indexDocument(doc);
   } catch (error: unknown) {
-    console.error('Failed to index document in search:', getErrorMessage(error));
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Failed to index document in search:', errorMessage);
     // No lanzar error para no bloquear la creación del documento
   }
 
-  // NOTE: Upload is private by default now -> do NOT notify entire org on upload.
+  // Notificación (persistida) a miembros de la organización (excluye al actor)
+  if (doc.organization) {
+    try {
+      await notificationService.notifyOrganizationMembers({
+        actorUserId: userId,
+        type: 'DOC_UPLOADED',
+        documentId: doc._id.toString(),
+        message: `${user.name || user.email} subió "${doc.originalname}"`,
+        metadata: {
+          originalname: doc.originalname,
+          folderId: doc.folder?.toString?.()
+        },
+        emitter: (recipientUserId, payload) => {
+          emitToUser(recipientUserId, 'notification:new', payload);
+        }
+      });
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+      console.error('Failed to create notification (DOC_UPLOADED):', errorMessage);
+    }
+  }
+
   return doc;
 }
 
@@ -1061,10 +1200,11 @@ export async function listDocuments(userId: string): Promise<IDocument[]> {
   const userObjectId = new mongoose.Types.ObjectId(userId);
   return DocumentModel.find({
     uploadedBy: userObjectId,
-    deletedAt: null // Excluir documentos en papelera
-  })
-    .populate('folder')
-    .select(getDocumentSelect('list')); // 🤖 Incluye campos AI explícitamente
+    $or: [
+      { isDeleted: { $exists: false } },
+      { isDeleted: false }
+    ]
+  }).populate('folder');
 }
 
 export async function findDocumentById(id: string): Promise<IDocument | null> {
@@ -1084,6 +1224,7 @@ export default {
   listSharedDocumentsToUser,
   findDocumentById,
   moveDocument,
+  renameDocument,
   copyDocument,
   getUserRecentDocuments
 };

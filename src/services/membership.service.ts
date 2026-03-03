@@ -301,7 +301,7 @@ export async function acceptInvitation(membershipId: string, userId: string): Pr
     // Crear carpeta raíz en la base de datos
     rootFolder = await Folder.create({
       name: rootFolderName,
-      displayName: 'RootFolder',
+      displayName: organization.name, // Usar nombre de la organización (mejor UX)
       type: 'root',
       isRoot: true,
       organization: organization._id,
@@ -513,7 +513,7 @@ export async function createMembership({
 
     rootFolder = await Folder.create({
       name: rootFolderName,
-      displayName: 'RootFolder',
+      displayName: organization.name, // Usar nombre de la organización (mejor UX)
       type: 'root',
       isRoot: true,
       organization: organizationId,

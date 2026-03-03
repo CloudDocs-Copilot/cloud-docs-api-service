@@ -53,6 +53,13 @@ router.get('/:id/contents', folderController.getContents);
 router.post('/:id/share', folderController.share);
 
 /**
+ * @route   PATCH /api/folders/:id/move
+ * @desc    Mueve una carpeta a otra ubicación
+ * @access  Folder owner/editor
+ */
+router.patch('/:id/move', folderController.move);
+
+/**
  * @route   PATCH /api/folders/:id
  * @desc    Renombra una carpeta
  * @access  Folder owner

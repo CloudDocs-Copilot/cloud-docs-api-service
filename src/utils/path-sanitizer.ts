@@ -27,6 +27,13 @@ export const PATH_SANITIZATION_CONFIG = {
     '.jpeg',
     '.png',
     '.gif',
+    '.bmp',
+    '.svg',
+    '.webp',
+    '.mp4',
+    '.webm',
+    '.ogg',
+    '.mov',
     '.zip',
     '.rar',
     '.csv',
@@ -57,7 +64,6 @@ export const PATH_SANITIZATION_CONFIG = {
   ],
 
   // Caracteres peligrosos en nombres de archivo
-  // eslint-disable-next-line no-control-regex
   dangerousChars: /[<>:"|?*\x00-\x1f]/g,
 
   // Patrones de Path Traversal

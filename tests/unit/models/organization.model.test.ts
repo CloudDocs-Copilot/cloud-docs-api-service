@@ -125,8 +125,15 @@ describe('Organization Model', (): void => {
       });
 
       expect(organization.settings.maxStoragePerUser).toBe(1073741824); // 1GB FREE plan
-      expect(organization.settings.allowedFileTypes).toEqual(['pdf', 'txt', 'doc', 'docx']); // FREE plan types
+      expect(organization.settings.allowedFileTypes).toEqual([
+        'pdf', 'txt', 'doc', 'docx', 'pptx', 
+        'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp',
+        'xls', 'xlsx', 
+        'mp4', 'webm', 'ogg', 'mov'
+      ]); // FREE plan types
       expect(organization.settings.maxUsers).toBe(3); // FREE plan max users
+      expect(organization.settings.maxStorageTotal).toBe(3221225472); // 3GB total
+      expect(organization.settings.maxFileSize).toBe(10485760); // 10MB
     });
 
     it('should allow custom settings', async (): Promise<void> => {
@@ -143,8 +150,15 @@ describe('Organization Model', (): void => {
 
       // Settings are overridden by plan limits in pre-save hook
       expect(organization.settings.maxStoragePerUser).toBe(1073741824); // FREE plan value
-      expect(organization.settings.allowedFileTypes).toEqual(['pdf', 'txt', 'doc', 'docx']); // FREE plan value
+      expect(organization.settings.allowedFileTypes).toEqual([
+        'pdf', 'txt', 'doc', 'docx', 'pptx', 
+        'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp',
+        'xls', 'xlsx', 
+        'mp4', 'webm', 'ogg', 'mov'
+      ]); // FREE plan value
       expect(organization.settings.maxUsers).toBe(3); // FREE plan value
+      expect(organization.settings.maxStorageTotal).toBe(3221225472); // 3GB total
+      expect(organization.settings.maxFileSize).toBe(10485760); // 10MB
     });
   });
 

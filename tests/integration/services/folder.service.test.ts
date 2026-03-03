@@ -10,7 +10,7 @@ import * as path from 'path';
 
 let mongoServer: MongoMemoryServer;
 
-describe('FolderService Integration Tests', (): void => {
+describe('FolderService Integration Tests', () => {
   let testUserId: mongoose.Types.ObjectId;
   let testUser2Id: mongoose.Types.ObjectId;
   let testOrgId: mongoose.Types.ObjectId;
@@ -111,14 +111,9 @@ describe('FolderService Integration Tests', (): void => {
     if (fs.existsSync(storageRoot)) {
       try {
         fs.rmSync(storageRoot, { recursive: true, force: true });
-      } catch (err: unknown) {
-        if (err && typeof err === 'object' && 'code' in err) {
-          const e = err as { code?: string };
-          if (e.code === 'ENOTEMPTY' || e.code === 'EBUSY' || e.code === 'EPERM') {
-            console.warn('Warning: could not fully remove storageRoot during cleanup:', e.code);
-          } else {
-            throw err;
-          }
+      } catch (err: any) {
+        if (err && (err.code === 'ENOTEMPTY' || err.code === 'EBUSY' || err.code === 'EPERM')) {
+          console.warn('Warning: could not fully remove storageRoot during cleanup:', err.code);
         } else {
           throw err;
         }
@@ -126,8 +121,8 @@ describe('FolderService Integration Tests', (): void => {
     }
   });
 
-  describe('validateFolderAccess', (): void => {
-    it('should validate owner access', async (): Promise<void> => {
+  describe('validateFolderAccess', () => {
+    it('should validate owner access', async () => {
       const result = await folderService.validateFolderAccess(
         rootFolderId.toString(),
         testUserId.toString(),
@@ -137,7 +132,7 @@ describe('FolderService Integration Tests', (): void => {
       expect(result).toBe(true);
     });
 
-    it('should fail if user does not have required role', async (): Promise<void> => {
+    it('should fail if user does not have required role', async () => {
       // Compartir carpeta con viewer role
       const folder = await Folder.findById(rootFolderId);
       folder!.shareWith(testUser2Id.toString(), 'viewer');
@@ -145,20 +140,20 @@ describe('FolderService Integration Tests', (): void => {
 
       await expect(
         folderService.validateFolderAccess(rootFolderId.toString(), testUser2Id.toString(), 'owner')
-      ).rejects.toThrow('User does not have owner access to this folder');
+      ).rejects.toThrow('El usuario no tiene acceso de owner a esta carpeta');
     });
 
-    it('should fail if folder does not exist', async (): Promise<void> => {
+    it('should fail if folder does not exist', async () => {
       const fakeId = new mongoose.Types.ObjectId();
 
       await expect(
         folderService.validateFolderAccess(fakeId.toString(), testUserId.toString())
-      ).rejects.toThrow('Folder not found');
+      ).rejects.toThrow('Carpeta no encontrada');
     });
   });
 
-  describe('createFolder', (): void => {
-    it('should create a folder with required parentId', async (): Promise<void> => {
+  describe('createFolder', () => {
+    it('should create a folder with required parentId', async () => {
       const newFolder = await folderService.createFolder({
         name: 'Projects',
         displayName: 'My Projects',
@@ -176,7 +171,7 @@ describe('FolderService Integration Tests', (): void => {
       expect(newFolder.path).toContain('Projects');
     });
 
-    it('should create physical directory', async (): Promise<void> => {
+    it('should create physical directory', async () => {
       await folderService.createFolder({
         name: 'Documents',
         owner: testUserId.toString(),
@@ -189,7 +184,7 @@ describe('FolderService Integration Tests', (): void => {
       expect(fs.existsSync(userPath)).toBe(true);
     });
 
-    it('should fail without parentId', async (): Promise<void> => {
+    it('should fail without parentId', async () => {
       await expect(
         folderService.createFolder({
           name: 'Invalid Folder',
@@ -197,10 +192,10 @@ describe('FolderService Integration Tests', (): void => {
           organizationId: testOrgId.toString(),
           parentId: ''
         })
-      ).rejects.toThrow('Parent folder ID is required');
+      ).rejects.toThrow('El ID de carpeta padre es requerido');
     });
 
-    it('should fail if parent folder does not exist', async (): Promise<void> => {
+    it('should fail if parent folder does not exist', async () => {
       const fakeParentId = new mongoose.Types.ObjectId();
 
       await expect(
@@ -210,10 +205,10 @@ describe('FolderService Integration Tests', (): void => {
           organizationId: testOrgId.toString(),
           parentId: fakeParentId.toString()
         })
-      ).rejects.toThrow('Folder not found');
+      ).rejects.toThrow('Carpeta no encontrada');
     });
 
-    it('should fail if user does not have editor access to parent', async (): Promise<void> => {
+    it('should fail if user does not have editor access to parent', async () => {
       // User2 no tiene acceso a la carpeta raíz de User1
       await expect(
         folderService.createFolder({
@@ -222,12 +217,12 @@ describe('FolderService Integration Tests', (): void => {
           organizationId: testOrgId.toString(),
           parentId: rootFolderId.toString()
         })
-      ).rejects.toThrow('User does not have editor access to this folder');
+      ).rejects.toThrow('El usuario no tiene acceso de editor a esta carpeta');
     });
   });
 
-  describe('getFolderContents', (): void => {
-    it('should return folder with subfolders and documents', async (): Promise<void> => {
+  describe('getFolderContents', () => {
+    it('should return folder with subfolders and documents', async () => {
       // Crear subcarpeta
       const subfolder = await Folder.create({
         name: 'Subfolder',
@@ -258,23 +253,67 @@ describe('FolderService Integration Tests', (): void => {
 
       expect(result.folder).toBeDefined();
       expect(result.subfolders).toHaveLength(1);
-      expect(result.subfolders[0]._id).toEqual(subfolder._id);
+      expect(result.subfolders[0].name).toEqual(subfolder.name);
       expect(result.documents).toHaveLength(1);
-      expect(result.documents[0]._id).toEqual(document._id);
+      expect(result.documents[0].filename).toEqual(document.filename);
     });
 
-    it('should fail if user does not have access', async (): Promise<void> => {
+    it('should include itemCount in subfolders', async () => {
+      // Crear subcarpeta
+      const subfolder = await Folder.create({
+        name: 'Subfolder',
+        type: 'folder',
+        organization: testOrgId,
+        owner: testUserId,
+        parent: rootFolderId,
+        path: `/${testOrgSlug}/${testUserId}/Subfolder`,
+        permissions: [{ userId: testUserId, role: 'owner' }]
+      });
+
+      // Crear documentos dentro de la subcarpeta
+      await Document.create({
+        filename: 'doc1.txt',
+        originalName: 'doc1.txt',
+        mimeType: 'text/plain',
+        size: 100,
+        uploadedBy: testUserId,
+        folder: subfolder._id,
+        organization: testOrgId,
+        path: `/${testOrgSlug}/${testUserId}/Subfolder/doc1.txt`
+      });
+
+      await Document.create({
+        filename: 'doc2.txt',
+        originalName: 'doc2.txt',
+        mimeType: 'text/plain',
+        size: 100,
+        uploadedBy: testUserId,
+        folder: subfolder._id,
+        organization: testOrgId,
+        path: `/${testOrgSlug}/${testUserId}/Subfolder/doc2.txt`
+      });
+
+      const result = await folderService.getFolderContents({
+        folderId: rootFolderId.toString(),
+        userId: testUserId.toString(),
+      });
+
+      expect(result.subfolders).toHaveLength(1);
+      expect(result.subfolders[0].itemCount).toBe(2);
+    });
+
+    it('should fail if user does not have access', async () => {
       await expect(
         folderService.getFolderContents({
           folderId: rootFolderId.toString(),
           userId: testUser2Id.toString()
         })
-      ).rejects.toThrow('User does not have viewer access to this folder');
+      ).rejects.toThrow('El usuario no tiene acceso de viewer a esta carpeta');
     });
   });
 
-  describe('getUserFolderTree', (): void => {
-    it('should return hierarchical folder tree', async (): Promise<void> => {
+  describe('getUserFolderTree', () => {
+    it('should return hierarchical folder tree', async () => {
       // Crear estructura de carpetas
       const folder1 = await Folder.create({
         name: 'Folder1',
@@ -303,14 +342,71 @@ describe('FolderService Integration Tests', (): void => {
 
       expect(tree).toBeDefined();
       expect(tree).not.toBeNull();
-      expect(tree!._id.toString()).toBe(rootFolderId.toString());
+      expect((tree as any).id).toBe(rootFolderId.toString());
       // El árbol debe tener hijos
       expect((tree as any).children).toBeDefined();
     });
+
+    it('should include documents in folder tree', async () => {
+      // Crear carpeta
+      const folder1 = await Folder.create({
+        name: 'Folder1',
+        type: 'folder',
+        organization: testOrgId,
+        owner: testUserId,
+        parent: rootFolderId,
+        path: `/${testOrgSlug}/${testUserId}/Folder1`,
+        permissions: [{ userId: testUserId, role: 'owner' }]
+      });
+
+      // Crear documento en la carpeta
+      await Document.create({
+        filename: 'test-doc.pdf',
+        originalname: 'test-doc.pdf',
+        mimeType: 'application/pdf',
+        size: 1000,
+        uploadedBy: testUserId,
+        folder: folder1._id,
+        organization: testOrgId,
+        path: `/${testOrgSlug}/${testUserId}/Folder1/test-doc.pdf`
+      });
+
+      // Crear otro documento en la raíz
+      await Document.create({
+        filename: 'root-doc.txt',
+        originalname: 'root-doc.txt',
+        mimeType: 'text/plain',
+        size: 500,
+        uploadedBy: testUserId,
+        folder: rootFolderId,
+        organization: testOrgId,
+        path: `/${testOrgSlug}/${testUserId}/root-doc.txt`
+      });
+
+      const tree = await folderService.getUserFolderTree({
+        userId: testUserId.toString(),
+        organizationId: testOrgId.toString(),
+      });
+
+      expect(tree).toBeDefined();
+      expect(tree).not.toBeNull();
+      
+      // Verificar que la raíz tiene documents
+      expect((tree as any).documents).toBeDefined();
+      expect((tree as any).documents).toHaveLength(1);
+      expect((tree as any).documents[0].originalname).toBe('root-doc.txt');
+
+      // Verificar que folder1 tiene documents
+      expect((tree as any).children).toHaveLength(1);
+      const folder1InTree = (tree as any).children[0];
+      expect(folder1InTree.documents).toBeDefined();
+      expect(folder1InTree.documents).toHaveLength(1);
+      expect(folder1InTree.documents[0].originalname).toBe('test-doc.pdf');
+    });
   });
 
-  describe('shareFolder', (): void => {
-    it('should share folder with another user', async (): Promise<void> => {
+  describe('shareFolder', () => {
+    it('should share folder with another user', async () => {
       const sharedFolder = await folderService.shareFolder({
         folderId: rootFolderId.toString(),
         userId: testUserId.toString(),
@@ -325,7 +421,7 @@ describe('FolderService Integration Tests', (): void => {
       expect(hasAccess).toBe(true);
     });
 
-    it('should fail if user is not owner', async (): Promise<void> => {
+    it('should fail if user is not owner', async () => {
       // User2 no es owner
       await expect(
         folderService.shareFolder({
@@ -334,10 +430,10 @@ describe('FolderService Integration Tests', (): void => {
           targetUserId: testUserId.toString(),
           role: 'viewer'
         })
-      ).rejects.toThrow('User does not have owner access to this folder');
+      ).rejects.toThrow('El usuario no tiene acceso de owner a esta carpeta');
     });
 
-    it('should fail if target user does not exist', async (): Promise<void> => {
+    it('should fail if target user does not exist', async () => {
       const fakeUserId = new mongoose.Types.ObjectId();
 
       await expect(
@@ -347,12 +443,12 @@ describe('FolderService Integration Tests', (): void => {
           targetUserId: fakeUserId.toString(),
           role: 'viewer'
         })
-      ).rejects.toThrow('Target user not found');
+      ).rejects.toThrow('Usuario objetivo no encontrado');
     });
   });
 
-  describe('deleteFolder', (): void => {
-    it('should delete empty folder', async (): Promise<void> => {
+  describe('deleteFolder', () => {
+    it('should delete empty folder', async () => {
       const folder = await Folder.create({
         name: 'EmptyFolder',
         type: 'folder',
@@ -374,7 +470,7 @@ describe('FolderService Integration Tests', (): void => {
       expect(deletedFolder).toBeNull();
     });
 
-    it('should fail to delete folder with documents without force', async (): Promise<void> => {
+    it('should fail to delete folder with documents without force', async () => {
       const folder = await Folder.create({
         name: 'FolderWithDoc',
         type: 'folder',
@@ -401,10 +497,10 @@ describe('FolderService Integration Tests', (): void => {
           id: folder._id.toString(),
           userId: testUserId.toString()
         })
-      ).rejects.toThrow('Folder is not empty');
+      ).rejects.toThrow('La carpeta no está vacía');
     });
 
-    it('should delete folder with documents when force is true', async (): Promise<void> => {
+    it('should delete folder with documents when force is true', async () => {
       const folder = await Folder.create({
         name: 'FolderToForceDelete',
         type: 'folder',
@@ -438,18 +534,18 @@ describe('FolderService Integration Tests', (): void => {
       expect(deletedFolder).toBeNull();
     });
 
-    it('should fail to delete root folder', async (): Promise<void> => {
+    it('should fail to delete root folder', async () => {
       await expect(
         folderService.deleteFolder({
           id: rootFolderId.toString(),
           userId: testUserId.toString()
         })
-      ).rejects.toThrow('Cannot delete root folder');
+      ).rejects.toThrow('No se puede eliminar la carpeta raíz');
     });
   });
 
-  describe('renameFolder', (): void => {
-    it('should rename folder', async (): Promise<void> => {
+  describe('renameFolder', () => {
+    it('should rename folder', async () => {
       const folder = await Folder.create({
         name: 'OldName',
         type: 'folder',
@@ -472,7 +568,7 @@ describe('FolderService Integration Tests', (): void => {
       expect(renamed.path).toContain('NewName');
     });
 
-    it('should update subfolder paths when parent is renamed', async (): Promise<void> => {
+    it('should update subfolder paths when parent is renamed', async () => {
       const parent = await Folder.create({
         name: 'Parent',
         type: 'folder',
@@ -503,25 +599,25 @@ describe('FolderService Integration Tests', (): void => {
       expect(updatedChild!.path).toBe(`/${testOrgSlug}/${testUserId}/RenamedParent/Child`);
     });
 
-    it('should fail to rename root folder technical name', async (): Promise<void> => {
+    it('should fail to rename root folder technical name', async () => {
       await expect(
         folderService.renameFolder({
           id: rootFolderId.toString(),
           userId: testUserId.toString(),
           name: 'NewRootName'
         })
-      ).rejects.toThrow('Cannot rename root folder technical name');
+      ).rejects.toThrow('No se puede renombrar la carpeta ROOT - está vinculada a la organización');
     });
 
-    it('should allow changing root folder displayName', async (): Promise<void> => {
-      const renamed = await folderService.renameFolder({
-        id: rootFolderId.toString(),
-        userId: testUserId.toString(),
-        name: `root_${testOrgSlug}_${testUserId}`, // Same technical name
-        displayName: 'My New Drive'
-      });
-
-      expect(renamed.displayName).toBe('My New Drive');
+    it('should not allow renaming root folder', async () => {
+      // Root folders cannot be renamed at all (linked to organization)
+      await expect(
+        folderService.renameFolder({
+          id: rootFolderId.toString(),
+          userId: testUserId.toString(),
+          displayName: 'My New Drive'
+        })
+      ).rejects.toThrow('No se puede renombrar la carpeta ROOT - está vinculada a la organización');
     });
   });
 });

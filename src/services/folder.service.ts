@@ -3,30 +3,21 @@ import path from 'path';
 import Folder, { IFolder, FolderPermissionRole } from '../models/folder.model';
 import User from '../models/user.model';
 import Organization from '../models/organization.model';
-import DocumentModel from '../models/document.model';
-import type { IDocument } from '../models/document.model';
+import Membership from '../models/membership.model';
+import DocumentModel, { IDocument } from '../models/document.model';
 import HttpError from '../models/error.model';
 import mongoose from 'mongoose';
-import { documentProcessor } from './document-processor.service';
 
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return String(error);
-}
-
-function getMongoErrorCode(error: unknown): number | undefined {
-  if (typeof error === 'object' && error !== null && 'code' in error) {
-    const code = (error as { code?: unknown }).code;
-    return typeof code === 'number' ? code : undefined;
+/**
+ * Función auxiliar para construir rutas de carpetas correctamente sin dobles slashes
+ */
+function buildFolderPath(parentPath: string, folderName: string): string {
+  // Si el padre es raíz ('/'), no agregar slash extra
+  if (parentPath === '/') {
+    return `/${folderName}`;
   }
-  return undefined;
-}
-
-interface FolderTreeNode {
-  _id: mongoose.Types.ObjectId;
-  parent?: mongoose.Types.ObjectId | null;
-  children: FolderTreeNode[];
-  [key: string]: unknown;
+  // De lo contrario, agregar con slash
+  return `${parentPath}/${folderName}`;
 }
 
 /**
@@ -86,6 +77,15 @@ export interface GetUserFolderTreeDto {
 }
 
 /**
+ * DTO para mover carpeta (Drag & Drop)
+ */
+export interface MoveFolderDto {
+  folderId: string;
+  userId: string;
+  targetFolderId: string;
+}
+
+/**
  * Valida que un usuario tenga acceso a una carpeta con un rol específico
  *
  * @param folderId - ID de la carpeta
@@ -101,13 +101,13 @@ export async function validateFolderAccess(
 ): Promise<boolean> {
   // Validar que el folderId sea un ObjectId válido y no un objeto de consulta
   if (typeof folderId !== 'string' || !mongoose.Types.ObjectId.isValid(folderId)) {
-    throw new HttpError(400, 'Invalid folder ID');
+    throw new HttpError(400, 'ID de carpeta inválido');
   }
 
   const folder = await Folder.findById(folderId);
 
   if (!folder) {
-    throw new HttpError(404, 'Folder not found');
+    throw new HttpError(404, 'Carpeta no encontrada');
   }
 
   // Usar el método hasAccess del modelo
@@ -116,13 +116,92 @@ export async function validateFolderAccess(
   if (!hasAccess) {
     throw new HttpError(
       403,
-      requiredRole
-        ? `User does not have ${requiredRole} access to this folder`
-        : 'User does not have access to this folder'
+      requiredRole 
+        ? `El usuario no tiene acceso de ${requiredRole} a esta carpeta`
+        : 'El usuario no tiene acceso a esta carpeta'
     );
   }
 
   return true;
+}
+
+/**
+ * Crea la carpeta raíz para una organización si no existe
+ */
+export async function createRootFolder(userId: string, organizationId: string): Promise<IFolder> {
+  console.warn('[createRootFolder] Llamado con userId:', userId, 'orgId:', organizationId);
+  
+  const org = await Organization.findById(organizationId);
+  if (!org) throw new HttpError(404, 'Organización no encontrada');
+
+  // Verificar si ya existe
+  const existingRoot = await Folder.findOne({
+    organization: new mongoose.Types.ObjectId(organizationId),
+    parent: null
+  });
+
+  if (existingRoot) {
+    console.warn('[createRootFolder] Encontrada raíz existente:', existingRoot._id);
+    return existingRoot;
+  }
+  
+  console.warn('[createRootFolder] No se encontró raíz existente, creando nueva...');
+
+  // Crear carpeta raíz
+  try {
+    const rootFolder = await Folder.create({
+      name: 'root', // Nombre interno
+      displayName: org.name, // Nombre de la organización (mejor UX)
+      type: 'root', // TIPO CORRECTO
+      owner: userId,
+      organization: organizationId,
+      parent: null,
+      path: '/',
+      permissions: [{
+          userId: new mongoose.Types.ObjectId(userId),
+          role: 'owner'
+      }]
+    });
+    
+    console.warn('[createRootFolder] Creada nueva carpeta raíz:', rootFolder._id, 'para org:', organizationId);
+    
+    // Asegurar directorio físico
+    const storageRoot = path.join(process.cwd(), 'storage');
+    // Sanitizar slug para prevenir path traversal
+    const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+    const folderPath = path.join(storageRoot, safeSlug); // Raíz del bucket de la org
+    
+    if (!fs.existsSync(folderPath)) {
+      fs.mkdirSync(folderPath, { recursive: true });
+    }
+
+    // ACTUALIZAR MEMBRESÍA CON CARPETA RAÍZ
+    // Buscar la membresía de este usuario en esta organización
+    const membership = await Membership.findOne({
+      user: new mongoose.Types.ObjectId(userId),
+      organization: new mongoose.Types.ObjectId(organizationId)
+    });
+
+    if (membership) {
+       // Asumiendo que el modelo Membership tiene un campo 'rootFolder' (basado en uso de document.service)
+       await Membership.updateOne(
+         { _id: membership._id },
+         { $set: { rootFolder: rootFolder._id } }
+       );
+    }
+    
+    return rootFolder;
+  } catch (err: unknown) {
+    // Si ocurrió race condition y fue recién creada
+    if (err instanceof Error && 'code' in err && (err as { code: number }).code === 11000) {
+       const found = await Folder.findOne({
+          organization: new mongoose.Types.ObjectId(organizationId),
+          parent: null
+       });
+       if (found) return found;
+    }
+    throw err;
+  }
 }
 
 /**
@@ -139,38 +218,38 @@ export async function createFolder({
   organizationId,
   parentId
 }: CreateFolderDto): Promise<IFolder> {
-  if (!name) throw new HttpError(400, 'Folder name is required');
-  if (!owner) throw new HttpError(400, 'Owner is required');
-  if (!organizationId) throw new HttpError(400, 'Organization ID is required');
-  if (!parentId) throw new HttpError(400, 'Parent folder ID is required');
+  if (!name) throw new HttpError(400, 'El nombre de la carpeta es requerido');
+  if (!owner) throw new HttpError(400, 'El propietario es requerido');
+  if (!organizationId) throw new HttpError(400, 'El ID de organización es requerido');
+  if (!parentId) throw new HttpError(400, 'El ID de carpeta padre es requerido');
 
   // Validar que el organizationId sea un ObjectId válido y no un objeto de consulta
   if (typeof organizationId !== 'string' || !mongoose.Types.ObjectId.isValid(organizationId)) {
-    throw new HttpError(400, 'Invalid organization ID');
+    throw new HttpError(400, 'ID de organización inválido');
   }
 
   // Validar que el parentId sea un ObjectId válido y no un objeto de consulta
   if (typeof parentId !== 'string' || !mongoose.Types.ObjectId.isValid(parentId)) {
-    throw new HttpError(400, 'Invalid parent folder ID');
+    throw new HttpError(400, 'ID de carpeta padre inválido');
   }
 
   // Validar que el usuario exista
   const user = await User.findById(owner);
-  if (!user) throw new HttpError(404, 'Owner user not found');
-
+  if (!user) throw new HttpError(404, 'Usuario propietario no encontrado');
+  
   // Validar que la organización exista
   const org = await Organization.findById(organizationId);
-  if (!org) throw new HttpError(404, 'Organization not found');
-
+  if (!org) throw new HttpError(404, 'Organización no encontrada');
+  
   // Validar que la carpeta padre exista y el usuario tenga permisos de editor o owner
   await validateFolderAccess(parentId, owner, 'editor');
 
   const parentFolder = await Folder.findById(parentId);
-  if (!parentFolder) throw new HttpError(404, 'Parent folder not found');
-
+  if (!parentFolder) throw new HttpError(404, 'Carpeta padre no encontrada');
+  
   // Construir el path basado en el padre
-  const newPath = `${parentFolder.path}/${name}`;
-
+  const newPath = buildFolderPath(parentFolder.path, name);
+  
   try {
     const folder = await Folder.create({
       name,
@@ -192,11 +271,17 @@ export async function createFolder({
     const storageRoot = path.join(process.cwd(), 'storage');
     // Sanitizar slug para prevenir path traversal
     const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+    
     // Sanitizar cada componente del path
-    const pathComponents = newPath
-      .split('/')
-      .filter(p => p)
-      .map(component => component.replace(/[^a-z0-9_.-]/gi, '-'));
+    let pathComponents = newPath.split('/').filter(p => p).map(component => 
+      component.replace(/[^a-z0-9_.-]/gi, '-')
+    );
+    
+    // Si el primer componente es el slug, eliminarlo para evitar duplicación
+    if (pathComponents.length > 0 && pathComponents[0] === safeSlug) {
+      pathComponents.shift();
+    }
+    
     const folderPath = path.join(storageRoot, safeSlug, ...pathComponents);
 
     if (!fs.existsSync(folderPath)) {
@@ -205,7 +290,7 @@ export async function createFolder({
 
     return folder;
   } catch (err: unknown) {
-    if (getMongoErrorCode(err) === 11000) {
+    if (err instanceof Error && 'code' in err && (err as { code: number }).code === 11000) {
       throw new HttpError(409, 'Folder name already exists in this location');
     }
     throw err;
@@ -220,9 +305,11 @@ export async function createFolder({
  */
 export async function getFolderContents({ folderId, userId }: GetFolderContentsDto): Promise<{
   folder: IFolder;
-  subfolders: IFolder[];
+  subfolders: Array<Record<string, unknown> & { itemCount: number }>;
   documents: IDocument[];
 }> {
+  console.warn('[getFolderContents] folderId:', folderId);
+  
   // Validar acceso (viewer como mínimo)
   await validateFolderAccess(folderId, userId, 'viewer');
 
@@ -238,18 +325,61 @@ export async function getFolderContents({ folderId, userId }: GetFolderContentsD
     parent: folderObjectId,
     $or: [{ owner: userObjectId }, { 'permissions.userId': userObjectId }]
   }).sort({ name: 1 });
-
-  // Obtener documentos de la carpeta
+  
+  console.warn('[getFolderContents] Encontradas', subfolders.length, 'subcarpetas');
+  
+  // Obtener conteo de documentos por subcarpeta (excluir eliminados)
+  const documentCounts = await DocumentModel.aggregate([
+    {
+      $match: {
+        folder: { $in: subfolders.map(f => f._id) },
+        isDeleted: false // Excluir documentos en papelera
+      }
+    },
+    {
+      $group: {
+        _id: '$folder',
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+  
+  // Crear mapa de conteos para acceso O(1)
+  interface DocCount {
+    _id: mongoose.Types.ObjectId;
+    count: number;
+  }
+  const countMap = new Map<string, number>();
+  documentCounts.forEach((item: DocCount) => {
+    countMap.set(item._id.toString(), item.count);
+  });
+  
+  // Agregar itemCount a cada subcarpeta
+  const subfoldersWithCount = subfolders.map(subfolder => {
+    const plain = subfolder.toObject();
+    return {
+      ...plain,
+      itemCount: countMap.get(subfolder._id.toString()) || 0
+    };
+  });
+  
+  // Obtener documentos de la carpeta (excluir eliminados)
   const documents = await DocumentModel.find({
     folder: folderObjectId,
-    $or: [{ uploadedBy: userObjectId }, { sharedWith: userObjectId }]
+    $or: [
+      { isDeleted: { $exists: false } },
+      { isDeleted: false }
+    ]
   })
-    .sort({ createdAt: -1 })
-    .select('-__v');
-
+  .sort({ createdAt: -1 })
+  .select('-__v');
+  
+  console.warn('[getFolderContents] Encontrados', documents.length, 'documentos en carpeta', folderId);
+  console.warn('[getFolderContents] Documentos:', documents.map(d => ({ id: d._id, name: d.filename, folder: d.folder })));
+  
   return {
     folder,
-    subfolders,
+    subfolders: subfoldersWithCount,
     documents
   };
 }
@@ -260,10 +390,9 @@ export async function getFolderContents({ folderId, userId }: GetFolderContentsD
  * @param GetUserFolderTreeDto - Parámetros
  * @returns Árbol jerárquico de carpetas
  */
-export async function getUserFolderTree({
-  userId,
-  organizationId
-}: GetUserFolderTreeDto): Promise<IFolder | null> {
+export async function getUserFolderTree({ userId, organizationId }: GetUserFolderTreeDto): Promise<IFolder | null> {
+  console.warn('[getUserFolderTree] userId:', userId, 'orgId:', organizationId);
+  
   // Convertir IDs a ObjectIds para prevenir inyección NoSQL
   const userObjectId = new mongoose.Types.ObjectId(userId);
   const orgObjectId = new mongoose.Types.ObjectId(organizationId);
@@ -273,50 +402,99 @@ export async function getUserFolderTree({
     organization: orgObjectId,
     $or: [{ owner: userObjectId }, { 'permissions.userId': userObjectId }]
   })
-    .sort({ path: 1 });
-
+  .sort({ path: 1 })
+  .lean();
+  
+  console.warn('[getUserFolderTree] Encontradas', folders.length, 'carpetas');
+  
   if (folders.length === 0) {
     return null;
   }
-
+  
+  // Transformar _id a id (lean() no aplica toJSON transform)
+  interface FolderLean extends Omit<IFolder, '_id'> {
+    _id: mongoose.Types.ObjectId;
+  }
+  const transformedFolders = folders.map((folder) => {
+    const { _id, ...rest } = folder as FolderLean;
+    return {
+      ...rest,
+      id: _id.toString()
+    };
+  });
+  
+  // Obtener todos los documentos de estas carpetas (excluir eliminados)
+  const documents = await DocumentModel.find({
+    folder: { $in: folders.map(f => f._id) },
+    $or: [
+      { isDeleted: { $exists: false } },
+      { isDeleted: false }
+    ]
+  })
+  .sort({ originalname: 1 })
+  .select('-__v')
+  .lean();
+  
+  // Agrupar documentos por carpeta
+  interface DocLean {
+    _id: mongoose.Types.ObjectId;
+    folder: mongoose.Types.ObjectId;
+    [key: string]: unknown;
+  }
+  const documentsByFolder = new Map<string, unknown[]>();
+  documents.forEach((doc) => {
+    const docTyped = doc as DocLean;
+    const folderId = docTyped.folder.toString();
+    if (!documentsByFolder.has(folderId)) {
+      documentsByFolder.set(folderId, []);
+    }
+    const { _id, ...restDoc } = docTyped;
+    documentsByFolder.get(folderId)!.push({
+      ...restDoc,
+      id: _id.toString()
+    });
+  });
+  
   // Construir árbol jerárquico
-  const folderMap = new Map<string, FolderTreeNode>();
-  const rootFolders: FolderTreeNode[] = [];
-
-  // Primero crear el mapa con todos los folders
-  folders.forEach(folder => {
-    const folderObject = folder.toObject() as Record<string, unknown>;
-
-    folderMap.set(String(folder._id), {
-      ...folderObject,
-      _id: new mongoose.Types.ObjectId(String(folder._id)),
-      parent: folder.parent ? new mongoose.Types.ObjectId(String(folder.parent)) : null,
-      children: []
+  interface FolderWithChildren {
+    id: string;
+    parent?: mongoose.Types.ObjectId | null;
+    children: unknown[];
+    documents: unknown[];
+    [key: string]: unknown;
+  }
+  const folderMap = new Map<string, FolderWithChildren>();
+  const rootFolders: unknown[] = [];
+  
+  // Primero crear el mapa con todos los folders y sus documentos
+  transformedFolders.forEach(folder => {
+    folderMap.set(folder.id, {
+      ...folder,
+      children: [],
+      documents: documentsByFolder.get(folder.id) || []
     });
   });
 
   // Luego construir la jerarquía
-  folders.forEach(folder => {
-    const folderWithChildren = folderMap.get(String(folder._id));
-
-    if (!folderWithChildren) {
-      return;
-    }
-
+  transformedFolders.forEach((folder) => {
+    const folderWithChildren = folderMap.get(folder.id);
+    if (!folderWithChildren) return;
+    
     if (!folder.parent) {
       // Carpeta raíz
       rootFolders.push(folderWithChildren);
     } else {
       // Carpeta hija
-      const parent = folderMap.get(String(folder.parent));
+      const parent = folderMap.get(folder.parent.toString());
       if (parent) {
         parent.children.push(folderWithChildren);
       }
     }
   });
-
+  
+  console.warn('[getUserFolderTree] Encontradas', rootFolders.length, 'carpetas raíz');
   // Retornar la primera carpeta raíz (debería haber solo una por usuario)
-  return rootFolders.length > 0 ? (rootFolders[0] as unknown as IFolder) : null;
+  return rootFolders.length > 0 ? (rootFolders[0] as IFolder) : null;
 }
 
 /**
@@ -339,8 +517,8 @@ export async function shareFolder({
 
   // Validar que el usuario objetivo exista y esté en la misma organización
   const targetUser = await User.findById(targetUserId);
-  if (!targetUser) throw new HttpError(404, 'Target user not found');
-
+  if (!targetUser) throw new HttpError(404, 'Usuario objetivo no encontrado');
+  
   // Validar compatibilidad de organización:
   // - Ambos sin organización: OK (usuarios personales)
   // - Ambos con la misma organización: OK
@@ -353,9 +531,9 @@ export async function shareFolder({
     if (!folderOrgId && !userOrgId) {
       // Ambos son usuarios personales - OK
     } else if (folderOrgId && userOrgId) {
-      throw new HttpError(403, 'Users belong to different organizations');
+      throw new HttpError(403, 'Los usuarios pertenecen a organizaciones diferentes');
     } else {
-      throw new HttpError(403, 'Cannot share between personal and organization users');
+      throw new HttpError(403, 'No se puede compartir entre usuarios personales y de organización');
     }
   }
 
@@ -396,20 +574,20 @@ export async function deleteFolder({
 
   // Validar que no sea carpeta raíz
   if (folder.type === 'root') {
-    throw new HttpError(400, 'Cannot delete root folder');
+    throw new HttpError(400, 'No se puede eliminar la carpeta raíz');
   }
 
   if (!force) {
     // Verificar si tiene subcarpetas
     const hasSubfolders = await Folder.exists({ parent: id });
     if (hasSubfolders) {
-      throw new HttpError(400, 'Folder contains subfolders');
+      throw new HttpError(400, 'La carpeta contiene subcarpetas');
     }
 
     // Verificar si tiene documentos
     const hasDocs = await DocumentModel.exists({ folder: id });
     if (hasDocs) {
-      throw new HttpError(400, 'Folder is not empty');
+      throw new HttpError(400, 'La carpeta no está vacía');
     }
   } else {
     // Forzar: elimina subcarpetas recursivamente
@@ -426,15 +604,10 @@ export async function deleteFolder({
           }
         }
       } catch (e: unknown) {
-        console.error('[force-delete-doc-file-error]', { id: String(doc._id), err: getErrorMessage(e) });
+        const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+        console.error('[force-delete-doc-file-error]', { id: doc._id, err: errorMessage });
       }
       await DocumentModel.findByIdAndDelete(doc._id);
-      // Eliminar chunks vectoriales del documento
-      try {
-        await documentProcessor.deleteDocumentChunks(String(doc._id));
-      } catch (e: unknown) {
-        console.error('[folder-delete-chunks-error]', { id: String(doc._id), err: getErrorMessage(e) });
-      }
     }
   }
 
@@ -472,7 +645,7 @@ async function deleteSubfoldersRecursively(folderId: string): Promise<void> {
 
   for (const subfolder of subfolders) {
     // Recursión: eliminar subcarpetas de esta subcarpeta
-    await deleteSubfoldersRecursively(String(subfolder._id));
+    await deleteSubfoldersRecursively(subfolder._id.toString());
 
     // Eliminar documentos de esta subcarpeta
     const docs = await DocumentModel.find({ folder: subfolder._id });
@@ -485,15 +658,10 @@ async function deleteSubfoldersRecursively(folderId: string): Promise<void> {
           }
         }
       } catch (e: unknown) {
-        console.error('[recursive-delete-doc-error]', { id: String(doc._id), err: getErrorMessage(e) });
+        const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+        console.error('[recursive-delete-doc-error]', { id: doc._id, err: errorMessage });
       }
       await DocumentModel.findByIdAndDelete(doc._id);
-      // Eliminar chunks vectoriales del documento
-      try {
-        await documentProcessor.deleteDocumentChunks(String(doc._id));
-      } catch (e: unknown) {
-        console.error('[recursive-delete-chunks-error]', { id: String(doc._id), err: getErrorMessage(e) });
-      }
     }
 
     // Eliminar la subcarpeta
@@ -501,47 +669,51 @@ async function deleteSubfoldersRecursively(folderId: string): Promise<void> {
   }
 }
 
-export async function renameFolder({
-  id,
-  userId,
-  name,
-  displayName
-}: RenameFolderDto): Promise<IFolder> {
+export async function renameFolder({ id, userId, name, displayName }: RenameFolderDto): Promise<IFolder> {
+  // Validar que al menos uno de los campos esté presente
   if (!name && !displayName) {
-    throw new HttpError(400, 'At least one of name or displayName is required');
+    throw new HttpError(400, 'Se requiere name o displayName');
   }
-
+  
   // Validar que el usuario tenga permisos de editor o owner
   await validateFolderAccess(id, userId, 'editor');
 
   const folder = await Folder.findById(id);
   if (!folder) throw new HttpError(404, 'Folder not found');
-
-  // Validar que no sea carpeta raíz (solo se puede cambiar displayName)
-  if (folder.type === 'root' && name !== undefined && name !== folder.name) {
-    throw new HttpError(400, 'Cannot rename root folder technical name, use displayName instead');
+  
+  // ROOT no se puede renombrar (está casado a la organización)
+  if (folder.type === 'root') {
+    throw new HttpError(400, 'No se puede renombrar la carpeta ROOT - está vinculada a la organización');
+  }
+  
+  // Para carpetas normales: usar name o displayName como valor de renombrado
+  const newName = name || displayName;
+  if (!newName) {
+    throw new HttpError(400, 'El nombre de la carpeta es requerido');
   }
 
-  // Usar el nombre actual si no se proporciona uno nuevo
-  const newName = name ?? folder.name;
   const oldPath = folder.path;
-  const newPath = folder.parent
-    ? `${oldPath.substring(0, oldPath.lastIndexOf('/'))}/${newName}`
-    : `/${newName}`;
-
+  let newPath: string;
+  
+  if (folder.parent) {
+    // Obtener carpeta padre para construir path correctamente
+    const parentFolder = await Folder.findById(folder.parent);
+    if (!parentFolder) throw new HttpError(404, 'Carpeta padre no encontrada');
+    newPath = buildFolderPath(parentFolder.path, newName);
+  } else {
+    // Subcarpeta sin padre (no debería ocurrir excepto ROOT)
+    newPath = `/${newName}`;
+  }
+  
   try {
-    // Actualizar primero en BD para validar unicidad
-    if (name !== undefined) {
-      folder.name = name;
-    }
-    if (displayName !== undefined) {
-      folder.displayName = displayName;
-    }
+    // Renombrado completo: name y displayName
+    folder.name = newName;
+    folder.displayName = displayName || newName; // displayName opcional, usar newName como fallback
     folder.path = newPath;
     await folder.save();
   } catch (err: unknown) {
-    if (getMongoErrorCode(err) === 11000) {
-      throw new HttpError(409, 'Folder name already exists in this location');
+    if (err instanceof Error && 'code' in err && (err as { code: number }).code === 11000) {
+      throw new HttpError(409, 'Ya existe una carpeta con este nombre en esta ubicación');
     }
     throw err;
   }
@@ -556,14 +728,24 @@ export async function renameFolder({
       const storageRoot = path.join(process.cwd(), 'storage');
       // Sanitizar slug y paths para prevenir path traversal
       const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
-      const oldPathComponents = oldPath
-        .split('/')
-        .filter(p => p)
-        .map(component => component.replace(/[^a-z0-9_.-]/gi, '-'));
-      const newPathComponents = newPath
-        .split('/')
-        .filter(p => p)
-        .map(component => component.replace(/[^a-z0-9_.-]/gi, '-'));
+      const oldPathComponents = oldPath.split('/').filter(p => p).map(component => 
+        component.replace(/[^a-z0-9_.-]/gi, '-')
+      );
+      
+      // Remove duplicated slug if present
+      if (oldPathComponents.length > 0 && oldPathComponents[0] === safeSlug) {
+        oldPathComponents.shift();
+      }
+
+      const newPathComponents = newPath.split('/').filter(p => p).map(component => 
+        component.replace(/[^a-z0-9_.-]/gi, '-')
+      );
+
+      // Remove duplicated slug if present
+      if (newPathComponents.length > 0 && newPathComponents[0] === safeSlug) {
+        newPathComponents.shift();
+      }
+
       const oldFolderPath = path.join(storageRoot, safeSlug, ...oldPathComponents);
       const newFolderPath = path.join(storageRoot, safeSlug, ...newPathComponents);
 
@@ -598,9 +780,109 @@ async function updateSubfolderPaths(
     await subfolder.save();
 
     // Recursión: actualizar subcarpetas de esta subcarpeta
-    await updateSubfolderPaths(String(subfolder._id), oldPath, newPath);
+    await updateSubfolderPaths(subfolder._id.toString(), oldPath, newPath);
   }
 }
+
+export async function moveFolder({ folderId, userId, targetFolderId }: MoveFolderDto): Promise<IFolder> {
+  // Validar formato de IDs
+  if (!mongoose.Types.ObjectId.isValid(folderId) || !mongoose.Types.ObjectId.isValid(targetFolderId)) {
+    throw new HttpError(400, 'ID de carpeta inválido');
+  }
+
+  // Validar que el usuario tenga permisos de 'editor' en la carpeta que se mueve
+  // (necesitas permiso para "sacarla" de su lugar actual)
+  await validateFolderAccess(folderId, userId, 'editor');
+
+  // Validar permisos de 'editor' en la carpeta destino
+  // (necesitas permiso para "ponerla" en el nuevo lugar)
+  await validateFolderAccess(targetFolderId, userId, 'editor');
+
+  const folder = await Folder.findById(folderId);
+  const targetFolder = await Folder.findById(targetFolderId);
+
+  if (!folder) throw new HttpError(404, 'Carpeta origen no encontrada');
+  if (!targetFolder) throw new HttpError(404, 'Carpeta destino no encontrada');
+
+  // Validaciones lógicas
+  if (folder.type === 'root') {
+    throw new HttpError(400, 'No se puede mover la carpeta raíz');
+  }
+
+  if (folder.id === targetFolder.id) {
+    throw new HttpError(400, 'No se puede mover una carpeta dentro de sí misma');
+  }
+
+  // Prevenir ciclos: La carpeta destino no puede ser hija de la carpeta que muevo
+  if (targetFolder.path.startsWith(folder.path)) {
+    throw new HttpError(400, 'No se puede mover una carpeta dentro de su propia subcarpeta');
+  }
+  
+  // Validar que no exista ya una carpeta con el mismo nombre en el destino
+  const existingName = await Folder.findOne({
+    parent: targetFolder._id,
+    name: folder.name,
+    _id: { $ne: folder._id } // Excluir la misma carpeta (por si se mueve al mismo padre)
+  });
+
+  if (existingName) {
+    throw new HttpError(409, `Ya existe una carpeta llamada '${folder.name}' en el destino`);
+  }
+
+  // Proceder con el movimiento
+  const oldPath = folder.path;
+  const newPath = buildFolderPath(targetFolder.path, folder.name);
+
+  // Actualizar la carpeta
+  folder.parent = targetFolder._id;
+  folder.path = newPath;
+  await folder.save();
+
+  // Actualizar recursivamente los paths de todas las subcarpetas
+  await updateSubfolderPaths(folderId, oldPath, newPath);
+
+  // Mover físicamente en el sistema de archivos
+  try {
+    const org = await Organization.findById(folder.organization);
+    if (org) {
+      const storageRoot = path.join(process.cwd(), 'storage');
+      
+      // Sanitizar slug de organización
+      const safeSlug = org.slug.replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+      
+      // Sanitizar componentes del path antiguo
+      const oldPathComponents = oldPath.split('/').filter(p => p).map(component => 
+        component.replace(/[^a-z0-9_.-]/gi, '-')
+      );
+      
+      // Sanitizar componentes del path nuevo
+      const newPathComponents = newPath.split('/').filter(p => p).map(component => 
+        component.replace(/[^a-z0-9_.-]/gi, '-')
+      );
+      
+      const oldFolderPath = path.join(storageRoot, safeSlug, ...oldPathComponents);
+      const newFolderPath = path.join(storageRoot, safeSlug, ...newPathComponents);
+
+      if (fs.existsSync(oldFolderPath)) {
+        // Asegurar que el directorio padre destino exista
+        const parentDestDir = path.dirname(newFolderPath);
+        if (!fs.existsSync(parentDestDir)) {
+          fs.mkdirSync(parentDestDir, { recursive: true });
+        }
+        
+        fs.renameSync(oldFolderPath, newFolderPath);
+      }
+    }
+  } catch (err: unknown) {
+    console.error('[folder-move-fs-error]', err);
+    // Nota: Si falla el movimiento físico, la base de datos quedará actualizada.
+    // Esto podría dejar inconsistencias. En un sistema más complejo, usaríamos transacciones
+    // o un job de reparación. Por ahora, loggeamos el error.
+  }
+
+  return folder;
+}
+
 
 export default {
   createFolder,
@@ -610,5 +892,6 @@ export default {
   validateFolderAccess,
   getFolderContents,
   getUserFolderTree,
-  shareFolder
-};
+  shareFolder,
+  moveFolder,
+}

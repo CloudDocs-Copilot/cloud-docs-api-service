@@ -102,7 +102,12 @@ describe('OrganizationService Integration Tests', (): void => {
 
       // Settings are overridden by FREE plan limits in pre-save hook
       expect(organization.settings.maxStoragePerUser).toBe(1073741824); // FREE plan: 1GB
-      expect(organization.settings.allowedFileTypes).toEqual(['pdf', 'txt', 'doc', 'docx']); // FREE plan allowed types
+      expect(organization.settings.allowedFileTypes).toEqual([
+        'pdf', 'txt', 'doc', 'docx', 'pptx', 
+        'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp',
+        'xls', 'xlsx',
+        'mp4', 'webm', 'ogg', 'mov'
+      ]); // FREE plan allowed types (expanded in US-103)
       expect(organization.settings.maxUsers).toBe(3); // FREE plan max users
     });
 

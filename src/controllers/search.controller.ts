@@ -15,7 +15,7 @@ export async function search(req: AuthRequest, res: Response, next: NextFunction
       return next(new HttpError(400, 'Query parameter "q" is required'));
     }
 
-    console.log(`🔍 [Search Controller] Parámetros recibidos:`, {
+    console.warn(`🔍 [Search Controller] Parámetros recibidos:`, {
       query: q,
       organizationId,
       mimeType,
