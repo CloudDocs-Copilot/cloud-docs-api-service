@@ -1,0 +1,19 @@
+﻿# Directories
+node_modules/
+dist/
+build/
+coverage/
+
+# Test directories
+tests/
+**/*.test.ts
+**/*.spec.ts
+
+# Configuration files
+*.config.js
+jest.config.js
+.eslintrc.js
+
+# Generated files
+*.d.ts
+*.d.ts.map

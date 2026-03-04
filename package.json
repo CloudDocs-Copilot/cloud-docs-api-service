@@ -8,15 +8,6 @@
     "dev": "nodemon --exec ts-node src/index.ts",
     "dev:watch": "ts-node src/index.ts",
     "format": "npx prettier --write .",
-<<<<<<< HEAD
-    "test": "cross-env NODE_ENV=test jest --detectOpenHandles --testPathIgnorePatterns=/e2e/",
-    "test:unit": "cross-env NODE_ENV=test jest --testPathPattern=tests/unit",
-    "test:integration": "cross-env NODE_ENV=test jest --testPathPattern=tests/integration",
-    "test:e2e": "cross-env NODE_ENV=development jest --testPathPattern=tests/e2e --runInBand",
-    "test:all": "cross-env NODE_ENV=test jest --detectOpenHandles",
-    "test:watch": "cross-env NODE_ENV=test jest --watch --testPathIgnorePatterns=/e2e/",
-    "test:coverage": "cross-env NODE_ENV=test jest --coverage --testPathIgnorePatterns=/e2e/",
-=======
     "lint": "npx eslint src --ext .ts --max-warnings 100",
     "lint:check": "npx eslint src --ext .ts",
     "test": "cross-env NODE_ENV=test jest --detectOpenHandles --runInBand",
@@ -29,18 +20,11 @@
     "test:coverage:unit:ci": "cross-env NODE_ENV=test COVERAGE_DIR=coverage/unit jest --config jest.unit.config.js --coverage --runInBand",
     "test:ci": "npm run test:coverage:main && npm run test:coverage:unit:ci && npm run test:ci:report",
     "test:ci:report": "node scripts/merge-coverage.js",
->>>>>>> origin/main
     "seed:dev": "ts-node scripts/seed-dev.ts"
   },
   "dependencies": {
     "@elastic/elasticsearch": "^8.10.0",
-<<<<<<< HEAD
-    "@types/pdf-parse": "^1.1.5",
-    "axios": "^1.13.5",
-    "axios-cookiejar-support": "^5.0.5",
-=======
     "@types/node-cron": "^3.0.11",
->>>>>>> origin/main
     "bcryptjs": "^2.4.3",
     "cookie": "^1.1.1",
     "cookie-parser": "^1.4.7",
@@ -59,19 +43,12 @@
     "multer": "^2.0.2",
     "node-cron": "^4.2.1",
     "nodemailer": "^7.0.12",
-<<<<<<< HEAD
-    "pdf-parse": "^2.4.5",
-    "swagger-ui-express": "^5.0.1",
-    "tough-cookie": "^5.1.2",
-    "xlsx": "^0.18.5"
-=======
     "ollama": "^0.6.3",
     "openai": "^6.22.0",
     "pdf-parse": "^1.1.1",
     "socket.io": "^4.8.3",
     "swagger-ui-express": "^5.0.1",
     "tesseract.js": "^2.1.5"
->>>>>>> origin/main
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

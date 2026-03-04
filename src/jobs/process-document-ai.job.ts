@@ -138,7 +138,7 @@ export async function processDocumentAI(documentId: string): Promise<void> {
     // 6. Indexar en Elasticsearch con contenido
     try {
       console.warn(`[ai-job] Indexing document ${documentId} in Elasticsearch...`);
-      await indexDocument(doc, extractionResult.text);
+      await indexDocument(doc);
       console.warn(`[ai-job] Document ${documentId} indexed successfully`);
     } catch (esError: unknown) {
       // No fallar todo el procesamiento si Elasticsearch falla

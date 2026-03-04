@@ -1,0 +1,4 @@
+Este es un documento de prueba para el sistema de preview.
+Contiene texto de ejemplo para verificar el funcionamiento correcto del sistema.
+
+Prueba búsqueda: contrato, arrendamiento, test.

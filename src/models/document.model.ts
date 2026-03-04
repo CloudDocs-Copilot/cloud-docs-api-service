@@ -157,11 +157,6 @@ const documentSchema = new Schema<IDocument>(
       required: false,
       maxlength: [1000000, 'Extracted content cannot exceed 1MB'],
     },
-    extractedContent: {
-      type: String,
-      required: false,
-      maxlength: [1000000, 'Extracted content cannot exceed 1MB'],
-    },
     uploadedAt: {
       type: Date,
       default: Date.now
