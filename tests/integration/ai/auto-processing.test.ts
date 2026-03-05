@@ -194,7 +194,7 @@ describe('Auto-processing AI Integration Tests', (): void => {
       });
 
       // Arrange: force extractText to throw to simulate missing file/path
-      textExtractionService.extractText.mockRejectedValue(new Error('File not found'));
+      textExtractionService.extractText.mockRejectedValue(new Error('Archivo no encontrado'));
       try {
         await processDocumentAI(doc._id.toString());
       } catch {

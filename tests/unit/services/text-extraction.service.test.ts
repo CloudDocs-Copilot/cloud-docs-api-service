@@ -66,7 +66,7 @@ describe('TextExtractionService', (): void => {
 
       await expect(
         textExtractionService.extractText(nonExistentFile, SUPPORTED_MIME_TYPES.TXT)
-      ).rejects.toThrow('File not found');
+      ).rejects.toThrow('Archivo no encontrado');
     });
 
     it('should throw error for unsupported MIME type', async (): Promise<void> => {
@@ -79,7 +79,7 @@ describe('TextExtractionService', (): void => {
 
       await expect(
         textExtractionService.extractText(testFile, 'application/unsupported')
-      ).rejects.toThrow('Unsupported file type');
+      ).rejects.toThrow('Tipo de archivo no soportado: application/unsupported. Tipos soportados: PDF, DOCX, DOC, TXT, MD, PNG, JPG, TIFF, BMP');
     });
 
     it('should throw error for directory instead of file', async (): Promise<void> => {
@@ -89,7 +89,7 @@ describe('TextExtractionService', (): void => {
 
       await expect(
         textExtractionService.extractText(testFilesDir, SUPPORTED_MIME_TYPES.TXT)
-      ).rejects.toThrow('Path is not a file');
+      ).rejects.toThrow('La ruta no corresponde a un archivo');
     });
   });
 
