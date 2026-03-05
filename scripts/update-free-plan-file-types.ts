@@ -31,7 +31,7 @@ async function updateFreePlanFileTypes() {
     console.log(`📦 Encontradas ${freeOrgs.length} organización(es) con plan FREE\n`);
 
     // Nuevos tipos permitidos para plan FREE (con imágenes, Excel, PowerPoint y videos)
-    const newAllowedTypes = ['pdf', 'txt', 'doc', 'docx', 'pptx', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'xls', 'xlsx', 'mp4', 'webm', 'ogg', 'mov'];
+    const newAllowedTypes = ['pdf', 'txt', 'doc', 'docx', 'ppt', 'pptx', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'xls', 'xlsx', 'mp4', 'webm', 'ogg', 'mov'];
 
     // Actualizar cada organización
     for (const org of freeOrgs) {
