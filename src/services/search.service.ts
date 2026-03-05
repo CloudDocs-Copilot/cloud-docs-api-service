@@ -16,12 +16,69 @@ export interface SearchParams {
 }
 
 /**
+ * Interfaz para documento de b├║squeda
+ */
+interface SearchDocument {
+  id: string;
+  filename?: string;
+  originalname?: string;
+  mimeType?: string;
+  score?: number;
+  extractedContent?: string;
+  size?: number;
+  uploadedBy?: string;
+  organization?: string;
+  folder?: string;
+  uploadedAt?: string;
+  path?: string;
+  content?: string;
+}
+
+/**
  * Interfaz para resultados de b├║squeda
  */
 export interface SearchResult {
-  documents: any[];
+  documents: SearchDocument[];
   total: number;
   took: number;
+}
+
+/**
+ * Tipos para Elasticsearch
+ */
+interface ESTermFilter {
+  term: Record<string, string>;
+}
+
+interface ESRangeFilter {
+  range: {
+    uploadedAt: {
+      gte?: string;
+      lte?: string;
+    };
+  };
+}
+
+type ESFilter = ESTermFilter | ESRangeFilter;
+
+interface ESSource {
+  filename?: string;
+  originalname?: string;
+  mimeType?: string;
+  extractedContent?: string;
+  size?: number;
+  uploadedBy?: string;
+  organization?: string;
+  folder?: string;
+  uploadedAt?: string;
+  path?: string;
+  content?: string;
+}
+
+interface ESHit {
+  _id: string;
+  _score: number;
+  _source: ESSource;
 }
 
 /**
@@ -53,9 +110,10 @@ export async function indexDocument(document: IDocument, extractedText?: string)
       }
     });
 
-    console.log(`Ô£à Document indexed: ${document._id}`);
-  } catch (error: any) {
-    console.error(`ÔØî Error indexing document ${document._id}:`, error.message);
+    console.warn(`✅ Document indexed: ${document._id}`);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`❌ Error indexing document ${document._id}:`, errorMessage);
     throw error;
   }
 }
@@ -72,14 +130,18 @@ export async function removeDocumentFromIndex(documentId: string): Promise<void>
       id: documentId
     });
 
-    console.log(`Ô£à Document removed from index: ${documentId}`);
-  } catch (error: any) {
-    if (error.meta?.statusCode === 404) {
-      console.warn(`ÔÜá´©Å  Document not found in index: ${documentId}`);
-    } else {
-      console.error(`ÔØî Error removing document from index:`, error.message);
-      throw error;
+    console.warn(`✅ Document removed from index: ${documentId}`);
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && 'meta' in error) {
+      const esError = error as { meta?: { statusCode?: number } };
+      if (esError.meta?.statusCode === 404) {
+        console.warn(`⚠️  Document not found in index: ${documentId}`);
+        return;
+      }
     }
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`❌ Error removing document from index:`, errorMessage);
+    throw error;
   }
 }
 
@@ -92,7 +154,7 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
     const { query, userId, organizationId, mimeType, fromDate, toDate, limit = 20, offset = 0 } = params;
 
     // Construir filtros
-    const filters: any[] = [];
+    const filters: ESFilter[] = [];
 
     // Filtrar por organizaci├│n si se proporciona, sino por usuario
     if (organizationId) {
@@ -102,7 +164,7 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
     }
 
     if (mimeType) {
-      console.log(`­ƒöì [Elasticsearch] Filtering by mimeType: ${mimeType}`);
+      console.warn(`🔍 [Elasticsearch] Filtering by mimeType: ${mimeType}`);
       
       // Usar coincidencia exacta para el mimeType sin .keyword
       // El campo mimeType puede no estar mapeado como keyword en el índice
@@ -112,11 +174,11 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
         } 
       });
       
-      console.log(`­ƒôï [Elasticsearch] Added exact mimeType filter: ${mimeType}`);
+      console.warn(`📌 [Elasticsearch] Added exact mimeType filter: ${mimeType}`);
     }
 
     if (fromDate || toDate) {
-      const dateRange: any = {};
+      const dateRange: { gte?: string; lte?: string } = {};
       if (fromDate) dateRange.gte = fromDate.toISOString();
       if (toDate) dateRange.lte = toDate.toISOString();
       filters.push({ range: { uploadedAt: dateRange } });
@@ -126,8 +188,8 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
     // Agregar wildcards autom├íticamente para b├║squeda parcial
     const searchQuery = `*${query.toLowerCase()}*`;
     
-    console.log(`­ƒöì [Elasticsearch] Searching with query: "${searchQuery}"`);
-    console.log(`­ƒôè [Elasticsearch] Filters:`, JSON.stringify(filters, null, 2));
+    console.warn(`🔍 [Elasticsearch] Searching with query: "${searchQuery}"`);
+    console.warn(`📊 [Elasticsearch] Filters:`, JSON.stringify(filters, null, 2));
     
     const result = await client.search({
       index: 'documents',
@@ -154,19 +216,19 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
       ]
     });
 
-    console.log(`Ô£à [Elasticsearch] Found ${typeof result.hits.total === 'object' ? result.hits.total.value : result.hits.total} documents in ${result.took}ms`);
+    console.warn(`✅ [Elasticsearch] Found ${typeof result.hits.total === 'object' ? result.hits.total.value : result.hits.total} documents in ${result.took}ms`);
 
-    const documents = result.hits.hits.map((hit: any) => {
-      const doc = {
+    const documents = result.hits.hits.map((hit: ESHit): SearchDocument => {
+      const doc: SearchDocument = {
         id: hit._id,
         score: hit._score,
         ...hit._source
       };
       
       // Debug: Log cada documento encontrado
-      console.log(`­ƒôä [Elasticsearch] Document found:`, {
+      console.warn(`📄 [Elasticsearch] Document found:`, {
         id: doc.id,
-        filename: doc.filename || doc.originalname,
+        filename: doc.filename ?? doc.originalname,
         mimeType: doc.mimeType,
         score: doc.score
       });
@@ -181,8 +243,9 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
       total: typeof result.hits.total === 'object' ? result.hits.total.value : (result.hits.total || 0),
       took: result.took
     };
-  } catch (error: any) {
-    console.error('ÔØî Error searching documents:', error.message);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('❌ Error searching documents:', errorMessage);
     throw error;
   }
 }
@@ -195,7 +258,7 @@ export async function getAutocompleteSuggestions(query: string, userId: string, 
     const client = ElasticsearchClient.getInstance();
 
     // Construir filtros
-    const filters: any[] = [];
+    const filters: ESFilter[] = [];
     if (organizationId) {
       filters.push({ term: { organization: organizationId } });
     } else {
@@ -224,9 +287,10 @@ export async function getAutocompleteSuggestions(query: string, userId: string, 
       _source: ['filename', 'originalname']
     });
 
-    const suggestions = result.hits.hits.map((hit: any) =>
-      (hit._source.originalname || hit._source.filename || '').toString()
-    );
+    const suggestions = result.hits.hits.map((hit: ESHit): string => {
+      const name = hit._source.originalname ?? hit._source.filename ?? '';
+      return String(name);
+    });
 
     // Eliminar duplicados manteniendo el orden y respetar el l├¡mite
     const unique: string[] = [];
@@ -241,8 +305,9 @@ export async function getAutocompleteSuggestions(query: string, userId: string, 
     }
 
     return unique;
-  } catch (error: any) {
-    console.error('ÔØî Error getting autocomplete suggestions:', error.message);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('❌ Error getting autocomplete suggestions:', errorMessage);
     return [];
   }
 }

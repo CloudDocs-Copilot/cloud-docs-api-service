@@ -14,7 +14,7 @@ export async function search(req: AuthRequest, res: Response, next: NextFunction
       return next(new HttpError(400, 'Query parameter "q" is required'));
     }
 
-    console.log(`­ƒöì [Search Controller] Par├ímetros recibidos:`, {
+    console.warn(`🔍 [Search Controller] Parámetros recibidos:`, {
       query: q,
       organizationId,
       mimeType,
@@ -45,7 +45,7 @@ export async function search(req: AuthRequest, res: Response, next: NextFunction
       limit: searchParams.limit,
       offset: searchParams.offset
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Error in search controller:', err);
     next(new HttpError(500, 'Error searching documents'));
   }
@@ -73,7 +73,7 @@ export async function autocomplete(req: AuthRequest, res: Response, next: NextFu
       success: true,
       suggestions
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Error in autocomplete controller:', err);
     next(new HttpError(500, 'Error getting autocomplete suggestions'));
   }
