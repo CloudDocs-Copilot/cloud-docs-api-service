@@ -36,7 +36,7 @@ describe('OllamaProvider (unit, deterministic)', () => {
 
   it('generateEmbedding rejects empty text', async (): Promise<void> => {
     const provider = new OllamaProvider();
-    await expect(provider.generateEmbedding('')).rejects.toThrow('Text cannot be empty');
+    await expect(provider.generateEmbedding('')).rejects.toThrow('El texto no puede estar vacío para generar embeddings');
   });
 
   it('generateEmbeddings processes array and returns same length', async (): Promise<void> => {

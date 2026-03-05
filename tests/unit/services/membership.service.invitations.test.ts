@@ -49,7 +49,7 @@ describe('membership.service invitations', (): void => {
         organizationId: 'o1',
         invitedBy: '507f1f77bcf86cd799439012'
       })
-    ).rejects.toThrow('Organization not found');
+    ).rejects.toThrow('Organización no encontrada');
   });
 
   it('createInvitation handles user/inviter missing', async (): Promise<void> => {

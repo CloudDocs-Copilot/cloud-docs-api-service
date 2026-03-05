@@ -23,7 +23,7 @@ describe('organization.service (unit)', () => {
 
     await expect(
       orgService.createOrganization({ name: 'X', ownerId: '507f1f77bcf86cd799439011' } as unknown as { name: string; ownerId: string })
-    ).rejects.toThrow('Owner user not found');
+    ).rejects.toThrow('Usuario propietario no encontrado');
   });
 
   it('getOrganizationById throws 404 when not found', async (): Promise<void> => {

@@ -27,7 +27,7 @@ describe('OpenAIProvider', (): void => {
   });
 
   test('generateEmbeddings throws on empty array', async (): Promise<void> => {
-    await expect(provider.generateEmbeddings([])).rejects.toThrow('El array de textos no puede estar vacío');
+    await expect(provider.generateEmbeddings([])).rejects.toThrow('El arreglo de textos no puede estar vacío');
   });
 
   test('generateResponse throws on empty prompt', async (): Promise<void> => {

@@ -91,7 +91,7 @@ describe('TextExtractionService OCR unit tests', (): void => {
     const { textExtractionService } = mod;
 
     await expect(textExtractionService.extractText(imgPath, 'image/png')).rejects.toThrow(
-      'OCR is disabled'
+      'El OCR está deshabilitado en el servidor'
     );
   });
 });

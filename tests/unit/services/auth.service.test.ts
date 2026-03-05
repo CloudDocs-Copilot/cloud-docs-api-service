@@ -74,7 +74,7 @@ describe('Auth Service (consolidated)', () => {
       active: false
     });
     await expect(loginUser({ email: 'a@b.com', password: 'p' })).rejects.toThrow(
-      'User account is not active'
+      'La cuenta de usuario no está activa'
     );
 
     mockUserFindOne.mockResolvedValue({
