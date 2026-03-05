@@ -206,7 +206,7 @@ describe('Auto-processing AI Integration Tests', (): void => {
 
       expect(updatedDoc?.aiProcessingStatus).toBe('failed');
       expect(updatedDoc?.aiError).toBeTruthy();
-      expect(updatedDoc?.aiError).toContain('not found'); // Error de archivo no encontrado
+      expect(updatedDoc?.aiError).toContain('Archivo no encontrado'); // Error de archivo no encontrado
     });
 
     it('should not reprocess document if already completed', async (): Promise<void> => {
