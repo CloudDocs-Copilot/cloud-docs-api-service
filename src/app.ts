@@ -16,6 +16,8 @@ import searchRoutes from './routes/search.routes';
 import deletionRoutes from './routes/deletion.routes';
 import commentRoutes from './routes/comment.routes';
 import aiRoutes from './routes/ai.routes';
+import aiConversationsRouter from './routes/aiConversations.routes';
+import authMiddleware from './middlewares/auth.middleware';
 import HttpError from './models/error.model';
 import { errorHandler } from './middlewares/error.middleware';
 import { generalRateLimiter } from './middlewares/rate-limit.middleware';
@@ -115,6 +117,8 @@ app.use('/api/search', searchRoutes);
 app.use('/api/deletion', deletionRoutes);
 app.use('/api/comments', commentRoutes);
 app.use('/api/notifications', notificationRoutes);
+// Mount conversations BEFORE the generic /api/ai router to prevent shadowing
+app.use('/api/ai/conversations', authMiddleware, aiConversationsRouter);
 app.use('/api/ai', aiRoutes);
 
 // Documentación Swagger/OpenAPI

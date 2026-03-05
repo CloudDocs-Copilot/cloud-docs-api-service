@@ -15,27 +15,45 @@ const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/clouddocs'
 async function seedE2EUser() {
   try {
     await mongoose.connect(MONGO_URI);
+<<<<<<< HEAD
+    console.log('✅ Conectado a MongoDB');
+=======
     console.warn('✅ Conectado a MongoDB');
+>>>>>>> origin/main
 
     // Verificar si ya existe
     const existing = await User.findOne({ email: basicUser.email });
     if (existing) {
+<<<<<<< HEAD
+      console.log(`⚠️  Usuario ${basicUser.email} ya existe`);
+      console.log(`   Actualizando contraseña a: ${basicUser.password}`);
+=======
       console.warn(`⚠️  Usuario ${basicUser.email} ya existe`);
       console.warn('   Actualizando contraseña (valor redacted; ver basicUser fixture)');
+>>>>>>> origin/main
       
       // Actualizar contraseña
       const hashedPassword = await bcrypt.hash(basicUser.password, 10);
       existing.password = hashedPassword;
       await existing.save();
       
+<<<<<<< HEAD
+      console.log(`✅ Contraseña actualizada`);
+      console.log(`   ID: ${existing._id}`);
+=======
       console.warn(`✅ Contraseña actualizada`);
       console.warn(`   ID: ${existing._id}`);
+>>>>>>> origin/main
       
       // Verificar organización
       const membership = await Membership.findOne({ user: existing._id });
       if (membership) {
         const org = await Organization.findById(membership.organization);
+<<<<<<< HEAD
+        console.log(`   Organización: ${org?.name} (${org?._id})`);
+=======
         console.warn(`   Organización: ${org?.name} (${org?._id})`);
+>>>>>>> origin/main
       }
       
       await mongoose.disconnect();
@@ -56,7 +74,11 @@ async function seedE2EUser() {
       ]
     });
     await organization.save();
+<<<<<<< HEAD
+    console.log(`✅ Organización creada: ${organization.name}`);
+=======
     console.warn(`✅ Organización creada: ${organization.name}`);
+>>>>>>> origin/main
 
     // Hash password
     const hashedPassword = await bcrypt.hash(basicUser.password, 10);
@@ -70,7 +92,11 @@ async function seedE2EUser() {
       verified: true
     });
     await user.save();
+<<<<<<< HEAD
+    console.log(`✅ Usuario creado: ${user.email}`);
+=======
     console.warn(`✅ Usuario creado: ${user.email}`);
+>>>>>>> origin/main
 
     // Crear membership (owner de la organización)
     const membership = new Membership({
@@ -80,6 +106,20 @@ async function seedE2EUser() {
       status: 'active'
     });
     await membership.save();
+<<<<<<< HEAD
+    console.log(`✅ Membership creada: ${user.email} → ${organization.name} (owner)`);
+
+    console.log('\n📋 Credenciales para tests E2E:');
+    console.log(`   Email: ${basicUser.email}`);
+    console.log(`   Password: ${basicUser.password}`);
+    console.log(`   User ID: ${user._id}`);
+    console.log(`   Org ID: ${organization._id}`);
+
+    await mongoose.disconnect();
+    console.log('\n✅ Seed completado');
+  } catch (error) {
+    console.error('❌ Error en seed:', error);
+=======
     console.warn(`✅ Membership creada: ${user.email} → ${organization.name} (owner)`);
 
     console.warn('\n📋 Credenciales para tests E2E:');
@@ -97,6 +137,7 @@ async function seedE2EUser() {
     } else {
       console.error('❌ Error en seed:', String(error));
     }
+>>>>>>> origin/main
     await mongoose.disconnect();
     process.exit(1);
   }

@@ -95,7 +95,7 @@ export async function getContents(
 ): Promise<void> {
   try {
     const contents = await folderService.getFolderContents({
-      folderId: req.params.id,
+      folderId: req.params.id as string,
       userId: req.user!.id
     });
 
