@@ -232,7 +232,7 @@ describe('Auth Controller', (): void => {
         password: 'SecurePass123!'
       };
 
-      const error = new Error('User not found');
+      const error = new Error('Usuario no encontrado');
       mockedAuthService.loginUser.mockRejectedValue(error);
 
       await login(mockRequest as unknown as AuthRequest, mockResponse as unknown as Response, mockNext);

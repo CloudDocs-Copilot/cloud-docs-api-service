@@ -231,7 +231,7 @@ export async function confirmUserAccount(
   const userId = extractUserIdFromJwtPayload(payload);
   const user = await User.findById(userId);
   if (!user) {
-    throw new Error('User not found');
+    throw new Error('Usuario no encontrado');
   }
   if (user.active) {
     // El token de confirmación no se almacena en localStorage, la activación se gestiona por cookies en el flujo de login

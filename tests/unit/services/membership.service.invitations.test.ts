@@ -70,7 +70,7 @@ describe('membership.service invitations', (): void => {
         organizationId: 'o1',
         invitedBy: '507f1f77bcf86cd799439012'
       })
-    ).rejects.toThrow('User not found');
+    ).rejects.toThrow('Usuario no encontrado');
   });
 
   it('createInvitation returns membership and sends email on success', async (): Promise<void> => {

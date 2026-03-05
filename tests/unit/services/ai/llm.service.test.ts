@@ -23,7 +23,7 @@ describe('LlmService', (): void => {
   it('generateResponse throws 400 on empty prompt', async (): Promise<void> => {
     const { LlmService } = await import('../../../../src/services/ai/llm.service');
     const svc = new LlmService();
-    await expect(svc.generateResponse('')).rejects.toThrow('Prompt cannot be empty');
+    await expect(svc.generateResponse('')).rejects.toThrow('El prompt no puede estar vacío');
   });
 
   it('generateResponse throws when provider returns invalid response', async (): Promise<void> => {
@@ -31,7 +31,7 @@ describe('LlmService', (): void => {
     jest.doMock('../../../../src/services/ai/providers', () => ({ getAIProvider: () => provider }));
     const { LlmService } = await import('../../../../src/services/ai/llm.service');
     const svc = new LlmService();
-    await expect(svc.generateResponse('x')).rejects.toThrow('Failed to generate response');
+    await expect(svc.generateResponse('x')).rejects.toThrow('No se pudo generar la respuesta: Provider returned invalid response (undefined or null)');
   });
 
   it('generateResponse forwards HttpError from provider', async (): Promise<void> => {

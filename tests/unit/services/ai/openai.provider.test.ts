@@ -23,15 +23,15 @@ describe('OpenAIProvider', (): void => {
   });
 
   test('generateEmbedding throws on empty text', async (): Promise<void> => {
-    await expect(provider.generateEmbedding('')).rejects.toThrow('Text cannot be empty');
+    await expect(provider.generateEmbedding('')).rejects.toThrow('El texto no puede estar vacío para generar embeddings');
   });
 
   test('generateEmbeddings throws on empty array', async (): Promise<void> => {
-    await expect(provider.generateEmbeddings([])).rejects.toThrow('Texts array cannot be empty');
+    await expect(provider.generateEmbeddings([])).rejects.toThrow('El array de textos no puede estar vacío');
   });
 
   test('generateResponse throws on empty prompt', async (): Promise<void> => {
-    await expect(provider.generateResponse('')).rejects.toThrow('Prompt cannot be empty');
+    await expect(provider.generateResponse('')).rejects.toThrow('El prompt no puede estar vacío');
   });
 
   test('classifyDocument returns fallback on invalid JSON', async (): Promise<void> => {

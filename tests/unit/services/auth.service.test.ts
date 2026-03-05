@@ -65,7 +65,7 @@ describe('Auth Service (consolidated)', () => {
   it('loginUser handles not found, inactive and bad password', async () => {
     const { loginUser } = (await import('../../../src/services/auth.service')) as unknown as typeof import('../../../src/services/auth.service');
     mockUserFindOne.mockResolvedValue(null);
-    await expect(loginUser({ email: 'a@b.com', password: 'p' })).rejects.toThrow('User not found');
+    await expect(loginUser({ email: 'a@b.com', password: 'p' })).rejects.toThrow('Usuario no encontrado');
 
     mockUserFindOne.mockResolvedValue({
       _id: new mongoose.Types.ObjectId().toString(),

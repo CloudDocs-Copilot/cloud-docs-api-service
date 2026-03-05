@@ -31,7 +31,7 @@ describe('organization.service (unit)', () => {
     (Organization as unknown as { findById: jest.Mock }).findById.mockReturnValue({ populate: () => ({ populate: () => Promise.resolve(null) }) } as unknown);
 
     await expect(orgService.getOrganizationById('507f1f77bcf86cd799439011')).rejects.toThrow(
-      'Organization not found'
+      'Organización no encontrada'
     );
   });
 
@@ -40,7 +40,7 @@ describe('organization.service (unit)', () => {
     (Organization as unknown as { findById: jest.Mock }).findById.mockResolvedValue(null);
 
     await expect(orgService.getOrganizationStorageStats('507f1f77bcf86cd799439011')).rejects.toThrow(
-      'Organization not found'
+      'Organización no encontrada'
     );
   });
 });
