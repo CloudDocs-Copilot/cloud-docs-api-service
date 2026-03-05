@@ -73,7 +73,7 @@ export class OllamaProvider implements AIProvider {
    */
   async generateEmbedding(text: string): Promise<EmbeddingResult> {
     if (!text || text.trim().length === 0) {
-      throw new HttpError(400, 'Text cannot be empty for embedding generation');
+      throw new HttpError(400, 'El texto no puede estar vacío para generar embeddings');
     }
 
     try {
@@ -108,13 +108,13 @@ export class OllamaProvider implements AIProvider {
       if (errorMessage.includes('not found') || errorMessage.includes('model')) {
         throw new HttpError(
           500,
-          `Ollama model ${this.embeddingModel} not found. Run: ollama pull ${this.embeddingModel}`
+          `No se encontró el modelo de Ollama ${this.embeddingModel}. Ejecuta: ollama pull ${this.embeddingModel}`
         );
       } else if (errorMessage.includes('connection') || errorMessage.includes('ECONNREFUSED')) {
-        throw new HttpError(503, 'Ollama server not running. Start it with: ollama serve');
+        throw new HttpError(503, 'El servidor de Ollama no está en ejecución. Inícialo con: ollama serve');
       }
 
-      throw new HttpError(500, `Failed to generate embedding: ${errorMessage}`);
+      throw new HttpError(500, `No se pudo generar el embedding: ${errorMessage}`);
     }
   }
 
@@ -123,11 +123,11 @@ export class OllamaProvider implements AIProvider {
    */
   async generateEmbeddings(texts: string[]): Promise<EmbeddingResult[]> {
     if (!texts || texts.length === 0) {
-      throw new HttpError(400, 'Texts array cannot be empty');
+      throw new HttpError(400, 'El arreglo de textos no puede estar vacío');
     }
 
     if (texts.some(text => !text || text.trim().length === 0)) {
-      throw new HttpError(400, 'All texts must be non-empty strings');
+      throw new HttpError(400, 'Todos los textos deben ser cadenas no vacías');
     }
 
     try {
@@ -138,7 +138,7 @@ export class OllamaProvider implements AIProvider {
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('[ollama-provider] Error generating embeddings:', errorMessage);
-      throw new HttpError(500, `Failed to generate embeddings: ${errorMessage}`);
+      throw new HttpError(500, `No se pudieron generar los embeddings: ${errorMessage}`);
     }
   }
 
@@ -147,7 +147,7 @@ export class OllamaProvider implements AIProvider {
    */
   async generateResponse(prompt: string, options?: GenerationOptions): Promise<ChatResult> {
     if (!prompt || prompt.trim().length === 0) {
-      throw new HttpError(400, 'Prompt cannot be empty');
+      throw new HttpError(400, 'El prompt no puede estar vacío');
     }
 
     const temperature = options?.temperature ?? this.defaultTemperature;
@@ -197,18 +197,18 @@ export class OllamaProvider implements AIProvider {
         // If final attempt, map to a helpful HttpError
         if (attempt === maxRetries) {
           if (errorMessage.includes('not found') || errorMessage.includes('model')) {
-            throw new HttpError(500, `Ollama model ${model} not found. Run: ollama pull ${model}`);
+            throw new HttpError(500, `No se encontró el modelo de Ollama ${model}. Ejecuta: ollama pull ${model}`);
           } else if (errorMessage.includes('connection') || errorMessage.includes('ECONNREFUSED')) {
-            throw new HttpError(503, 'Ollama server not running. Start it with: ollama serve');
+            throw new HttpError(503, 'El servidor de Ollama no está en ejecución. Inícialo con: ollama serve');
           } else if (errorMessage.includes('fetch failed') || errorMessage.includes('network')) {
             throw new HttpError(
               503,
-              `Failed to generate response: network error or Ollama busy. Check Ollama logs and resources (RAM/CPU). Last error: ${errorMessage}`
+              `No se pudo generar la respuesta: error de red o Ollama ocupado. Revisa los logs de Ollama y los recursos (RAM/CPU). Último error: ${errorMessage}`
             );
           }
 
           // Generic failure
-          throw new HttpError(500, `Failed to generate response: ${errorMessage}`);
+          throw new HttpError(500, `No se pudo generar la respuesta: ${errorMessage}`);
         }
 
         // Otherwise wait and retry with exponential backoff
@@ -219,7 +219,7 @@ export class OllamaProvider implements AIProvider {
     }
 
     // Should not reach here
-    throw new HttpError(500, 'Failed to generate response: unknown error after retries');
+    throw new HttpError(500, 'No se pudo generar la respuesta: error desconocido después de los reintentos');
   }
 
   /**
@@ -455,7 +455,7 @@ Responde ÚNICAMENTE con un objeto JSON válido (sin markdown, sin explicaciones
       console.error('[ollama-provider] Summarization error:', errorMessage);
       
       // Re-throw para que el job capture el error real
-      throw new HttpError(500, `Failed to generate summary: ${errorMessage}`);
+      throw new HttpError(500, `No se pudo generar el resumen: ${errorMessage}`);
     }
   }
 

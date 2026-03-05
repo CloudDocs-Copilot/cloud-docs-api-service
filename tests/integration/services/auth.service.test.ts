@@ -219,7 +219,7 @@ describe('AuthService Integration Tests', (): void => {
           organizationId: new mongoose.Types.ObjectId().toString(),
           role: MembershipRole.MEMBER
         })
-      ).rejects.toThrow('Organization not found');
+      ).rejects.toThrow('Organización no encontrada');
     });
 
     it('should fail if organization has reached max users', async (): Promise<void> => {
@@ -262,7 +262,7 @@ describe('AuthService Integration Tests', (): void => {
           organizationId: testOrgId.toString(),
           role: MembershipRole.MEMBER
         })
-      ).rejects.toThrow('Organization has reached maximum users limit (3) for free plan');
+      ).rejects.toThrow('La organización alcanzó el límite máximo de usuarios (3) para el plan free');
     });
 
     it('should fail with invalid password', async (): Promise<void> => {
@@ -282,7 +282,7 @@ describe('AuthService Integration Tests', (): void => {
           email: 'invalid-email',
           password: 'StrongP@ss123'
         })
-      ).rejects.toThrow('Invalid email format');
+      ).rejects.toThrow('Formato de email inválido');
     });
 
     it('should fail with invalid name', async (): Promise<void> => {
@@ -292,7 +292,7 @@ describe('AuthService Integration Tests', (): void => {
           email: 'test@test.com',
           password: 'StrongP@ss123'
         })
-      ).rejects.toThrow('Name must contain only alphanumeric characters');
+      ).rejects.toThrow('El nombre debe contener solo caracteres alfanuméricos y espacios');
     });
 
     it('should fail with invalid organization ID', async (): Promise<void> => {
@@ -343,7 +343,7 @@ describe('AuthService Integration Tests', (): void => {
           email: 'login@test.com',
           password: 'WrongPassword123'
         })
-      ).rejects.toThrow('Invalid password');
+      ).rejects.toThrow('Contraseña inválida');
     });
 
     it('should fail with non-existent user', async (): Promise<void> => {
@@ -352,7 +352,7 @@ describe('AuthService Integration Tests', (): void => {
           email: 'nonexistent@test.com',
           password: 'StrongP@ss123'
         })
-      ).rejects.toThrow('User not found');
+      ).rejects.toThrow('Usuario no encontrado');
     });
 
     it('should fail with inactive user', async (): Promise<void> => {
@@ -364,7 +364,7 @@ describe('AuthService Integration Tests', (): void => {
           email: 'login@test.com',
           password: 'StrongP@ss123'
         })
-      ).rejects.toThrow('User account is not active');
+      ).rejects.toThrow('La cuenta de usuario no está activa');
     });
 
     it('should fail with invalid credentials format', async (): Promise<void> => {
@@ -373,7 +373,7 @@ describe('AuthService Integration Tests', (): void => {
           email: '',
           password: 'StrongP@ss123'
         })
-      ).rejects.toThrow('Invalid credentials');
+      ).rejects.toThrow('Credenciales inválidas');
     });
   });
 });

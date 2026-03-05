@@ -68,30 +68,30 @@ export async function createInvitation({
 }): Promise<IMembership> {
   // Validate userId to prevent NoSQL injection via query operators and path traversal
   if (typeof userId !== 'string' || !/^[a-fA-F0-9]{24}$/.test(userId)) {
-    throw new HttpError(400, 'Invalid userId format');
+    throw new HttpError(400, 'Formato de usuario no válido');
   }
 
   if (typeof invitedBy !== 'string' || !/^[a-fA-F0-9]{24}$/.test(invitedBy)) {
-    throw new HttpError(400, 'Invalid invitedBy format');
+    throw new HttpError(400, 'Formato de invitado no válido');
   }
 
   const organization = await Organization.findById(organizationId).populate('owner', 'name email');
   if (!organization) {
-    throw new HttpError(404, 'Organization not found');
+    throw new HttpError(404, 'Organización no encontrada');
   }
 
   if (!organization.active) {
-    throw new HttpError(403, 'Organization is not active');
+    throw new HttpError(403, 'Organización no activa');
   }
 
   const user = await User.findById(userId);
   if (!user) {
-    throw new HttpError(404, 'User not found');
+    throw new HttpError(404, 'Usuario no encontrado');
   }
 
   const inviter = await User.findById(invitedBy);
   if (!inviter) {
-    throw new HttpError(404, 'Inviter user not found');
+    throw new HttpError(404, 'Invitador no encontrado');
   }
 
   // Verificar si ya existe membresía (activa o pendiente)
@@ -102,10 +102,10 @@ export async function createInvitation({
 
   if (existingMembership) {
     if (existingMembership.status === MembershipStatus.ACTIVE) {
-      throw new HttpError(409, 'User is already a member of this organization');
+      throw new HttpError(409, 'El usuario ya es miembro de esta organización');
     }
     if (existingMembership.status === MembershipStatus.PENDING) {
-      throw new HttpError(409, 'User already has a pending invitation to this organization');
+      throw new HttpError(409, 'El usuario ya tiene una invitación pendiente para esta organización');
     }
   }
 
@@ -121,7 +121,7 @@ export async function createInvitation({
   ) {
     throw new HttpError(
       403,
-      `Organization has reached maximum users limit (${organization.settings.maxUsers}) for ${organization.plan} plan`
+      `Organización ha alcanzado el límite de usuarios (${organization.settings.maxUsers}) para el plan ${organization.plan}`
     );
   }
 
@@ -138,7 +138,7 @@ export async function createInvitation({
     if (organization.plan === SubscriptionPlan.FREE && adminCount >= 1) {
       throw new HttpError(
         403,
-        'Free plan does not allow multiple administrators. Upgrade to invite admins.'
+        'Plan FREE no permite múltiples administradores. Actualiza tu plan para invitar admins.'
       );
     }
   }
@@ -232,29 +232,29 @@ export async function acceptInvitation(membershipId: string, userId: string): Pr
   const membership = await Membership.findById(membershipId).populate('organization');
 
   if (!membership) {
-    throw new HttpError(404, 'Invitation not found');
+    throw new HttpError(404, 'Invitación no encontrada');
   }
 
   if (membership.user.toString() !== userId) {
-    throw new HttpError(403, 'This invitation is not for you');
+    throw new HttpError(403, 'Esta invitación no es para ti');
   }
 
   if (membership.status !== MembershipStatus.PENDING) {
-    throw new HttpError(400, 'Invitation is not pending');
+    throw new HttpError(400, 'Invitación no está pendiente');
   }
 
   if (!isPopulatedOrganization(membership.organization)) {
-    throw new HttpError(500, 'Organization data is not properly populated for invitation');
+    throw new HttpError(500, 'Datos de la organización no están correctamente poblados para la invitación');
   }
 
   const organization = membership.organization;
   if (!organization.active) {
-    throw new HttpError(403, 'Organization is not active');
+    throw new HttpError(403, 'La organización no está activa');
   }
 
   const user = await User.findById(userId);
   if (!user) {
-    throw new HttpError(404, 'User not found');
+    throw new HttpError(404, 'Usuario no encontrado');
   }
 
   // Verificar límite de usuarios activos antes de aceptar
@@ -269,7 +269,7 @@ export async function acceptInvitation(membershipId: string, userId: string): Pr
   ) {
     throw new HttpError(
       403,
-      `Organization has reached maximum active users limit (${organization.settings.maxUsers})`
+      `Organización ha alcanzado el límite de usuarios activos (${organization.settings.maxUsers})`
     );
   }
 
@@ -291,7 +291,7 @@ export async function acceptInvitation(membershipId: string, userId: string): Pr
       ? storageRoot
       : storageRoot + path.sep;
     if (!userStoragePath.startsWith(normalizedStorageRoot)) {
-      throw new HttpError(400, 'Invalid storage path resolved for user directory');
+      throw new HttpError(400, 'Ruta de almacenamiento inválida resuelta para el directorio del usuario');
     }
 
     if (!fs.existsSync(userStoragePath)) {
@@ -395,15 +395,15 @@ export async function rejectInvitation(membershipId: string, userId: string): Pr
   const membership = await Membership.findById(membershipId);
 
   if (!membership) {
-    throw new HttpError(404, 'Invitation not found');
+    throw new HttpError(404, 'Invitación no encontrada');
   }
 
   if (membership.user.toString() !== userId) {
-    throw new HttpError(403, 'This invitation is not for you');
+    throw new HttpError(403, 'Esta invitación no es para ti');
   }
 
   if (membership.status !== MembershipStatus.PENDING) {
-    throw new HttpError(400, 'Invitation is not pending');
+    throw new HttpError(400, 'La invitación no está pendiente');
   }
 
   // Eliminar invitación
@@ -415,7 +415,7 @@ export async function rejectInvitation(membershipId: string, userId: string): Pr
  */
 export async function getPendingInvitations(userId: string): Promise<IMembership[]> {
   if (typeof userId !== 'string' || !/^[a-fA-F0-9]{24}$/.test(userId)) {
-    throw new HttpError(400, 'Invalid userId format');
+    throw new HttpError(400, 'Formato de userId no válido');
   }
 
   return Membership.find({
@@ -444,21 +444,21 @@ export async function createMembership({
 }): Promise<IMembership> {
   // Validación básica
   if (typeof userId !== 'string' || !/^[a-fA-F0-9]{24}$/.test(userId)) {
-    throw new HttpError(400, 'Invalid userId format');
+    throw new HttpError(400, 'Formato de userId no válido');
   }
 
   const organization = await Organization.findById(organizationId);
   if (!organization) {
-    throw new HttpError(404, 'Organization not found');
+    throw new HttpError(404, 'Organización no encontrada');
   }
 
   if (!organization.active) {
-    throw new HttpError(403, 'Organization is not active');
+    throw new HttpError(403, 'La organización no está activa');
   }
 
   const user = await User.findById(userId);
   if (!user) {
-    throw new HttpError(404, 'User not found');
+    throw new HttpError(404, 'Usuario no encontrado');
   }
 
   // Verificar si ya existe membresía
@@ -468,7 +468,7 @@ export async function createMembership({
   });
 
   if (existingMembership) {
-    throw new HttpError(409, 'User is already a member of this organization');
+    throw new HttpError(409, 'El usuario ya es miembro de esta organización');
   }
 
   // Verificar límite de usuarios del plan
@@ -483,7 +483,7 @@ export async function createMembership({
   ) {
     throw new HttpError(
       403,
-      `Organization has reached maximum users limit (${organization.settings.maxUsers}) for ${organization.plan} plan`
+      `La organización alcanzó el límite máximo de usuarios (${organization.settings.maxUsers}) para el plan ${organization.plan}`
     );
   }
 
@@ -504,7 +504,7 @@ export async function createMembership({
       ? storageRoot
       : storageRoot + path.sep;
     if (!userStoragePath.startsWith(normalizedStorageRoot)) {
-      throw new HttpError(400, 'Invalid storage path resolved for user directory');
+      throw new HttpError(400, 'Se resolvió una ruta de almacenamiento no válida para el directorio del usuario');
     }
 
     if (!fs.existsSync(userStoragePath)) {
@@ -723,12 +723,12 @@ export async function switchActiveOrganization(
   // Verificar que tenga membresía en esa organización
   const hasAccess = await hasActiveMembership(userId, organizationId);
   if (!hasAccess) {
-    throw new HttpError(403, 'You are not a member of this organization');
+    throw new HttpError(403, 'No perteneces a esta organización');
   }
 
   const user = await User.findById(userId);
   if (!user) {
-    throw new HttpError(404, 'User not found');
+    throw new HttpError(404, 'Usuario no encontrado');
   }
 
   user.organization = new Types.ObjectId(organizationId);
@@ -758,7 +758,7 @@ export async function updateMemberRole(
   newRole: MembershipRole
 ): Promise<IMembership> {
   if (typeof userId !== 'string' || !/^[a-fA-F0-9]{24}$/.test(userId)) {
-    throw new HttpError(400, 'Invalid userId');
+    throw new HttpError(400, 'userId no válido');
   }
   const membership = await Membership.findOne({
     user: { $eq: userId },
@@ -766,12 +766,12 @@ export async function updateMemberRole(
   });
 
   if (!membership) {
-    throw new HttpError(404, 'Membership not found');
+    throw new HttpError(404, 'Membresía no encontrada');
   }
 
   // No se puede cambiar el rol del owner
   if (membership.role === MembershipRole.OWNER) {
-    throw new HttpError(400, 'Cannot change owner role. Transfer ownership first.');
+    throw new HttpError(400, 'No se puede cambiar el rol del propietario. Primero transfiere la propiedad.');
   }
 
   membership.role = newRole;
@@ -792,7 +792,7 @@ export async function updateMembershipRole(
   const membership = await Membership.findById(membershipId);
 
   if (!membership) {
-    throw new HttpError(404, 'Membership not found');
+    throw new HttpError(404, 'Membresía no encontrada');
   }
 
   // Verificar que el usuario solicitante sea OWNER de la organización
@@ -802,12 +802,12 @@ export async function updateMembershipRole(
   );
 
   if (!requesterMembership || requesterMembership.role !== MembershipRole.OWNER) {
-    throw new HttpError(403, 'Only organization owner can update member roles');
+    throw new HttpError(403, 'Solo el propietario de la organización puede actualizar los roles de los miembros');
   }
 
   // No se puede cambiar el rol del owner
   if (membership.role === MembershipRole.OWNER) {
-    throw new HttpError(400, 'Cannot change owner role. Transfer ownership first.');
+    throw new HttpError(400, 'No se puede cambiar el rol del propietario. Primero transfiere la propiedad.');
   }
 
   const oldRole = membership.role;
@@ -911,11 +911,11 @@ export async function removeMembershipById(
   const membership = await Membership.findById(membershipId);
 
   if (!membership) {
-    throw new HttpError(404, 'Membership not found');
+    throw new HttpError(404, 'Membresía no encontrada');
   }
 
   if (membership.organization.toString() !== organizationId) {
-    throw new HttpError(400, 'Membership does not belong to this organization');
+    throw new HttpError(400, 'La membresía no pertenece a esta organización');
   }
 
   // Verificar que el usuario solicitante tenga permisos (ADMIN u OWNER)
@@ -926,12 +926,12 @@ export async function removeMembershipById(
     (requesterMembership.role !== MembershipRole.OWNER &&
       requesterMembership.role !== MembershipRole.ADMIN)
   ) {
-    throw new HttpError(403, 'Only organization owner or admin can remove members');
+    throw new HttpError(403, 'Solo el propietario o un administrador de la organización puede eliminar miembros');
   }
 
   // No se puede eliminar al owner
   if (membership.role === MembershipRole.OWNER) {
-    throw new HttpError(400, 'Cannot remove organization owner. Transfer ownership first.');
+    throw new HttpError(400, 'No se puede eliminar al propietario de la organización. Primero transfiere la propiedad.');
   }
 
   const userId = membership.user.toString();
@@ -994,7 +994,7 @@ export async function removeMembershipById(
  */
 export async function removeMembership(userId: string, organizationId: string): Promise<void> {
   if (typeof userId !== 'string' || !/^[a-fA-F0-9]{24}$/.test(userId)) {
-    throw new HttpError(400, 'Invalid userId');
+    throw new HttpError(400, 'userId no válido');
   }
   const membership = await Membership.findOne({
     user: { $eq: userId },
@@ -1002,12 +1002,12 @@ export async function removeMembership(userId: string, organizationId: string): 
   });
 
   if (!membership) {
-    throw new HttpError(404, 'Membership not found');
+    throw new HttpError(404, 'Membresía no encontrada');
   }
 
   // Verificar que no sea el owner
   if (membership.role === MembershipRole.OWNER) {
-    throw new HttpError(400, 'Cannot remove organization owner. Transfer ownership first.');
+    throw new HttpError(400, 'No se puede eliminar al propietario de la organización. Primero transfiere la propiedad.');
   }
 
   const rootFolderId = membership.rootFolder;
@@ -1074,17 +1074,17 @@ export async function transferOwnership(
   // Verificar que el nuevo owner sea miembro activo
   const newOwnerMembership = await getMembership(newOwnerId, organizationId);
   if (!newOwnerMembership) {
-    throw new HttpError(404, 'New owner is not a member of this organization');
+    throw new HttpError(404, 'El nuevo propietario no es miembro de esta organización');
   }
 
   // Actualizar organización
   const organization = await Organization.findById(organizationId);
   if (!organization) {
-    throw new HttpError(404, 'Organization not found');
+    throw new HttpError(404, 'Organización no encontrada');
   }
 
   if (organization.owner.toString() !== currentOwnerId) {
-    throw new HttpError(403, 'Only the current owner can transfer ownership');
+    throw new HttpError(403, 'Solo el propietario actual puede transferir la propiedad');
   }
 
   organization.owner = new Types.ObjectId(newOwnerId);

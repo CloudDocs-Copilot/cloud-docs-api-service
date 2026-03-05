@@ -37,17 +37,17 @@ async function ensureDocumentReadAccess(
   userId: string
 ): Promise<IDocument> {
   const doc = await DocumentModel.findById(documentId);
-  if (!doc) throw new HttpError(404, 'Document not found');
+  if (!doc) throw new HttpError(404, 'Documento no encontrado');
 
   if (doc.organization) {
     const hasAccess = await hasActiveMembership(userId, doc.organization.toString());
-    if (!hasAccess) throw new HttpError(403, 'Access denied to this document');
+    if (!hasAccess) throw new HttpError(403, 'Acceso denegado a este documento');
   } else {
     const hasAccess =
       doc.uploadedBy.toString() === userId.toString() ||
       doc.sharedWith?.some((id) => id.toString() === userId.toString());
 
-    if (!hasAccess) throw new HttpError(403, 'Access denied to this document');
+    if (!hasAccess) throw new HttpError(403, 'Acceso denegado a este documento');
   }
 
   return doc;
@@ -58,9 +58,9 @@ export async function createComment({
   userId,
   content
 }: CreateCommentDto): Promise<IComment> {
-  if (!isValidObjectId(documentId)) throw new HttpError(400, 'Invalid document ID');
-  if (!isValidObjectId(userId)) throw new HttpError(400, 'Invalid user ID');
-  if (!content || !content.trim()) throw new HttpError(400, 'Content is required');
+  if (!isValidObjectId(documentId)) throw new HttpError(400, 'ID de documento no válido');
+  if (!isValidObjectId(userId)) throw new HttpError(400, 'ID de usuario no válido');
+  if (!content || !content.trim()) throw new HttpError(400, 'El contenido es requerido');
 
   const doc = await ensureDocumentReadAccess(documentId, userId);
 
@@ -81,7 +81,7 @@ export async function createComment({
       actorUserId: userId,
       type: 'DOC_COMMENTED',
       documentId,
-      message: docName ? `New comment on: ${docName}` : 'New comment on a document',
+      message: docName ? `Nuevo comentario en: ${docName}` : 'Nuevo comentario en un documento',
       metadata: {
         documentId,
         commentId: comment._id ? String(comment._id) : undefined
@@ -96,8 +96,8 @@ export async function createComment({
 }
 
 export async function listComments({ documentId, userId }: ListCommentsDto): Promise<IComment[]> {
-  if (!isValidObjectId(documentId)) throw new HttpError(400, 'Invalid document ID');
-  if (!isValidObjectId(userId)) throw new HttpError(400, 'Invalid user ID');
+  if (!isValidObjectId(documentId)) throw new HttpError(400, 'ID de documento no válido');
+  if (!isValidObjectId(userId)) throw new HttpError(400, 'ID de usuario no válido');
 
   await ensureDocumentReadAccess(documentId, userId);
 
@@ -112,15 +112,15 @@ export async function updateComment({
   userId,
   content
 }: UpdateCommentDto): Promise<IComment> {
-  if (!isValidObjectId(commentId)) throw new HttpError(400, 'Invalid comment ID');
-  if (!isValidObjectId(userId)) throw new HttpError(400, 'Invalid user ID');
-  if (!content || !content.trim()) throw new HttpError(400, 'Content is required');
+  if (!isValidObjectId(commentId)) throw new HttpError(400, 'ID de comentario no válido');
+  if (!isValidObjectId(userId)) throw new HttpError(400, 'ID de usuario no válido');
+  if (!content || !content.trim()) throw new HttpError(400, 'El contenido es requerido');
 
   const comment = await CommentModel.findById(commentId);
-  if (!comment) throw new HttpError(404, 'Comment not found');
+  if (!comment) throw new HttpError(404, 'Comentario no encontrado');
 
   if (comment.createdBy.toString() !== userId.toString()) {
-    throw new HttpError(403, 'You can only edit your own comment');
+    throw new HttpError(403, 'Solo puedes editar tu propio comentario');
   }
 
   // Ensure user still has access to the document (defense in depth)
@@ -138,7 +138,7 @@ export async function updateComment({
       actorUserId: userId,
       type: 'DOC_COMMENTED',
       documentId: comment.document.toString(),
-      message: docName ? `Comment edited on: ${docName}` : 'Comment edited on a document',
+      message: docName ? `Comentario editado en: ${docName}` : 'Comentario editado en un documento',
       metadata: {
         documentId: comment.document.toString(),
         commentId: comment._id ? String(comment._id) : undefined,

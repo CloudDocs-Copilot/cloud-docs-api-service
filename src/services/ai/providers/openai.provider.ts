@@ -59,7 +59,7 @@ export class OpenAIProvider implements AIProvider {
    */
   async generateEmbedding(text: string): Promise<EmbeddingResult> {
     if (!text || text.trim().length === 0) {
-      throw new HttpError(400, 'Text cannot be empty for embedding generation');
+      throw new HttpError(400, 'El texto no puede estar vacío para generar embeddings');
     }
 
     try {
@@ -91,14 +91,14 @@ export class OpenAIProvider implements AIProvider {
       console.error('[openai-provider] Error generating embedding:', errorMessage);
 
       if (errorMessage.includes('API key')) {
-        throw new HttpError(500, 'OpenAI API key configuration error');
+        throw new HttpError(500, 'Error de configuración de la API key de OpenAI');
       } else if (errorMessage.includes('rate limit')) {
-        throw new HttpError(429, 'OpenAI API rate limit exceeded');
+        throw new HttpError(429, 'Se excedió el límite de solicitudes de la API de OpenAI');
       } else if (errorMessage.includes('quota')) {
-        throw new HttpError(503, 'OpenAI API quota exceeded');
+        throw new HttpError(503, 'Se excedió la cuota de la API de OpenAI');
       }
 
-      throw new HttpError(500, `Failed to generate embedding: ${errorMessage}`);
+      throw new HttpError(500, `No se pudo generar el embedding: ${errorMessage}`);
     }
   }
 
@@ -107,11 +107,11 @@ export class OpenAIProvider implements AIProvider {
    */
   async generateEmbeddings(texts: string[]): Promise<EmbeddingResult[]> {
     if (!texts || texts.length === 0) {
-      throw new HttpError(400, 'Texts array cannot be empty');
+      throw new HttpError(400, 'El arreglo de textos no puede estar vacío');
     }
 
     if (texts.some(text => !text || text.trim().length === 0)) {
-      throw new HttpError(400, 'All texts must be non-empty strings');
+      throw new HttpError(400, 'Todos los textos deben ser cadenas no vacías');
     }
 
     try {
@@ -129,7 +129,7 @@ export class OpenAIProvider implements AIProvider {
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('[openai-provider] Error generating embeddings:', errorMessage);
-      throw new HttpError(500, `Failed to generate embeddings: ${errorMessage}`);
+      throw new HttpError(500, `No se pudieron generar los embeddings: ${errorMessage}`);
     }
   }
 
@@ -138,7 +138,7 @@ export class OpenAIProvider implements AIProvider {
    */
   async generateResponse(prompt: string, options?: GenerationOptions): Promise<ChatResult> {
     if (!prompt || prompt.trim().length === 0) {
-      throw new HttpError(400, 'Prompt cannot be empty');
+      throw new HttpError(400, 'El prompt no puede estar vacío');
     }
 
     const temperature = options?.temperature ?? this.defaultTemperature;
@@ -188,7 +188,7 @@ export class OpenAIProvider implements AIProvider {
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('[openai-provider] Error generating response:', errorMessage);
-      throw new HttpError(500, `Failed to generate response: ${errorMessage}`);
+      throw new HttpError(500, `No se pudo generar la respuesta: ${errorMessage}`);
     }
   }
 

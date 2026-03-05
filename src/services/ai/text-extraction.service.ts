@@ -102,7 +102,7 @@ async function getOrInitOcrWorker(): Promise<OcrWorker> {
 
     const tesseractModuleUnknown: unknown = await import('tesseract.js');
     if (!isTesseractModule(tesseractModuleUnknown)) {
-      throw new HttpError(500, 'Invalid tesseract module shape');
+      throw new HttpError(500, 'Estructura del módulo tesseract no válida');
     }
 
     // Point tesseract at the local tessdata directory so it NEVER contacts the
@@ -223,7 +223,7 @@ export class TextExtractionService {
     try {
       const stats = await fs.promises.stat(filePath);
       if (!stats.isFile()) {
-        throw new HttpError(400, 'Path is not a file');
+        throw new HttpError(400, 'La ruta no corresponde a un archivo');
       }
     } catch (err: unknown) {
       // If file does not exist, stat will throw an ENOENT error
@@ -234,7 +234,7 @@ export class TextExtractionService {
           ? (err as { code?: unknown }).code
           : undefined;
       if (code === 'ENOENT') {
-        throw new HttpError(404, 'File not found');
+        throw new HttpError(404, 'Archivo no encontrado');
       }
       if (err instanceof HttpError) throw err;
       throw err;
@@ -270,7 +270,7 @@ export class TextExtractionService {
         case SUPPORTED_MIME_TYPES.TIFF:
         case SUPPORTED_MIME_TYPES.BMP:
           if (!OCR_ENABLED) {
-            throw new HttpError(400, 'OCR is disabled on server');
+            throw new HttpError(400, 'El OCR está deshabilitado en el servidor');
           }
           result = await this.extractFromImage(filePath);
           break;
@@ -278,7 +278,7 @@ export class TextExtractionService {
         default:
           throw new HttpError(
             400,
-            `Unsupported file type: ${mimeType}. Supported types: PDF, DOCX, DOC, TXT, MD, PNG, JPG, TIFF, BMP`
+            `Tipo de archivo no soportado: ${mimeType}. Tipos soportados: PDF, DOCX, DOC, TXT, MD, PNG, JPG, TIFF, BMP`
           );
       }
 
@@ -296,7 +296,7 @@ export class TextExtractionService {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('[text-extraction] Error extracting text:', errorMessage);
 
-      throw new HttpError(500, `Failed to extract text: ${errorMessage}`);
+      throw new HttpError(500, `No se pudo extraer el texto: ${errorMessage}`);
     }
   }
 
@@ -407,7 +407,7 @@ export class TextExtractionService {
    */
   private async extractFromImage(filePath: string): Promise<ITextExtractionResult> {
     if (!OCR_ENABLED) {
-      throw new HttpError(400, 'OCR is not enabled on this server');
+      throw new HttpError(400, 'El OCR no está habilitado en este servidor');
     }
 
     const worker = await getOrInitOcrWorker();

@@ -29,7 +29,7 @@ export class MockAIProvider implements AIProvider {
    */
   generateEmbedding(text: string): Promise<EmbeddingResult> {
     if (!text || text.trim().length === 0) {
-      throw new HttpError(400, 'Text cannot be empty for embedding generation');
+      throw new HttpError(400, 'El texto no puede estar vacío para generar embeddings');
     }
 
     // Genera vector determinístico basado en hash del texto
@@ -50,11 +50,11 @@ export class MockAIProvider implements AIProvider {
    */
   generateEmbeddings(texts: string[]): Promise<EmbeddingResult[]> {
     if (!texts || texts.length === 0) {
-      throw new HttpError(400, 'Texts array cannot be empty');
+      throw new HttpError(400, 'El arreglo de textos no puede estar vacío');
     }
 
     if (texts.some(text => !text || text.trim().length === 0)) {
-      throw new HttpError(400, 'All texts must be non-empty strings');
+      throw new HttpError(400, 'Todos los textos deben ser cadenas no vacías');
     }
 
     return Promise.all(texts.map(text => this.generateEmbedding(text)));
@@ -65,7 +65,7 @@ export class MockAIProvider implements AIProvider {
    */
   generateResponse(prompt: string, _options?: GenerationOptions): Promise<ChatResult> {
     if (!prompt || prompt.trim().length === 0) {
-      throw new HttpError(400, 'Prompt cannot be empty');
+      throw new HttpError(400, 'El prompt no puede estar vacío');
     }
 
     // Respuesta determinística basada en el prompt

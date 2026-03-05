@@ -80,7 +80,7 @@ describe('UserService Integration Tests', (): void => {
       const nonExistentId = new mongoose.Types.ObjectId();
 
       await expect(userService.setUserActive(nonExistentId.toString(), true)).rejects.toThrow(
-        'User not found'
+        'Usuario no encontrado'
       );
     });
 
@@ -125,7 +125,7 @@ describe('UserService Integration Tests', (): void => {
 
       await expect(
         userService.updateUser(nonExistentId.toString(), { name: 'Test' })
-      ).rejects.toThrow('User not found');
+      ).rejects.toThrow('Usuario no encontrado');
     });
 
     it('should not update password field', async (): Promise<void> => {
@@ -188,7 +188,7 @@ describe('UserService Integration Tests', (): void => {
           currentPassword: 'wrongpassword',
           newPassword: 'NewStrongP@ss123'
         })
-      ).rejects.toThrow('Current password is incorrect');
+      ).rejects.toThrow('La contraseña actual es incorrecta');
     });
 
     it('should throw error when user not found', async (): Promise<void> => {
@@ -199,7 +199,7 @@ describe('UserService Integration Tests', (): void => {
           currentPassword: 'password123',
           newPassword: 'NewStrongP@ss123'
         })
-      ).rejects.toThrow('User not found');
+      ).rejects.toThrow('Usuario no encontrado');
     });
 
     it('should reject weak passwords', async (): Promise<void> => {
@@ -244,7 +244,7 @@ describe('UserService Integration Tests', (): void => {
       const nonExistentId = new mongoose.Types.ObjectId();
 
       await expect(userService.deleteUser(nonExistentId.toString())).rejects.toThrow(
-        'User not found'
+        'Usuario no encontrado'
       );
     });
   });
@@ -304,7 +304,7 @@ describe('UserService Integration Tests', (): void => {
         userService.updateAvatar(nonExistentId.toString(), {
           avatar: 'https://example.com/avatar.jpg'
         })
-      ).rejects.toThrow('User not found');
+      ).rejects.toThrow('Usuario no encontrado');
     });
 
     it('should trim whitespace from avatar URL', async (): Promise<void> => {

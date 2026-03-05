@@ -33,7 +33,7 @@ export class EmbeddingService {
   async generateEmbedding(text: string): Promise<number[]> {
     // Validar que el texto no esté vacío
     if (!text || text.trim().length === 0) {
-      throw new HttpError(400, 'Text cannot be empty for embedding generation');
+      throw new HttpError(400, 'El texto no puede estar vacío para generar embeddings');
     }
 
     try {
@@ -61,7 +61,7 @@ export class EmbeddingService {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('[embedding] Error generating embedding:', errorMessage);
 
-      throw new HttpError(500, `Failed to generate embedding: ${errorMessage}`);
+      throw new HttpError(500, `No se pudo generar el embedding: ${errorMessage}`);
     }
   }
 
@@ -79,12 +79,12 @@ export class EmbeddingService {
   async generateEmbeddings(texts: string[]): Promise<number[][]> {
     // Validar que el array no esté vacío
     if (!texts || texts.length === 0) {
-      throw new HttpError(400, 'Texts array cannot be empty');
+      throw new HttpError(400, 'El arreglo de textos no puede estar vacío');
     }
 
     // Validar que ningún texto esté vacío
     if (texts.some(text => !text || text.trim().length === 0)) {
-      throw new HttpError(400, 'All texts must be non-empty for embedding generation');
+      throw new HttpError(400, 'Todos los textos deben ser no vacíos para generar embeddings');
     }
 
     try {
@@ -118,7 +118,7 @@ export class EmbeddingService {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('[embedding] Error generating embeddings batch:', errorMessage);
 
-      throw new HttpError(500, `Failed to generate embeddings: ${errorMessage}`);
+      throw new HttpError(500, `No se pudieron generar los embeddings: ${errorMessage}`);
     }
   }
 

@@ -50,7 +50,7 @@ function toEntityFromDto(dto: CreateOrgNotificationDto): {
   if (dto.documentId) {
     return { kind: 'document', id: dto.documentId };
   }
-  throw new HttpError(400, 'Missing entityId (or documentId) for notification');
+  throw new HttpError(400, 'Falta entityId (o documentId) para la notificación');
 }
 
 export interface CreateNotificationDto {
@@ -80,10 +80,10 @@ export async function createNotificationForUser({
   metadata,
   emitter
 }: CreateNotificationDto): Promise<INotification> {
-  if (!isValidObjectId(organizationId)) throw new HttpError(400, 'Invalid organization ID');
-  if (!isValidObjectId(recipientUserId)) throw new HttpError(400, 'Invalid recipient user ID');
-  if (!isValidObjectId(actorUserId)) throw new HttpError(400, 'Invalid actor user ID');
-  if (!isValidObjectId(entityId)) throw new HttpError(400, 'Invalid entity ID');
+  if (!isValidObjectId(organizationId)) throw new HttpError(400, 'ID de organización no válido');
+  if (!isValidObjectId(recipientUserId)) throw new HttpError(400, 'ID de usuario destinatario no válido');
+  if (!isValidObjectId(actorUserId)) throw new HttpError(400, 'ID de usuario actor no válido');
+  if (!isValidObjectId(entityId)) throw new HttpError(400, 'ID de entidad no válido');
 
   const now = new Date();
   const doc = await NotificationModel.create({
@@ -139,9 +139,9 @@ export async function notifyMembersOfOrganization({
   metadata?: NotificationMetadata;
   emitter?: NotificationEmitter;
 }): Promise<INotification[]> {
-  if (!isValidObjectId(organizationId)) throw new HttpError(400, 'Invalid organization ID');
-  if (!isValidObjectId(actorUserId)) throw new HttpError(400, 'Invalid actor user ID');
-  if (!isValidObjectId(entityId)) throw new HttpError(400, 'Invalid entity ID');
+  if (!isValidObjectId(organizationId)) throw new HttpError(400, 'ID de organización no válido');
+  if (!isValidObjectId(actorUserId)) throw new HttpError(400, 'ID de usuario actor no válido');
+  if (!isValidObjectId(entityId)) throw new HttpError(400, 'ID de entidad no válido');
 
   const orgObjectId = new mongoose.Types.ObjectId(organizationId);
   const actorObjectId = new mongoose.Types.ObjectId(actorUserId);
@@ -211,16 +211,16 @@ export async function notifyOrganizationMembers({
   metadata,
   emitter
 }: CreateOrgNotificationDto): Promise<INotification[]> {
-  if (!isValidObjectId(actorUserId)) throw new HttpError(400, 'Invalid actor user ID');
+  if (!isValidObjectId(actorUserId)) throw new HttpError(400, 'ID de usuario actor no válido');
 
   const entity = toEntityFromDto({ actorUserId, type, documentId, entityKind, entityId });
-  if (!isValidObjectId(entity.id)) throw new HttpError(400, 'Invalid entity ID');
+  if (!isValidObjectId(entity.id)) throw new HttpError(400, 'ID de entidad no válido');
 
   const activeOrgId = await getActiveOrganization(actorUserId);
   if (!activeOrgId) {
     throw new HttpError(
       403,
-      'No active organization. Please create or join an organization first.'
+      'No tienes una organización activa. Primero crea o únete a una organización.'
     );
   }
 
@@ -251,7 +251,7 @@ export async function listNotifications({
   limit = 20,
   skip = 0
 }: ListNotificationsDto): Promise<{ notifications: INotification[]; total: number }> {
-  if (!isValidObjectId(userId)) throw new HttpError(400, 'Invalid user ID');
+  if (!isValidObjectId(userId)) throw new HttpError(400, 'ID de usuario no válido');
 
   let orgId = organizationId;
   if (!orgId) {
@@ -260,7 +260,7 @@ export async function listNotifications({
   if (!orgId || !isValidObjectId(orgId)) {
     throw new HttpError(
       403,
-      'No active organization. Please create or join an organization first.'
+      'No tienes una organización activa. Primero crea o únete a una organización.'
     );
   }
 
@@ -307,8 +307,8 @@ export async function listNotifications({
 }
 
 export async function markNotificationRead(userId: string, notificationId: string): Promise<void> {
-  if (!isValidObjectId(userId)) throw new HttpError(400, 'Invalid user ID');
-  if (!isValidObjectId(notificationId)) throw new HttpError(400, 'Invalid notification ID');
+  if (!isValidObjectId(userId)) throw new HttpError(400, 'ID de usuario no válido');
+  if (!isValidObjectId(notificationId)) throw new HttpError(400, 'ID de notificación no válido');
 
   const res = await NotificationModel.updateOne(
     {
@@ -319,12 +319,12 @@ export async function markNotificationRead(userId: string, notificationId: strin
   );
 
   if (res.matchedCount === 0) {
-    throw new HttpError(404, 'Notification not found');
+    throw new HttpError(404, 'Notificación no encontrada');
   }
 }
 
 export async function markAllRead(userId: string, organizationId?: string | null): Promise<void> {
-  if (!isValidObjectId(userId)) throw new HttpError(400, 'Invalid user ID');
+  if (!isValidObjectId(userId)) throw new HttpError(400, 'ID de usuario no válido');
 
   let orgId = organizationId;
   if (!orgId) {

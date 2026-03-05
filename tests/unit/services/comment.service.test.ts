@@ -99,7 +99,7 @@ describe('Comment Service', (): void => {
       // Act & Assert
       await expect(
         commentService.createComment({ documentId: invalidId, userId, content })
-      ).rejects.toThrow('Invalid document ID');
+      ).rejects.toThrow('ID de documento no válido');
     });
 
     it('should throw 400 for invalid user ID', async (): Promise<void> => {
@@ -111,7 +111,7 @@ describe('Comment Service', (): void => {
       // Act & Assert
       await expect(
         commentService.createComment({ documentId, userId: invalidUserId, content })
-      ).rejects.toThrow('Invalid user ID');
+      ).rejects.toThrow('ID de usuario no válido');
     });
 
     it('should throw 400 when content is empty', async (): Promise<void> => {
@@ -123,7 +123,7 @@ describe('Comment Service', (): void => {
       // Act & Assert
       await expect(
         commentService.createComment({ documentId, userId, content: emptyContent })
-      ).rejects.toThrow('Content is required');
+      ).rejects.toThrow('El contenido es requerido');
     });
 
     it('should throw 400 when content is only whitespace', async (): Promise<void> => {
@@ -135,7 +135,7 @@ describe('Comment Service', (): void => {
       // Act & Assert
       await expect(
         commentService.createComment({ documentId, userId, content: whitespaceContent })
-      ).rejects.toThrow('Content is required');
+      ).rejects.toThrow('El contenido es requerido');
     });
 
     it('should throw 404 when document not found', async (): Promise<void> => {
@@ -148,7 +148,7 @@ describe('Comment Service', (): void => {
       // Act & Assert
       await expect(
         commentService.createComment({ documentId, userId, content })
-      ).rejects.toThrow('Document not found');
+      ).rejects.toThrow('Documento no encontrado');
     });
 
     it('should throw 403 when user has no active membership for org document', async (): Promise<void> => {
@@ -166,7 +166,7 @@ describe('Comment Service', (): void => {
           userId,
           content
         })
-      ).rejects.toThrow('Access denied to this document');
+      ).rejects.toThrow('Acceso denegado a este documento');
     });
 
     it('should throw 403 when user is not uploadedBy or sharedWith for personal document', async (): Promise<void> => {
@@ -182,7 +182,7 @@ describe('Comment Service', (): void => {
       // Act & Assert
       await expect(
         commentService.createComment({ documentId: doc._id.toString(), userId, content })
-      ).rejects.toThrow('Access denied to this document');
+      ).rejects.toThrow('Acceso denegado a este documento');
     });
 
     it('should create comment when user is uploadedBy for personal document', async (): Promise<void> => {
@@ -296,7 +296,7 @@ describe('Comment Service', (): void => {
       expect(payload.actorUserId).toBe(userId);
       expect(payload.type).toBe('DOC_COMMENTED');
       expect(payload.documentId).toBe(doc._id.toString());
-      expect(payload.message).toBe('New comment on: Pretty Name.docx');
+      expect(payload.message).toBe('Nuevo comentario en: Pretty Name.docx');
       expect(payload.metadata).toMatchObject({
         documentId: doc._id.toString(),
         commentId: created._id.toString()
@@ -331,7 +331,7 @@ describe('Comment Service', (): void => {
 
       // Assert
       const payload = (notifyOrganizationMembers as unknown as jest.MockedFunction<(args: NotifyArgs) => Promise<void>>).mock.calls[0][0] as unknown as NotificationPayload;
-      expect(payload.message).toBe('New comment on: fallback.pdf');
+      expect(payload.message).toBe('Nuevo comentario en: fallback.pdf');
     });
 
     it('should use generic message when document name is not available', async (): Promise<void> => {
@@ -358,7 +358,7 @@ describe('Comment Service', (): void => {
 
       // Assert
       const payload = (notifyOrganizationMembers as unknown as jest.MockedFunction<(args: NotifyArgs) => Promise<void>>).mock.calls[0][0] as unknown as NotificationPayload;
-      expect(payload.message).toBe('New comment on a document');
+      expect(payload.message).toBe('Nuevo comentario en un documento');
     });
   });
 
@@ -371,7 +371,7 @@ describe('Comment Service', (): void => {
       // Act & Assert
       await expect(
         commentService.listComments({ documentId: invalidId, userId })
-      ).rejects.toThrow('Invalid document ID');
+      ).rejects.toThrow('ID de documento no válido');
     });
 
     it('should throw 400 for invalid user ID', async (): Promise<void> => {
@@ -382,7 +382,7 @@ describe('Comment Service', (): void => {
       // Act & Assert
       await expect(
         commentService.listComments({ documentId, userId: invalidUserId })
-      ).rejects.toThrow('Invalid user ID');
+      ).rejects.toThrow('ID de usuario no válido');
     });
 
     it('should return sorted and populated comments when user has access', async (): Promise<void> => {
@@ -423,7 +423,7 @@ describe('Comment Service', (): void => {
       // Act & Assert
       await expect(
         commentService.updateComment({ commentId: invalidId, userId, content })
-      ).rejects.toThrow('Invalid comment ID');
+      ).rejects.toThrow('ID de comentario no válido');
     });
 
     it('should throw 400 for invalid user ID', async (): Promise<void> => {
@@ -435,7 +435,7 @@ describe('Comment Service', (): void => {
       // Act & Assert
       await expect(
         commentService.updateComment({ commentId, userId: invalidUserId, content })
-      ).rejects.toThrow('Invalid user ID');
+      ).rejects.toThrow('ID de usuario no válido');
     });
 
     it('should throw 400 when content is only whitespace', async (): Promise<void> => {
@@ -447,7 +447,7 @@ describe('Comment Service', (): void => {
       // Act & Assert
       await expect(
         commentService.updateComment({ commentId, userId, content: whitespaceContent })
-      ).rejects.toThrow('Content is required');
+      ).rejects.toThrow('El contenido es requerido');
     });
 
     it('should throw 404 when comment not found', async (): Promise<void> => {
@@ -460,7 +460,7 @@ describe('Comment Service', (): void => {
       // Act & Assert
       await expect(
         commentService.updateComment({ commentId, userId, content })
-      ).rejects.toThrow('Comment not found');
+      ).rejects.toThrow('Comentario no encontrado');
     });
 
     it('should throw 403 when editing someone else comment', async (): Promise<void> => {
@@ -483,7 +483,7 @@ describe('Comment Service', (): void => {
           userId,
           content
         })
-      ).rejects.toThrow('You can only edit your own comment');
+      ).rejects.toThrow('Solo puedes editar tu propio comentario');
       expect(comment.save).not.toHaveBeenCalled();
     });
 
@@ -509,7 +509,7 @@ describe('Comment Service', (): void => {
           userId: userId.toString(),
           content: 'Updated'
         })
-      ).rejects.toThrow('Access denied to this document');
+      ).rejects.toThrow('Acceso denegado a este documento');
       expect(comment.save).not.toHaveBeenCalled();
     });
 
@@ -581,7 +581,7 @@ describe('Comment Service', (): void => {
       expect(payload.actorUserId).toBe(userId.toString());
       expect(payload.type).toBe('DOC_COMMENTED');
       expect(payload.documentId).toBe(comment.document.toString());
-      expect(payload.message).toBe('Comment edited on: doc-fallback.pdf');
+      expect(payload.message).toBe('Comentario editado en: doc-fallback.pdf');
       expect(payload.metadata).toMatchObject({
         documentId: comment.document.toString(),
         commentId: comment._id.toString(),

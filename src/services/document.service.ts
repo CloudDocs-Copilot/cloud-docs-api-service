@@ -83,16 +83,16 @@ export async function shareDocument({
   userId,
   userIds
 }: ShareDocumentDto): Promise<IDocument | null> {
-  if (!isValidObjectId(id)) throw new HttpError(400, 'Invalid document id');
+  if (!isValidObjectId(id)) throw new HttpError(400, 'ID de documento no válido');
   if (!Array.isArray(userIds) || userIds.length === 0) {
-    throw new HttpError(400, 'userIds must be a non-empty array');
+    throw new HttpError(400, 'ID de usuario(s) con los que compartir es requerido');
   }
   const uniqueIds = [...new Set(userIds.filter(isValidObjectId))];
-  if (uniqueIds.length === 0) throw new HttpError(400, 'At least one valid user id is required');
+  if (uniqueIds.length === 0) throw new HttpError(400, 'Al menos un ID de usuario válido es requerido para compartir');
 
   const doc = await DocumentModel.findById(id);
-  if (!doc) throw new Error('Document not found');
-  if (String(doc.uploadedBy) !== String(userId)) throw new HttpError(403, 'Forbidden');
+  if (!doc) throw new HttpError(404, 'Documento no encontrado');
+  if (String(doc.uploadedBy) !== String(userId)) throw new HttpError(403, 'Acceso denegado');
 
   // Si el documento pertenece a una organización, por defecto ya es visible para todos los miembros activos.
   // Mantener endpoint por compatibilidad, pero no es necesario para "org-wide access".
@@ -126,7 +126,7 @@ export async function shareDocument({
   // Filtra el owner de la lista de usuarios con los que compartir
   const filteredIds = uniqueIds.filter(id => String(id) !== String(userId));
   if (filteredIds.length === 0)
-    throw new HttpError(400, 'Cannot share document with yourself as the owner');
+    throw new HttpError(400, 'No puedes compartir el documento contigo mismo como propietario');
 
   // Convertir strings a ObjectIds para prevenir inyección NoSQL
   const filteredObjectIds = filteredIds.map(id => new mongoose.Types.ObjectId(id));
@@ -134,7 +134,7 @@ export async function shareDocument({
   // Opcionalmente, filtra solo usuarios existentes
   const existingUsers = await User.find({ _id: { $in: filteredObjectIds } }, { _id: 1 }).lean();
   const existingIds = existingUsers.map(u => u._id);
-  if (existingIds.length === 0) throw new HttpError(400, 'No valid users found to share with');
+  if (existingIds.length === 0) throw new HttpError(400, 'No se encontraron usuarios válidos para compartir');
 
   const updated = await DocumentModel.findByIdAndUpdate(
     id,
@@ -150,7 +150,7 @@ export async function shareDocument({
  */
 export async function listSharedDocumentsToUser(userId: string): Promise<IDocument[]> {
   if (!isValidObjectId(userId)) {
-    throw new HttpError(400, 'Invalid user ID');
+    throw new HttpError(400, 'ID de usuario no válido');
   }
 
   const activeOrgId = await getActiveOrganization(userId);
@@ -186,11 +186,11 @@ export async function replaceDocumentFile({
   userId,
   file
 }: ReplaceDocumentFileDto): Promise<IDocument> {
-  if (!isValidObjectId(documentId)) throw new HttpError(400, 'Invalid document ID');
-  if (!file || !file.filename) throw new HttpError(400, 'File is required');
+  if (!isValidObjectId(documentId)) throw new HttpError(400, 'ID de documento no válido');
+  if (!file || !file.filename) throw new HttpError(400, 'Archivo es requerido');
 
   const doc = await DocumentModel.findById(documentId);
-  if (!doc) throw new Error('Document not found');
+  if (!doc) throw new HttpError(404, 'Documento no encontrado');
 
   // Permisos:
   // - Si es de organización: permitir a OWNER/ADMIN, o al uploadedBy (propietario del documento).
@@ -210,12 +210,12 @@ export async function replaceDocumentFile({
     }
   } else {
     if (String(doc.uploadedBy) !== String(userId)) {
-      throw new HttpError(403, 'Forbidden');
+      throw new HttpError(403, 'Acceso denegado');
     }
   }
 
   const user = await User.findById(userId);
-  if (!user) throw new HttpError(404, 'User not found');
+  if (!user) throw new HttpError(404, 'Usuario no encontrado');
 
   const orgIdForLimits = doc.organization?.toString() || (await getActiveOrganization(userId));
   if (!orgIdForLimits) {
@@ -226,7 +226,7 @@ export async function replaceDocumentFile({
   }
 
   const organization = await Organization.findById(orgIdForLimits);
-  if (!organization) throw new HttpError(404, 'Organization not found');
+  if (!organization) throw new HttpError(404, 'Organización no encontrada');
 
   const newFileSize = file.size || 0;
 
@@ -235,7 +235,7 @@ export async function replaceDocumentFile({
   if (newFileSize > planLimits.maxFileSize) {
     throw new HttpError(
       400,
-      `File size exceeds maximum allowed (${planLimits.maxFileSize} bytes) for ${organization.plan} plan`
+      `Tamaño de archivo excede el límite para el plan ${organization.plan}. Tamaño máximo permitido: ${planLimits.maxFileSize} bytes`
     );
   }
 
@@ -246,7 +246,7 @@ export async function replaceDocumentFile({
   if (!allowedTypes.includes('*') && !allowedTypes.includes(fileExt)) {
     throw new HttpError(
       400,
-      `File type '${fileExt}' not allowed for ${organization.plan} plan. Allowed types: ${allowedTypes.join(', ')}`
+      `Tipo de archivo '${fileExt}' no permitido para el plan ${organization.plan}. Tipos permitidos: ${allowedTypes.join(', ')}`
     );
   }
 
@@ -260,7 +260,7 @@ export async function replaceDocumentFile({
   if (delta > 0 && currentUsage + delta > maxStoragePerUser) {
     throw new HttpError(
       403,
-      `Storage quota exceeded. Used: ${currentUsage}, Limit: ${maxStoragePerUser} (${organization.plan} plan)`
+      `Cuota de almacenamiento excedida. Usado: ${currentUsage}, ímite: ${maxStoragePerUser} (${organization.plan} plan)`
     );
   }
 
@@ -278,12 +278,12 @@ export async function replaceDocumentFile({
   const physicalPath = path.join(storageRoot, relativeStoragePath);
 
   if (!relativeStoragePath) {
-    throw new HttpError(400, 'Document storage path is missing');
+    throw new HttpError(400, 'Ruta de almacenamiento del documento está faltante');
   }
 
   // Validación defensa en profundidad
   if (!isPathWithinBase(physicalPath, storageRoot)) {
-    throw new HttpError(400, 'Invalid destination path');
+    throw new HttpError(400, 'Ruta de destino no válida');
   }
 
   // Overwrite físico
@@ -294,7 +294,7 @@ export async function replaceDocumentFile({
     }
 
     if (!fs.existsSync(tempPath)) {
-      throw new HttpError(500, 'Uploaded file not found in temp directory');
+      throw new HttpError(500, 'Archivo subido no encontrado en el directorio temporal');
     }
 
     if (fs.existsSync(physicalPath)) {
@@ -313,7 +313,7 @@ export async function replaceDocumentFile({
       const cleanupError = e instanceof Error ? e.message : 'Unknown error';
       console.error('Temp file cleanup error:', cleanupError);
     }
-    throw new HttpError(500, 'Failed to replace file in storage');
+    throw new HttpError(500, 'Fallo al reemplazar el archivo del documento');
   }
 
   doc.originalname = file.originalname;
@@ -362,10 +362,10 @@ export async function replaceDocumentFile({
  * - Si es personal (sin organización): SOLO el uploadedBy puede eliminar (legacy).
  */
 export async function deleteDocument({ id, userId }: DeleteDocumentDto): Promise<IDocument | null> {
-  if (!isValidObjectId(id)) throw new HttpError(400, 'Invalid document id');
+  if (!isValidObjectId(id)) throw new HttpError(400, 'ID de documento no válido');
 
   const doc = await DocumentModel.findById(id);
-  if (!doc) throw new Error('Document not found');
+  if (!doc) throw new HttpError(404, 'Documento no encontrado');
 
   // Permisos para documentos de organización
   if (doc.organization) {
@@ -382,7 +382,7 @@ export async function deleteDocument({ id, userId }: DeleteDocumentDto): Promise
   } else {
     // Personal: solo el propietario (uploadedBy)
     if (String(doc.uploadedBy) !== String(userId)) {
-      throw new HttpError(403, 'Forbidden');
+      throw new HttpError(403, 'Acceso denegado');
     }
   }
 
@@ -485,22 +485,22 @@ export async function moveDocument({
   userId,
   targetFolderId
 }: MoveDocumentDto): Promise<IDocument> {
-  if (!isValidObjectId(documentId)) throw new HttpError(400, 'Invalid document ID');
-  if (!isValidObjectId(targetFolderId)) throw new HttpError(400, 'Invalid target folder ID');
+  if (!isValidObjectId(documentId)) throw new HttpError(400, 'ID de documento no válido');
+  if (!isValidObjectId(targetFolderId)) throw new HttpError(400, 'ID de carpeta de destino no válido');
 
   const doc = await DocumentModel.findById(documentId);
-  if (!doc) throw new HttpError(404, 'Document not found');
+  if (!doc) throw new HttpError(404, 'Documento no encontrado');
 
   // Solo el propietario puede mover
   if (String(doc.uploadedBy) !== String(userId)) {
-    throw new HttpError(403, 'Only document owner can move it');
+    throw new HttpError(403, 'Solo el propietario puede mover el documento');
   }
 
   // Validar acceso de editor a la carpeta destino
   await validateFolderAccess(targetFolderId, userId, 'editor');
 
   const targetFolder = await Folder.findById(targetFolderId);
-  if (!targetFolder) throw new HttpError(404, 'Target folder not found');
+  if (!targetFolder) throw new HttpError(404, 'Carpeta de destino no encontrada');
 
   // Validar compatibilidad de organización
   const docOrgId = doc.organization?.toString();
@@ -510,9 +510,9 @@ export async function moveDocument({
     if (!docOrgId && !folderOrgId) {
       // Ambos son personales - OK
     } else if (docOrgId && folderOrgId) {
-      throw new HttpError(400, 'Cannot move document to folder in different organization');
+      throw new HttpError(400, 'No se puede mover el documento a una carpeta en una organización diferente');
     } else {
-      throw new HttpError(400, 'Cannot move document between personal and organization contexts');
+      throw new HttpError(400, 'No se puede mover el documento entre contextos personales y organizacionales');
     }
   }
 
@@ -520,7 +520,7 @@ export async function moveDocument({
   let org = null;
   if (doc.organization) {
     org = await Organization.findById(doc.organization);
-    if (!org) throw new HttpError(404, 'Organization not found');
+    if (!org) throw new HttpError(404, 'Organización no encontrada');
   }
 
   // Construir nuevo path
@@ -576,7 +576,7 @@ export async function moveDocument({
   } catch (e: unknown) {
     const errorMessage = e instanceof Error ? e.message : 'Unknown error';
     console.error('File move error:', errorMessage);
-    throw new HttpError(500, 'Failed to move file in storage');
+    throw new HttpError(500, 'Fallo al mover el archivo del documento');
   }
 
   // Actualizar documento en BD
@@ -596,33 +596,33 @@ export async function renameDocument({
   userId,
   filename
 }: RenameDocumentDto): Promise<IDocument> {
-  if (!isValidObjectId(documentId)) throw new HttpError(400, 'Invalid document ID');
-  if (!filename || !filename.trim()) throw new HttpError(400, 'Filename is required');
+  if (!isValidObjectId(documentId)) throw new HttpError(400, 'ID de documento no válido');
+  if (!filename || !filename.trim()) throw new HttpError(400, 'El nombre del archivo es requerido');
 
   const doc = await DocumentModel.findById(documentId);
-  if (!doc) throw new HttpError(404, 'Document not found');
+  if (!doc) throw new HttpError(404, 'Documento no encontrado');
 
   // Solo el propietario puede renombrar
   if (String(doc.uploadedBy) !== String(userId)) {
-    throw new HttpError(403, 'Only document owner can rename it');
+    throw new HttpError(403, 'Solo el propietario puede renombrar el documento');
   }
 
   const folder = await Folder.findById(doc.folder);
-  if (!folder) throw new HttpError(404, 'Document folder not found');
+  if (!folder) throw new HttpError(404, 'Carpeta del documento no encontrada');
 
   // Validar que la extensión se mantiene
   const oldExt = path.extname(doc.filename || '').toLowerCase();
   const newExt = path.extname(filename).toLowerCase();
   
   if (oldExt !== newExt) {
-    throw new HttpError(400, `Cannot change file extension from ${oldExt} to ${newExt}`);
+    throw new HttpError(400, `No se permite cambiar la extensión del archivo. Extensión actual: '${oldExt}', nueva extensión: '${newExt}'`);
   }
 
   // Obtener organización si existe
   let org = null;
   if (doc.organization) {
     org = await Organization.findById(doc.organization);
-    if (!org) throw new HttpError(404, 'Organization not found');
+    if (!org) throw new HttpError(404, 'Organización no encontrada');
   }
 
   // Sanitizar nuevo filename
@@ -654,7 +654,7 @@ export async function renameDocument({
   });
 
   if (existingDoc) {
-    throw new HttpError(409, `A document named '${safeFilename}' already exists in this folder`);
+    throw new HttpError(409, `Un documento con el nombre '${safeFilename}' ya existe en esta carpeta`);
   }
 
   // Renombrar archivo físico
@@ -665,7 +665,7 @@ export async function renameDocument({
   } catch (e: unknown) {
     const errorMessage = e instanceof Error ? e.message : 'Unknown error';
     console.error('File rename error:', errorMessage);
-    throw new HttpError(500, 'Failed to rename file in storage');
+    throw new HttpError(500, 'Fallo al renombrar el archivo en el almacenamiento');
   }
 
   // Actualizar documento en BD
@@ -694,11 +694,11 @@ export async function copyDocument({
   userId,
   targetFolderId
 }: CopyDocumentDto): Promise<IDocument> {
-  if (!isValidObjectId(documentId)) throw new HttpError(400, 'Invalid document ID');
-  if (!isValidObjectId(targetFolderId)) throw new HttpError(400, 'Invalid target folder ID');
+  if (!isValidObjectId(documentId)) throw new HttpError(400, 'ID de documento no válido');
+  if (!isValidObjectId(targetFolderId)) throw new HttpError(400, 'ID de carpeta de destino no válido');
 
   const doc = await DocumentModel.findById(documentId);
-  if (!doc) throw new HttpError(404, 'Document not found');
+  if (!doc) throw new HttpError(404, 'Documento no encontrado');
 
   // Usuario debe tener acceso al documento original:
   // - Si es de organización: cualquier miembro activo
@@ -708,14 +708,14 @@ export async function copyDocument({
     doc.sharedWith?.some((id: mongoose.Types.ObjectId) => String(id) === String(userId));
 
   if (!hasAccess) {
-    throw new HttpError(403, 'You do not have access to this document');
+    throw new HttpError(403, 'No tienes acceso a este documento');
   }
 
   // Validar acceso de editor a la carpeta destino
   await validateFolderAccess(targetFolderId, userId, 'editor');
 
   const targetFolder = await Folder.findById(targetFolderId);
-  if (!targetFolder) throw new HttpError(404, 'Target folder not found');
+  if (!targetFolder) throw new HttpError(404, 'Carpeta de destino no encontrada');
 
   // Validar compatibilidad de organización
   const docOrgId = doc.organization?.toString();
@@ -725,9 +725,9 @@ export async function copyDocument({
     if (!docOrgId && !folderOrgId) {
       // Ambos son personales - OK
     } else if (docOrgId && folderOrgId) {
-      throw new HttpError(400, 'Cannot copy document to folder in different organization');
+      throw new HttpError(400, 'No se puede copiar el documento a una carpeta en una organización diferente');
     } else {
-      throw new HttpError(400, 'Cannot copy document between personal and organization contexts');
+      throw new HttpError(400, 'No se puede copiar el documento entre contextos personales y de organización');
     }
   }
 
@@ -735,16 +735,16 @@ export async function copyDocument({
   let org = null;
   if (doc.organization) {
     org = await Organization.findById(doc.organization);
-    if (!org) throw new HttpError(404, 'Organization not found');
+    if (!org) throw new HttpError(404, 'Organización no encontrada');
   }
 
   // Validar cuota de almacenamiento del usuario
   const user = await User.findById(userId);
-  if (!user) throw new HttpError(404, 'User not found');
+  if (!user) throw new HttpError(404, 'Usuario no encontrado');
 
   const maxStorage = org ? org.settings.maxStoragePerUser || 5368709120 : 5368709120; // 5GB para usuarios personales
   if ((user.storageUsed || 0) + (doc.size || 0) > maxStorage) {
-    throw new HttpError(400, 'Storage quota exceeded');
+    throw new HttpError(400, 'Cuota de almacenamiento excedida');
   }
 
   // Generar nuevo nombre de archivo para evitar conflictos
@@ -771,7 +771,7 @@ export async function copyDocument({
       !isPathWithinBase(sourcePhysicalPath, storageRoot) ||
       !isPathWithinBase(targetPhysicalPath, storageRoot)
     ) {
-      throw new HttpError(400, 'Invalid destination path');
+      throw new HttpError(400, 'Ruta de destino no válida');
     }
 
     if (fs.existsSync(sourcePhysicalPath)) {
@@ -783,12 +783,12 @@ export async function copyDocument({
 
       fs.copyFileSync(sourcePhysicalPath, targetPhysicalPath);
     } else {
-      throw new HttpError(500, 'Source file not found in storage');
+      throw new HttpError(500, 'Archivo de origen no encontrado en el almacenamiento');
     }
   } catch (e: unknown) {
-    const errorMessage = e instanceof Error ? e.message : 'Unknown error';
-    console.error('File copy error:', errorMessage);
-    throw new HttpError(500, 'Failed to copy file in storage');
+    const errorMessage = e instanceof Error ? e.message : 'Error desconocido';
+    console.error('Error al copiar archivo:', errorMessage);
+    throw new HttpError(500, 'Error al copiar archivo en el almacenamiento');
   }
 
   // Crear nuevo documento en BD
@@ -821,19 +821,19 @@ export async function getUserRecentDocuments({
 }: GetRecentDocumentsDto): Promise<IDocument[]> {
   // Validar que el ID sea ObjectId válido
   if (!isValidObjectId(userId)) {
-    throw new HttpError(400, 'Invalid user ID');
+    throw new HttpError(400, 'ID de usuario no válido');
   }
 
   // Usar organizationId si se proporciona, sino usar la organización activa
   let orgId: string;
   if (organizationId) {
     if (!isValidObjectId(organizationId)) {
-      throw new HttpError(400, 'Invalid organization ID');
+      throw new HttpError(400, 'ID de organización no válido');
     }
     // Verificar que el usuario tenga membresía activa en esa organización
     const hasAccess = await hasActiveMembership(userId, organizationId);
     if (!hasAccess) {
-      throw new HttpError(403, 'No access to this organization');
+      throw new HttpError(403, 'No tiene acceso a esta organización');
     }
     orgId = organizationId;
   } else {
@@ -842,7 +842,7 @@ export async function getUserRecentDocuments({
     if (!activeOrgId) {
       throw new HttpError(
         403,
-        'No active organization. Please create or join an organization first.'
+        'Sin organización activa. Por favor, crea o únete a una organización primero.'
       );
     }
     orgId = activeOrgId;
@@ -889,38 +889,38 @@ export async function uploadDocument({
   userId,
   folderId
 }: UploadDocumentDto): Promise<IDocument> {
-  if (!file || !file.filename) throw new HttpError(400, 'File is required');
+  if (!file || !file.filename) throw new HttpError(400, 'Archivo es requerido');
 
   // Obtener usuario
   const user = await User.findById(userId);
-  if (!user) throw new HttpError(404, 'User not found');
+  if (!user) throw new HttpError(404, 'Usuario no encontrado');
 
   // Obtener organización activa (requerida)
   const activeOrgId = await getActiveOrganization(userId);
   if (!activeOrgId) {
     throw new HttpError(
       403,
-      'No active organization. Please create or join an organization first.'
+      'Sin organización activa. Por favor, crea o únete a una organización primero.'
     );
   }
 
   // Obtener membresía para acceder al rootFolder
   const membership = await getMembership(userId, activeOrgId);
   if (!membership) {
-    throw new HttpError(403, 'You are not a member of this organization');
+    throw new HttpError(403, 'No es miembro de esta organización');
   }
 
   // Si no se proporciona folderId, usar rootFolder de la membresía
   let effectiveFolderId = folderId?.trim();
   if (!effectiveFolderId) {
     if (!membership.rootFolder) {
-      throw new HttpError(400, 'Membership does not have a root folder. Please contact support.');
+      throw new HttpError(400, 'La membresía no tiene una carpeta raíz. Por favor, contacte con soporte.');
     }
     effectiveFolderId = membership.rootFolder.toString();
   }
 
   if (!isValidObjectId(effectiveFolderId)) {
-    throw new HttpError(400, 'Invalid folder ID');
+    throw new HttpError(400, 'ID de carpeta no válido');
   }
 
   const folderObjectId = new mongoose.Types.ObjectId(effectiveFolderId);
@@ -929,16 +929,16 @@ export async function uploadDocument({
   await validateFolderAccess(folderObjectId.toString(), userId, 'editor');
 
   const folder = await Folder.findById(folderObjectId);
-  if (!folder) throw new HttpError(404, 'Folder not found');
+  if (!folder) throw new HttpError(404, 'Carpeta no encontrada');
 
   // Validar que la carpeta pertenece a la organización activa
   if (folder.organization?.toString() !== activeOrgId) {
-    throw new HttpError(403, 'Folder does not belong to your active organization');
+    throw new HttpError(403, 'La carpeta no pertenece a tu organización activa');
   }
 
   // Obtener organización
   const organization = await Organization.findById(activeOrgId);
-  if (!organization) throw new HttpError(404, 'Organization not found');
+  if (!organization) throw new HttpError(404, 'Organización no encontrada');
 
   const fileSize = file.size || 0;
 
@@ -947,7 +947,7 @@ export async function uploadDocument({
   if (fileSize > planLimits.maxFileSize) {
     throw new HttpError(
       400,
-      `File size exceeds maximum allowed (${planLimits.maxFileSize} bytes) for ${organization.plan} plan`
+      `Tamaño de archivo excede el límite para el plan ${organization.plan}. Tamaño máximo permitido: ${planLimits.maxFileSize} bytes`
     );
   }
 
@@ -958,7 +958,7 @@ export async function uploadDocument({
   if (currentUsage + fileSize > maxStoragePerUser) {
     throw new HttpError(
       403,
-      `Storage quota exceeded. Used: ${currentUsage}, Limit: ${maxStoragePerUser} (${organization.plan} plan)`
+      `Cuota de almacenamiento excedida. Usado: ${currentUsage}, límite: ${maxStoragePerUser} (${organization.plan} plan)`
     );
   }
 
@@ -978,7 +978,7 @@ export async function uploadDocument({
   if (maxOrgStorage !== -1 && currentOrgStorage + fileSize > maxOrgStorage) {
     throw new HttpError(
       403,
-      `Organization storage quota exceeded (${maxOrgStorage} bytes for ${organization.plan} plan)`
+      `Cuota de almacenamiento de la organización excedida. Usado: ${currentOrgStorage}, límite: ${maxOrgStorage} (${organization.plan} plan)`
     );
   }
 
@@ -989,7 +989,7 @@ export async function uploadDocument({
   if (!allowedTypes.includes('*') && !allowedTypes.includes(fileExt)) {
     throw new HttpError(
       400,
-      `File type '${fileExt}' not allowed for ${organization.plan} plan. Allowed types: ${allowedTypes.join(', ')}`
+      `Tipo de archivo '${fileExt}' no permitido para el plan ${organization.plan}. Tipos permitidos: ${allowedTypes.join(', ')}`
     );
   }
 
@@ -1024,7 +1024,7 @@ export async function uploadDocument({
   // Validar que el path de destino está dentro del directorio storage
   // (validación final por defensa en profundidad)
   if (!isPathWithinBase(physicalPath, storageRoot)) {
-    throw new HttpError(400, 'Invalid destination path');
+    throw new HttpError(400, 'Ruta de destino no válida');
   }
 
   // Mover archivo de uploads a storage
@@ -1110,12 +1110,12 @@ export async function uploadDocument({
     }
 
     if (!moved) {
-      throw new HttpError(500, 'Uploaded file not found in temp directory');
+      throw new HttpError(500, 'Archivo subido no encontrado en el directorio temporal');
     }
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('File move error:', errorMessage);
-    throw new HttpError(500, 'Failed to move file to storage');
+    const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+    console.error('Error al mover el archivo:', errorMessage);
+    throw new HttpError(500, 'Fallo al mover el archivo al almacenamiento');
   }
 
   // Crear documento en BD
@@ -1186,7 +1186,7 @@ export async function uploadDocument({
 
 export async function listDocuments(userId: string): Promise<IDocument[]> {
   if (!isValidObjectId(userId)) {
-    throw new HttpError(400, 'Invalid user ID');
+    throw new HttpError(400, 'ID de usuario no válido');
   }
 
   const activeOrgId = await getActiveOrganization(userId);
@@ -1209,7 +1209,7 @@ export async function listDocuments(userId: string): Promise<IDocument[]> {
 
 export async function findDocumentById(id: string): Promise<IDocument | null> {
   if (!isValidObjectId(id)) {
-    throw new HttpError(400, 'Invalid document ID');
+    throw new HttpError(400, 'ID de documento no válido');
   }
   const documentObjectId = new mongoose.Types.ObjectId(id);
   return DocumentModel.findById(documentObjectId);

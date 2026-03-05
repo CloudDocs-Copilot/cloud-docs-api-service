@@ -89,7 +89,7 @@ describe('DeletionService', (): void => {
       (DocumentModel.findById as jest.Mock).mockResolvedValue(null);
 
       await expect(deletionService.moveToTrash(mockDocId, mockContext)).rejects.toThrow(
-        new HttpError(404, 'Document not found')
+        new HttpError(404, 'Documento no encontrado')
       );
     });
 
@@ -100,7 +100,7 @@ describe('DeletionService', (): void => {
       (DocumentModel.findById as jest.Mock).mockResolvedValue(document);
 
       await expect(deletionService.moveToTrash(mockDocId, mockContext)).rejects.toThrow(
-        new HttpError(403, 'You do not have permission to delete this document')
+        new HttpError(403, 'No tienes permiso para eliminar este documento')
       );
     });
 
@@ -111,7 +111,7 @@ describe('DeletionService', (): void => {
       (DocumentModel.findById as jest.Mock).mockResolvedValue(document);
 
       await expect(deletionService.moveToTrash(mockDocId, mockContext)).rejects.toThrow(
-        new HttpError(400, 'Document is already in trash')
+        new HttpError(400, 'El documento ya está en la papelera')
       );
     });
 
@@ -196,7 +196,7 @@ describe('DeletionService', (): void => {
       (DocumentModel.findById as jest.Mock).mockResolvedValue(null);
 
       await expect(deletionService.restoreFromTrash(mockDocId, mockContext)).rejects.toThrow(
-        new HttpError(404, 'Document not found')
+        new HttpError(404, 'Documento no encontrado')
       );
     });
 
@@ -207,7 +207,7 @@ describe('DeletionService', (): void => {
       (DocumentModel.findById as jest.Mock).mockResolvedValue(document);
 
       await expect(deletionService.restoreFromTrash(mockDocId, mockContext)).rejects.toThrow(
-        new HttpError(403, 'You do not have permission to restore this document')
+        new HttpError(403, 'No tienes permiso para restaurar este documento')
       );
     });
 
@@ -218,7 +218,7 @@ describe('DeletionService', (): void => {
       (DocumentModel.findById as jest.Mock).mockResolvedValue(document);
 
       await expect(deletionService.restoreFromTrash(mockDocId, mockContext)).rejects.toThrow(
-        new HttpError(400, 'Document is not in trash')
+        new HttpError(400, 'El documento no está en la papelera')
       );
     });
 
@@ -254,7 +254,7 @@ describe('DeletionService', (): void => {
       (DocumentModel.findById as jest.Mock).mockResolvedValue(null);
 
       await expect(deletionService.permanentDelete(mockDocId, mockContext, {})).rejects.toThrow(
-        new HttpError(404, 'Document not found')
+        new HttpError(404, 'Documento no encontrado')
       );
     });
 
@@ -265,7 +265,7 @@ describe('DeletionService', (): void => {
       (DocumentModel.findById as jest.Mock).mockResolvedValue(document);
 
       await expect(deletionService.permanentDelete(mockDocId, mockContext, {})).rejects.toThrow(
-        new HttpError(403, 'You do not have permission to permanently delete this document')
+        new HttpError(403, 'No tienes permiso para eliminar permanentemente este documento')
       );
     });
 
@@ -276,7 +276,7 @@ describe('DeletionService', (): void => {
       (DocumentModel.findById as jest.Mock).mockResolvedValue(document);
 
       await expect(deletionService.permanentDelete(mockDocId, mockContext, {})).rejects.toThrow(
-        new HttpError(400, 'Document must be in trash before permanent deletion')
+        new HttpError(400, 'El documento debe estar en la papelera antes de su eliminación permanente')
       );
     });
 

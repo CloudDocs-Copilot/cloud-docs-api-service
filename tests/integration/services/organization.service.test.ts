@@ -118,7 +118,7 @@ describe('OrganizationService Integration Tests', (): void => {
         .buildForService();
 
       await expect(organizationService.createOrganization(orgData)).rejects.toThrow(
-        'Owner user not found'
+        'Usuario propietario no encontrado'
       );
     });
 
@@ -148,7 +148,7 @@ describe('OrganizationService Integration Tests', (): void => {
         .buildForService();
 
       await expect(organizationService.createOrganization(orgData)).rejects.toThrow(
-        'Organization name already exists'
+        'El nombre de la organización ya existe'
       );
     });
   });
@@ -195,7 +195,7 @@ describe('OrganizationService Integration Tests', (): void => {
 
       await expect(
         organizationService.addUserToOrganization(fakeOrgId, testUser._id.toString())
-      ).rejects.toThrow('Organization not found');
+      ).rejects.toThrow('Organización no encontrada');
     });
 
     it('should fail when updating organization to a name that already exists', async (): Promise<void> => {
@@ -214,7 +214,7 @@ describe('OrganizationService Integration Tests', (): void => {
           owner._id.toString(),
           { name: 'first org' } // different case
         )
-      ).rejects.toThrow('Organization name already exists');
+      ).rejects.toThrow('El nombre de la organización ya existe');
     });
 
     it('should fail if user does not exist', async (): Promise<void> => {
@@ -225,7 +225,7 @@ describe('OrganizationService Integration Tests', (): void => {
 
       await expect(
         organizationService.addUserToOrganization(organization._id.toString(), fakeUserId)
-      ).rejects.toThrow('User not found');
+      ).rejects.toThrow('Usuario no encontrado');
     });
 
     it('should fail if user is already a member', async (): Promise<void> => {
@@ -234,7 +234,7 @@ describe('OrganizationService Integration Tests', (): void => {
 
       await expect(
         organizationService.addUserToOrganization(organization._id.toString(), owner._id.toString())
-      ).rejects.toThrow('User is already a member of this organization');
+      ).rejects.toThrow('El usuario ya es miembro de esta organización');
     });
 
     it('should fail if organization has reached max users', async (): Promise<void> => {
@@ -260,7 +260,7 @@ describe('OrganizationService Integration Tests', (): void => {
           organization._id.toString(),
           extraUser._id.toString()
         )
-      ).rejects.toThrow('Organization has reached maximum users limit (3) for free plan');
+      ).rejects.toThrow('La organización alcanzó el límite máximo de usuarios (3) para el plan free');
     });
   });
 
@@ -304,7 +304,7 @@ describe('OrganizationService Integration Tests', (): void => {
           organization._id.toString(),
           owner._id.toString()
         )
-      ).rejects.toThrow('Cannot remove the owner from the organization');
+      ).rejects.toThrow('No se puede eliminar al propietario de la organización');
     });
 
     it('should fail if organization does not exist', async (): Promise<void> => {
@@ -313,7 +313,7 @@ describe('OrganizationService Integration Tests', (): void => {
 
       await expect(
         organizationService.removeUserFromOrganization(fakeOrgId, testUser._id.toString())
-      ).rejects.toThrow('Organization not found');
+      ).rejects.toThrow('Organización no encontrada');
     });
   });
 
@@ -369,7 +369,7 @@ describe('OrganizationService Integration Tests', (): void => {
       const fakeId = new mongoose.Types.ObjectId().toString();
 
       await expect(organizationService.getOrganizationById(fakeId)).rejects.toThrow(
-        'Organization not found'
+        'Organización no encontrada'
       );
     });
   });
@@ -412,7 +412,7 @@ describe('OrganizationService Integration Tests', (): void => {
           nonOwner._id.toString(),
           { name: 'Hacked Name' }
         )
-      ).rejects.toThrow('Only organization owner can update organization');
+      ).rejects.toThrow('Solo el propietario de la organización puede actualizarla');
     });
 
     it('should fail if organization does not exist', async (): Promise<void> => {
@@ -423,7 +423,7 @@ describe('OrganizationService Integration Tests', (): void => {
         organizationService.updateOrganization(fakeId, testUser._id.toString(), {
           name: 'New Name'
         })
-      ).rejects.toThrow('Organization not found');
+      ).rejects.toThrow('Organización no encontrada');
     });
   });
 
@@ -452,7 +452,7 @@ describe('OrganizationService Integration Tests', (): void => {
 
       await expect(
         organizationService.deleteOrganization(organization._id.toString(), nonOwner._id.toString())
-      ).rejects.toThrow('Only organization owner can delete organization');
+      ).rejects.toThrow('Solo el propietario de la organización puede eliminarla');
     });
   });
 
@@ -490,7 +490,7 @@ describe('OrganizationService Integration Tests', (): void => {
       const fakeId = new mongoose.Types.ObjectId().toString();
 
       await expect(organizationService.getOrganizationStorageStats(fakeId)).rejects.toThrow(
-        'Organization not found'
+        'Organización no encontrada'
       );
     });
   });

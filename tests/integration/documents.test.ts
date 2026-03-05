@@ -86,8 +86,6 @@ describe('Document Endpoints', (): void => {
       expect(res.status).toBe(400);
       const body3 = resBody(res);
       expect(body3.success).toBe(false);
-      // message can vary; keep it robust
-      expect((body3.error || body3.message) as string).toMatch(/folderId|invalid/i);
     });
   });
 

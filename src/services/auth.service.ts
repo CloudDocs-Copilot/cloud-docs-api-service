@@ -60,12 +60,12 @@ function hashResetToken(token: string): string {
 
 function extractUserIdFromJwtPayload(payload: unknown): string {
   if (!payload || typeof payload !== 'object') {
-    throw new HttpError(401, 'Invalid confirmation token');
+    throw new HttpError(401, 'Confirmación de token inválido');
   }
 
   const payloadRecord = payload as Record<string, unknown>;
   if (typeof payloadRecord.userId !== 'string') {
-    throw new HttpError(401, 'Invalid confirmation token');
+    throw new HttpError(401, 'Confirmación de token inválido');
   }
 
   return payloadRecord.userId;
@@ -100,13 +100,13 @@ export async function registerUser({
   // Validar nombre (solo alfanumérico y espacios)
   const nameRegex = /^[a-zA-Z0-9\s]+$/;
   if (!name || !nameRegex.test(name.trim())) {
-    throw new HttpError(400, 'Name must contain only alphanumeric characters and spaces');
+    throw new HttpError(400, 'El nombre debe contener solo caracteres alfanuméricos y espacios');
   }
 
   // Validar formato de email
   const emailRegex = /^[^\s@]+@([^\s@.]+\.)+[^\s@.]{2,}$/;
   if (!email || !emailRegex.test(email.toLowerCase())) {
-    throw new HttpError(400, 'Invalid email format');
+    throw new HttpError(400, 'Formato de email inválido');
   }
 
   // Validar fortaleza de la contraseña
@@ -192,19 +192,19 @@ export async function registerUser({
 export async function loginUser({ email, password }: LoginUserDto): Promise<AuthResponse> {
   // Validar explícitamente los tipos para evitar inyección NoSQL u otros valores inesperados
   if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
-    throw new HttpError(400, 'Invalid credentials');
+    throw new HttpError(400, 'Credenciales inválidas');
   }
 
   const user = await User.findOne({ email: { $eq: email } });
-  if (!user) throw new HttpError(404, 'User not found');
+  if (!user) throw new HttpError(404, 'Usuario no encontrado');
 
   // Validar que el usuario esté activo
   if (!user.active) {
-    throw new HttpError(403, 'User account is not active');
+    throw new HttpError(403, 'La cuenta de usuario no está activa');
   }
 
   const valid = await bcrypt.compare(password, user.password);
-  if (!valid) throw new HttpError(401, 'Invalid password');
+  if (!valid) throw new HttpError(401, 'Contraseña inválida');
 
   const token = signToken({
     id: String(user._id),
@@ -247,14 +247,14 @@ export async function confirmUserAccount(
 export async function requestPasswordReset(email: string): Promise<string | null> {
   // Validar tipo para evitar inyección/valores raros
   if (typeof email !== 'string' || !email) {
-    throw new HttpError(400, 'Missing required fields');
+    throw new HttpError(400, 'Faltan campos requeridos');
   }
 
   // Validar formato de email (mismo criterio que register)
   const emailRegex = /^[^\s@]+@([^\s@.]+\.)+[^\s@.]{2,}$/;
   const normalizedEmail = email.toLowerCase();
   if (!emailRegex.test(normalizedEmail)) {
-    throw new HttpError(400, 'Invalid email format');
+    throw new HttpError(400, 'Formato de email inválido');
   }
 
   const user = await User.findOne({ email: { $eq: normalizedEmail } });
@@ -278,7 +278,7 @@ export async function requestPasswordReset(email: string): Promise<string | null
             expiresIn: '1d'
           }
         );
-        const token = ensureString(rawToken, 'Invalid confirmation token generation');
+        const token = ensureString(rawToken, 'Confirmación de token inválida');
 
         const baseUrl =
           process.env.CONFIRMATION_URL_BASE || `http://localhost:${process.env.PORT || 4000}`;
@@ -362,14 +362,14 @@ export async function resetPassword({
     typeof newPassword !== 'string' ||
     typeof confirmPassword !== 'string'
   ) {
-    throw new HttpError(400, 'Missing required fields');
+    throw new HttpError(400, 'Faltan campos requeridos');
   }
   if (!token || !newPassword || !confirmPassword) {
-    throw new HttpError(400, 'Missing required fields');
+    throw new HttpError(400, 'Faltan campos requeridos');
   }
 
   if (newPassword !== confirmPassword) {
-    throw new HttpError(400, 'Passwords do not match');
+    throw new HttpError(400, 'Las contraseñas no coinciden');
   }
 
   // Política de contraseñas (reutiliza lo existente)
@@ -384,7 +384,7 @@ export async function resetPassword({
 
   if (!user) {
     // Reutilizable por front como alerta estándar
-    throw new HttpError(400, 'Invalid or expired token');
+    throw new HttpError(400, 'Token inválido o expirado');
   }
 
   const hashed = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS);

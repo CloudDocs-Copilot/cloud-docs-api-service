@@ -186,37 +186,37 @@ describe('RAG Multitenancy Security (RFE-AI-005) - Unit Tests', () => {
   describe('🔐 Parameter Validation - organizationId Required', (): void => {
     it('should reject search() without organizationId', async () => {
       await expect(ragService.search('test query', '', 5)).rejects.toThrow(
-        'Organization ID is required'
+        'El ID de la organización es obligatorio'
       );
     });
 
     it('should reject search() with whitespace-only organizationId', async () => {
       await expect(ragService.search('test query', '   ', 5)).rejects.toThrow(
-        'Organization ID is required'
+        'El ID de la organización es obligatorio'
       );
     });
 
     it('should reject searchInDocument() without organizationId', async () => {
       await expect(ragService.searchInDocument('test query', '', doc1Id, 5)).rejects.toThrow(
-        'Organization ID is required'
+        'El ID de la organización es obligatorio'
       );
     });
 
     it('should reject answerQuestion() without proper parameters', async () => {
       // Empty question
       await expect(ragService.answerQuestion('', org1Id, 5)).rejects.toThrow(
-        'Question cannot be empty'
+        'La pregunta no puede estar vacía'
       );
 
       // Whitespace-only question
       await expect(ragService.answerQuestion('   ', org1Id, 5)).rejects.toThrow(
-        'Question cannot be empty'
+        'La pregunta no puede estar vacía'
       );
     });
 
     it('should reject answerQuestionInDocument() without organizationId', async () => {
       await expect(ragService.answerQuestionInDocument('test', '', doc1Id, 5)).rejects.toThrow(
-        'Organization ID is required'
+        'El ID de la organización es obligatorio'
       );
     });
   });
@@ -236,7 +236,7 @@ describe('RAG Multitenancy Security (RFE-AI-005) - Unit Tests', () => {
 
       await expect(
         documentProcessor.processDocument(testDoc._id.toString(), '', 'Some text')
-      ).rejects.toThrow('Organization ID is required');
+      ).rejects.toThrow('ID de organización es requerido');
     });
 
     it('should create chunks with correct organizationId', async (): Promise<void> => {

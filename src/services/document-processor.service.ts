@@ -53,15 +53,15 @@ export class DocumentProcessor {
 
     // Validar entrada
     if (!documentId || documentId.trim().length === 0) {
-      throw new HttpError(400, 'Document ID is required');
+      throw new HttpError(400, 'ID de documento es requerido');
     }
 
     if (!organizationId || organizationId.trim().length === 0) {
-      throw new HttpError(400, 'Organization ID is required');
+      throw new HttpError(400, 'ID de organización es requerido');
     }
 
     if (!text || text.trim().length === 0) {
-      throw new HttpError(400, 'Document text cannot be empty');
+      throw new HttpError(400, 'El texto del documento no puede estar vacío');
     }
 
     try {
@@ -70,7 +70,7 @@ export class DocumentProcessor {
       const chunks = splitIntoChunks(text);
 
       if (chunks.length === 0) {
-        throw new HttpError(400, 'No valid chunks generated from document text');
+        throw new HttpError(400, 'No se generaron chunks válidos del texto del documento');
       }
 
       console.warn(`[processor] Created ${chunks.length} chunks for document ${documentId}`);
@@ -135,7 +135,7 @@ export class DocumentProcessor {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('[processor] Error processing document %s:', documentId, errorMessage);
 
-      throw new HttpError(500, `Failed to process document: ${errorMessage}`);
+      throw new HttpError(500, `Documento falló al ser procesado: ${errorMessage}`);
     }
   }
 
@@ -148,7 +148,7 @@ export class DocumentProcessor {
    */
   async deleteDocumentChunks(documentId: string): Promise<number> {
     if (!documentId || documentId.trim().length === 0) {
-      throw new HttpError(400, 'Document ID is required');
+      throw new HttpError(400, 'ID de documento es requerido');
     }
 
     try {
@@ -168,7 +168,7 @@ export class DocumentProcessor {
         errorMessage
       );
 
-      throw new HttpError(500, `Failed to delete document chunks: ${errorMessage}`);
+      throw new HttpError(500, `Fallo al eliminar chunks del documento ${documentId}: ${errorMessage}`);
     }
   }
 
@@ -180,7 +180,7 @@ export class DocumentProcessor {
    */
   async getDocumentChunks(documentId: string): Promise<IDocumentChunk[]> {
     if (!documentId || documentId.trim().length === 0) {
-      throw new HttpError(400, 'Document ID is required');
+      throw new HttpError(400, 'ID de documento es requerido');
     }
 
     try {
@@ -194,7 +194,7 @@ export class DocumentProcessor {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`[processor] Error fetching chunks for document ${documentId}:`, errorMessage);
 
-      throw new HttpError(500, `Failed to fetch document chunks: ${errorMessage}`);
+      throw new HttpError(500, `Fallo al obtener chunks del documento: ${errorMessage}`);
     }
   }
 
@@ -264,7 +264,7 @@ export class DocumentProcessor {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('[processor] Error fetching statistics:', errorMessage);
 
-      throw new HttpError(500, `Failed to fetch statistics: ${errorMessage}`);
+      throw new HttpError(500, `Fallo al obtener estadísticas: ${errorMessage}`);
     }
   }
 }

@@ -10,7 +10,8 @@ jest.mock('../../../src/models/user.model', () => ({
   default: {
     findById: userServiceMockFindById,
     find: userServiceMockFind,
-    findByIdAndDelete: userServiceMockFindByIdAndDelete
+    findByIdAndDelete: userServiceMockFindByIdAndDelete,
+    countDocuments: jest.fn()
   }
 }));
 
@@ -48,7 +49,7 @@ describe('user.service (unit - branches)', (): void => {
       userServiceMockFindById.mockResolvedValue(null);
       const mod = await import('../../../src/services/user.service');
       const { getUserById } = mod;
-      await expect(getUserById('507f1f77bcf86cd799439011')).rejects.toThrow('User not found');
+      await expect(getUserById('507f1f77bcf86cd799439011')).rejects.toThrow('Usuario no encontrado');
     });
 
     it('should return user when found', async (): Promise<void> => {
@@ -92,7 +93,7 @@ describe('user.service (unit - branches)', (): void => {
       const mod = await import('../../../src/services/user.service');
       const { setUserActive } = mod;
       await expect(setUserActive('507f1f77bcf86cd799439011', true)).rejects.toThrow(
-        'User not found'
+        'Usuario no encontrado'
       );
     });
   });
@@ -160,7 +161,7 @@ describe('user.service (unit - branches)', (): void => {
       const mod = await import('../../../src/services/user.service');
       const { updateUser } = mod;
       await expect(updateUser('507f1f77bcf86cd799439011', { name: 'New' })).rejects.toThrow(
-        'User not found'
+        'Usuario no encontrado'
       );
     });
   });
@@ -177,7 +178,7 @@ describe('user.service (unit - branches)', (): void => {
           currentPassword: 'wrong',
           newPassword: 'NewP@ss123'
         })
-      ).rejects.toThrow('Current password is incorrect');
+      ).rejects.toThrow('La contraseña actual es incorrecta');
     });
 
     it('should update password and increment tokenVersion on success', async (): Promise<void> => {
@@ -209,7 +210,7 @@ describe('user.service (unit - branches)', (): void => {
           currentPassword: 'x',
           newPassword: 'NewP@ss123'
         })
-      ).rejects.toThrow('User not found');
+      ).rejects.toThrow('Usuario no encontrado');
     });
   });
 
@@ -218,7 +219,7 @@ describe('user.service (unit - branches)', (): void => {
       userServiceMockFindByIdAndDelete.mockResolvedValue(null);
       const mod = await import('../../../src/services/user.service');
       const { deleteUser } = mod;
-      await expect(deleteUser('507f1f77bcf86cd799439011')).rejects.toThrow('User not found');
+      await expect(deleteUser('507f1f77bcf86cd799439011')).rejects.toThrow('Usuario no encontrado');
     });
 
     it('should delete user when found', async (): Promise<void> => {
@@ -237,7 +238,7 @@ describe('user.service (unit - branches)', (): void => {
       const mod = await import('../../../src/services/user.service');
       const { updateAvatar } = mod;
       await expect(updateAvatar('507f1f77bcf86cd799439011', { avatar: 'url' })).rejects.toThrow(
-        'User not found'
+        'Usuario no encontrado'
       );
     });
 
@@ -267,7 +268,7 @@ describe('user.service (unit - branches)', (): void => {
       const mod = await import('../../../src/services/user.service');
       const { findUsersByEmail } = mod;
       await expect(findUsersByEmail('test@test.com', { excludeUserId: 'invalid' })).rejects.toThrow(
-        'Invalid user ID'
+        'ID de usuario no válido'
       );
     });
 
@@ -276,7 +277,7 @@ describe('user.service (unit - branches)', (): void => {
       const { findUsersByEmail } = mod;
       await expect(
         findUsersByEmail('test@test.com', { organizationId: 'invalid' })
-      ).rejects.toThrow('Invalid organization ID');
+      ).rejects.toThrow('ID de organización no válido');
     });
 
     it('should find users with valid filters', async (): Promise<void> => {

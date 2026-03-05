@@ -293,7 +293,7 @@ export const getOrganizationDeletionAudit = async (
     const limit = parseInt(req.query.limit as string) || 100;
 
     if (!organizationId || typeof organizationId !== 'string') {
-      throw new HttpError(400, 'Organization context required');
+      throw new HttpError(400, 'Organización no especificada');
     }
 
     const audit = await deletionService.getOrganizationDeletionAudit(organizationId, limit);

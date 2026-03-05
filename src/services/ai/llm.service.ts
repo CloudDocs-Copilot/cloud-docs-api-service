@@ -32,7 +32,7 @@ export class LlmService {
   async generateResponse(prompt: string, options?: IGenerationOptions): Promise<string> {
     // Validar que el prompt no esté vacío
     if (!prompt || prompt.trim().length === 0) {
-      throw new HttpError(400, 'Prompt cannot be empty');
+      throw new HttpError(400, 'El prompt no puede estar vacío');
     }
 
     try {
@@ -58,7 +58,7 @@ export class LlmService {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('[llm] Error generating response:', errorMessage);
 
-      throw new HttpError(500, `Failed to generate response: ${errorMessage}`);
+      throw new HttpError(500, `No se pudo generar la respuesta: ${errorMessage}`);
     }
   }
 
@@ -83,7 +83,7 @@ export class LlmService {
   ): Promise<string> {
     // Validar que el prompt no esté vacío
     if (!prompt || prompt.trim().length === 0) {
-      throw new HttpError(400, 'Prompt cannot be empty');
+      throw new HttpError(400, 'El prompt no puede estar vacío');
     }
 
     try {
@@ -118,7 +118,7 @@ export class LlmService {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('[llm] Error in streaming response:', errorMessage);
 
-      throw new HttpError(500, `Failed to generate streaming response: ${errorMessage}`);
+      throw new HttpError(500, `No se pudo generar la respuesta en streaming: ${errorMessage}`);
     }
   }
 

@@ -78,17 +78,17 @@ describe('Embedding Service', (): void => {
       mockProvider.generateEmbedding.mockRejectedValue(new Error('API rate limit exceeded'));
 
       await expect(embeddingService.generateEmbedding('Test')).rejects.toThrow(
-        /Failed to generate embedding/
+        /No se pudo generar el embedding/
       );
     });
 
     it('should throw error for empty text input', async (): Promise<void> => {
       await expect(embeddingService.generateEmbedding('')).rejects.toThrow(
-        'Text cannot be empty for embedding generation'
+        'El texto no puede estar vacío para generar embeddings'
       );
 
       await expect(embeddingService.generateEmbedding('   ')).rejects.toThrow(
-        'Text cannot be empty for embedding generation'
+        'El texto no puede estar vacío para generar embeddings'
       );
     });
 
@@ -134,7 +134,7 @@ describe('Embedding Service', (): void => {
 
     it('should throw error for empty array input', async (): Promise<void> => {
       await expect(embeddingService.generateEmbeddings([])).rejects.toThrow(
-        'Texts array cannot be empty'
+        'El arreglo de textos no puede estar vacío'
       );
     });
 
@@ -166,7 +166,7 @@ describe('Embedding Service', (): void => {
       mockProvider.generateEmbeddings.mockRejectedValue(new Error('Batch processing failed'));
 
       await expect(embeddingService.generateEmbeddings(['Text 1', 'Text 2'])).rejects.toThrow(
-        /Failed to generate embeddings/
+        /No se pudieron generar los embeddings/
       );
     });
   });

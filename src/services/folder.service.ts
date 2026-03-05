@@ -291,7 +291,7 @@ export async function createFolder({
     return folder;
   } catch (err: unknown) {
     if (err instanceof Error && 'code' in err && (err as { code: number }).code === 11000) {
-      throw new HttpError(409, 'Folder name already exists in this location');
+      throw new HttpError(409, 'Nombre de carpeta ya existe en esta ubicación');
     }
     throw err;
   }
@@ -314,7 +314,7 @@ export async function getFolderContents({ folderId, userId }: GetFolderContentsD
   await validateFolderAccess(folderId, userId, 'viewer');
 
   const folder = await Folder.findById(folderId);
-  if (!folder) throw new HttpError(404, 'Folder not found');
+  if (!folder) throw new HttpError(404, 'Carpeta no encontrada');
 
   // Convertir IDs a ObjectIds para prevenir inyección NoSQL
   const folderObjectId = new mongoose.Types.ObjectId(folderId);
@@ -513,7 +513,7 @@ export async function shareFolder({
   await validateFolderAccess(folderId, userId, 'owner');
 
   const folder = await Folder.findById(folderId);
-  if (!folder) throw new HttpError(404, 'Folder not found');
+  if (!folder) throw new HttpError(404, 'Carpeta no encontrada');
 
   // Validar que el usuario objetivo exista y esté en la misma organización
   const targetUser = await User.findById(targetUserId);

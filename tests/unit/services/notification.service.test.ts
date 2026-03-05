@@ -163,7 +163,7 @@ describe('notification.service (unit)', () => {
           entityKind: 'document',
           entityId: oid()
         })
-      ).rejects.toThrow('Invalid organization ID');
+      ).rejects.toThrow('ID de organización no válido');
 
       await expect(
         notificationService.createNotificationForUser({
@@ -174,7 +174,7 @@ describe('notification.service (unit)', () => {
           entityKind: 'document',
           entityId: oid()
         })
-      ).rejects.toThrow('Invalid recipient user ID');
+      ).rejects.toThrow('ID de usuario destinatario no válido');
 
       await expect(
         notificationService.createNotificationForUser({
@@ -185,7 +185,7 @@ describe('notification.service (unit)', () => {
           entityKind: 'document',
           entityId: oid()
         })
-      ).rejects.toThrow('Invalid actor user ID');
+      ).rejects.toThrow('ID de usuario actor no válido');
 
       await expect(
         notificationService.createNotificationForUser({
@@ -196,7 +196,7 @@ describe('notification.service (unit)', () => {
           entityKind: 'document',
           entityId: 'bad'
         })
-      ).rejects.toThrow('Invalid entity ID');
+      ).rejects.toThrow('ID de entidad no válido');
     });
 
     it('persists notification and uses provided emitter (does not call default emitToUser)', async () => {
@@ -350,7 +350,7 @@ describe('notification.service (unit)', () => {
           entityKind: 'document',
           entityId: oid()
         })
-      ).rejects.toThrow('Invalid organization ID');
+      ).rejects.toThrow('ID de organización no válido');
 
       await expect(
         notificationService.notifyMembersOfOrganization({
@@ -360,7 +360,7 @@ describe('notification.service (unit)', () => {
           entityKind: 'document',
           entityId: oid()
         })
-      ).rejects.toThrow('Invalid actor user ID');
+      ).rejects.toThrow('ID de usuario actor no válido');
 
       await expect(
         notificationService.notifyMembersOfOrganization({
@@ -370,7 +370,7 @@ describe('notification.service (unit)', () => {
           entityKind: 'document',
           entityId: 'bad'
         })
-      ).rejects.toThrow('Invalid entity ID');
+      ).rejects.toThrow('ID de entidad no válido');
     });
 
     it('returns [] when there are no recipients (no active memberships excluding actor)', async () => {
@@ -575,7 +575,7 @@ describe('notification.service (unit)', () => {
           type: 'DOC_COMMENTED',
           documentId: oid()
         })
-      ).rejects.toThrow('Invalid actor user ID');
+      ).rejects.toThrow('ID de usuario actor no válido');
     });
 
     it('throws 400 for invalid entityId when using entityKind+entityId', async (): Promise<void> => {
@@ -586,7 +586,7 @@ describe('notification.service (unit)', () => {
           entityKind: 'membership',
           entityId: 'bad'
         })
-      ).rejects.toThrow('Invalid entity ID');
+      ).rejects.toThrow('ID de entidad no válido');
     });
 
     it('throws 400 when missing entityId (or documentId) for notification', async () => {
@@ -595,7 +595,7 @@ describe('notification.service (unit)', () => {
           actorUserId: oid(),
           type: 'DOC_COMMENTED'
         })
-      ).rejects.toThrow('Missing entityId (or documentId) for notification');
+      ).rejects.toThrow('Falta entityId (o documentId) para la notificación');
     });
 
     it('throws 403 when no active organization', async (): Promise<void> => {
@@ -607,7 +607,7 @@ describe('notification.service (unit)', () => {
           type: 'DOC_COMMENTED',
           documentId: oid()
         })
-      ).rejects.toThrow('No active organization. Please create or join an organization first.');
+      ).rejects.toThrow('No tienes una organización activa. Primero crea o únete a una organización.');
     });
 
     it('returns [] when there are no recipients (no active memberships excluding actor)', async () => {
@@ -844,7 +844,7 @@ describe('notification.service (unit)', () => {
   describe('listNotifications', (): void => {
     it('throws 400 for invalid userId', async (): Promise<void> => {
       await expect(notificationService.listNotifications({ userId: 'bad' })).rejects.toThrow(
-        'Invalid user ID'
+        'ID de usuario no válido'
       );
     });
 
@@ -922,7 +922,7 @@ describe('notification.service (unit)', () => {
       NotificationModel.countDocuments.mockResolvedValue(1);
 
       await expect(notificationService.listNotifications({ userId })).rejects.toThrow(
-        'No active organization. Please create or join an organization first.'
+        'No tienes una organización activa. Primero crea o únete a una organización.'
       );
     });
 
@@ -935,7 +935,7 @@ describe('notification.service (unit)', () => {
 
       await expect(
         notificationService.listNotifications({ userId, organizationId: 'bad' })
-      ).rejects.toThrow('No active organization. Please create or join an organization first.');
+      ).rejects.toThrow('No tienes una organización activa. Primero crea o únete a una organización.');
     });
 
     it('adds readAt=null filter when unreadOnly is true', async (): Promise<void> => {
@@ -962,11 +962,11 @@ describe('notification.service (unit)', () => {
   describe('markNotificationRead', (): void => {
     it('throws 400 for invalid userId or notificationId', async (): Promise<void> => {
       await expect(notificationService.markNotificationRead('bad', oid())).rejects.toThrow(
-        'Invalid user ID'
+        'ID de usuario no válido'
       );
 
       await expect(notificationService.markNotificationRead(oid(), 'bad')).rejects.toThrow(
-        'Invalid notification ID'
+        'ID de notificación no válido'
       );
     });
 
@@ -974,7 +974,7 @@ describe('notification.service (unit)', () => {
       NotificationModel.updateOne.mockResolvedValue({ matchedCount: 0 });
 
       await expect(notificationService.markNotificationRead(oid(), oid())).rejects.toThrow(
-        'Notification not found'
+        'Notificación no encontrada'
       );
     });
 
@@ -1000,7 +1000,7 @@ describe('notification.service (unit)', () => {
 
   describe('markAllRead', (): void => {
     it('throws 400 for invalid userId', async (): Promise<void> => {
-      await expect(notificationService.markAllRead('bad')).rejects.toThrow('Invalid user ID');
+      await expect(notificationService.markAllRead('bad')).rejects.toThrow('ID de usuario no válido');
     });
 
     it('with org context (provided): marks read for (org notifications) OR (INVITATION_CREATED)', async () => {

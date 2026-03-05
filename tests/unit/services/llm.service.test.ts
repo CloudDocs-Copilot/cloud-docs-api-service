@@ -62,7 +62,7 @@ describe('LLMService', (): void => {
       mockProvider.generateResponse.mockRejectedValue(new Error('API unavailable'));
 
       await expect(llmService.generateResponse('Test prompt')).rejects.toThrow(
-        /Failed to generate response/
+        /No se pudo generar la respuesta/
       );
     });
 
@@ -131,7 +131,7 @@ describe('LLMService', (): void => {
       mockProvider.generateResponse.mockResolvedValue({ response: 'Response' });
 
       // Should throw error for empty prompt
-      await expect(llmService.generateResponse('')).rejects.toThrow('Prompt cannot be empty');
+      await expect(llmService.generateResponse('')).rejects.toThrow('El prompt no puede estar vacío');
     });
 
     it('should handle rate limit errors', async (): Promise<void> => {
@@ -141,7 +141,7 @@ describe('LLMService', (): void => {
       mockProvider.generateResponse.mockRejectedValue(rateLimitError);
 
       await expect(llmService.generateResponse('Test')).rejects.toThrow(
-        /Failed to generate response/
+        /No se pudo generar la respuesta/
       );
     });
 
@@ -152,7 +152,7 @@ describe('LLMService', (): void => {
       mockProvider.generateResponse.mockRejectedValue(authError);
 
       await expect(llmService.generateResponse('Test')).rejects.toThrow(
-        /Failed to generate response/
+        /No se pudo generar la respuesta/
       );
     });
   });

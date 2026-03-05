@@ -54,12 +54,12 @@ export class RAGService {
   ): Promise<ISearchResult[]> {
     // Validar que el embedding sea válido
     if (!queryEmbedding || queryEmbedding.length === 0) {
-      throw new HttpError(400, 'Query embedding is required');
+      throw new HttpError(400, 'Se requiere el embedding de la consulta');
     }
 
     // Validar organizationId (obligatorio para multitenancy)
     if (!organizationId || organizationId.trim().length === 0) {
-      throw new HttpError(400, 'Organization ID is required for multitenancy security');
+      throw new HttpError(400, 'El ID de la organización es obligatorio por seguridad de multitenancy');
     }
 
     // Validar dimensiones del embedding según el provider activo
@@ -73,7 +73,7 @@ export class RAGService {
     if (queryEmbedding.length !== finalexpectedDim) {
       throw new HttpError(
         400,
-        `Invalid embedding dimensions: expected ${finalexpectedDim}, got ${queryEmbedding.length}`
+        `Dimensiones de embedding no válidas: se esperaban ${finalexpectedDim}, se recibieron ${queryEmbedding.length}`
       );
     }
 
@@ -159,11 +159,11 @@ export class RAGService {
       if (typeof errorMessage === 'string' && errorMessage.includes('index')) {
         throw new HttpError(
           500,
-          'Vector search index not found. Please create the index in MongoDB Atlas.'
+          'No se encontró el índice de búsqueda vectorial. Por favor créalo en MongoDB Atlas.'
         );
       }
 
-      throw new HttpError(500, `Vector search failed: ${errorMessage}`);
+      throw new HttpError(500, `La búsqueda vectorial falló: ${errorMessage}`);
     }
   }
 
@@ -188,7 +188,7 @@ export class RAGService {
   ): Promise<ISearchResult[]> {
     // Validar entrada
     if (!query || query.trim().length === 0) {
-      throw new HttpError(400, 'Search query cannot be empty');
+      throw new HttpError(400, 'La consulta de búsqueda no puede estar vacía');
     }
 
     try {
@@ -243,7 +243,7 @@ export class RAGService {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('[rag] Error in search:', errorMessage);
 
-      throw new HttpError(500, `Search failed: ${errorMessage}`);
+      throw new HttpError(500, `La búsqueda falló: ${errorMessage}`);
     }
   }
 
@@ -265,15 +265,15 @@ export class RAGService {
   ): Promise<ISearchResult[]> {
     // Validar entrada
     if (!query || query.trim().length === 0) {
-      throw new HttpError(400, 'Search query cannot be empty');
+      throw new HttpError(400, 'La consulta de búsqueda no puede estar vacía');
     }
 
     if (!organizationId || organizationId.trim().length === 0) {
-      throw new HttpError(400, 'Organization ID is required');
+      throw new HttpError(400, 'El ID de la organización es obligatorio');
     }
 
     if (!documentId || documentId.trim().length === 0) {
-      throw new HttpError(400, 'Document ID is required');
+      throw new HttpError(400, 'El ID del documento es obligatorio');
     }
 
     try {
@@ -362,7 +362,7 @@ export class RAGService {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('[rag] Error in document search:', errorMessage);
 
-      throw new HttpError(500, `Document search failed: ${errorMessage}`);
+      throw new HttpError(500, `La búsqueda dentro del documento falló: ${errorMessage}`);
     }
   }
 
@@ -389,7 +389,7 @@ export class RAGService {
   ): Promise<IRagResponse> {
     // Validar entrada
     if (!question || question.trim().length === 0) {
-      throw new HttpError(400, 'Question cannot be empty');
+      throw new HttpError(400, 'La pregunta no puede estar vacía');
     }
 
     try {
@@ -457,7 +457,7 @@ export class RAGService {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('[rag] Error answering question:', errorMessage);
 
-      throw new HttpError(500, `Failed to answer question: ${errorMessage}`);
+      throw new HttpError(500, `No se pudo responder la pregunta: ${errorMessage}`);
     }
   }
 
@@ -481,15 +481,15 @@ export class RAGService {
   ): Promise<IRagResponse> {
     // Validar entrada
     if (!question || question.trim().length === 0) {
-      throw new HttpError(400, 'Question cannot be empty');
+      throw new HttpError(400, 'La pregunta no puede estar vacía');
     }
 
     if (!organizationId || organizationId.trim().length === 0) {
-      throw new HttpError(400, 'Organization ID is required');
+      throw new HttpError(400, 'El ID de la organización es obligatorio');
     }
 
     if (!documentId || documentId.trim().length === 0) {
-      throw new HttpError(400, 'Document ID is required');
+      throw new HttpError(400, 'El ID del documento es obligatorio');
     }
 
     try {
@@ -542,7 +542,7 @@ export class RAGService {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('[rag] Error answering question in document:', errorMessage);
 
-      throw new HttpError(500, `Failed to answer question in document: ${errorMessage}`);
+      throw new HttpError(500, `No se pudo responder la pregunta en el documento: ${errorMessage}`);
     }
   }
 }

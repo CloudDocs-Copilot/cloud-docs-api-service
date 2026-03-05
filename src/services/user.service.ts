@@ -46,7 +46,7 @@ export async function getAllUsers(): Promise<IUser[]> {
  */
 export async function getUserById(id: string): Promise<IUser> {
   const user = await User.findById(id);
-  if (!user) throw new HttpError(404, 'User not found');
+  if (!user) throw new HttpError(404, 'Usuario no encontrado');
   return user;
 }
 
@@ -60,7 +60,7 @@ export async function getUserById(id: string): Promise<IUser> {
  */
 export async function setUserActive(id: string, active: boolean): Promise<IUser> {
   const user = await User.findById(id);
-  if (!user) throw new HttpError(404, 'User not found');
+  if (!user) throw new HttpError(404, 'Usuario no encontrado');
   if (user.active === active) return user; // sin cambios
 
   user.active = active;
@@ -80,7 +80,7 @@ export async function updateUser(
   { name, email, preferences }: UpdateUserDto
 ): Promise<IUser> {
   const user = await User.findById(id);
-  if (!user) throw new HttpError(404, 'User not found');
+  if (!user) throw new HttpError(404, 'Usuario no encontrado');
 
   if (name !== undefined) user.name = name;
   if (email !== undefined) user.email = email;
@@ -107,10 +107,10 @@ export async function changePassword(
   { currentPassword, newPassword }: ChangePasswordDto
 ): Promise<{ message: string }> {
   const user = await User.findById(id);
-  if (!user) throw new HttpError(404, 'User not found');
+  if (!user) throw new HttpError(404, 'Usuario no encontrado');
 
   const valid = await bcrypt.compare(currentPassword, user.password);
-  if (!valid) throw new HttpError(401, 'Current password is incorrect');
+  if (!valid) throw new HttpError(401, 'La contraseña actual es incorrecta');
 
   // Validar fortaleza de la nueva contraseña
   validatePasswordOrThrow(newPassword);
@@ -132,7 +132,7 @@ export async function changePassword(
  */
 export async function deleteUser(id: string): Promise<IUser> {
   const user = await User.findByIdAndDelete(id);
-  if (!user) throw new HttpError(404, 'User not found');
+  if (!user) throw new HttpError(404, 'Usuario no encontrado');
   return user;
 }
 
@@ -153,7 +153,7 @@ export async function updateAvatar(id: string, { avatar }: UpdateAvatarDto): Pro
     } catch {
       // ignore logging errors
     }
-    throw new HttpError(404, 'User not found');
+    throw new HttpError(404, 'Usuario no encontrado');
   }
 
   user.avatar = avatar;
@@ -184,7 +184,7 @@ export async function findUsersByEmail(
   // Validar y sanitizar excludeUserId para prevenir NoSQL injection
   if (options.excludeUserId) {
     if (!mongoose.Types.ObjectId.isValid(options.excludeUserId)) {
-      throw new HttpError(400, 'Invalid user ID');
+      throw new HttpError(400, 'ID de usuario no válido');
     }
     filter._id = { $ne: new mongoose.Types.ObjectId(options.excludeUserId) };
   }
@@ -192,7 +192,7 @@ export async function findUsersByEmail(
   // Validar y sanitizar organizationId para prevenir NoSQL injection
   if (options.organizationId) {
     if (!mongoose.Types.ObjectId.isValid(options.organizationId)) {
-      throw new HttpError(400, 'Invalid organization ID');
+      throw new HttpError(400, 'ID de organización no válido');
     }
 
     const orgId = new mongoose.Types.ObjectId(options.organizationId);

@@ -43,7 +43,7 @@ export async function createOrganization(data: CreateOrganizationDto): Promise<I
   // Verificar que el usuario existe
   const owner = await User.findById(ownerId);
   if (!owner) {
-    throw new HttpError(404, 'Owner user not found');
+    throw new HttpError(404, 'Usuario propietario no encontrado');
   }
 
   // Crear la organización (los settings se configuran automáticamente por el middleware pre-save)
@@ -53,7 +53,7 @@ export async function createOrganization(data: CreateOrganizationDto): Promise<I
     name: { $regex: `^${escapeForRegex(normalizedName)}$`, $options: 'i' }
   });
   if (existingByName) {
-    throw new HttpError(409, 'Organization name already exists');
+    throw new HttpError(409, 'El nombre de la organización ya existe');
   }
 
   const organization = await Organization.create({
@@ -93,12 +93,12 @@ export async function addUserToOrganization(
 ): Promise<void> {
   // Validar que el userId tenga el formato esperado de un ObjectId de MongoDB
   if (typeof userId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(userId)) {
-    throw new HttpError(400, 'Invalid user ID');
+    throw new HttpError(400, 'ID de usuario no válido');
   }
 
   const user = await User.findById(userId);
   if (!user) {
-    throw new HttpError(404, 'User not found');
+    throw new HttpError(404, 'Usuario no encontrado');
   }
 
   // 🆕 Usar createMembership que valida límites y crea rootFolder
@@ -122,12 +122,12 @@ export async function removeUserFromOrganization(
 ): Promise<void> {
   const organization = await Organization.findById(organizationId);
   if (!organization) {
-    throw new HttpError(404, 'Organization not found');
+    throw new HttpError(404, 'Organización no encontrada');
   }
 
   // No permitir remover al owner
   if (organization.owner.toString() === userId) {
-    throw new HttpError(400, 'Cannot remove the owner from the organization');
+    throw new HttpError(400, 'No se puede eliminar al propietario de la organización');
   }
 
   // 🆕 Usar removeMembership que limpia todo
@@ -160,7 +160,7 @@ export async function getOrganizationById(organizationId: string): Promise<IOrga
     .populate('members', 'name email');
 
   if (!organization) {
-    throw new HttpError(404, 'Organization not found');
+    throw new HttpError(404, 'Organización no encontrada');
   }
 
   return organization;
@@ -180,12 +180,12 @@ export async function updateOrganization(
 ): Promise<IOrganization> {
   const organization = await Organization.findById(organizationId);
   if (!organization) {
-    throw new HttpError(404, 'Organization not found');
+    throw new HttpError(404, 'Organización no encontrada');
   }
 
   // Verificar que el usuario es el owner
   if (organization.owner.toString() !== userId) {
-    throw new HttpError(403, 'Only organization owner can update organization');
+    throw new HttpError(403, 'Solo el propietario de la organización puede actualizarla');
   }
 
   // Actualizar campos
@@ -197,7 +197,7 @@ export async function updateOrganization(
       _id: { $ne: organization._id }
     });
     if (existing) {
-      throw new HttpError(409, 'Organization name already exists');
+      throw new HttpError(409, 'El nombre de la organización ya existe');
     }
 
     organization.name = newName;
@@ -226,12 +226,12 @@ export async function updateOrganization(
 export async function deleteOrganization(organizationId: string, userId: string): Promise<void> {
   const organization = await Organization.findById(organizationId);
   if (!organization) {
-    throw new HttpError(404, 'Organization not found');
+    throw new HttpError(404, 'Organización no encontrada');
   }
 
   // Verificar que el usuario es el owner
   if (organization.owner.toString() !== userId) {
-    throw new HttpError(403, 'Only organization owner can delete organization');
+    throw new HttpError(403, 'Solo el propietario de la organización puede eliminarla');
   }
 
   // Soft delete
@@ -260,7 +260,7 @@ export async function getOrganizationStorageStats(organizationId: string): Promi
 }> {
   const organization = await Organization.findById(organizationId);
   if (!organization) {
-    throw new HttpError(404, 'Organization not found');
+    throw new HttpError(404, 'Organización no encontrada');
   }
 
   // Convertir members a ObjectIds para prevenir inyección NoSQL

@@ -61,17 +61,17 @@ class DeletionService {
     const document = await DocumentModel.findById(documentId);
 
     if (!document) {
-      throw new HttpError(404, 'Document not found');
+      throw new HttpError(404, 'Documento no encontrado');
     }
 
     // Verificar permisos
     if (!document.isOwnedBy(context.userId)) {
-      throw new HttpError(403, 'You do not have permission to delete this document');
+      throw new HttpError(403, 'No tienes permiso para eliminar este documento');
     }
 
     // Verificar que no esté ya eliminado
     if (document.isDeleted) {
-      throw new HttpError(400, 'Document is already in trash');
+      throw new HttpError(400, 'El documento ya está en la papelera');
     }
 
     const now = new Date();
@@ -165,17 +165,17 @@ class DeletionService {
     const document = await DocumentModel.findById(documentId);
 
     if (!document) {
-      throw new HttpError(404, 'Document not found');
+      throw new HttpError(404, 'Documento no encontrado');
     }
 
     // Verificar permisos
     if (!document.isOwnedBy(context.userId)) {
-      throw new HttpError(403, 'You do not have permission to restore this document');
+      throw new HttpError(403, 'No tienes permiso para restaurar este documento');
     }
 
     // Verificar que esté eliminado
     if (!document.isDeleted) {
-      throw new HttpError(400, 'Document is not in trash');
+      throw new HttpError(400, 'El documento no está en la papelera');
     }
 
     // Restaurar documento
@@ -234,17 +234,17 @@ class DeletionService {
     const document = await DocumentModel.findById(documentId);
 
     if (!document) {
-      throw new HttpError(404, 'Document not found');
+      throw new HttpError(404, 'Documento no encontrado');
     }
 
     // Verificar permisos
     if (!document.isOwnedBy(context.userId)) {
-      throw new HttpError(403, 'You do not have permission to permanently delete this document');
+      throw new HttpError(403, 'No tienes permiso para eliminar permanentemente este documento');
     }
 
     // Debe estar en papelera
     if (!document.isDeleted) {
-      throw new HttpError(400, 'Document must be in trash before permanent deletion');
+      throw new HttpError(400, 'El documento debe estar en la papelera antes de su eliminación permanente');
     }
 
     const auditEntry = await DeletionAuditModel.create({
@@ -296,7 +296,7 @@ class DeletionService {
       auditEntry.errorMessage = getErrorMessage(error);
       await auditEntry.save();
 
-      throw new HttpError(500, `Failed to permanently delete document: ${getErrorMessage(error)}`);
+      throw new HttpError(500, `Fallo en la eliminación permanente del documento: ${getErrorMessage(error)}`);
     }
   }
 

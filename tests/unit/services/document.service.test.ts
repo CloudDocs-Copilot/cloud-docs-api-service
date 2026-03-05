@@ -389,7 +389,7 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
           userId: testUserId.toString(),
           folderId: ''
         })
-      ).rejects.toThrow('Membership does not have a root folder. Please contact support.');
+      ).rejects.toThrow('La membresía no tiene una carpeta raíz. Por favor, contacte con soporte.');
     });
 
     it('should fail if folder does not belong to active organization', async (): Promise<void> => {
@@ -430,7 +430,7 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
           userId: testUserId.toString(),
           folderId: otherFolder._id.toString()
         })
-      ).rejects.toThrow('Folder does not belong to your active organization');
+      ).rejects.toThrow('La carpeta no pertenece a tu organización activa');
     });
 
     it('should fail if user storage quota is exceeded', async (): Promise<void> => {
@@ -456,7 +456,7 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
           userId: testUserId.toString(),
           folderId: docsFolderId.toString()
         })
-      ).rejects.toThrow(/Storage quota exceeded/i);
+      ).rejects.toThrow(/Cuota de almacenamiento excedida/i);
     });
 
     it('should fail if organization total storage quota is exceeded (maxStorageTotal != -1)', async () => {
@@ -483,7 +483,7 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
           userId: testUserId.toString(),
           folderId: docsFolderId.toString()
         })
-      ).rejects.toThrow(/Organization storage quota exceeded/i);
+      ).rejects.toThrow(/Cuota de almacenamiento de la organización excedida/i);
     });
 
     it('should fail if file type is not allowed by organization settings', async (): Promise<void> => {
@@ -508,7 +508,7 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
           userId: testUserId.toString(),
           folderId: docsFolderId.toString()
         })
-      ).rejects.toThrow(/File type.*not allowed/);
+      ).rejects.toThrow(/Tipo de archivo 'txt' no permitido/i);
     });
 
     it('should fail if validateFolderAccess rejects (no editor access)', async () => {
@@ -567,7 +567,7 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
   describe('findDocumentById', (): void => {
     it('should fail for invalid id', async (): Promise<void> => {
       await expect(documentService.findDocumentById('not-an-id')).rejects.toThrow(
-        'Invalid document ID'
+        'ID de documento no válido'
       );
     });
 
@@ -689,7 +689,7 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
 
     it('should fail if invalid userId', async (): Promise<void> => {
       await expect(documentService.listSharedDocumentsToUser('bad')).rejects.toThrow(
-        'Invalid user ID'
+        'ID de usuario no válido'
       );
     });
   });
@@ -770,7 +770,7 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
           userId: testUserId.toString(),
           userIds: [testUserId.toString()]
         })
-      ).rejects.toThrow('Cannot share document with yourself as the owner');
+      ).rejects.toThrow('No puedes compartir el documento contigo mismo como propietario');
     });
   });
 
@@ -968,7 +968,7 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
 
       await expect(
         documentService.deleteDocument({ id: doc._id.toString(), userId: testUser2Id.toString() })
-      ).rejects.toThrow('Forbidden');
+      ).rejects.toThrow('Acceso denegado');
 
       await expect(
         documentService.deleteDocument({ id: doc._id.toString(), userId: testUserId.toString() })
@@ -1071,7 +1071,7 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
           userId: testUser2Id.toString(),
           targetFolderId: docsFolderId.toString()
         })
-      ).rejects.toThrow('Only document owner can move it');
+      ).rejects.toThrow('Solo el propietario puede mover el documento');
     });
   });
 
@@ -1146,7 +1146,7 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
           userId: testUser2Id.toString(),
           targetFolderId: docsFolderId.toString()
         })
-      ).rejects.toThrow('You do not have access to this document');
+      ).rejects.toThrow('No tienes acceso a este documento');
     });
 
     it('should fail if storage quota exceeded', async (): Promise<void> => {
@@ -1179,7 +1179,7 @@ describe('DocumentService Integration-ish Tests (mongo + fs, mocked collaborator
           userId: testUserId.toString(),
           targetFolderId: docsFolderId.toString()
         })
-      ).rejects.toThrow('Storage quota exceeded');
+      ).rejects.toThrow('Cuota de almacenamiento excedida');
     });
   });
 });
