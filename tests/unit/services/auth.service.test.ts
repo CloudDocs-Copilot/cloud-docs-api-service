@@ -88,7 +88,7 @@ describe('Auth Service (consolidated)', () => {
     });
     mockBcryptCompare.mockResolvedValue(false);
     await expect(loginUser({ email: 'a@b.com', password: 'p' })).rejects.toThrow(
-      'Invalid password'
+      'Contraseña inválida'
     );
   });
 

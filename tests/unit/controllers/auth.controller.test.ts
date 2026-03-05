@@ -251,7 +251,7 @@ describe('Auth Controller', (): void => {
 
       await login(mockRequest as unknown as AuthRequest, mockResponse as unknown as Response, mockNext);
 
-      expect(mockNext).toHaveBeenCalledWith(new HttpError(401, 'Usuario no encontrado'));
+      expect(mockNext).toHaveBeenCalledWith(new HttpError(401, 'Invalid credentials'));
     });
 
     it('should return 403 when user account is not active', async (): Promise<void> => {
