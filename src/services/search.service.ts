@@ -75,12 +75,6 @@ interface ESSource {
   content?: string;
 }
 
-interface ESHit {
-  _id: string;
-  _score: number;
-  _source: ESSource;
-}
-
 /**
  * Indexar un documento en Elasticsearch
  * @param document - Documento a indexar
@@ -218,11 +212,11 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
 
     console.warn(`✅ [Elasticsearch] Found ${typeof result.hits.total === 'object' ? result.hits.total.value : result.hits.total} documents in ${result.took}ms`);
 
-    const documents = result.hits.hits.map((hit: ESHit): SearchDocument => {
+    const documents = result.hits.hits.map((hit) => {
       const doc: SearchDocument = {
         id: hit._id,
-        score: hit._score,
-        ...hit._source
+        score: hit._score ?? 0,
+        ...(hit._source as ESSource)
       };
       
       // Debug: Log cada documento encontrado
@@ -287,8 +281,9 @@ export async function getAutocompleteSuggestions(query: string, userId: string, 
       _source: ['filename', 'originalname']
     });
 
-    const suggestions = result.hits.hits.map((hit: ESHit): string => {
-      const name = hit._source.originalname ?? hit._source.filename ?? '';
+    const suggestions = result.hits.hits.map((hit): string => {
+      const source = hit._source as ESSource;
+      const name = source.originalname ?? source.filename ?? '';
       return String(name);
     });
 
