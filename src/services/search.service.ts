@@ -1,58 +1,14 @@
+﻿import ElasticsearchClient from '../configurations/elasticsearch-config';
 import { IDocument } from '../models/document.model';
-import type { Client } from '@elastic/elasticsearch';
-import ElasticsearchClient from '../configurations/elasticsearch-config';
-
-export const getEsClient = (): Client => {
-  return ElasticsearchClient.getInstance();
-};
-
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return String(error);
-}
-
-interface IndexedDocumentSource {
-  filename: string;
-  originalname: string;
-  mimeType: string;
-  size: number;
-  uploadedBy: string;
-  organization: string | null;
-  folder: string | null;
-  uploadedAt?: Date;
-  content: string | null;
-  aiCategory: string | null;
-  aiTags: string[];
-  aiSummary: string | null;
-  aiKeyPoints: string[];
-  aiProcessingStatus: string;
-  aiConfidence: number | null;
-  sharedWith: string[];
-}
-
-interface SearchHitLike {
-  _id: string;
-  _score?: number;
-  _source?: Record<string, unknown>;
-}
-
-interface SearchResultLike {
-  hits: {
-    hits: SearchHitLike[];
-    total?: { value: number } | number;
-  };
-  took: number;
-}
 
 /**
- * Interfaz para parámetros de búsqueda
+ * Interfaz para par├ímetros de b├║squeda
  */
 export interface SearchParams {
   query: string;
   userId: string;
   organizationId?: string;
   mimeType?: string;
-  category?: string;
   fromDate?: Date;
   toDate?: Date;
   limit?: number;
@@ -60,73 +16,109 @@ export interface SearchParams {
 }
 
 /**
- * Interfaz para resultados de búsqueda
+ * Interfaz para documento de b├║squeda
+ */
+interface SearchDocument {
+  id: string;
+  filename?: string;
+  originalname?: string;
+  mimeType?: string;
+  score?: number;
+  extractedContent?: string;
+  size?: number;
+  uploadedBy?: string;
+  organization?: string;
+  folder?: string;
+  uploadedAt?: string;
+  path?: string;
+  content?: string;
+}
+
+/**
+ * Interfaz para resultados de b├║squeda
  */
 export interface SearchResult {
-  documents: Array<Record<string, unknown>>;
+  documents: SearchDocument[];
   total: number;
   took: number;
 }
 
 /**
+ * Tipos para Elasticsearch
+ */
+interface ESTermFilter {
+  term: Record<string, string>;
+}
+
+interface ESRangeFilter {
+  range: {
+    uploadedAt: {
+      gte?: string;
+      lte?: string;
+    };
+  };
+}
+
+type ESFilter = ESTermFilter | ESRangeFilter;
+
+interface ESSource {
+  filename?: string;
+  originalname?: string;
+  mimeType?: string;
+  extractedContent?: string;
+  size?: number;
+  uploadedBy?: string;
+  organization?: string;
+  folder?: string;
+  uploadedAt?: string;
+  path?: string;
+  content?: string;
+}
+
+/**
  * Indexar un documento en Elasticsearch
- *
- * ACTUALIZADO (RFE-AI-004): Ahora incluye:
- * - Campo 'content' para búsqueda full-text (antes 'extractedContent' nunca se indexaba)
- * - Campos AI: aiCategory, aiTags, aiProcessingStatus
- *
- * @param document - Documento de MongoDB a indexar
- * @param extractedText - Contenido extraído del documento (opcional)
+ * @param document - Documento a indexar
+ * @param extractedText - Texto extraído (opcional, se limita a 100KB para performance)
  */
 export async function indexDocument(document: IDocument, extractedText?: string): Promise<void> {
   try {
-    const client = getEsClient();
-
+    const client = ElasticsearchClient.getInstance();
+    
     await client.index({
       index: 'documents',
-      id: String(document._id),
+      id: document._id.toString(),
       document: {
-        // Campos básicos
         filename: document.filename || '',
         originalname: document.originalname || '',
         extractedContent: document.extractedContent || '',
         mimeType: document.mimeType,
         size: document.size,
-        uploadedBy: String(document.uploadedBy),
-        organization: document.organization ? String(document.organization) : null,
-        folder: document.folder ? String(document.folder) : null,
+        uploadedBy: document.uploadedBy.toString(),
+        organization: document.organization ? document.organization.toString() : null,
+        folder: document.folder ? document.folder.toString() : null,
         uploadedAt: document.uploadedAt,
-
-        // 🔍 NUEVO: Contenido extraído para búsqueda full-text
-        // Limitado a 100KB para no saturar Elasticsearch
-        content: extractedText ? extractedText.slice(0, 100000) : null,
-
-        // 🤖 NUEVO: Campos AI para búsqueda facetada y filtrado (RFE-AI-002, RFE-AI-004)
-        aiCategory: document.aiCategory || null,
-        aiTags: document.aiTags || [],
-        aiSummary: document.aiSummary || null,
-        aiKeyPoints: document.aiKeyPoints || [],
-        aiProcessingStatus: document.aiProcessingStatus || 'none',
-        aiConfidence: document.aiConfidence || null,
-        // Array de IDs de usuarios con quienes se comparte el documento
-        sharedWith: (document.sharedWith || []).map(id => String(id))
-      } as IndexedDocumentSource
+        path: document.path || '',
+        
+        // Contenido para búsqueda full-text (limitado a 100KB para performance)
+        content: extractedText ? extractedText.slice(0, 100000) : null
+      }
     });
 
-    console.warn(`✅ Document indexed: ${String(document._id)}`);
+    console.warn(`✅ Document indexed: ${document._id}`);
   } catch (error: unknown) {
-    console.error(`❌ Error indexing document ${String(document._id)}:`, getErrorMessage(error));
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`❌ Error indexing document ${document._id}:`, errorMessage);
     throw error;
   }
 }
 
 /**
- * Eliminar un documento del índice de Elasticsearch
+ * Eliminar un documento del ├¡ndice de Elasticsearch
  */
 export async function removeDocumentFromIndex(documentId: string): Promise<void> {
   try {
-    const client = getEsClient();
-
+    const client = ElasticsearchClient.getInstance();
+    
     await client.delete({
       index: 'documents',
       id: documentId
@@ -134,20 +126,16 @@ export async function removeDocumentFromIndex(documentId: string): Promise<void>
 
     console.warn(`✅ Document removed from index: ${documentId}`);
   } catch (error: unknown) {
-    const statusCode =
-      typeof error === 'object' &&
-      error !== null &&
-      'meta' in error &&
-      typeof (error as { meta?: { statusCode?: unknown } }).meta?.statusCode === 'number'
-        ? (error as { meta: { statusCode: number } }).meta.statusCode
-        : undefined;
-
-    if (statusCode === 404) {
-      console.warn(`⚠️  Document not found in index: ${documentId}`);
-    } else {
-      console.error(`❌ Error removing document from index:`, getErrorMessage(error));
-      throw error;
+    if (error && typeof error === 'object' && 'meta' in error) {
+      const esError = error as { meta?: { statusCode?: number } };
+      if (esError.meta?.statusCode === 404) {
+        console.warn(`⚠️  Document not found in index: ${documentId}`);
+        return;
+      }
     }
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`❌ Error removing document from index:`, errorMessage);
+    throw error;
   }
 }
 
@@ -156,156 +144,102 @@ export async function removeDocumentFromIndex(documentId: string): Promise<void>
  */
 export async function searchDocuments(params: SearchParams): Promise<SearchResult> {
   try {
-    const client = getEsClient();
-    const {
-      query,
-      userId,
-      organizationId,
-      mimeType,
-      category,
-      fromDate,
-      toDate,
-      limit = 20,
-      offset = 0
-    } = params;
+    const client = ElasticsearchClient.getInstance();
+    const { query, userId, organizationId, mimeType, fromDate, toDate, limit = 20, offset = 0 } = params;
 
-    // ─── Construir filtro de acceso ─────────────────────────────────────────
-    // Un usuario puede ver un documento si se cumple CUALQUIERA de:
-    //   a) El usuario lo subió (uploadedBy = userId)
-    //   b) El documento pertenece a la organización activa del usuario
-    //   c) El documento ha sido compartido directamente con él (sharedWith contains userId)
-    const accessFilter: Record<string, unknown> = {
-      bool: {
-        should: [
-          { term: { uploadedBy: userId } },
-          { term: { sharedWith: userId } },
-          ...(organizationId ? [{ term: { organization: organizationId } }] : [])
-        ],
-        minimum_should_match: 1
-      }
-    };
+    // Construir filtros
+    const filters: ESFilter[] = [];
 
-    const filters: Array<Record<string, unknown>> = [accessFilter];
-
-    if (mimeType) {
-      filters.push({ term: { 'mimeType.keyword': mimeType } });
+    // Filtrar por organizaci├│n si se proporciona, sino por usuario
+    if (organizationId) {
+      filters.push({ term: { organization: organizationId } });
+    } else {
+      filters.push({ term: { uploadedBy: userId } });
     }
 
-    // Filtro por categoría AI — excluye documentos con null/ausente
-    if (category) {
-      filters.push({ term: { aiCategory: category } });
+    if (mimeType) {
+      console.warn(`🔍 [Elasticsearch] Filtering by mimeType: ${mimeType}`);
+      
+      // Usar coincidencia exacta para el mimeType sin .keyword
+      // El campo mimeType puede no estar mapeado como keyword en el índice
+      filters.push({ 
+        term: { 
+          mimeType: mimeType 
+        } 
+      });
+      
+      console.warn(`📌 [Elasticsearch] Added exact mimeType filter: ${mimeType}`);
     }
 
     if (fromDate || toDate) {
       const dateRange: { gte?: string; lte?: string } = {};
       if (fromDate) dateRange.gte = fromDate.toISOString();
       if (toDate) dateRange.lte = toDate.toISOString();
-      // `uploadedAt` is the field mapped as date in the ES index
       filters.push({ range: { uploadedAt: dateRange } });
     }
 
-    // ─── Query principal ─────────────────────────────────────────────────────
-    // NOTA: `filename` contiene el UUID en disco (no útil para búsqueda).
-    //       `originalname` contiene el nombre legible (SANCHEZ_ROMEA_...pdf).
-    //       El custom_analyzer (standard tokenizer) no divide por guiones bajos,
-    //       por lo que "SANCHEZ_ROMEA" queda como un token. Se usa wildcard en
-    //       originalname.keyword (case-insensitive) para cubrir búsquedas parciales.
-    // q=* significa "todos los documentos" — se convierte a match_all (sin cláusula de texto)
-    const isMatchAll = query.trim() === '*' || query.trim() === '';
-    const searchWords = isMatchAll ? [] : query.trim().split(/\s+/).filter(Boolean);
-
-    // Wildcard por cada palabra de la query sobre el nombre original legible.
-    // Cubre búsquedas como "SANCHEZ" que matchean "SANCHEZ_ROMEA_LUIS...pdf"
-    const wildcardClauses: Array<Record<string, unknown>> = searchWords.map(word => ({
-      wildcard: {
-        'originalname.keyword': {
-          value: `*${word}*`,
-          case_insensitive: true
-        }
-      }
-    }));
-
-    console.warn(`🔍 [Elasticsearch] Searching with query: "${query}"`);
-    console.warn(`📊 [Elasticsearch] Filters: ${JSON.stringify(filters, null, 2)}`);
-
-    // Si es match-all (q=* o q vacío), solo aplicar filtros sin cláusula de texto
-    const textQuery: Record<string, unknown> = isMatchAll
-      ? { match_all: {} }
-      : {
-          bool: {
-            should: [
-              // Wildcard en nombre original (cubre nombres con guiones bajos)
-              ...wildcardClauses,
-              // Full-text en contenido extraído con fuzziness (para PDFs con texto)
-              {
-                multi_match: {
-                  query,
-                  fields: ['originalname^3', 'content'],
-                  fuzziness: 'AUTO',
-                  operator: 'or'
-                }
-              },
-              // Frase exacta en contenido con boost alto
-              {
-                multi_match: {
-                  query,
-                  fields: ['originalname^4', 'content^2'],
-                  type: 'phrase',
-                  slop: 2
-                }
-              }
-            ],
-            minimum_should_match: 1
-          }
-        };
-
-    const result = (await client.search({
+    // Realizar b├║squeda con query_string para mayor flexibilidad
+    // Agregar wildcards autom├íticamente para b├║squeda parcial
+    const searchQuery = `*${query.toLowerCase()}*`;
+    
+    console.warn(`🔍 [Elasticsearch] Searching with query: "${searchQuery}"`);
+    console.warn(`📊 [Elasticsearch] Filters:`, JSON.stringify(filters, null, 2));
+    
+    const result = await client.search({
       index: 'documents',
-      query: isMatchAll
-        ? { bool: { filter: filters } }
-        : {
-            bool: {
-              ...(textQuery.bool as object),
-              filter: filters
+      query: {
+        bool: {
+          must: [
+            {
+              query_string: {
+                query: searchQuery,
+                fields: ['filename', 'originalname', 'content', 'extractedContent'],
+                default_operator: 'AND',
+                analyze_wildcard: true
+              }
             }
-          },
+          ],
+          filter: filters
+        }
+      },
       from: offset,
       size: limit,
       sort: [
         { _score: { order: 'desc' } },
         { uploadedAt: { order: 'desc' } }
       ]
-    })) as SearchResultLike;
+    });
 
     console.warn(`✅ [Elasticsearch] Found ${typeof result.hits.total === 'object' ? result.hits.total.value : result.hits.total} documents in ${result.took}ms`);
 
-    const documents = result.hits.hits.map((hit: SearchHitLike) => {
-      const source = hit._source ?? {};
-      const doc: Record<string, unknown> = {
+    const documents = result.hits.hits.map((hit) => {
+      const doc: SearchDocument = {
         id: hit._id,
-        score: hit._score,
-        ...source
+        score: hit._score ?? 0,
+        ...(hit._source as ESSource)
       };
-
+      
       // Debug: Log cada documento encontrado
-      console.warn('📄 [Elasticsearch] Document found:', {
+      console.warn(`📄 [Elasticsearch] Document found:`, {
         id: doc.id,
-        filename: (doc.filename as string) || (doc.originalname as string),
+        filename: doc.filename ?? doc.originalname,
         mimeType: doc.mimeType,
         score: doc.score
       });
-
+      
       return doc;
     });
 
+    // TODO: Temporal - Validación desactivada hasta re-indexar documentos con campo 'path'
+    // La validación de archivos físicos requiere que todos los documentos en ES tengan el campo 'path'
     return {
       documents,
-      total:
-        typeof result.hits.total === 'object' ? result.hits.total.value : result.hits.total || 0,
+      total: typeof result.hits.total === 'object' ? result.hits.total.value : (result.hits.total || 0),
       took: result.took
     };
   } catch (error: unknown) {
-    console.error('❌ Error searching documents:', getErrorMessage(error));
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('❌ Error searching documents:', errorMessage);
     throw error;
   }
 }
@@ -313,67 +247,47 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
 /**
  * Obtener sugerencias de autocompletado
  */
-export async function getAutocompleteSuggestions(
-  query: string,
-  userId: string,
-  organizationId?: string,
-  limit: number = 5
-): Promise<string[]> {
+export async function getAutocompleteSuggestions(query: string, userId: string, organizationId?: string, limit: number = 5): Promise<string[]> {
   try {
-    const client = getEsClient();
+    const client = ElasticsearchClient.getInstance();
 
-    // Mismo filtro OR que en searchDocuments
-    const accessFilter: Record<string, unknown> = {
-      bool: {
-        should: [
-          { term: { uploadedBy: userId } },
-          ...(organizationId ? [{ term: { organization: organizationId } }] : [])
-        ],
-        minimum_should_match: 1
-      }
-    };
+    // Construir filtros
+    const filters: ESFilter[] = [];
+    if (organizationId) {
+      filters.push({ term: { organization: organizationId } });
+    } else {
+      filters.push({ term: { uploadedBy: userId } });
+    }
 
-    const result = (await client.search({
+    const searchQuery = `*${query.toLowerCase()}*`;
+    
+    const result = await client.search({
       index: 'documents',
       query: {
         bool: {
-          should: [
-            // Wildcard en nombre original para sugerencias parciales
+          must: [
             {
-              wildcard: {
-                'originalname.keyword': {
-                  value: `*${query}*`,
-                  case_insensitive: true
-                }
-              }
-            },
-            {
-              multi_match: {
-                query,
-                fields: ['originalname^2'],
-                fuzziness: 'AUTO',
-                operator: 'or'
+              query_string: {
+                query: searchQuery,
+                fields: ['filename', 'originalname'],
+                analyze_wildcard: true
               }
             }
           ],
-          minimum_should_match: 1,
-          filter: [accessFilter]
+          filter: filters
         }
       },
       size: limit,
-      _source: ['originalname']
-    })) as SearchResultLike;
-
-    const suggestions = result.hits.hits.map((hit: SearchHitLike) => {
-      const source = hit._source ?? {};
-      const originalname = source.originalname as unknown;
-      const filename = source.filename as unknown;
-      if (typeof originalname === 'string') return originalname;
-      if (typeof filename === 'string') return filename;
-      return '';
+      _source: ['filename', 'originalname']
     });
 
-    // Eliminar duplicados manteniendo el orden y respetar el límite
+    const suggestions = result.hits.hits.map((hit): string => {
+      const source = hit._source as ESSource;
+      const name = source.originalname ?? source.filename ?? '';
+      return String(name);
+    });
+
+    // Eliminar duplicados manteniendo el orden y respetar el l├¡mite
     const unique: string[] = [];
     const seen = new Set<string>();
     for (const s of suggestions) {
@@ -387,7 +301,8 @@ export async function getAutocompleteSuggestions(
 
     return unique;
   } catch (error: unknown) {
-    console.error('❌ Error getting autocomplete suggestions:', getErrorMessage(error));
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('❌ Error getting autocomplete suggestions:', errorMessage);
     return [];
   }
 }

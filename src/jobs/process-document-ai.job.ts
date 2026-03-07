@@ -1,4 +1,5 @@
 import path from 'path';
+import fs from 'fs';
 import DocumentModel from '../models/document.model';
 import { SUPPORTED_MIME_TYPES, textExtractionService } from '../services/ai/text-extraction.service';
 import { documentProcessor } from '../services/document-processor.service';
@@ -98,7 +99,22 @@ export async function processDocumentAI(documentId: string): Promise<void> {
     // Construir path absoluto del documento en el filesystem
     const storageBase = path.join(process.cwd(), 'storage');
     const relativePath = doc.path?.startsWith('/') ? doc.path.substring(1) : doc.path || '';
-    const absolutePath = path.join(storageBase, relativePath);
+    
+    // Sanitizar el path de la misma forma que document.service.ts
+    // Los espacios y caracteres especiales se reemplazan por guiones
+    const pathComponents = relativePath.split('/').filter(p => p);
+    const sanitizedComponents = pathComponents.map(component =>
+      component.replace(/[^a-z0-9_.-]/gi, '-')
+    );
+    const sanitizedRelativePath = sanitizedComponents.join(path.sep);
+    
+    const absolutePath = path.join(storageBase, sanitizedRelativePath);
+
+    // Debug: Log path information
+    console.warn(`[ai-job] Document path: ${doc.path}`);
+    console.warn(`[ai-job] Sanitized path: ${sanitizedRelativePath}`);
+    console.warn(`[ai-job] Absolute path: ${absolutePath}`);
+    console.warn(`[ai-job] File exists: ${fs.existsSync(absolutePath)}`);
 
     const extractionResult = await textExtractionService.extractText(absolutePath, doc.mimeType);
 
@@ -111,7 +127,11 @@ export async function processDocumentAI(documentId: string): Promise<void> {
     }
 
     // 4. Guardar texto extraído en el documento
+    // Guardamos en ambos campos para compatibilidad:
+    // - extractedText: usado por AI (embeddings, clasificación, resumen)
+    // - extractedContent: usado por Elasticsearch para búsqueda
     doc.extractedText = extractionResult.text;
+    doc.extractedContent = extractionResult.text;
     await doc.save();
 
     console.warn(
