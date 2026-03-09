@@ -1,37 +1,36 @@
-# AGENTS.md - Agentic Coding Rules
+# AGENTS.md - Reglas de codificación para agentes
 
-This document defines rules and guidelines for AI coding agents working on the CloudDocs API Service.
+Este documento define reglas y lineamientos para agentes de codificación con IA que trabajan en el servicio CloudDocs API.
 
-## Project Overview
+## Descripción general del proyecto
 
-- **Type:** REST API backend
-- **Stack:** Node.js 20+, Express.js, TypeScript 5.x, MongoDB (Mongoose), Elasticsearch (optional)
-- **Architecture:** Layered (Routes → Controllers → Services → Models)
-- **Auth:** JWT tokens + CSRF protection
+- **Tipo:** Backend de API REST
+- **Stack:** Node.js 20+, Express.js, TypeScript 5.x, MongoDB (Mongoose), Elasticsearch (opcional)
+- **Arquitectura:** En capas (Rutas → Controladores → Servicios → Modelos)
+- **Autenticación:** Tokens JWT + protección CSRF
 
-## Directory Structure
+## Estructura de directorios
 
 ```schema
 src/
-├── configurations/     # External service configs (DB, CORS, ES)
-├── controllers/        # HTTP request handlers - validate & delegate
-├── middlewares/        # Auth, CSRF, rate-limit, validation
-├── models/            # Mongoose schemas + TypeScript types
-├── routes/            # Express route definitions
-├── services/          # Business logic - data access, transactions
-├── utils/             # Pure helper functions
-├── mail/              # Email templates and service
-└── docs/              # OpenAPI specification
+├── configurations/     # Configuraciones de servicios externos (DB, CORS, ES)
+├── controllers/        # Manejadores de solicitudes HTTP - validan y delegan
+├── middlewares/        # Auth, CSRF, rate-limit, validación
+├── models/            # Esquemas de Mongoose + tipos TypeScript
+├── routes/            # Definiciones de rutas Express
+├── services/          # Lógica de negocio - acceso a datos, transacciones
+├── utils/             # Funciones auxiliares puras
+├── mail/              # Plantillas de correo y servicio
+└── docs/              # Especificación OpenAPI
 ```
 
-## Code Patterns
+## Patrones de código
+### Controladores
 
-### Controllers
-
-Controllers handle HTTP concerns only - parsing requests and formatting responses:
+Los controladores manejan solo las preocupaciones HTTP: analizar solicitudes y dar formato a respuestas:
 
 ```typescript
-// ✅ Good - controller delegates to service
+// ✅ Bueno - el controller delega al service
 export const createDocument = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { filename, folderId } = req.body;
@@ -45,17 +44,17 @@ export const createDocument = async (req: Request, res: Response, next: NextFunc
   }
 };
 
-// ❌ Bad - business logic in controller
+// ❌ Malo - lógica de negocio en el controller
 export const createDocument = async (req: Request, res: Response) => {
   const document = new Document(req.body);
-  await document.save(); // Should be in service
+  await document.save(); // Debe estar en el service
   res.json(document);
 };
 ```
 
-### Services
+### Servicios
 
-Services contain business logic and data access:
+Los servicios contienen la lógica de negocio y el acceso a datos:
 
 ```typescript
 // ✅ Good - service handles business rules
@@ -79,9 +78,9 @@ export const documentService = {
 };
 ```
 
-### Models
+### Modelos
 
-Use Mongoose schemas with TypeScript interfaces:
+Usa esquemas de Mongoose con interfaces TypeScript:
 
 ```typescript
 // models/document.model.ts
@@ -108,77 +107,77 @@ const documentSchema = new mongoose.Schema<IDocument>(
 export const Document = mongoose.model<IDocument>('Document', documentSchema);
 ```
 
-### Error Handling
+### Manejo de errores
 
-Always use HttpError for API errors:
+Siempre usa HttpError para errores de API:
 
 ```typescript
 import HttpError from '../models/error.model';
 
-// Throw with status code and message
+// Lanzar con código de estado y mensaje
 throw new HttpError(404, 'Document not found');
 throw new HttpError(403, 'Access denied');
 throw new HttpError(400, 'Invalid file type');
 
-// Error middleware handles formatting response
+// El middleware de errores se encarga de dar formato a la respuesta
 ```
 
 ### Middlewares
 
-Chain middlewares in routes:
+Encadena middlewares en las rutas:
 
 ```typescript
 // routes/document.routes.ts
 router.post(
   '/',
-  authenticate, // Verify JWT
-  requireOrganization, // Ensure org context
-  requireRole(['member', 'admin', 'owner']), // Check permissions
-  uploadMiddleware.single('file'), // Handle file upload
-  validateRequest(createDocumentSchema), // Validate body
+  authenticate, // Verificar JWT
+  requireOrganization, // Asegurar contexto de organización
+  requireRole(['member', 'admin', 'owner']), // Verificar permisos
+  uploadMiddleware.single('file'), // Manejar carga de archivo
+  validateRequest(createDocumentSchema), // Validar body
   documentController.create
 );
 ```
 
 ## Naming Conventions
 
-| Type             | Convention            | Example                                 |
-| ---------------- | --------------------- | --------------------------------------- |
-| Files            | kebab-case            | `user.service.ts`, `auth.middleware.ts` |
-| Classes          | PascalCase            | `UserService`, `HttpError`              |
-| Interfaces       | PascalCase + I prefix | `IUser`, `IDocument`                    |
-| Functions        | camelCase             | `getUserById`, `validatePassword`       |
-| Constants        | SCREAMING_SNAKE_CASE  | `MAX_FILE_SIZE`, `JWT_EXPIRES_IN`       |
-| Environment vars | SCREAMING_SNAKE_CASE  | `MONGO_URI`, `JWT_SECRET`               |
+| Type                 | Convention            | Example                                 |
+| -------------------- | --------------------- | --------------------------------------- |
+| Archivos             | kebab-case            | `user.service.ts`, `auth.middleware.ts` |
+| Clases               | PascalCase            | `UserService`, `HttpError`              |
+| Interfaces           | PascalCase + I prefix | `IUser`, `IDocument`                    |
+| Funciones            | camelCase             | `getUserById`, `validatePassword`       |
+| Constantes           | SCREAMING_SNAKE_CASE  | `MAX_FILE_SIZE`, `JWT_EXPIRES_IN`       |
+| Variables de entorno | SCREAMING_SNAKE_CASE  | `MONGO_URI`, `JWT_SECRET`               |
 
 ## Linting
 
-**ESLint is configured to enforce code quality and TypeScript best practices.**
+**ESLint está configurado para aplicar calidad de código y buenas prácticas de TypeScript.**
 
-### Running ESLint
+### Ejecutar ESLint
 
 ```bash
-# Check for errors and warnings
+# Verificar errores y advertencias
 npm run lint
 
-# Auto-fix fixable issues
+# Auto-corregir problemas que se puedan corregir
 npm run lint:fix
 
-# Check with zero warnings tolerance (for CI/CD)
+# Verificar con tolerancia cero a advertencias (para CI/CD)
 npm run lint:check
 ```
 
-### Critical Rules (configured as ERROR)
+### Reglas críticas (configuradas como ERROR)
 
-All uses of `any` are **PROHIBITED** and will cause linting to fail:
+Todos los usos de `any` están **PROHIBIDOS** y harán que falle el linting:
 
 ```typescript
-// ❌ WRONG - Will fail linting
+// ❌ INCORRECTO - Fallará el linting
 catch (error: any) { ... }
 function process(data: any) { ... }
 const items: any[] = [];
 
-// ✅ CORRECT - Use specific types or unknown
+// ✅ CORRECTO - Usa tipos específicos o unknown
 catch (error: unknown) {
   if (error instanceof Error) {
     console.error(error.message);
@@ -195,43 +194,43 @@ type Item = { id: string; value: number };
 const items: Item[] = [];
 ```
 
-### Before Committing
+### Antes de hacer commit
 
-Always run `npm run lint` and fix all errors. The following will cause build failures:
+Siempre ejecuta `npm run lint` y corrige todos los errores. Lo siguiente causará fallos de build:
 
-- ❌ Using `any` type explicitly
-- ❌ Unsafe assignments from `any` values
-- ❌ Accessing members on `any` values
-- ❌ Calling functions typed as `any`
-- ❌ Unused variables (unless prefixed with `_`)
+- ❌ Usar el tipo `any` explícitamente
+- ❌ Asignaciones inseguras desde valores `any`
+- ❌ Acceder a miembros sobre valores `any`
+- ❌ Llamar funciones tipadas como `any`
+- ❌ Variables no usadas (a menos que tengan prefijo `_`)
 
-See [ESLINT-SETUP.md](ESLINT-SETUP.md) for complete configuration details.
+Consulta [ESLINT-SETUP.md](ESLINT-SETUP.md) para ver los detalles completos de configuración.
 
 ## Testing
 
-### Test Structure
+### Estructura de tests
 
 ```schema
 tests/
-├── unit/              # Isolated unit tests
+├── unit/              # Tests unitarios aislados
 │   ├── services/
 │   └── utils/
-├── integration/       # API endpoint tests
-├── builders/          # Test data factories
-├── fixtures/          # Static test data
-└── helpers/           # Test utilities
+├── integration/       # Tests de endpoints de API
+├── builders/          # Fábricas de datos de prueba
+├── fixtures/          # Datos estáticos de prueba
+└── helpers/           # Utilidades de testing
 ```
 
-### Test Patterns
+### Patrones de prueba
 
 ```typescript
-// Use builders for test data
+// Usa builders para datos de prueba
 const user = new UserBuilder()
   .withEmail('test@example.com')
   .withRole('admin')
   .build();
 
-// Use descriptive test names
+// Usa nombres descriptivos para los tests
 describe('DocumentService', () => {
   describe('create', () => {
     it('should create document when folder exists and quota not exceeded', async () => {
@@ -254,102 +253,100 @@ describe('DocumentService', () => {
 });
 ```
 
-## API Design Rules
+## Reglas de diseño de API
 
-1. **RESTful endpoints** - Use nouns, not verbs: `/api/documents`, not `/api/getDocuments`
-2. **Consistent responses** - Always return `{ success: boolean, data?: T, error?: string }`
-3. **Proper status codes** - 200 OK, 201 Created, 400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found
-4. **Pagination** - Use `?page=1&limit=20` for list endpoints
-5. **Filtering** - Use query params: `?status=active&type=pdf`
+1. **Endpoints RESTful** - Usa sustantivos, no verbos: `/api/documents`, no `/api/getDocuments`
+2. **Respuestas consistentes** - Siempre devuelve `{ success: boolean, data?: T, error?: string }`
+3. **Códigos de estado adecuados** - 200 OK, 201 Created, 400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found
+4. **Paginación** - Usa `?page=1&limit=20` para listar endpoints
+5. **Filtrado** - Usa query params: `?status=active&type=pdf`
 
-## Security Rules
+## Reglas de seguridad
 
-1. **Never trust user input** - Validate and sanitize everything
-2. **Use parameterized queries** - Mongoose handles this, but be careful with `$where`
-3. **Hash passwords** - Use bcrypt with sufficient rounds (10+)
-4. **Protect routes** - Apply auth middleware to all protected endpoints
-5. **Validate file uploads** - Check MIME type, size, and sanitize filename
-6. **Sanitize paths** - Use path-sanitizer for file operations
+1. **Nunca confíes en el input del usuario** - Valida y sanitiza todo
+2. **Usa consultas parametrizadas** - Mongoose maneja esto, pero ten cuidado con `$where`
+3. **Hashea contraseñas** - Usa bcrypt con suficientes rondas (10+)
+4. **Protege rutas** - Aplica middleware de auth a todos los endpoints protegidos
+5. **Valida subida de archivos** - Verifica tipo MIME, tamaño y sanitiza el nombre del archivo
+6. **Sanitiza rutas** - Usa path-sanitizer para operaciones con archivos
 
-## DO NOT
+## NO HACER
+- ❌ Poner lógica de negocio en controllers
+- ❌ Usar el tipo any - usa unknown y type guards
+- ❌ Hacer commit de archivos .env o secretos
+- ❌ Usar eval() o el constructor Function()
+- ❌ Confiar en rutas de archivo proporcionadas por el usuario
+- ❌ Almacenar datos sensibles en el payload del JWT
+- ❌ Omitir el manejo de errores en funciones async
+- ❌ Usar operaciones síncronas de archivos en request handlers
+- ❌ Hacer merge de código que rompa tests existentes
+- ❌ Agregar funcionalidades sin tests correspondientes
 
-- ❌ Put business logic in controllers
-- ❌ Use `any` type - use `unknown` and type guards
-- ❌ Commit `.env` files or secrets
-- ❌ Use `eval()` or `Function()` constructor
-- ❌ Trust user-provided file paths
-- ❌ Store sensitive data in JWT payload
-- ❌ Skip error handling in async functions
-- ❌ Use synchronous file operations in request handlers
-- ❌ Merge code that breaks existing tests
-- ❌ Add features without corresponding tests
+## HACER
+- ✅ Usar async/await con try-catch correcto
+- ✅ Validar bodies de solicitudes con esquemas
+- ✅ Registrar errores con contexto (pero no datos sensibles)
+- ✅ Usar transacciones para operaciones de múltiples documentos
+- ✅ Escribir tests para nuevas funcionalidades
+- ✅ Documentar cambios de API en la especificación OpenAPI
+- ✅ Usar variables de entorno para configuración
+- ✅ Seguir los patrones de código existentes en el codebase
+- ✅ Ejecutar todos los tests antes de hacer commit (npm test)
+- ✅ Mantener o incrementar la cobertura de tests
 
-## DO
-
-- ✅ Use async/await with proper try-catch
-- ✅ Validate request bodies with schemas
-- ✅ Log errors with context (but not sensitive data)
-- ✅ Use transactions for multi-document operations
-- ✅ Write tests for new features
-- ✅ Document API changes in OpenAPI spec
-- ✅ Use environment variables for configuration
-- ✅ Follow existing code patterns in the codebase
-- ✅ Run all tests before committing (`npm test`)
-- ✅ Maintain or increase test coverage
-
-## Testing Requirements
+## Requisitos de testing
 
 ### Mandatory Testing Rules
 
-1. **All tests must pass before any code change is merged**
+1. **Todos los tests deben pasar antes de hacer merge de cualquier cambio de código**
 
    ```bash
-   npm test  # Must exit with code 0
+   npm test  # Debe salir con código 0
    ```
 
-2. **New features must include tests**
-   - Unit tests for services and utilities
-   - Integration tests for API endpoints
-   - Coverage should not decrease
+2. **Las nuevas funcionalidades deben incluir tests**
+   - Tests unitarios para services y utilities
+   - Tests de integración para endpoints de API
+   - La cobertura no debe disminuir
 
-3. **Bug fixes must include regression tests**
-   - Add test that would have caught the bug
-   - Verify fix doesn't break existing functionality
+3. **Los bug fixes deben incluir tests de regresión**
+   - Agrega un test que hubiera detectado el bug
+   - Verifica que el fix no rompa funcionalidad existente
 
-4. **Test coverage requirements**
+4. **Requisitos de cobertura de tests**
 
    ```bash
    npm run test:coverage
    ```
 
-   - Minimum overall coverage: 70%
-   - New code should have >80% coverage
-   - Critical paths (auth, payments) require >90% coverage
+   - Cobertura mínima general: 70%
+   - El código nuevo debe tener >80% de cobertura
+   - Rutas críticas (auth, payments) requieren >90% de cobertura
 
-### Running Tests
+### Ejecutar tests
 
 ```bash
-# Run all tests
+# Ejecutar todos los tests
 npm test
 
-# Run with coverage report
+# Ejecutar con reporte de cobertura
 npm run test:coverage
 
-# Run specific test file
+# Ejecutar archivo de test específico
 npm test -- tests/unit/services/auth.service.test.ts
 
-# Run tests in watch mode (development)
+# Ejecutar tests en modo watch (desarrollo)
 npm run test:watch
 ```
 
 ### Pre-commit Checklist
 
-Before committing any code change:
+Antes de hacer commit de cualquier cambio de código:
 
-- [ ] `npm run lint` passes (NO errors related to `any`)
-- [ ] `npm test` passes
-- [ ] `npm run build` succeeds
-- [ ] Coverage has not decreased
-- [ ] New features have tests
-- [ ] OpenAPI spec updated (if API changed)
-- [ ] No `any` types in code (use `unknown` or specific types)
+- [ ] `npm run lint` pasa (SIN errores relacionados con `any`)
+- [ ] `npm test` pasa
+- [ ] `npm run build` se completa correctamente
+- [ ] La cobertura no ha disminuido
+- [ ] Las nuevas funcionalidades tienen tests
+- [ ] Especificación OpenAPI actualizada (si cambió la API)
+- [ ] No hay tipos any en el código (usa `unknown` o tipos específicos)

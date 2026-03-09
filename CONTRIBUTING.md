@@ -1,157 +1,157 @@
-# Contributing to CloudDocs API Service
+# Contribuir a CloudDocs API Service
 
-Thank you for your interest in contributing to CloudDocs! This document provides guidelines and instructions for contributing.
+¡Gracias por tu interés en contribuir a CloudDocs! Este documento proporciona lineamientos e instrucciones para contribuir.
 
-## Table of Contents
+## Tabla de contenido
 
-- [Code of Conduct](#code-of-conduct)
-- [Getting Started](#getting-started)
-- [Development Setup](#development-setup)
-- [Code Style](#code-style)
-- [Commit Guidelines](#commit-guidelines)
-- [Pull Request Process](#pull-request-process)
+- [Código de conducta](#código-de-conducta)
+- [Primeros pasos](#primeros-pasos)
+- [Configuración de desarrollo](#configuración-de-desarrollo)
+- [Estilo de código](#estilo-de-código)
+- [Lineamientos de commits](#lineamientos-de-commits)
+- [Proceso de pull request](#proceso-de-pull-request)
 - [Testing](#testing)
 
-## Code of Conduct
+## Código de conducta
 
-Please be respectful and constructive in all interactions. We welcome contributors of all backgrounds and experience levels.
+Por favor, sé respetuoso y constructivo en todas las interacciones. Damos la bienvenida a contribuidores de todos los orígenes y niveles de experiencia.
 
-## Getting Started
+## Primeros pasos
 
-### Prerequisites
+### Prerrequisitos
 
 - Node.js 20+
 - npm 9+
-- Docker and Docker Compose (recommended)
+- Docker y Docker Compose (recomendado)
 - Git
 
-### Development Setup
+### Configuración de desarrollo
 
-#### Option 1: Docker (Recommended)
+#### Opción 1: Docker (Recomendado)
 
-The easiest way to get started is using Docker Compose from the project root:
+La forma más sencilla de comenzar es usando Docker Compose desde la raíz del proyecto:
 
 ```bash
-# From the workspace root (parent of cloud-docs-api-service)
+# Desde la raíz del workspace (padre de cloud-docs-api-service)
 cp .env.example .env.local
 docker-compose up -d
 
-# Backend available at http://localhost:4000
-# API docs at http://localhost:4000/api/docs
+# Backend disponible en http://localhost:4000
+# Documentación de la API en http://localhost:4000/api/docs
 ```
 
-#### Option 2: Local Development
+#### Opción 2: Desarrollo local
 
-1. **Clone and install dependencies:**
+1. **Clona e instala dependencias:**
 
    ```bash
    cd cloud-docs-api-service
    npm install
    ```
 
-2. **Set up environment:**
+2. **Configura el entorno:**
 
    ```bash
    cp .env.example .env.local
-   # Edit .env.local with your local settings
+   # Edita .env.local con tu configuración local
    ```
 
-3. **Start MongoDB (Docker):**
+3. **Inicia MongoDB (Docker):**
 
    ```bash
    docker run -d --name mongodb -p 27017:27017 mongo:6.0
    ```
 
-4. **Start the development server:**
+4. **Inicia el servidor de desarrollo:**
 
    ```bash
    npm run dev
    ```
 
-5. **Verify it's running:**
+5. **Verifica que esté corriendo:**
    ```bash
    curl http://localhost:4000/api
-   # Should return: {"message":"API running"}
+   # Debe devolver: {"message":"API running"}
    ```
 
-### Project Structure
+### Estructura del proyecto
 
-```
+```text
 src/
-├── index.ts          # Entry point
-├── app.ts            # Express configuration
-├── routes/           # API endpoints
-├── controllers/      # Request handlers
-├── services/         # Business logic
-├── models/           # Database schemas
-├── middlewares/      # Auth, validation, etc.
-└── utils/            # Helper functions
+├── index.ts          # Punto de entrada
+├── app.ts            # Configuración de Express
+├── routes/           # Endpoints de la API
+├── controllers/      # Manejadores de solicitudes
+├── services/         # Lógica de negocio
+├── models/           # Esquemas de base de datos
+├── middlewares/      # Auth, validación, etc.
+└── utils/            # Funciones auxiliares
 ```
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed documentation.
+Consulta [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) para documentación detallada.
 
-## Code Style
+## Estilo de código
 
-### TypeScript Guidelines
+### Lineamientos de TypeScript
 
-- **Strict mode enabled** - All code must pass strict type checking
-- **No `any`** - Use `unknown` when type is truly unknown
-- **Explicit return types** - Always type function returns
-- **Interface over type** - Prefer `interface` for object shapes
+- **Modo estricto habilitado** - Todo el código debe pasar validación estricta de tipos
+- **Sin `any`** - Usa `unknown` cuando el tipo sea realmente desconocido
+- **Tipos de retorno explícitos** - Siempre tipa los retornos de funciones
+- **Interface sobre type** - Prefiere `interface` para estructuras de objetos
 
-### Naming Conventions
+### Convenciones de nombres
 
-| Type       | Convention              | Example           |
-| ---------- | ----------------------- | ----------------- |
-| Files      | kebab-case              | `user.service.ts` |
-| Classes    | PascalCase              | `UserService`     |
-| Interfaces | PascalCase + `I` prefix | `IUser`           |
-| Functions  | camelCase               | `getUserById`     |
-| Constants  | SCREAMING_SNAKE_CASE    | `MAX_FILE_SIZE`   |
-| Variables  | camelCase               | `userData`        |
+| Tipo       | Convención               | Ejemplo           |
+| ---------- | ------------------------ | ----------------- |
+| Archivos   | kebab-case               | `user.service.ts` |
+| Clases     | PascalCase               | `UserService`     |
+| Interfaces | PascalCase + prefijo `I` | `IUser`           |
+| Funciones  | camelCase                | `getUserById`     |
+| Constantes | SCREAMING_SNAKE_CASE     | `MAX_FILE_SIZE`   |
+| Variables  | camelCase                | `userData`        |
 
-### File Organization
+### Organización de archivos
 
 ```typescript
-// 1. Imports (external first, then internal)
+// 1. Imports (externos primero, luego internos)
 import express from 'express';
 import mongoose from 'mongoose';
 
 import { UserService } from '../services/user.service';
 import type { IUser } from '../models/types/user.types';
 
-// 2. Constants
+// 2. Constantes
 const MAX_RETRIES = 3;
 
-// 3. Types/Interfaces (if local to file)
+// 3. Types/Interfaces (si son locales al archivo)
 interface RequestParams {
   id: string;
 }
 
-// 4. Main code
+// 4. Código principal
 export class UserController {
   // ...
 }
 ```
 
-### Error Handling
+### Manejo de errores
 
-Always use the `HttpError` class for API errors:
+Usa siempre la clase `HttpError` para errores de API:
 
 ```typescript
 import HttpError from '../models/error.model';
 
-// In controllers/services
+// En controllers/services
 if (!user) {
   throw new HttpError(404, 'User not found');
 }
 ```
 
-## Commit Guidelines
+## Lineamientos de commits
 
-We follow [Conventional Commits](https://www.conventionalcommits.org/):
+Seguimos [Conventional Commits](https://www.conventionalcommits.org/):
 
-```
+```text
 <type>(<scope>): <description>
 
 [optional body]
@@ -159,17 +159,17 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 [optional footer(s)]
 ```
 
-### Types
+### Tipos
 
-- `feat`: New feature
-- `fix`: Bug fix
-- `docs`: Documentation only
-- `style`: Formatting, missing semicolons, etc.
-- `refactor`: Code change that neither fixes a bug nor adds a feature
-- `test`: Adding or fixing tests
-- `chore`: Maintenance tasks
+- `feat`: Nueva funcionalidad
+- `fix`: Corrección de error
+- `docs`: Solo documentación
+- `style`: Formato, puntos y comas faltantes, etc.
+- `refactor`: Cambio de código que no corrige un error ni agrega una funcionalidad
+- `test`: Agregar o corregir tests
+- `chore`: Tareas de mantenimiento
 
-### Examples
+### Ejemplos
 
 ```bash
 feat(auth): add password reset functionality
@@ -178,64 +178,64 @@ docs(readme): update installation instructions
 test(users): add unit tests for user service
 ```
 
-## Pull Request Process
+## Proceso de pull request
 
-1. **Create a branch:**
+1. **Crea una rama:**
 
    ```bash
    git checkout -b feat/your-feature-name
    ```
 
-2. **Make your changes** following the code style guidelines
+2. **Haz tus cambios** siguiendo los lineamientos de estilo de código
 
-3. **Write tests** for new functionality
+3. **Escribe tests** para la nueva funcionalidad
 
-4. **Run checks locally:**
+4. **Ejecuta validaciones localmente:**
 
    ```bash
-   npm run format      # Format code
-   npm test            # Run tests
-   npm run build       # Verify TypeScript compiles
+   npm run format      # Formatear código
+   npm test            # Ejecutar tests
+   npm run build       # Verificar que TypeScript compile
    ```
 
-5. **Push and create PR:**
+5. **Haz push y crea el PR:**
 
    ```bash
    git push origin feat/your-feature-name
    ```
 
-6. **Fill out the PR template** with:
-   - Description of changes
-   - Related issue (if any)
-   - Screenshots (for UI changes)
-   - Checklist confirmation
+6. **Completa la plantilla del PR** con:
+   - Descripción de cambios
+   - Issue relacionado (si existe)
+   - Capturas de pantalla (para cambios de UI)
+   - Confirmación del checklist
 
-### PR Requirements
+### Requisitos del PR
 
-- [ ] Tests pass (`npm test`)
-- [ ] Code compiles (`npm run build`)
-- [ ] Code is formatted (`npm run format`)
-- [ ] New features have tests
-- [ ] Documentation updated if needed
+- [ ] Los tests pasan (`npm test`)
+- [ ] El código compila (`npm run build`)
+- [ ] El código está formateado (`npm run format`)
+- [ ] Las nuevas funcionalidades tienen tests
+- [ ] La documentación está actualizada si es necesario
 
 ## Testing
 
-### Running Tests
+### Ejecutar tests
 
 ```bash
-# All tests
+# Todos los tests
 npm test
 
-# Watch mode (re-run on changes)
+# Modo watch (re-ejecuta al haber cambios)
 npm run test:watch
 
-# With coverage report
+# Con reporte de cobertura
 npm run test:coverage
 ```
 
-### Writing Tests
+### Escribir tests
 
-We use Jest with the following structure:
+Usamos Jest con la siguiente estructura:
 
 ```typescript
 // tests/unit/services/user.service.test.ts
@@ -266,7 +266,7 @@ describe('UserService', () => {
 
 ### Test Builders
 
-Use builders from `tests/builders/` for test data:
+Usa builders de `tests/builders/` para datos de prueba:
 
 ```typescript
 import { UserBuilder, OrganizationBuilder } from '../builders';
@@ -276,10 +276,10 @@ const user = new UserBuilder().withEmail('test@example.com').withRole('admin').b
 const org = new OrganizationBuilder().withPlan('PREMIUM').build();
 ```
 
-## Questions?
+## ¿Preguntas?
 
-- Check existing [documentation](docs/)
-- Open an issue for bugs or feature requests
-- Reach out to maintainers
+- Revisa la [documentación](docs/) existente
+- Abre un issue para errores o solicitudes de funcionalidad
+- Contacta a los maintainers
 
-Thank you for contributing! 🎉
+¡Gracias por contribuir! 🎉
