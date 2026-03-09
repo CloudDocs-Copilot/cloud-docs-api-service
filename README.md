@@ -2,9 +2,9 @@
 
 # CloudDocs API Service
 
-Multi-tenant REST API for cloud document management with AI-powered features: RAG, classification, summarization, and semantic search.
+API REST multi-tenant para gestión de documentos en la nube con funcionalidades impulsadas por IA: RAG, clasificación, resumido y búsqueda semántica.
 
-**Tech Stack:** Node.js · Express · TypeScript · MongoDB · OpenAI / Ollama · Elasticsearch
+**Stack tecnológico:** Node.js · Express · TypeScript · MongoDB · OpenAI / Ollama · Elasticsearch
 
 [![Node](https://img.shields.io/badge/Node.js-20+-green)]()
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)]()
@@ -15,63 +15,63 @@ Multi-tenant REST API for cloud document management with AI-powered features: RA
 
 ---
 
-## ✨ Features
+## ✨ Funcionalidades
 
-- **Multi-tenant Architecture** - Users belong to multiple organizations with role-based access
-- **Document Management** - Upload, organize, and share documents with folder hierarchy
-- **Full-text Search** - Elasticsearch-powered search across documents (optional)
-- **Subscription Plans** - FREE, BASIC, PREMIUM, ENTERPRISE with storage quotas
-- **Security** - JWT auth, CSRF protection, rate limiting, input sanitization
+- **Arquitectura Multi-tenant** - Los usuarios pertenecen a múltiples organizaciones con acceso basado en roles
+- **Gestión de documentos** - Subir, organizar y compartir documentos con jerarquía de carpetas
+- **Búsqueda de texto completo** - Búsqueda impulsada por Elasticsearch en todos los documentos (opcional)
+- **Planes de suscripción** - FREE, BASIC, PREMIUM, ENTERPRISE con cuotas de almacenamiento
+- **Seguridad** - Autenticación JWT, protección CSRF, limitación de tasa, sanitización de entradas
 
-### AI Features (RAG Module)
+### Funcionalidades de IA (Módulo RAG)
 
-- **RAG Q&A** - Ask natural language questions across organization documents or a specific document
-- **Document Classification** - Automatic categorization with confidence scores and tags
-- **Document Summarization** - AI-generated summaries with key points extraction
-- **Text Extraction** - PDF, DOCX, DOC, TXT, MD support with intelligent chunking
-- **Vector Search** - MongoDB Atlas `$vectorSearch` with cosine similarity
-- **Provider Abstraction** - Swap between OpenAI, Ollama (local/free), or Mock providers via a single env var
-- **Multi-tenancy Isolation** - RAG results strictly filtered by organization
+- **Preguntas y respuestas RAG** - Haz preguntas en lenguaje natural sobre los documentos de una organización o sobre un documento específico
+- **Clasificación de documentos** - Categorización automática con puntuaciones de confianza y etiquetas
+- **Resumido de documentos** - Resúmenes generados por IA con extracción de puntos clave
+- **Extracción de texto** - Soporte para PDF, DOCX, DOC, TXT, MD con fragmentación inteligente
+- **Búsqueda vectorial** - MongoDB Atlas `$vectorSearch` con similitud coseno
+- **Abstracción de proveedor** - Cambia entre OpenAI, Ollama (local/gratis) o proveedores Mock mediante una sola variable de entorno
+- **Aislamiento Multi-tenant** - Los resultados RAG se filtran estrictamente por organización
 
-> 📖 See [docs/AI-MODULE.md](docs/AI-MODULE.md) for full AI module documentation and [docs/AI-SETUP-GUIDE.md](docs/AI-SETUP-GUIDE.md) for setup instructions.
+> 📖 Consulta [docs/AI-MODULE.md](docs/AI-MODULE.md) para la documentación completa del módulo de IA y [docs/AI-SETUP-GUIDE.md](docs/AI-SETUP-GUIDE.md) para instrucciones de configuración.
 
-## 🚀 Quick Start
+## 🚀 Inicio rápido
 
-### Prerequisites
+### Prerrequisitos
 
 - Node.js 20+
-- Docker (for MongoDB)
-- npm or yarn
+- Docker (para MongoDB)
+- npm o yarn
 
-### Local Development (5 minutes)
+### Desarrollo local (5 minutos)
 
 ```bash
-# 1. Clone and install
+# 1. Clonar e instalar
 git clone <repository-url>
 cd cloud-docs-api-service
 npm install
 
-# 2. Start MongoDB with Docker
+# 2. Iniciar MongoDB con Docker
 docker run -d --name mongodb -p 27017:27017 mongo:6.0
 
-# 3. Start the development server
+# 3. Iniciar el servidor de desarrollo
 npm run dev
 
-# 4. (Optional) Load test data
+# 4. (Opcional) Cargar datos de prueba
 npm run seed:dev
 ```
 
-**That's it!** The API is now running at <http://localhost:4000>
+**¡Eso es todo!** La API ahora está corriendo en <http://localhost:4000>
 
-> **Note:** The app automatically loads `.env.example` as defaults, so no manual `.env` setup is required for basic development. To override any variable, create a `.env.local` file (git-ignored):
+> **Nota:** La app carga automáticamente `.env.example` como valores predeterminados, así que no se requiere configuración manual de `.env` para desarrollo básico. Para sobrescribir cualquier variable, crea un archivo `.env.local` (ignorado por git):
 > ```bash
 > cp .env.example .env.local
-> # Edit only the variables you need to change
+> # Edita solo las variables que necesitas cambiar
 > ```
 
-### Enabling AI Features
+### Habilitar funcionalidades de IA
 
-AI features require additional setup. Choose one of three providers:
+Las funcionalidades de IA requieren configuración adicional. Elige uno de tres proveedores:
 
 | Provider | Cost | Requirements |
 |----------|------|--------------|
@@ -79,29 +79,29 @@ AI features require additional setup. Choose one of three providers:
 | **Ollama** | Free | [Ollama](https://ollama.com) installed locally |
 | **OpenAI** | Paid | OpenAI API key + MongoDB Atlas (vector search) |
 
-**Quick start with Ollama (free, local):**
+**Inicio rápido con Ollama (gratis, local):**
 
 ```bash
-# 1. Install Ollama (macOS)
+# 1. Instalar Ollama (macOS)
 brew install ollama
 
-# 2. Download required models
+# 2. Descargar los modelos requeridos
 ollama pull llama3.2:3b
 ollama pull nomic-embed-text
 
-# 3. Set provider in .env.local
+# 3. Configurar el proveedor en .env.local
 echo 'AI_PROVIDER=ollama' >> .env.local
 ```
 
-**Quick start with Mock (testing, no setup):**
+**Inicio rápido con Mock (pruebas, sin configuración):**
 
 ```bash
 echo 'AI_PROVIDER=mock' >> .env.local
 ```
 
-> 📖 See [docs/AI-SETUP-GUIDE.md](docs/AI-SETUP-GUIDE.md) for complete instructions including OpenAI and MongoDB Atlas setup.
+> 📖 Consulta [docs/AI-SETUP-GUIDE.md](docs/AI-SETUP-GUIDE.md) para las instrucciones completas, incluida la configuración de OpenAI y MongoDB Atlas.
 
-### Test Accounts (after seeding)
+### Cuentas de prueba (después del seeding)
 
 | Email                 | Password  | Role  |
 | --------------------- | --------- | ----- |
@@ -109,187 +109,187 @@ echo 'AI_PROVIDER=mock' >> .env.local
 | john@clouddocs.local  | Test@1234 | User  |
 | jane@clouddocs.local  | Test@1234 | User  |
 
-See [docs/MOCK-DATA.md](docs/MOCK-DATA.md) for complete test data documentation.
+Consulta [docs/MOCK-DATA.md](docs/MOCK-DATA.md) para la documentación completa de los datos de prueba.
 
-### Using Docker Compose (Full Stack)
+### Usando Docker Compose (stack completo)
 
 ```bash
-# From the workspace root (parent directory)
+# Desde la raíz del workspace (directorio padre)
 cp .env.example .env.local
-# Edit .env.local with your configuration
+# Edita .env.local con tu configuración
 docker-compose up -d
 
-# API available at http://localhost:4000
-# Frontend at http://localhost:3000
+# API disponible en http://localhost:4000
+# Frontend en http://localhost:3000
 ```
 
-## 🤖 AI API Endpoints
+## 🤖 Endpoints de la API de IA
 
-All AI endpoints require authentication and are under `/api/ai`:
+Todos los endpoints de IA requieren autenticación y están bajo `/api/ai`:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/ai/ask` | Ask a question across all organization documents (RAG) |
-| `POST` | `/ai/documents/:id/ask` | Ask a question about a specific document |
-| `GET` | `/ai/documents/:id/extract-text` | Extract text content from a document |
-| `POST` | `/ai/documents/:id/process` | Chunk and embed a document for RAG |
-| `DELETE` | `/ai/documents/:id/chunks` | Delete processed chunks for a document |
-| `POST` | `/ai/documents/:id/classify` | Classify document (category, confidence, tags) |
-| `POST` | `/ai/documents/:id/summarize` | Summarize document (summary + key points) |
+| `POST` | `/ai/ask` | Haz una pregunta sobre todos los documentos de la organización (RAG) |
+| `POST` | `/ai/documents/:id/ask` | Haz una pregunta sobre un documento específico |
+| `GET` | `/ai/documents/:id/extract-text` | Extrae el contenido de texto de un documento |
+| `POST` | `/ai/documents/:id/process` | Fragmenta e incrusta un documento para RAG |
+| `DELETE` | `/ai/documents/:id/chunks` | Elimina los fragmentos procesados de un documento |
+| `POST` | `/ai/documents/:id/classify` | Clasifica el documento (categoría, confianza, etiquetas) |
+| `POST` | `/ai/documents/:id/summarize` | Resume el documento (resumen + puntos clave) |
 
-> 📖 See [docs/AI-MODULE.md](docs/AI-MODULE.md) for detailed endpoint documentation with request/response examples.
+> 📖 Consulta [docs/AI-MODULE.md](docs/AI-MODULE.md) para la documentación detallada de endpoints con ejemplos de request/response.
 
-## 📚 Documentation
+## 📚 Documentación
 
 | Document                                              | Description                             |
 | ----------------------------------------------------- | --------------------------------------- |
-| [AI Module](docs/AI-MODULE.md)                        | **Full AI/RAG module documentation**    |
-| [AI Setup Guide](docs/AI-SETUP-GUIDE.md)              | **AI provider setup (local & production)** |
-| [Architecture](docs/ARCHITECTURE.md)                  | System design and code organization     |
-| [Phase Status Report](docs/PHASE-STATUS-REPORT.md)    | AI implementation progress tracking     |
-| [Test Configuration](docs/TEST-CONFIGURATION.md)      | Testing setup and CI configuration      |
-| [OpenAPI Spec](docs/openapi/openapi.json)             | API specification (Swagger/OpenAPI 3.0) |
-| [Mock Data](docs/MOCK-DATA.md)                        | Test data for local development         |
-| [Testing Guide](docs/ENDPOINTS-TESTING-GUIDE.md)      | How to test API endpoints               |
-| [Contributing](CONTRIBUTING.md)                       | Development setup and guidelines        |
+| [AI Module](docs/AI-MODULE.md)                        | **Documentación completa del módulo IA/RAG** |
+| [AI Setup Guide](docs/AI-SETUP-GUIDE.md)              | **Configuración del proveedor de IA (local y producción)** |
+| [Architecture](docs/ARCHITECTURE.md)                  | Diseño del sistema y organización del código |
+| [Phase Status Report](docs/PHASE-STATUS-REPORT.md)    | Seguimiento del progreso de implementación de IA |
+| [Test Configuration](docs/TEST-CONFIGURATION.md)      | Configuración de pruebas y de CI |
+| [OpenAPI Spec](docs/openapi/openapi.json)             | Especificación de API (Swagger/OpenAPI 3.0) |
+| [Mock Data](docs/MOCK-DATA.md)                        | Datos de prueba para desarrollo local |
+| [Testing Guide](docs/ENDPOINTS-TESTING-GUIDE.md)      | Cómo probar endpoints de API |
+| [Contributing](CONTRIBUTING.md)                       | Configuración y lineamientos de desarrollo |
 
-### RFCs (Technical Design Documents)
+### RFCs (documentos de diseño técnico)
 
 | Document                                               | Description                         |
 | ------------------------------------------------------ | ----------------------------------- |
-| [CSRF Protection](docs/rfc/CSRF-PROTECTION.md)         | Security implementation details     |
-| [Multi-tenancy](docs/rfc/MULTITENANCY-MIGRATION.md)    | Organization model explanation      |
-| [Password Validation](docs/rfc/PASSWORD-VALIDATION.md) | Password strength requirements      |
-| [Security Fixes](docs/rfc/SECURITY-FIXES.md)           | Security improvements documentation |
+| [CSRF Protection](docs/rfc/CSRF-PROTECTION.md)         | Detalles de implementación de seguridad |
+| [Multi-tenancy](docs/rfc/MULTITENANCY-MIGRATION.md)    | Explicación del modelo de organización |
+| [Password Validation](docs/rfc/PASSWORD-VALIDATION.md) | Requisitos de fortaleza de contraseña |
+| [Security Fixes](docs/rfc/SECURITY-FIXES.md)           | Documentación de mejoras de seguridad |
 
-### RFEs (AI Feature Enhancement Proposals)
+### RFEs (propuestas de mejora de funcionalidades de IA)
 
 | Document                                                                            | Status |
 | ----------------------------------------------------------------------------------- | ------ |
-| [RFE-AI-001 Provider Abstraction](docs/RFE/RFE-AI-001-PROVIDER-ABSTRACTION.md)     | ✅ Implemented |
-| [RFE-AI-002 Document Model AI Fields](docs/RFE/RFE-AI-002-DOCUMENT-MODEL-AI-FIELDS.md) | Proposed |
-| [RFE-AI-003 Classification & Tagging](docs/RFE/RFE-AI-003-CLASSIFICATION-TAGGING.md) | ✅ Implemented |
-| [RFE-AI-004 ES Content Search Fix](docs/RFE/RFE-AI-004-FIX-ES-CONTENT-SEARCH.md)  | ✅ Implemented |
-| [RFE-AI-005 Cross-Org RAG Fix](docs/RFE/RFE-AI-005-FIX-CROSS-ORG-RAG.md)          | ✅ Implemented |
-| [RFE-AI-006 OCR with Tesseract](docs/RFE/RFE-AI-006-OCR-TESSERACT.md)              | Proposed |
-| [RFE-AI-007 Summarization](docs/RFE/RFE-AI-007-SUMMARIZATION.md)                   | ✅ Implemented |
+| [RFE-AI-001 Provider Abstraction](docs/RFE/RFE-AI-001-PROVIDER-ABSTRACTION.md)     | ✅ Implementado |
+| [RFE-AI-002 Document Model AI Fields](docs/RFE/RFE-AI-002-DOCUMENT-MODEL-AI-FIELDS.md) | Propuesto |
+| [RFE-AI-003 Classification & Tagging](docs/RFE/RFE-AI-003-CLASSIFICATION-TAGGING.md) | ✅ Implementado |
+| [RFE-AI-004 ES Content Search Fix](docs/RFE/RFE-AI-004-FIX-ES-CONTENT-SEARCH.md)  | ✅ Implementado |
+| [RFE-AI-005 Cross-Org RAG Fix](docs/RFE/RFE-AI-005-FIX-CROSS-ORG-RAG.md)          | ✅ Implementado |
+| [RFE-AI-006 OCR with Tesseract](docs/RFE/RFE-AI-006-OCR-TESSERACT.md)              | Propuesto |
+| [RFE-AI-007 Summarization](docs/RFE/RFE-AI-007-SUMMARIZATION.md)                   | ✅ Implementado |
 
 ## 🛠️ Scripts
 
 | Script                     | Description                                    |
 | -------------------------- | ---------------------------------------------- |
-| `npm run dev`              | Start development server with hot reload       |
-| `npm run build`            | Compile TypeScript to JavaScript               |
-| `npm start`                | Run production server                          |
+| `npm run dev`              | Iniciar servidor de desarrollo con hot reload |
+| `npm run build`            | Compilar TypeScript a JavaScript |
+| `npm start`                | Ejecutar servidor de producción |
 | **Testing**                |                                                |
-| `npm run test:ci`          | **Run ALL tests + coverage (use in CI)** ⭐    |
-| `npm test`                 | Run main test suite (integration + most unit)  |
-| `npm run test:unit`        | Run unit tests only (includes embedding tests) |
-| `npm run test:integration` | Run integration tests only                     |
-| `npm run test:coverage`    | Run tests with coverage report                 |
-| `npm run test:watch`       | Run tests in watch mode                        |
+| `npm run test:ci`          | **Ejecutar TODOS los tests + cobertura (usar en CI)** ⭐ |
+| `npm test`                 | Ejecutar suite principal de tests (integración + la mayoría de unitarios) |
+| `npm run test:unit`        | Ejecutar solo tests unitarios (incluye tests de embeddings) |
+| `npm run test:integration` | Ejecutar solo tests de integración |
+| `npm run test:coverage`    | Ejecutar tests con reporte de cobertura |
+| `npm run test:watch`       | Ejecutar tests en modo watch |
 | **Utilities**              |                                                |
-| `npm run seed:dev`         | Load test data into database                   |
-| `npm run format`           | Format code with Prettier                      |
+| `npm run seed:dev`         | Cargar datos de prueba en la base de datos |
+| `npm run format`           | Formatear código con Prettier |
 
-## 📁 Project Structure
+## 📁 Estructura del proyecto
 
 ```text
 ├── docs/
-│   ├── openapi/          # OpenAPI/Swagger specifications
-│   ├── rfc/              # Technical design documents (RFCs)
-│   └── RFE/              # AI feature enhancement proposals (RFEs)
+│   ├── openapi/          # Especificaciones OpenAPI/Swagger
+│   ├── rfc/              # Documentos de diseño técnico (RFCs)
+│   └── RFE/              # Propuestas de mejora de funcionalidades de IA (RFEs)
 ├── scripts/
-│   ├── seed-dev.ts               # Development data seeding
-│   ├── clean-orphaned-documents.ts  # Cleanup orphaned DB records
-│   ├── reindex-documents.ts      # Re-index documents in Elasticsearch
-│   └── migrate-add-org-to-chunks.ts # Add organizationId to chunks
+│   ├── seed-dev.ts               # Carga de datos de desarrollo
+│   ├── clean-orphaned-documents.ts  # Limpieza de registros huérfanos en DB
+│   ├── reindex-documents.ts      # Reindexar documentos en Elasticsearch
+│   └── migrate-add-org-to-chunks.ts # Agregar organizationId a chunks
 ├── src/
-│   ├── configurations/   # Database, CORS, Elasticsearch, OpenAI configs
-│   ├── controllers/      # HTTP request handlers (incl. ai.controller)
-│   ├── middlewares/       # Auth, CSRF, rate-limit, validation
-│   ├── models/            # Mongoose schemas and TypeScript types
-│   ├── routes/            # API route definitions (incl. ai.routes)
+│   ├── configurations/   # Configuraciones de base de datos, CORS, Elasticsearch, OpenAI
+│   ├── controllers/      # Manejadores de solicitudes HTTP (incl. ai.controller)
+│   ├── middlewares/       # Auth, CSRF, rate-limit, validación
+│   ├── models/            # Esquemas de Mongoose y tipos TypeScript
+│   ├── routes/            # Definiciones de rutas de API (incl. ai.routes)
 │   ├── services/
-│   │   ├── ai/            # AI services layer
-│   │   │   ├── providers/ # OpenAI, Ollama, Mock provider implementations
+│   │   ├── ai/            # Capa de servicios de IA
+│   │   │   ├── providers/ # Implementaciones de proveedores OpenAI, Ollama, Mock
 │   │   │   ├── embedding.service.ts
 │   │   │   ├── llm.service.ts
 │   │   │   ├── rag.service.ts
 │   │   │   ├── text-extraction.service.ts
 │   │   │   └── prompt.builder.ts
-│   │   └── ...            # Other business logic services
-│   └── utils/             # Helper functions (incl. chunking.util)
+│   │   └── ...            # Otros servicios de lógica de negocio
+│   └── utils/             # Funciones auxiliares (incl. chunking.util)
 └── tests/
-    ├── integration/       # API integration tests (incl. AI tests)
-    └── unit/              # Unit tests (incl. AI service tests)
+    ├── integration/       # Tests de integración de API (incl. tests de IA)
+    └── unit/              # Tests unitarios (incl. tests de servicios de IA)
 ```
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed documentation.
+Consulta [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) para la documentación detallada.
 
-## 🔐 Security Features
+## 🔐 Funcionalidades de seguridad
 
-- JWT authentication with token invalidation
-- CSRF protection (Double Submit Cookie)
-- Password strength validation
-- NoSQL injection prevention
-- Path traversal protection
-- Rate limiting per IP
-- HTTP security headers (Helmet)
-- Multi-tenancy isolation for RAG/vector search
+- Autenticación JWT con invalidación de token
+- Protección CSRF (Double Submit Cookie)
+- Validación de fortaleza de contraseña
+- Prevención de inyección NoSQL
+- Protección contra path traversal
+- Rate limiting por IP
+- Headers de seguridad HTTP (Helmet)
+- Aislamiento multi-tenant para búsqueda RAG/vectorial
 
-## 🌐 Environment Variables
+## 🌐 Variables de entorno
 
-Key variables (see [.env.example](.env.example) for full list):
+Variables clave (consulta [.env.example](.env.example) para la lista completa):
 
 | Variable                | Description               | Default                               |
 | ----------------------- | ------------------------- | ------------------------------------- |
-| `PORT`                  | Server port               | `4000`                                |
-| `MONGO_URI`             | MongoDB connection string | `mongodb://localhost:27017/clouddocs` |
-| `JWT_SECRET`            | Token signing key         | -                                     |
-| `ELASTICSEARCH_ENABLED` | Enable search             | `false`                               |
-| `ALLOWED_ORIGINS`       | CORS allowed origins      | `http://localhost:5173`               |
+| `PORT`                  | Puerto del servidor       | `4000`                                |
+| `MONGO_URI`             | Cadena de conexión de MongoDB | `mongodb://localhost:27017/clouddocs` |
+| `JWT_SECRET`            | Clave de firma del token  | -                                     |
+| `ELASTICSEARCH_ENABLED` | Habilitar búsqueda        | `false`                               |
+| `ALLOWED_ORIGINS`       | Orígenes permitidos por CORS | `http://localhost:5173`            |
 
-### AI-Specific Variables
+### Variables específicas de IA
 
 | Variable               | Description                          | Default                      |
 | ---------------------- | ------------------------------------ | ---------------------------- |
-| `AI_PROVIDER`          | Provider: `openai` / `ollama` / `mock` | `openai`                    |
-| `OPENAI_API_KEY`       | OpenAI API key (when using openai)   | -                            |
-| `MONGO_ATLAS_URI`      | MongoDB Atlas URI (vector search)    | -                            |
-| `OLLAMA_BASE_URL`      | Ollama server URL                    | `http://localhost:11434`     |
-| `OLLAMA_CHAT_MODEL`    | Ollama chat model                    | `llama3.2:3b`               |
-| `OLLAMA_EMBEDDING_MODEL` | Ollama embedding model             | `nomic-embed-text`           |
+| `AI_PROVIDER`          | Proveedor: `openai` / `ollama` / `mock` | `openai`                    |
+| `OPENAI_API_KEY`       | API key de OpenAI (cuando se usa openai) | -                         |
+| `MONGO_ATLAS_URI`      | URI de MongoDB Atlas (búsqueda vectorial) | -                        |
+| `OLLAMA_BASE_URL`      | URL del servidor Ollama              | `http://localhost:11434`     |
+| `OLLAMA_CHAT_MODEL`    | Modelo de chat de Ollama             | `llama3.2:3b`               |
+| `OLLAMA_EMBEDDING_MODEL` | Modelo de embeddings de Ollama     | `nomic-embed-text`           |
 
-> 📖 See [docs/AI-SETUP-GUIDE.md](docs/AI-SETUP-GUIDE.md) for detailed setup instructions for each provider.
+> 📖 Consulta [docs/AI-SETUP-GUIDE.md](docs/AI-SETUP-GUIDE.md) para instrucciones detalladas de configuración para cada proveedor.
 
 ## 🧪 Testing
 
 ```bash
-# CI/CD - Run ALL tests with combined coverage (recommended)
+# CI/CD - Ejecutar TODOS los tests con cobertura combinada (recomendado)
 npm run test:ci
 
-# Development
-npm test                    # Main suite
-npm run test:unit           # Unit tests only
-npm run test:integration    # Integration tests only
-npm run test:watch          # Watch mode
-npm run test:coverage       # With coverage report
+# Desarrollo
+npm test                    # Suite principal
+npm run test:unit           # Solo tests unitarios
+npm run test:integration    # Solo tests de integración
+npm run test:watch          # Modo watch
+npm run test:coverage       # Con reporte de cobertura
 ```
 
-**Features:**
+**Funcionalidades:**
 
-- ✅ Dual Jest configurations for optimal testing
-- ✅ MongoDB Memory Server - no external database required
-- ✅ AI provider tests (Mock provider for deterministic testing)
-- ✅ Multi-tenancy RAG isolation tests
-- ✅ Automatic coverage merging in CI
+- ✅ Configuraciones duales de Jest para pruebas óptimas
+- ✅ MongoDB Memory Server - no se requiere base de datos externa
+- ✅ Tests de proveedores de IA (proveedor Mock para pruebas determinísticas)
+- ✅ Tests de aislamiento RAG multi-tenant
+- ✅ Fusión automática de cobertura en CI
 
-> 📖 See [docs/TEST-CONFIGURATION.md](docs/TEST-CONFIGURATION.md) for detailed testing documentation
+> 📖 Consulta [docs/TEST-CONFIGURATION.md](docs/TEST-CONFIGURATION.md) para la documentación detallada de testing
 
-## 📄 License
+## 📄 Licencia
 
-MIT License - see [LICENSE](LICENSE) for details.
+Licencia MIT - consulta [LICENSE](LICENSE) para más detalles.
 
 ---
 
