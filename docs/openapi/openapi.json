@@ -115,13 +115,43 @@
       "OrganizationStats": {
         "type": "object",
         "properties": {
-          "totalUsers": { "type": "number" },
-          "totalStorage": {
+          "totalUsers": {
             "type": "number",
-            "description": "Almacenamiento total usado en bytes"
+            "description": "Número total de miembros en la organización"
           },
-          "totalDocuments": { "type": "number" },
-          "totalFolders": { "type": "number" }
+          "totalStorageLimit": {
+            "type": "number",
+            "description": "Límite total de almacenamiento de la organización en bytes (maxStoragePerUser × totalUsers)"
+          },
+          "totalDocuments": {
+            "type": "number",
+            "description": "Número total de documentos en la organización"
+          },
+          "totalFolders": {
+            "type": "number",
+            "description": "Número total de carpetas en la organización"
+          },
+          "usedStorage": {
+            "type": "number",
+            "description": "Almacenamiento total usado por todos los miembros en bytes"
+          },
+          "availableStorage": {
+            "type": "number",
+            "description": "Almacenamiento disponible restante en bytes (totalStorageLimit − usedStorage)"
+          },
+          "storagePerUser": {
+            "type": "array",
+            "description": "Desglose de uso de almacenamiento por usuario",
+            "items": {
+              "type": "object",
+              "properties": {
+                "userId": { "type": "string", "description": "ID del usuario" },
+                "userName": { "type": "string", "description": "Nombre del usuario" },
+                "storageUsed": { "type": "number", "description": "Bytes usados por este usuario" },
+                "percentage": { "type": "number", "description": "Porcentaje del cupo individual consumido (0-100)" }
+              }
+            }
+          }
         }
       },
       "User": {
