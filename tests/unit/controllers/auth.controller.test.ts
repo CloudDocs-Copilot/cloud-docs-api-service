@@ -23,7 +23,8 @@ describe('Auth Controller', (): void => {
   beforeEach(() => {
     mockRequest = {
       body: {} as Record<string, unknown>,
-      params: {} as Record<string, unknown>
+      params: {} as Record<string, unknown>,
+      get: jest.fn().mockReturnValue(undefined)
     };
     mockResponse = {
       status: jest.fn().mockReturnThis(),
