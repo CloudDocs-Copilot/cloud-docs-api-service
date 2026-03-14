@@ -168,8 +168,6 @@ export async function authenticateToken(
             timestamp: new Date().toISOString(),
             requestPath,
             userId: decoded.id,
-            tokenIssuedAt,
-            passwordChangeTime,
             reason: 'Token issued before password change'
           });
         }
