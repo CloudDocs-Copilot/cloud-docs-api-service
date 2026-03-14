@@ -2,20 +2,53 @@ jest.resetModules();
 jest.unmock('../../src/mail/emailService');
 
 describe('emailService', (): void => {
-  it('succeeds when transporter.sendMail resolves', async (): Promise<void> => {
-    jest.mock('nodemailer', () => ({
-      createTransport: () => ({ sendMail: jest.fn().mockResolvedValue({ messageId: '1' }) })
-    }));
-    const svc = (await import('../../src/mail/emailService')) as unknown as typeof import('../../src/mail/emailService');
-    await expect(svc.sendConfirmationEmail('a@b.com', 'subj', '<p>hi</p>')).resolves.toBeDefined();
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    jest.resetModules();
+    process.env = { ...originalEnv };
+    process.env.SENDGRID_API_KEY = 'SG.test-key-123';
+    process.env.EMAIL_USER = 'sender@example.com';
   });
 
-  it('throws when transporter.sendMail rejects', async (): Promise<void> => {
-    jest.resetModules();
-    jest.mock('nodemailer', () => ({
-      createTransport: () => ({ sendMail: jest.fn().mockRejectedValue(new Error('fail')) })
+  afterAll(() => {
+    process.env = originalEnv;
+  });
+
+  it('succeeds when sgMail.send resolves', async (): Promise<void> => {
+    const mockSend = jest.fn().mockResolvedValue([{ 
+      statusCode: 202, 
+      body: {}, 
+      headers: {} 
+    }]);
+
+    jest.mock('@sendgrid/mail', () => ({
+      default: {
+        setApiKey: jest.fn(),
+        send: mockSend
+      }
     }));
+
     const svc = (await import('../../src/mail/emailService')) as unknown as typeof import('../../src/mail/emailService');
-    await expect(svc.sendConfirmationEmail('a@b.com', 'subj', '<p>hi</p>')).rejects.toThrow('fail');
+    await expect(
+      svc.sendConfirmationEmail('a@b.com', 'subj', '<p>hi</p>')
+    ).resolves.toBeDefined();
+  });
+
+  it('throws when sgMail.send rejects', async (): Promise<void> => {
+    jest.resetModules();
+    const mockSend = jest.fn().mockRejectedValue(new Error('API error'));
+
+    jest.mock('@sendgrid/mail', () => ({
+      default: {
+        setApiKey: jest.fn(),
+        send: mockSend
+      }
+    }));
+
+    const svc = (await import('../../src/mail/emailService')) as unknown as typeof import('../../src/mail/emailService');
+    await expect(
+      svc.sendConfirmationEmail('a@b.com', 'subj', '<p>hi</p>')
+    ).rejects.toThrow('API error');
   });
 });
