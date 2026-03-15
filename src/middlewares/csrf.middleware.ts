@@ -57,6 +57,40 @@ export const csrfProtectionMiddleware = (req: Request, res: Response, next: Next
   if (CSRF_EXCLUDED_ROUTES.includes(req.path)) {
     return next();
   }
+
+  // Log CSRF validation for non-GET requests
+  if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS') {
+    console.log(`\n🔐 [CSRF] ${req.method} ${req.path}`);
+    
+    // Log header token
+    const headerToken = req.headers['x-csrf-token'];
+    if (headerToken) {
+      const tokenStr = typeof headerToken === 'string' ? headerToken : headerToken[0];
+      console.log('   Header x-csrf-token:', tokenStr.substring(0, 20) + '...' + tokenStr.substring(tokenStr.length - 20));
+      console.log('   Header token length:', tokenStr.length);
+    } else {
+      console.log('   ❌ Header x-csrf-token: NO PRESENTE');
+    }
+    
+    // Log cookie token
+    const cookieName = isProduction ? '__Host-psifi.x-csrf-token' : 'psifi.x-csrf-token';
+    const cookieToken = req.cookies[cookieName];
+    if (cookieToken) {
+      console.log('   Cookie', cookieName + ':', cookieToken.substring(0, 20) + '...' + cookieToken.substring(cookieToken.length - 20));
+      console.log('   Cookie token length:', cookieToken.length);
+    } else {
+      console.log('   ❌ Cookie', cookieName + ': NO PRESENTE');
+    }
+    
+    // Compare tokens
+    if (headerToken && cookieToken) {
+      const headerStr = typeof headerToken === 'string' ? headerToken : headerToken[0];
+      const match = headerStr === cookieToken;
+      console.log('   Comparación:', match ? '✅ COINCIDEN' : '❌ NO COINCIDEN');
+    }
+    console.log();
+  }
+
   return csrfProtection.doubleCsrfProtection(req, res, next);
 };
 
