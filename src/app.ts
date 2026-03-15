@@ -97,9 +97,20 @@ app.use(
 app.use(generalRateLimiter);
 
 // Endpoint: CSRF token
+/**
+ * GET /api/csrf-token
+ * Genera un token CSRF y lo envía de dos formas:
+ * 1. En una cookie HTTP-only: psifi.x-csrf-token (navegador la envía automáticamente)
+ * 2. En el JSON response: { "token": "..." } (frontend lo usa en header x-csrf-token)
+ *
+ * El servidor valida que ambos valores coincidan en requests de cambio de estado (POST/PUT/PATCH/DELETE)
+ */
 app.get('/api/csrf-token', (req: Request, res: Response) => {
   const token = generateCsrfToken(req, res);
-  res.json({ token });
+  res.json({
+    token,
+    message: 'Token CSRF generado. Se estableció automáticamente en cookie psifi.x-csrf-token. Envía este token en el header x-csrf-token.'
+  });
 });
 
 // Servir archivos estáticos (imágenes de perfil, documentos públicos)

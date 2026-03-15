@@ -18,6 +18,25 @@ Esto ocurre porque:
 
 ## 🚀 Flujo Correcto de CSRF (3 pasos)
 
+### ⚡ Cómo Funciona: Token en Cookie + Header
+
+El servidor usa **Double Submit Cookie Pattern**:
+
+```
+GET /api/csrf-token
+│
+├─ Response JSON: { "token": "abc123..." }  ← Usa ESTO en header x-csrf-token
+│
+└─ Set-Cookie: psifi.x-csrf-token=...      ← Navegador lo envía automáticamente
+  (HTTP-only, secure, sameSite)
+
+POST /api/organizations
+├─ Header: x-csrf-token: abc123...         ← Del JSON response
+├─ Cookie: psifi.x-csrf-token=...          ← Enviada automáticamente por navegador
+│
+└─ Servidor valida que AMBOS coincidan
+```
+
 ### Paso 1: Obtener el Token CSRF (Ejecutar UNA VEZ al cargar la app)
 
 **Endpoint:** `GET /api/csrf-token`  
@@ -29,7 +48,7 @@ async function getCsrfToken() {
   try {
     const response = await fetch('https://api.clouddocs.com/api/csrf-token', {
       method: 'GET',
-      credentials: 'include', // ⚠️ IMPORTANTE: Incluir cookies
+      credentials: 'include', // ⚠️ CRÍTICO: Incluir cookies para recibir Set-Cookie
       headers: {
         'Content-Type': 'application/json'
       }
@@ -41,6 +60,7 @@ async function getCsrfToken() {
 
     const data = await response.json();
     console.log('✅ CSRF Token obtenido:', data.token);
+    console.log('✅ Cookie psifi.x-csrf-token establecida automáticamente por navegador');
     
     // Guardar en estado global de la app
     return data.token; // String de 64 caracteres
@@ -55,9 +75,22 @@ async function getCsrfToken() {
 
 ```json
 {
-  "token": "d4f5e6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0e1f2g3h4i5"
+  "token": "d4f5e6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0e1f2g3h4i5",
+  "message": "Token CSRF generado. Se estableció automáticamente en cookie psifi.x-csrf-token. Envía este token en el header x-csrf-token."
 }
 ```
+
+**Headers de respuesta:**
+
+```
+Set-Cookie: psifi.x-csrf-token=encrypted_value; HttpOnly; Secure; Path=/; SameSite=Lax
+Content-Type: application/json
+```
+
+⚠️ **IMPORTANTE:** El navegador automáticamente:
+- ✅ Almacena la cookie en `cookies.txt` interno
+- ✅ La envía automáticamente en TODAS las futuras peticiones al mismo dominio
+- ❌ El JavaScript NO puede acceder a ella (HttpOnly=true por seguridad)
 
 ---
 
@@ -140,11 +173,13 @@ useEffect(() => {
 
 ### Paso 3: Enviar el Token en Peticiones POST/PUT/PATCH/DELETE
 
-En **CADA petición** que modifique datos, incluir el header `x-csrf-token`:
+En **CADA petición** que modifique datos, incluir el header `x-csrf-token` con el token obtenido en Paso 1.
+
+El navegador enviará automáticamente la cookie `psifi.x-csrf-token` gracias a `credentials: 'include'`.
 
 ```javascript
 async function createOrganization(organizationName) {
-  const csrfToken = useCsrfStore((state) => state.csrfToken); // Obtener del estado
+  const csrfToken = useCsrfStore((state) => state.csrfToken); // Del JSON en Paso 1
   
   if (!csrfToken) {
     console.error('❌ CSRF token no disponible. Espera a que se cargue.');
@@ -154,10 +189,10 @@ async function createOrganization(organizationName) {
   try {
     const response = await fetch('https://api.clouddocs.com/api/organizations', {
       method: 'POST',
-      credentials: 'include', // ⚠️ IMPORTANTE: Incluir cookies
+      credentials: 'include', // ⚠️ CRÍTICO: Envía cookie psifi.x-csrf-token automáticamente
       headers: {
         'Content-Type': 'application/json',
-        'x-csrf-token': csrfToken  // ⚠️ IMPORTANTE: Incluir el token
+        'x-csrf-token': csrfToken  // ⚠️ De la respuesta JSON del Paso 1
       },
       body: JSON.stringify({
         name: organizationName,
@@ -188,6 +223,33 @@ async function createOrganization(organizationName) {
     throw error;
   }
 }
+```
+
+**Lo que ocurre internamente:**
+
+```
+Petición enviada:
+┌─────────────────────────────────────────────────────────────┐
+│ POST /api/organizations                                     │
+├─────────────────────────────────────────────────────────────┤
+│ Headers:                                                    │
+│  Content-Type: application/json                            │
+│  x-csrf-token: abc123... (Token del JSON)                 │
+│  Cookie: psifi.x-csrf-token=...; token=jwt...  (Au.) │
+├─────────────────────────────────────────────────────────────┤
+│ Body:                                                       │
+│ { "name": "Mi Organización", "plan": "FREE" }             │
+└─────────────────────────────────────────────────────────────┘
+              ↓
+      Servidor (CSRF middleware)
+              ↓
+      ✅ Valida que:
+         - Header x-csrf-token = abc123...
+         - Cookie psifi.x-csrf-token = abc123... (encriptado)
+         - Ambos coinciden ✓
+              ↓
+      ✅ Permite la petición
+      ❌ Rechaza si no coinciden (403 Forbidden)
 ```
 
 ---
@@ -230,7 +292,7 @@ export async function apiRequest(endpoint, options = {}) {
     const response = await fetch(url, {
       ...options,
       method,
-      credentials: 'include', // ⚠️ SIEMPRE incluir cookies
+      credentials: 'include', // ⚠️ SIEMPRE incluir para enviar cookies automáticamente
       headers
     });
 
@@ -257,7 +319,7 @@ export async function apiRequest(endpoint, options = {}) {
   }
 }
 
-// Uso
+// Uso: Exportar helpers tipados
 export const api = {
   organizations: {
     create: (name) => apiRequest('/api/organizations', {
@@ -270,17 +332,31 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(data)
     })
+  },
+  documents: {
+    create: (data) => apiRequest('/api/documents', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    }),
+    delete: (id) => apiRequest(`/api/documents/${id}`, {
+      method: 'DELETE'
+    })
   }
 };
 ```
 
-Uso en componentes:
+**Uso en componentes:**
 
 ```javascript
 import { api } from '../api/client';
 
 async function handleCreateOrganization() {
   try {
+    // El wrapper maneja automáticamente:
+    // ✅ Obtener token CSRF si no está
+    // ✅ Enviar en header x-csrf-token
+    // ✅ Incluir credentials (cookies automáticas)
+    // ✅ Reintentar si token expiró (403)
     const org = await api.organizations.create('Mi Organización');
     console.log('✅ Organización creada:', org);
   } catch (error) {
@@ -288,6 +364,13 @@ async function handleCreateOrganization() {
   }
 }
 ```
+
+**Ventajas:**
+- ✅ Un único lugar de configuración CSRF
+- ✅ Automático en TODAS las peticiones
+- ✅ Manejo automático de reintentos
+- ✅ Código limpio en componentes
+- ✅ Fácil de actualizar si cambia el backend
 
 ---
 
@@ -306,35 +389,77 @@ async function handleCreateOrganization() {
 
 ### En navegador (DevTools):
 
-1. Abre **Console** y escribe:
+1. **Verificar que la cookie fue establecida:**
+   
+   Abre **Application** tab → **Cookies** → busca `psifi.x-csrf-token`:
+   
+   ```
+   Name: psifi.x-csrf-token
+   Value: [64-char encrypted string]
+   Domain: api.clouddocs.com
+   Path: /
+   Secure: ✓
+   HttpOnly: ✓
+   SameSite: Lax
+   ```
 
-```javascript
-// Verificar que el token está en cookies
-console.log(document.cookie); // Debe contener "psifi.x-csrf-token"
+2. **Verificar que el token está en estado:**
+   
+   Abre **Console** y escribe:
+   
+   ```javascript
+   // Verificar que el token está en estado global
+   console.log(useCsrfStore.getState().csrfToken);
+   // Output: "d4f5e6g7h8i9j0k1l2m3n4o5p6q7r8s9..." (64 chars)
+   ```
 
-// Verificar que el token está en estado
-console.log(useCsrfStore.getState().csrfToken); // Debe ser un string de 64 caracteres
-```
+3. **Verificar que se envía en petición POST:**
+   
+   Abre **Network** tab, crea una organización, filtra por `/api/organizations`
+   
+   **En Request Headers:**
+   ```
+   x-csrf-token: d4f5e6g7h8i9j0k1l2m3n4o5p6q7r8s9...
+   cookie: psifi.x-csrf-token=encrypted_value; token=jwt_value
+   ```
+   
+   **En Response Headers (GET /api/csrf-token):**
+   ```
+   set-cookie: psifi.x-csrf-token=...; Path=/; HttpOnly; Secure; SameSite=Lax
+   ```
 
-2. Abre **Network** tab y filtra por petición a `/api/organizations`
-3. En **Request Headers**, verifica:
-   - ✅ `x-csrf-token: <64-char-token>`
-   - ✅ `cookie: psifi.x-csrf-token=...` (auto-enviada por navegador)
-   - ✅ `credentials: include`
+4. **Verificar tokens coinciden:**
+   
+   El token que está en:
+   - `{ "token": "abc123..." }` (Response body)
+   - Header `x-csrf-token: abc123...` (Request header)
+   - Cookie `psifi.x-csrf-token=abc123...` (Request cookie)
+   
+   **TODOS son el MISMO valor (o sus versiones encriptadas equivalentes)**
 
 ### Desde curl (testing):
 
 ```bash
-# 1. Obtener CSRF token
-curl -s http://localhost:3000/api/csrf-token | jq '.token'
-# Respuesta: "d4f5e6g7h8i9j0k1l2m..."
+# 1. Obtener CSRF token Y capturar la cookie
+curl -v http://localhost:3000/api/csrf-token
 
-# 2. Intentar crear organización CON token
-curl -X POST http://localhost:3000/api/organizations \
+# Output esperado:
+# < Set-Cookie: psifi.x-csrf-token=...; Path=/; HttpOnly; Secure; SameSite=Lax
+# {
+#   "token": "d4f5e6g7h8i9j0k1l2m3n4o5p6q7r8s9...",
+#   "message": "Token CSRF generado..."
+# }
+
+# Guardar el token en variable
+TOKEN=$(curl -s http://localhost:3000/api/csrf-token | jq -r '.token')
+echo "Token: $TOKEN"
+
+# 2. Intentar crear organización CON token Y cookie
+curl -v -X POST http://localhost:3000/api/organizations \
   -H "Content-Type: application/json" \
-  -H "x-csrf-token: d4f5e6g7h8i9j0k1l2m..." \
-  -H "Authorization: Bearer <JWT_TOKEN>" \
-  -H "Cookie: psifi.x-csrf-token=..." \
+  -H "x-csrf-token: $TOKEN" \
+  -H "Authorization: Bearer JWT_TOKEN" \
+  -b "psifi.x-csrf-token=$TOKEN" \
   -d '{"name": "Test Org"}'
 
 # Respuesta debe ser 201 Created
@@ -343,10 +468,11 @@ curl -X POST http://localhost:3000/api/organizations \
 # 3. Sin CSRF token (debe fallar 403)
 curl -X POST http://localhost:3000/api/organizations \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <JWT_TOKEN>" \
+  -H "Authorization: Bearer JWT_TOKEN" \
   -d '{"name": "Test Org"}'
 
-# Respuesta: {"success": false, "error": "Invalid or missing CSRF token..."}
+# Respuesta: 403 Forbidden
+# {"success": false, "error": "Invalid or missing CSRF token..."}
 ```
 
 ---
