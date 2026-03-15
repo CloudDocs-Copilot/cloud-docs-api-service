@@ -44,7 +44,7 @@ export async function authenticateToken(
   const requestPath = req.path;
   
   if (process.env.NODE_ENV !== 'test') {
-    console.log('[AUTH-MIDDLEWARE-DIAGNOSTIC]', {
+    console.warn('[AUTH-MIDDLEWARE-DIAGNOSTIC]', {
       timestamp: new Date().toISOString(),
       requestPath,
       method: req.method,
@@ -185,7 +185,7 @@ export async function authenticateToken(
 
     // LOG: Successful authentication
     if (process.env.NODE_ENV !== 'test') {
-      console.log('[AUTH-MIDDLEWARE-SUCCESS]', {
+      console.warn('[AUTH-MIDDLEWARE-SUCCESS]', {
         timestamp: new Date().toISOString(),
         requestPath,
         method: req.method,
@@ -200,7 +200,7 @@ export async function authenticateToken(
       if (token && _res && typeof _res.cookie === 'function') {
         _res.cookie('token', token, getAuthCookieOptions());
         if (process.env.NODE_ENV !== 'test') {
-          console.log('[AUTH-MIDDLEWARE-COOKIE-REFRESH]', {
+          console.warn('[AUTH-MIDDLEWARE-COOKIE-REFRESH]', {
             timestamp: new Date().toISOString(),
             userId: req.user.id,
             status: 'cookie_refreshed'

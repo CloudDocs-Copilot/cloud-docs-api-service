@@ -70,7 +70,7 @@ export async function login(
     
     // LOG: Diagnostico de inicio de sesión
     if (process.env.NODE_ENV !== 'test') {
-      console.log('[AUTH-LOGIN-DIAGNOSTIC]', {
+      console.warn('[AUTH-LOGIN-DIAGNOSTIC]', {
         timestamp: new Date().toISOString(),
         email: result.user.email,
         tokenLength,
@@ -92,7 +92,7 @@ export async function login(
 
     // LOG: Cookie establecida
     if (process.env.NODE_ENV !== 'test') {
-      console.log('[AUTH-LOGIN-DIAGNOSTIC]', {
+      console.warn('[AUTH-LOGIN-DIAGNOSTIC]', {
         timestamp: new Date().toISOString(),
         email: result.user.email,
         status: 'cookie_set',

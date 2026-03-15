@@ -57,6 +57,7 @@ export const csrfProtectionMiddleware = (req: Request, res: Response, next: Next
   if (CSRF_EXCLUDED_ROUTES.includes(req.path)) {
     return next();
   }
+
   return csrfProtection.doubleCsrfProtection(req, res, next);
 };
 
