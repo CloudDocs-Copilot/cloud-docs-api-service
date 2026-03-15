@@ -155,7 +155,7 @@ export async function createRootFolder(userId: string, organizationId: string): 
       name: 'root', // Nombre interno
       displayName: org.name, // Nombre de la organización (mejor UX)
       type: 'root', // TIPO CORRECTO
-      owner: userId,
+      owner: new mongoose.Types.ObjectId(userId),
       organization: organizationId,
       parent: null,
       path: '/',
@@ -257,7 +257,7 @@ export async function createFolder({
       name,
       displayName: displayName || name,
       type: 'folder',
-      owner,
+      owner: new mongoose.Types.ObjectId(owner),
       organization: organizationId,
       parent: parentId,
       path: newPath,

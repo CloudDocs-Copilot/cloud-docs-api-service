@@ -517,12 +517,12 @@ export async function createMembership({
       type: 'root',
       isRoot: true,
       organization: organizationId,
-      owner: userId,
+      owner: new Types.ObjectId(userId),
       parent: null,
       path: rootFolderPath,
       permissions: [
         {
-          userId: userId,
+          userId: new Types.ObjectId(userId),
           role: 'owner'
         }
       ]
