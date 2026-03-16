@@ -41,16 +41,35 @@ const csrfProtection = doubleCsrf({
     process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development'
       ? ['GET', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE']
       : ['GET', 'HEAD', 'OPTIONS'],
-  // Use user ID (from JWT in request headers) as session identifier if available
-  // Otherwise fall back to IP address. This ensures consistent token validation
-  // across requests from the same user.
+  // Extract user ID from JWT token in cookies to use as session identifier
+  // This ensures CSRF tokens remain valid across the entire user session
   getSessionIdentifier: (req: Request): string => {
-    // Try to extract user ID from request (set by auth middleware)
-    const userId = (req as unknown as { user?: { id: string } }).user?.id;
-    if (userId) {
-      return userId;
+    // Extract JWT token from cookie
+    const cookieHeader = req.headers.cookie || '';
+    const tokenMatch = cookieHeader.match(/token=([^;]*)/);
+    if (tokenMatch) {
+      try {
+        // Token format: header.payload.signature
+        const tokenParts = tokenMatch[1].split('.');
+        if (tokenParts.length === 3) {
+          // Decode payload (base64url)
+          const payload = JSON.parse(
+            Buffer.from(
+              tokenParts[1]
+                .replace(/-/g, '+')
+                .replace(/_/g, '/'),
+              'base64'
+            ).toString('utf-8')
+          );
+          if (payload.id) {
+            return payload.id;
+          }
+        }
+      } catch {
+        // If JWT parsing fails, fall through to IP-based identifier
+      }
     }
-    // Fall back to IP address
+    // Fall back to IP address if no valid JWT token found
     return req.ip || 'anonymous';
   }
 });
