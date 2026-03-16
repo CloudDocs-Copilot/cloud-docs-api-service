@@ -55,34 +55,41 @@ const CSRF_EXCLUDED_ROUTES = [
 // Exportar el middleware de protección CSRF
 export const csrfProtectionMiddleware = (req: Request, res: Response, next: NextFunction): void => {
   if (CSRF_EXCLUDED_ROUTES.includes(req.path)) {
-    console.log(`[CSRF] ✅ Ruta excluida: ${req.path}`);
+    if (process.env.NODE_ENV !== 'test') {
+      console.log(`[CSRF] ✅ Ruta excluida: ${req.path}`);
+    }
     return next();
   }
 
-  console.log(`[CSRF DEBUG] Validando ${req.method} ${req.path}`);
-  
-  // Log de headers (defensivo para tests)
-  const csrfTokenHeader = req.headers?.['x-csrf-token'];
-  const cookies = req.headers?.cookie || '';
-  const cookieTokenMatch = cookies.match(/(?:^|;\s*)(?:__Host-)?psifi\.x-csrf-token=([^;]*)/);
-  const cookieToken = cookieTokenMatch ? cookieTokenMatch[1] : undefined;
-  
-  console.log(`[CSRF DEBUG] Headers:`, {
-    'x-csrf-token header': csrfTokenHeader ? csrfTokenHeader.toString().substring(0, 30) + '...' : 'MISSING',
-    'cookie token': cookieToken ? cookieToken.substring(0, 30) + '...' : 'MISSING',
-    'origin': req.headers?.origin,
-    'user-agent': req.headers?.['user-agent'] ? req.headers['user-agent'].toString().substring(0, 50) : 'N/A',
-    'ip': req.ip
-  });
+  // Logs solo en producción/desarrollo, no en tests
+  if (process.env.NODE_ENV !== 'test') {
+    console.log(`[CSRF DEBUG] Validando ${req.method} ${req.path}`);
+    
+    // Log de headers (defensivo)
+    const csrfTokenHeader = req.headers?.['x-csrf-token'];
+    const cookies = req.headers?.cookie || '';
+    const cookieTokenMatch = cookies.match(/(?:^|;\s*)(?:__Host-)?psifi\.x-csrf-token=([^;]*)/);
+    const cookieToken = cookieTokenMatch ? cookieTokenMatch[1] : undefined;
+    
+    console.log(`[CSRF DEBUG] Headers:`, {
+      'x-csrf-token header': csrfTokenHeader ? csrfTokenHeader.toString().substring(0, 30) + '...' : 'MISSING',
+      'cookie token': cookieToken ? cookieToken.substring(0, 30) + '...' : 'MISSING',
+      'origin': req.headers?.origin,
+      'user-agent': req.headers?.['user-agent'] ? req.headers['user-agent'].toString().substring(0, 50) : 'N/A',
+      'ip': req.ip
+    });
 
-  // Envolver respuesta para capturar errores
-  const originalJson = res.json.bind(res);
-  res.json = function(body: unknown) {
-    if ((res.statusCode === 403 || res.statusCode === 401) && typeof body === 'object' && body !== null) {
-      console.error(`[CSRF ERROR] ${res.statusCode} - ${JSON.stringify(body)}`);
+    // Envolver respuesta para capturar errores (solo si res.json existe)
+    if (res.json && typeof res.json === 'function') {
+      const originalJson = res.json.bind(res);
+      res.json = function(body: unknown) {
+        if ((res.statusCode === 403 || res.statusCode === 401) && typeof body === 'object' && body !== null) {
+          console.error(`[CSRF ERROR] ${res.statusCode} - ${JSON.stringify(body)}`);
+        }
+        return originalJson(body);
+      };
     }
-    return originalJson(body);
-  };
+  }
 
   return csrfProtection.doubleCsrfProtection(req, res, next);
 };
