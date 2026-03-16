@@ -107,6 +107,7 @@ app.use(generalRateLimiter);
  */
 app.get('/api/csrf-token', (req: Request, res: Response) => {
   const token = generateCsrfToken(req, res);
+  
   res.json({
     token,
     message: 'Token CSRF generado. Se estableció automáticamente en cookie psifi.x-csrf-token. Envía este token en el header x-csrf-token.'
