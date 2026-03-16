@@ -35,7 +35,7 @@ const csrfProtection = doubleCsrf({
     }
     return secret;
   },
-  cookieName: 'psifi.x-csrf-token', // Simplicidad: sin __Host- prefix para debuggear
+  cookieName: 'psifi_csrf_token', // Sin puntos: cookie-parser no tiene problemas
   cookieOptions: {
     sameSite: isProduction ? 'none' : 'lax',
     path: '/',
@@ -74,7 +74,7 @@ export const csrfProtectionMiddleware = (req: Request, res: Response, next: Next
     // Log de headers (defensivo)
     const csrfTokenHeader = req.headers?.['x-csrf-token'];
     const cookies = req.headers?.cookie || '';
-    const cookieTokenMatch = cookies.match(/(?:^|;\s*)(?:__Host-)?psifi\.x-csrf-token=([^;]*)/);
+    const cookieTokenMatch = cookies.match(/(?:^|;\s*)psifi_csrf_token=([^;]*)/);
     const cookieToken = cookieTokenMatch ? cookieTokenMatch[1] : undefined;
     
     // Solo mostrar tokens completos para POST (debug de CSRF)
