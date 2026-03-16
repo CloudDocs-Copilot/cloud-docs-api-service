@@ -29,13 +29,13 @@ const getAllowedOrigins = (): string[] => {
   if (environment === 'production') {
     // En producción, solo permite orígenes explícitamente definidos
     // Múltiples orígenes pueden separarse con comas en la variable de entorno
-    const origins = process.env.ALLOWED_ORIGINS || 'https://cloud-docs-web-ui.vercel.app/';
+    const origins = process.env.ALLOWED_ORIGINS || 'https://cloud-docs-web-ui.vercel.app';
 
     if (!origins) {
       console.warn(
         '⚠️  WARNING: No ALLOWED_ORIGINS defined in production environment. ' +
           'API will reject all cross-origin requests!'
-          
+
       );
       return [];
     }
