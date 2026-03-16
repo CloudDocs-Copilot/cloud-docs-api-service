@@ -31,7 +31,11 @@ const csrfProtection = doubleCsrf({
   getSecret: () => {
     const secret = process.env.CSRF_SECRET || 'default-csrf-secret-change-in-production';
     if (process.env.NODE_ENV !== 'test') {
-      console.log(`[CSRF] Using secret: ${secret.substring(0, 20)}... (${secret.length} chars)`);
+      const isDefaultSecret = !process.env.CSRF_SECRET;
+      const logMessage = isDefaultSecret
+        ? '[CSRF] Using default CSRF secret - CHANGE THIS IN PRODUCTION'
+        : '[CSRF] CSRF secret loaded from environment variable';
+      console.log(logMessage);
     }
     return secret;
   },
