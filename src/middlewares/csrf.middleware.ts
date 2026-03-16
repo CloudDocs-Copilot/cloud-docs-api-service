@@ -71,6 +71,16 @@ export const csrfProtectionMiddleware = (req: Request, res: Response, next: Next
     const cookieTokenMatch = cookies.match(/(?:^|;\s*)(?:__Host-)?psifi\.x-csrf-token=([^;]*)/);
     const cookieToken = cookieTokenMatch ? cookieTokenMatch[1] : undefined;
     
+    // Solo mostrar tokens completos para POST (debug de CSRF)
+    const isPostRequest = req.method === 'POST';
+    
+    if (isPostRequest && csrfTokenHeader && cookieToken) {
+      console.log(`[CSRF DEBUG] POST REQUEST - FULL TOKENS:`);
+      console.log(`  Header token (${csrfTokenHeader.toString().length} chars): ${csrfTokenHeader.toString()}`);
+      console.log(`  Cookie token (${cookieToken.length} chars): ${cookieToken}`);
+      console.log(`  Header === Cookie: ${csrfTokenHeader.toString() === cookieToken}`);
+    }
+    
     console.log(`[CSRF DEBUG] Headers:`, {
       'x-csrf-token header': csrfTokenHeader 
         ? `${csrfTokenHeader.toString().substring(0, 50)}... (length: ${csrfTokenHeader.toString().length})` 
