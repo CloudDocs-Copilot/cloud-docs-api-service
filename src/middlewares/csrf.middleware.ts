@@ -28,39 +28,56 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 // Función auxiliar para extraer user ID del JWT token
 const extractUserIdFromJWT = (cookieHeader: string): string | null => {
-  const tokenMatch = cookieHeader.match(/token=([^;]*)/);
-  if (!tokenMatch) {
-    return null;
-  }
-
   try {
+    // Extract token from Cookie header: "token=eyJ...;other=value"
+    const tokenMatch = cookieHeader.match(/token=([^;]+)/);
+    if (!tokenMatch) {
+      return null;
+    }
+
+    // Decode URL-encoded token if necessary
+    let jwtToken = decodeURIComponent(tokenMatch[1]);
+    
     // Token format: header.payload.signature
-    const tokenParts = tokenMatch[1].split('.');
+    const tokenParts = jwtToken.split('.');
     if (tokenParts.length !== 3) {
       return null;
     }
 
     // Decode payload (base64url)
+    // Add padding if necessary
+    let payload = tokenParts[1];
+    const padding = 4 - (payload.length % 4);
+    if (padding !== 4) {
+      payload += '='.repeat(padding);
+    }
+    
     const decodedPayload = Buffer.from(
-      tokenParts[1]
+      payload
         .replace(/-/g, '+')
         .replace(/_/g, '/'),
       'base64'
     ).toString('utf-8');
 
-    const payload = JSON.parse(decodedPayload) as unknown;
+    const parsedPayload = JSON.parse(decodedPayload) as unknown;
 
     // Type guard: verify payload has id property
-    if (payload && typeof payload === 'object' && 'id' in payload) {
-      const id = (payload as Record<string, unknown>).id;
-      if (typeof id === 'string') {
+    if (parsedPayload && typeof parsedPayload === 'object' && 'id' in parsedPayload) {
+      const id = (parsedPayload as Record<string, unknown>).id;
+      if (typeof id === 'string' && id.length > 0) {
         return id;
       }
     }
 
     return null;
-  } catch {
+  } catch (error) {
     // If JWT parsing fails, return null and fall back to IP-based identifier
+    if (isProduction) {
+      console.error('[CSRF-JWT-EXTRACTION-ERROR]', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        cookieHeaderLength: cookieHeader?.length || 0
+      });
+    }
     return null;
   }
 };
@@ -84,11 +101,12 @@ const csrfProtection = doubleCsrf({
   getSessionIdentifier: (req: Request): string => {
     const cookieHeader = req.headers.cookie;
     let sessionId = 'anonymous';
+    let extractedUserId: string | null = null;
     
     if (cookieHeader && typeof cookieHeader === 'string') {
-      const userId = extractUserIdFromJWT(cookieHeader);
-      if (userId) {
-        sessionId = userId;
+      extractedUserId = extractUserIdFromJWT(cookieHeader);
+      if (extractedUserId) {
+        sessionId = extractedUserId;
       } else {
         sessionId = req.ip || 'anonymous';
       }
@@ -101,6 +119,7 @@ const csrfProtection = doubleCsrf({
         method: req.method,
         path: req.path,
         sessionId,
+        extractedUserId: extractedUserId ? 'found' : 'NOT_FOUND',
         hasCookieHeader: !!cookieHeader,
         cookieHeaderLength: cookieHeader?.length || 0,
         ipAddress: req.ip,
