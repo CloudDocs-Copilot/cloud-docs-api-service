@@ -96,6 +96,14 @@ app.use(
 // Rate limiting
 app.use(generalRateLimiter);
 
+// Helper function to safely truncate strings for debugging
+const safeStringTruncate = (value: unknown, length: number = 20): string => {
+  if (typeof value === 'string') {
+    return value.substring(0, length) + '...';
+  }
+  return 'INVALID_TYPE';
+};
+
 // Endpoint: CSRF token
 /**
  * GET /api/csrf-token
@@ -145,9 +153,16 @@ app.get('/api/csrf-debug', (req: Request, res: Response) => {
   });
 });
 app.get('/api/test-csrf-debug', (req: Request, res: Response) => {
+  // Type-safe extraction of cookie and header values with proper type guards
+  const rawCookie = req.cookies['psifi.x-csrf-token'] as unknown;
+  const csrfCookieValue = typeof rawCookie === 'string' ? rawCookie : null;
+  
+  const rawHeader = req.headers['x-csrf-token'] as unknown;
+  const csrfHeaderValue = typeof rawHeader === 'string' ? rawHeader : null;
+
   res.json({
-    cookieName_correctName: req.cookies['psifi.x-csrf-token'] ? req.cookies['psifi.x-csrf-token'].substring(0, 20) + '...' : 'MISSING',
-    headerValue: req.headers['x-csrf-token'] ? (req.headers['x-csrf-token'] as string).substring(0, 20) + '...' : 'MISSING',
+    cookieName_correctName: typeof csrfCookieValue === 'string' ? safeStringTruncate(csrfCookieValue) : 'MISSING',
+    headerValue: typeof csrfHeaderValue === 'string' ? safeStringTruncate(csrfHeaderValue) : 'MISSING',
     allCookies: req.cookies
   });
 });
