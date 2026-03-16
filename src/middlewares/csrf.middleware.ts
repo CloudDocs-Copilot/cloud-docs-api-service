@@ -83,14 +83,32 @@ const csrfProtection = doubleCsrf({
   // This ensures CSRF tokens remain valid across the entire user session
   getSessionIdentifier: (req: Request): string => {
     const cookieHeader = req.headers.cookie;
+    let sessionId = 'anonymous';
+    
     if (cookieHeader && typeof cookieHeader === 'string') {
       const userId = extractUserIdFromJWT(cookieHeader);
       if (userId) {
-        return userId;
+        sessionId = userId;
+      } else {
+        sessionId = req.ip || 'anonymous';
       }
+    } else {
+      sessionId = req.ip || 'anonymous';
     }
-    // Fall back to IP address if no valid JWT token found
-    return req.ip || 'anonymous';
+
+    if (isProduction && req.method !== 'GET') {
+      console.error('[CSRF-SESSION-ID]', {
+        method: req.method,
+        path: req.path,
+        sessionId,
+        hasCookieHeader: !!cookieHeader,
+        cookieHeaderLength: cookieHeader?.length || 0,
+        ipAddress: req.ip,
+        hasJwt: cookieHeader?.includes('token=') || false
+      });
+    }
+    
+    return sessionId;
   }
 });
 // Rutas que NO requieren CSRF (autenticación pública)
@@ -106,6 +124,24 @@ const CSRF_EXCLUDED_ROUTES = [
 export const csrfProtectionMiddleware = (req: Request, res: Response, next: NextFunction): void => {
   if (CSRF_EXCLUDED_ROUTES.includes(req.path)) {
     return next();
+  }
+
+  // Log incoming CSRF requests in production
+  if (isProduction && (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH' || req.method === 'DELETE')) {
+    const hasXCsrfToken = !!req.headers['x-csrf-token'];
+    const cookieStr = req.headers.cookie || '';
+    const hasCsrfCookie = cookieStr.includes('psifi_csrf_token=');
+    const hasAuthToken = cookieStr.includes('token=');
+    
+    console.error('[CSRF-REQUEST-CHECK]', {
+      method: req.method,
+      path: req.path,
+      hasXCsrfTokenHeader: hasXCsrfToken,
+      xCsrfTokenLength: (req.headers['x-csrf-token'] as string)?.length || 0,
+      hasCsrfCookie,
+      hasAuthToken,
+      cookies: cookieStr.split(';').map((c) => c.trim().split('=')[0])
+    });
   }
 
   return csrfProtection.doubleCsrfProtection(req, res, next);

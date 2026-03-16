@@ -108,6 +108,16 @@ app.use(generalRateLimiter);
 app.get('/api/csrf-token', (req: Request, res: Response) => {
   const token = generateCsrfToken(req, res);
   
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[CSRF-TOKEN-GENERATED]', {
+      timestamp: new Date().toISOString(),
+      tokenLength: token.length,
+      requestOrigin: req.headers.origin,
+      userAgent: req.headers['user-agent']?.substring(0, 50),
+      cookiesSet: res.getHeaders()['set-cookie'] ? 'YES' : 'NO'
+    });
+  }
+  
   res.json({
     token,
     message: 'Token CSRF generado. Se estableció automáticamente en cookie psifi.x-csrf-token. Envía este token en el header x-csrf-token.'
