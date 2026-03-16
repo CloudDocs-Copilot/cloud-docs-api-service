@@ -9,7 +9,7 @@ import { doubleCsrf } from 'csrf-csrf';
  *
  * Funcionamiento:
  * 1. Genera un token CSRF único por sesión
- * 2. Almacena el token en una cookie segura (psifi_csrf_token)
+ * 2. Almacena el token en una cookie segura (psifi.x-csrf-token)
  * 3. El cliente debe enviar el mismo token en el header x-csrf-token
  * 4. El middleware valida que ambos tokens coincidan
  *
@@ -67,7 +67,7 @@ const extractUserIdFromJWT = (cookieHeader: string): string | null => {
 
 const csrfProtection = doubleCsrf({
   getSecret: () => process.env.CSRF_SECRET || 'default-csrf-secret-change-in-production',
-  cookieName: 'psifi_csrf_token',
+  cookieName: 'psifi.x-csrf-token',  // Nombre correcto que usa csrf-csrf
   cookieOptions: {
     sameSite: isProduction ? 'none' : 'lax',
     path: '/',
@@ -130,7 +130,7 @@ export const csrfProtectionMiddleware = (req: Request, res: Response, next: Next
   if (isProduction && (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH' || req.method === 'DELETE')) {
     const hasXCsrfToken = !!req.headers['x-csrf-token'];
     const cookieStr = req.headers.cookie || '';
-    const hasCsrfCookie = cookieStr.includes('psifi_csrf_token=');
+    const hasCsrfCookie = cookieStr.includes('psifi.x-csrf-token=');
     const hasAuthToken = cookieStr.includes('token=');
     
     console.error('[CSRF-REQUEST-CHECK]', {

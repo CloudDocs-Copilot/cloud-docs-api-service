@@ -12,7 +12,7 @@ app.use(cookieParser());
 
 const csrfProtection = doubleCsrf({
   getSecret: () => 'test-secret-key-change-in-production',
-  cookieName: 'psifi_csrf_token',
+  cookieName: 'psifi.x-csrf-token',
   cookieOptions: {
     sameSite: 'lax',
     path: '/',

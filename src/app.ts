@@ -100,7 +100,7 @@ app.use(generalRateLimiter);
 /**
  * GET /api/csrf-token
  * Genera un token CSRF y lo envía de dos formas:
- * 1. En una cookie HTTP-only: psifi_csrf_token (navegador la envía automáticamente)
+ * 1. En una cookie HTTP-only: psifi.x-csrf-token (navegador la envía automáticamente)
  * 2. En el JSON response: { "token": "..." } (frontend lo usa en header x-csrf-token)
  *
  * El servidor valida que ambos valores coincidan en requests de cambio de estado (POST/PUT/PATCH/DELETE)
@@ -120,7 +120,7 @@ app.get('/api/csrf-token', (req: Request, res: Response) => {
   
   res.json({
     token,
-    message: 'Token CSRF generado. Se estableció automáticamente en cookie psifi_csrf_token. Envía este token en el header x-csrf-token.'
+    message: 'Token CSRF generado. Se estableció automáticamente en cookie psifi.x-csrf-token. Envía este token en el header x-csrf-token.'
   });
 });
 
@@ -146,8 +146,7 @@ app.get('/api/csrf-debug', (req: Request, res: Response) => {
 });
 app.get('/api/test-csrf-debug', (req: Request, res: Response) => {
   res.json({
-    cookieName_psifi: req.cookies['psifi_csrf_token'] ? req.cookies['psifi_csrf_token'].substring(0, 20) + '...' : 'MISSING',
-    cookieName_host: req.cookies['__Host-psifi-csrf-token'] ? req.cookies['__Host-psifi-csrf-token'].substring(0, 20) + '...' : 'MISSING',
+    cookieName_correctName: req.cookies['psifi.x-csrf-token'] ? req.cookies['psifi.x-csrf-token'].substring(0, 20) + '...' : 'MISSING',
     headerValue: req.headers['x-csrf-token'] ? (req.headers['x-csrf-token'] as string).substring(0, 20) + '...' : 'MISSING',
     allCookies: req.cookies
   });
