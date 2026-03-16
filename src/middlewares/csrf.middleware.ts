@@ -61,17 +61,17 @@ export const csrfProtectionMiddleware = (req: Request, res: Response, next: Next
 
   console.log(`[CSRF DEBUG] Validando ${req.method} ${req.path}`);
   
-  // Log de headers
-  const csrfTokenHeader = req.headers['x-csrf-token'];
-  const cookies = req.headers.cookie || '';
+  // Log de headers (defensivo para tests)
+  const csrfTokenHeader = req.headers?.['x-csrf-token'];
+  const cookies = req.headers?.cookie || '';
   const cookieTokenMatch = cookies.match(/(?:^|;\s*)(?:__Host-)?psifi\.x-csrf-token=([^;]*)/);
   const cookieToken = cookieTokenMatch ? cookieTokenMatch[1] : undefined;
   
   console.log(`[CSRF DEBUG] Headers:`, {
     'x-csrf-token header': csrfTokenHeader ? csrfTokenHeader.toString().substring(0, 30) + '...' : 'MISSING',
     'cookie token': cookieToken ? cookieToken.substring(0, 30) + '...' : 'MISSING',
-    'origin': req.headers.origin,
-    'user-agent': req.headers['user-agent'] ? req.headers['user-agent'].toString().substring(0, 50) : 'N/A',
+    'origin': req.headers?.origin,
+    'user-agent': req.headers?.['user-agent'] ? req.headers['user-agent'].toString().substring(0, 50) : 'N/A',
     'ip': req.ip
   });
 
