@@ -28,8 +28,18 @@ import { doubleCsrf } from 'csrf-csrf';
 const isProduction = process.env.NODE_ENV === 'production';
 
 const csrfProtection = doubleCsrf({
-  getSecret: () => process.env.CSRF_SECRET || 'default-csrf-secret-change-in-production',
-  cookieName: isProduction ? '__Host-psifi.x-csrf-token' : 'psifi.x-csrf-token',
+  getSecret: () => {
+    const secret = process.env.CSRF_SECRET || 'default-csrf-secret-change-in-production';
+    if (process.env.NODE_ENV !== 'test') {
+      const isDefaultSecret = !process.env.CSRF_SECRET;
+      const logMessage = isDefaultSecret
+        ? '[CSRF] Using default CSRF secret - CHANGE THIS IN PRODUCTION'
+        : '[CSRF] CSRF secret loaded from environment variable';
+      console.log(logMessage);
+    }
+    return secret;
+  },
+  cookieName: 'psifi_csrf_token', // Sin puntos: cookie-parser no tiene problemas
   cookieOptions: {
     sameSite: isProduction ? 'none' : 'lax',
     path: '/',
@@ -68,7 +78,7 @@ export const csrfProtectionMiddleware = (req: Request, res: Response, next: Next
     // Log de headers (defensivo)
     const csrfTokenHeader = req.headers?.['x-csrf-token'];
     const cookies = req.headers?.cookie || '';
-    const cookieTokenMatch = cookies.match(/(?:^|;\s*)(?:__Host-)?psifi\.x-csrf-token=([^;]*)/);
+    const cookieTokenMatch = cookies.match(/(?:^|;\s*)psifi_csrf_token=([^;]*)/);
     const cookieToken = cookieTokenMatch ? cookieTokenMatch[1] : undefined;
     
     // Solo mostrar tokens completos para POST (debug de CSRF)

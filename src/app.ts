@@ -100,7 +100,7 @@ app.use(generalRateLimiter);
 /**
  * GET /api/csrf-token
  * Genera un token CSRF y lo envía de dos formas:
- * 1. En una cookie HTTP-only: psifi.x-csrf-token (navegador la envía automáticamente)
+ * 1. En una cookie HTTP-only: psifi_csrf_token (navegador la envía automáticamente)
  * 2. En el JSON response: { "token": "..." } (frontend lo usa en header x-csrf-token)
  *
  * El servidor valida que ambos valores coincidan en requests de cambio de estado (POST/PUT/PATCH/DELETE)
