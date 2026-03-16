@@ -72,9 +72,14 @@ export const csrfProtectionMiddleware = (req: Request, res: Response, next: Next
     const cookieToken = cookieTokenMatch ? cookieTokenMatch[1] : undefined;
     
     console.log(`[CSRF DEBUG] Headers:`, {
-      'x-csrf-token header': csrfTokenHeader ? csrfTokenHeader.toString().substring(0, 30) + '...' : 'MISSING',
-      'cookie token': cookieToken ? cookieToken.substring(0, 30) + '...' : 'MISSING',
+      'x-csrf-token header': csrfTokenHeader 
+        ? `${csrfTokenHeader.toString().substring(0, 50)}... (length: ${csrfTokenHeader.toString().length})` 
+        : 'MISSING',
+      'cookie token': cookieToken 
+        ? `${cookieToken.substring(0, 50)}... (length: ${cookieToken.length})` 
+        : 'MISSING',
       'origin': req.headers?.origin,
+      'referer': req.headers?.referer,
       'user-agent': req.headers?.['user-agent'] ? req.headers['user-agent'].toString().substring(0, 50) : 'N/A',
       'ip': req.ip
     });
