@@ -157,21 +157,33 @@ async function searchDocumentsInMongoDB(params: SearchParams): Promise<SearchRes
   const startTime = Date.now();
   const { query, userId, organizationId, mimeType, fromDate, toDate, limit = 20, offset = 0 } = params;
 
+  // Normalizar y validar parámetros potencialmente controlados por el usuario
+  const safeOrganizationId =
+    typeof organizationId === 'string' && organizationId.trim() !== '' ? organizationId.trim() : undefined;
+  const safeMimeType =
+    typeof mimeType === 'string' && mimeType.trim() !== '' ? mimeType.trim() : undefined;
+
   // Construir filtros MongoDB
   const filters: Record<string, unknown> = {
     isDeleted: false // Excluir documentos eliminados
   };
 
   // Filtrar por organización si se proporciona, sino por usuario
-  if (organizationId) {
-    filters.organization = organizationId;
+  if (organizationId !== undefined && typeof organizationId !== 'string') {
+    throw new HttpError(400, 'Invalid organizationId parameter');
+  }
+  if (safeOrganizationId) {
+    filters.organization = safeOrganizationId;
   } else {
     filters.uploadedBy = userId;
   }
 
   // Filtro por tipo MIME
-  if (mimeType) {
-    filters.mimeType = mimeType;
+  if (mimeType !== undefined && typeof mimeType !== 'string') {
+    throw new HttpError(400, 'Invalid mimeType parameter');
+  }
+  if (safeMimeType) {
+    filters.mimeType = safeMimeType;
   }
 
   // Filtro por rango de fechas
