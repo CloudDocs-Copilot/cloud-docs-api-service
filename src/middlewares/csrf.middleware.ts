@@ -29,31 +29,49 @@ const isProduction = process.env.NODE_ENV === 'production';
 // Función auxiliar para extraer user ID del JWT token
 const extractUserIdFromJWT = (cookieHeader: string): string | null => {
   try {
-    // Extract token from Cookie header: "token=eyJ...;other=value"
-    const tokenMatch = cookieHeader.match(/token=([^;]+)/);
-    if (!tokenMatch) {
+    // Parse Cookie header properly: "cookie1=value1; cookie2=value2; ..."
+    // Split by semicolon and find the "token=" cookie
+    const cookies = cookieHeader.split(';').map(c => c.trim());
+    let jwtToken: string | null = null;
+    
+    for (const cookie of cookies) {
+      if (cookie.startsWith('token=')) {
+        jwtToken = cookie.substring(6); // Remove "token=" prefix
+        break;
+      }
+    }
+    
+    if (!jwtToken) {
       if (isProduction) {
-        console.error('[CSRF-JWT-EXTRACTION-DEBUG] No token= match found');
+        console.error('[CSRF-JWT-EXTRACTION-DEBUG] No "token=" cookie found', {
+          cookieCount: cookies.length,
+          cookieNames: cookies.map(c => c.split('=')[0])
+        });
       }
       return null;
     }
 
     // Decode URL-encoded token if necessary
-    let jwtToken = decodeURIComponent(tokenMatch[1]);
+    jwtToken = decodeURIComponent(jwtToken);
+    
     if (isProduction) {
       console.error('[CSRF-JWT-EXTRACTION-DEBUG]', {
         jwtTokenLength: jwtToken.length,
-        jwtTokenStart: jwtToken.substring(0, 50)
+        jwtTokenStart: jwtToken.substring(0, 50),
+        hasThreeParts: jwtToken.split('.').length === 3
       });
     }
     
-    // Token format: header.payload.signature
+    // Token format: header.payload.signature (JWT must have exactly 3 parts)
     const tokenParts = jwtToken.split('.');
     if (tokenParts.length !== 3) {
       if (isProduction) {
         console.error('[CSRF-JWT-EXTRACTION-DEBUG]', {
-          error: 'Invalid JWT format - not 3 parts',
-          parts: tokenParts.length
+          error: `Invalid JWT format - expected 3 parts, got ${tokenParts.length}`,
+          parts: tokenParts.length,
+          jwtTokenLength: jwtToken.length,
+          // Check if this looks like a CSRF token instead
+          mightBeCsrfToken: jwtToken.length > 100 && !jwtToken.includes('.')
         });
       }
       return null;
@@ -75,7 +93,7 @@ const extractUserIdFromJWT = (cookieHeader: string): string | null => {
     ).toString('utf-8');
 
     if (isProduction) {
-      console.error('[CSRF-JWT-EXTRACTION-DEBUG] Decoded payload:', decodedPayload.substring(0, 100));
+      console.error('[CSRF-JWT-EXTRACTION-DEBUG] Decoded payload:', decodedPayload.substring(0, 150));
     }
 
     const parsedPayload = JSON.parse(decodedPayload) as unknown;
@@ -94,7 +112,7 @@ const extractUserIdFromJWT = (cookieHeader: string): string | null => {
     if (isProduction) {
       console.error('[CSRF-JWT-EXTRACTION-DEBUG]', {
         error: 'Payload missing id or id is not string',
-        hasIdProperty: 'id' in (parsedPayload as Record<string, unknown>),
+        payloadKeys: parsedPayload && typeof parsedPayload === 'object' ? Object.keys(parsedPayload as Record<string, unknown>) : 'not-object',
         idType: typeof (parsedPayload as Record<string, unknown>).id
       });
     }
@@ -105,7 +123,7 @@ const extractUserIdFromJWT = (cookieHeader: string): string | null => {
     if (isProduction) {
       console.error('[CSRF-JWT-EXTRACTION-ERROR]', {
         error: error instanceof Error ? error.message : 'Unknown error',
-        errorStack: error instanceof Error ? error.stack : 'No stack',
+        errorStack: error instanceof Error ? error.stack?.substring(0, 200) : 'No stack',
         cookieHeaderLength: cookieHeader?.length || 0
       });
     }
@@ -129,6 +147,7 @@ const csrfProtection = doubleCsrf({
       : ['GET', 'HEAD', 'OPTIONS'],
   // Extract user ID from JWT token in cookies to use as session identifier
   // This ensures CSRF tokens remain valid across the entire user session
+  // IMPORTANT: Session identifier must be STABLE even if IP changes (load balancer)
   getSessionIdentifier: (req: Request): string => {
     const cookieHeader = req.headers.cookie;
     let sessionId = 'anonymous';
@@ -139,10 +158,24 @@ const csrfProtection = doubleCsrf({
       if (extractedUserId) {
         sessionId = extractedUserId;
       } else {
-        sessionId = req.ip || 'anonymous';
+        // IMPORTANT: Use User-Agent fingerprint instead of IP
+        // IP changes with load balancer, breaking CSRF validation
+        // User-Agent is stable within same browser session
+        const userAgent = req.headers['user-agent'] || 'unknown';
+        const userAgentHash = userAgent
+          .split('')
+          .reduce((hash, char) => ((hash << 5) - hash) + char.charCodeAt(0), 0)
+          .toString(36);
+        sessionId = `ua-${userAgentHash}`;
       }
     } else {
-      sessionId = req.ip || 'anonymous';
+      // Fallback: use User-Agent fingerprint
+      const userAgent = req.headers['user-agent'] || 'unknown';
+      const userAgentHash = userAgent
+        .split('')
+        .reduce((hash, char) => ((hash << 5) - hash) + char.charCodeAt(0), 0)
+        .toString(36);
+      sessionId = `ua-${userAgentHash}`;
     }
 
     if (isProduction && req.method !== 'GET') {
@@ -150,11 +183,11 @@ const csrfProtection = doubleCsrf({
         method: req.method,
         path: req.path,
         sessionId,
+        sessionIdType: extractedUserId ? 'user-id' : 'user-agent-hash',
         extractedUserId: extractedUserId ? 'found' : 'NOT_FOUND',
         hasCookieHeader: !!cookieHeader,
-        cookieHeaderLength: cookieHeader?.length || 0,
-        ipAddress: req.ip,
-        hasJwt: cookieHeader?.includes('token=') || false
+        userAgent: req.headers['user-agent']?.substring(0, 80) || 'MISSING',
+        ipAddress: req.ip
       });
     }
     
