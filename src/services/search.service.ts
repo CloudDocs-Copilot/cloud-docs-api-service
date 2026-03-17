@@ -1,5 +1,7 @@
 ﻿import ElasticsearchClient from '../configurations/elasticsearch-config';
 import { IDocument } from '../models/document.model';
+import Document from '../models/document.model';
+import HttpError from '../models/error.model';
 
 /**
  * Interfaz para par├ímetros de b├║squeda
@@ -140,17 +142,155 @@ export async function removeDocumentFromIndex(documentId: string): Promise<void>
 }
 
 /**
- * Buscar documentos por nombre
+ * Búsqueda en MongoDB como fallback cuando Elasticsearch no está disponible
+ * Utiliza expresiones regulares para búsqueda parcial case-insensitive
+ */
+async function searchDocumentsInMongoDB(params: SearchParams): Promise<SearchResult> {
+  const startTime = Date.now();
+  const { query, userId, organizationId, mimeType, fromDate, toDate, limit = 20, offset = 0 } = params;
+
+  // Construir filtros MongoDB
+  const filters: Record<string, unknown> = {
+    isDeleted: false // Excluir documentos eliminados
+  };
+
+  // Filtrar por organización si se proporciona, sino por usuario
+  if (organizationId) {
+    filters.organization = organizationId;
+  } else {
+    filters.uploadedBy = userId;
+  }
+
+  // Filtro por tipo MIME
+  if (mimeType) {
+    filters.mimeType = mimeType;
+  }
+
+  // Filtro por rango de fechas
+  if (fromDate || toDate) {
+    filters.uploadedAt = {};
+    if (fromDate) {
+      (filters.uploadedAt as Record<string, Date>).$gte = fromDate;
+    }
+    if (toDate) {
+      (filters.uploadedAt as Record<string, Date>).$lte = toDate;
+    }
+  }
+
+  // Búsqueda por texto usando regex (case-insensitive, búsqueda parcial)
+  const regex = new RegExp(query, 'i');
+  filters.$or = [
+    { filename: regex },
+    { originalname: regex },
+    { extractedContent: regex },
+    { aiTags: regex },
+    { aiSummary: regex }
+  ];
+
+  console.warn(`🔍 [MongoDB Fallback] Searching with query: "${query}"`);
+  console.warn(`📊 [MongoDB Fallback] Filters:`, JSON.stringify(filters, null, 2));
+
+  // Ejecutar búsqueda
+  const total = await Document.countDocuments(filters);
+  const mongoDocuments = await Document.find(filters)
+    .sort({ uploadedAt: -1 })
+    .skip(offset)
+    .limit(limit)
+    .lean();
+
+  const took = Date.now() - startTime;
+
+  console.warn(`✅ [MongoDB Fallback] Found ${total} documents in ${took}ms`);
+
+  // Transformar documentos MongoDB al formato SearchDocument
+  const searchDocs: SearchDocument[] = mongoDocuments.map((doc) => {
+    const mongoDoc = doc as unknown as IDocument;
+    return {
+      id: mongoDoc._id.toString(),
+      filename: mongoDoc.filename,
+      originalname: mongoDoc.originalname,
+      mimeType: mongoDoc.mimeType,
+      extractedContent: mongoDoc.extractedContent,
+      size: mongoDoc.size,
+      uploadedBy: mongoDoc.uploadedBy.toString(),
+      organization: mongoDoc.organization?.toString(),
+      folder: mongoDoc.folder.toString(),
+      uploadedAt: mongoDoc.uploadedAt.toISOString(),
+      score: 1.0 // MongoDB no proporciona score de relevancia, asignar 1.0
+    };
+  });
+
+  return {
+    documents: searchDocs,
+    total,
+    took
+  };
+}
+
+/**
+ * Obtener sugerencias de autocompletado desde MongoDB
+ */
+async function getAutocompleteSuggestionsFromMongoDB(
+  query: string,
+  userId: string,
+  organizationId?: string,
+  limit: number = 5
+): Promise<string[]> {
+  const filters: Record<string, unknown> = {
+    isDeleted: false
+  };
+
+  if (organizationId) {
+    filters.organization = organizationId;
+  } else {
+    filters.uploadedBy = userId;
+  }
+
+  // Búsqueda por regex en nombre del archivo
+  const regex = new RegExp(query, 'i');
+  filters.$or = [
+    { filename: regex },
+    { originalname: regex }
+  ];
+
+  console.warn(`🔍 [MongoDB Autocomplete] Searching suggestions for: "${query}"`);
+
+  const mongoDocuments = await Document.find(filters)
+    .select('filename originalname')
+    .limit(limit * 2) // Buscar el doble para eliminar duplicados
+    .lean();
+
+  // Extraer nombres únicos
+  const suggestions: string[] = [];
+  const seen = new Set<string>();
+
+  for (const doc of mongoDocuments) {
+    const mongoDoc = doc as unknown as IDocument;
+    const name = mongoDoc.originalname || mongoDoc.filename || '';
+    if (name && !seen.has(name)) {
+      seen.add(name);
+      suggestions.push(name);
+      if (suggestions.length >= limit) break;
+    }
+  }
+
+  return suggestions;
+}
+
+/**
+ * Buscar documentos por nombre - CON FALLBACK A MONGODB
  */
 export async function searchDocuments(params: SearchParams): Promise<SearchResult> {
   try {
+    // Intentar con Elasticsearch primero
+    console.warn(`🔍 [Search] Intentando búsqueda con Elasticsearch...`);
     const client = ElasticsearchClient.getInstance();
     const { query, userId, organizationId, mimeType, fromDate, toDate, limit = 20, offset = 0 } = params;
 
     // Construir filtros
     const filters: ESFilter[] = [];
 
-    // Filtrar por organizaci├│n si se proporciona, sino por usuario
+    // Filtrar por organización si se proporciona, sino por usuario
     if (organizationId) {
       filters.push({ term: { organization: organizationId } });
     } else {
@@ -159,15 +299,15 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
 
     if (mimeType) {
       console.warn(`🔍 [Elasticsearch] Filtering by mimeType: ${mimeType}`);
-      
+
       // Usar coincidencia exacta para el mimeType sin .keyword
       // El campo mimeType puede no estar mapeado como keyword en el índice
-      filters.push({ 
-        term: { 
-          mimeType: mimeType 
-        } 
+      filters.push({
+        term: {
+          mimeType: mimeType
+        }
       });
-      
+
       console.warn(`📌 [Elasticsearch] Added exact mimeType filter: ${mimeType}`);
     }
 
@@ -178,13 +318,13 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
       filters.push({ range: { uploadedAt: dateRange } });
     }
 
-    // Realizar b├║squeda con query_string para mayor flexibilidad
-    // Agregar wildcards autom├íticamente para b├║squeda parcial
+    // Realizar búsqueda con query_string para mayor flexibilidad
+    // Agregar wildcards automáticamente para búsqueda parcial
     const searchQuery = `*${query.toLowerCase()}*`;
-    
+
     console.warn(`🔍 [Elasticsearch] Searching with query: "${searchQuery}"`);
     console.warn(`📊 [Elasticsearch] Filters:`, JSON.stringify(filters, null, 2));
-    
+
     const result = await client.search({
       index: 'documents',
       query: {
@@ -218,7 +358,7 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
         score: hit._score ?? 0,
         ...(hit._source as ESSource)
       };
-      
+
       // Debug: Log cada documento encontrado
       console.warn(`📄 [Elasticsearch] Document found:`, {
         id: doc.id,
@@ -226,7 +366,7 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
         mimeType: doc.mimeType,
         score: doc.score
       });
-      
+
       return doc;
     });
 
@@ -239,16 +379,35 @@ export async function searchDocuments(params: SearchParams): Promise<SearchResul
     };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('❌ Error searching documents:', errorMessage);
-    throw error;
+    console.warn(`⚠️  [Search] Elasticsearch no disponible: ${errorMessage}`);
+    console.warn(`🔄 [Search] Usando MongoDB como fallback...`);
+
+    // FALLBACK a MongoDB
+    try {
+      return await searchDocumentsInMongoDB(params);
+    } catch (mongoError: unknown) {
+      const mongoErrorMessage = mongoError instanceof Error ? mongoError.message : 'Unknown error';
+      console.error(`❌ [Search] Ambas búsquedas fallaron:`, {
+        elasticsearch: errorMessage,
+        mongodb: mongoErrorMessage
+      });
+      throw new HttpError(500, 'Error searching documents');
+    }
   }
 }
 
 /**
- * Obtener sugerencias de autocompletado
+ * Obtener sugerencias de autocompletado - CON FALLBACK A MONGODB
  */
-export async function getAutocompleteSuggestions(query: string, userId: string, organizationId?: string, limit: number = 5): Promise<string[]> {
+export async function getAutocompleteSuggestions(
+  query: string,
+  userId: string,
+  organizationId?: string,
+  limit: number = 5
+): Promise<string[]> {
   try {
+    // Intentar con Elasticsearch primero
+    console.warn(`🔍 [Autocomplete] Intentando sugerencias con Elasticsearch...`);
     const client = ElasticsearchClient.getInstance();
 
     // Construir filtros
@@ -260,7 +419,7 @@ export async function getAutocompleteSuggestions(query: string, userId: string, 
     }
 
     const searchQuery = `*${query.toLowerCase()}*`;
-    
+
     const result = await client.search({
       index: 'documents',
       query: {
@@ -287,7 +446,7 @@ export async function getAutocompleteSuggestions(query: string, userId: string, 
       return String(name);
     });
 
-    // Eliminar duplicados manteniendo el orden y respetar el l├¡mite
+    // Eliminar duplicados manteniendo el orden y respetar el límite
     const unique: string[] = [];
     const seen = new Set<string>();
     for (const s of suggestions) {
@@ -302,8 +461,21 @@ export async function getAutocompleteSuggestions(query: string, userId: string, 
     return unique;
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('❌ Error getting autocomplete suggestions:', errorMessage);
-    return [];
+    console.warn(`⚠️  [Autocomplete] Elasticsearch no disponible: ${errorMessage}`);
+    console.warn(`🔄 [Autocomplete] Usando MongoDB como fallback...`);
+
+    // FALLBACK a MongoDB
+    try {
+      return await getAutocompleteSuggestionsFromMongoDB(query, userId, organizationId, limit);
+    } catch (mongoError: unknown) {
+      const mongoErrorMessage = mongoError instanceof Error ? mongoError.message : 'Unknown error';
+      console.error(`❌ [Autocomplete] Ambas búsquedas fallaron:`, {
+        elasticsearch: errorMessage,
+        mongodb: mongoErrorMessage
+      });
+      // Retornar array vacío en lugar de lanzar error (autocompletado es no-crítico)
+      return [];
+    }
   }
 }
 
