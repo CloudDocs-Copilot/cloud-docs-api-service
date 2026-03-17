@@ -22,7 +22,7 @@ import HttpError from './models/error.model';
 import { errorHandler } from './middlewares/error.middleware';
 import { generalRateLimiter } from './middlewares/rate-limit.middleware';
 import { getCorsOptions } from './configurations/cors-config';
-import { csrfProtectionMiddleware, generateCsrfToken } from './middlewares/csrf.middleware';
+import { csrfProtectionMiddleware, generateCsrfToken, cleanupOldCsrfCookies } from './middlewares/csrf.middleware';
 import notificationRoutes from './routes/notification.routes';
 
 const app = express();
@@ -70,6 +70,11 @@ app.use(cors(getCorsOptions()));
 // CSRF protection is properly implemented using csrf-csrf middleware (next line)
 // CodeQL doesn't recognize csrf-csrf package but it provides equivalent protection to csurf
 app.use(cookieParser());
+
+// ✅ Limpiar cookies CSRF antiguos/duplicados
+// Elimina psifi_csrf_token (antiguo) y __Host-psifi.x-csrf-token para evitar conflictos
+app.use(cleanupOldCsrfCookies);
+
 app.use(express.json());
 
 // ✅ PROTECCIÓN CSRF APLICADA GLOBALMENTE

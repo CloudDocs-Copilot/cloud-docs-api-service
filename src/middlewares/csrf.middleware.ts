@@ -32,15 +32,30 @@ const extractUserIdFromJWT = (cookieHeader: string): string | null => {
     // Extract token from Cookie header: "token=eyJ...;other=value"
     const tokenMatch = cookieHeader.match(/token=([^;]+)/);
     if (!tokenMatch) {
+      if (isProduction) {
+        console.error('[CSRF-JWT-EXTRACTION-DEBUG] No token= match found');
+      }
       return null;
     }
 
     // Decode URL-encoded token if necessary
     let jwtToken = decodeURIComponent(tokenMatch[1]);
+    if (isProduction) {
+      console.error('[CSRF-JWT-EXTRACTION-DEBUG]', {
+        jwtTokenLength: jwtToken.length,
+        jwtTokenStart: jwtToken.substring(0, 50)
+      });
+    }
     
     // Token format: header.payload.signature
     const tokenParts = jwtToken.split('.');
     if (tokenParts.length !== 3) {
+      if (isProduction) {
+        console.error('[CSRF-JWT-EXTRACTION-DEBUG]', {
+          error: 'Invalid JWT format - not 3 parts',
+          parts: tokenParts.length
+        });
+      }
       return null;
     }
 
@@ -59,14 +74,29 @@ const extractUserIdFromJWT = (cookieHeader: string): string | null => {
       'base64'
     ).toString('utf-8');
 
+    if (isProduction) {
+      console.error('[CSRF-JWT-EXTRACTION-DEBUG] Decoded payload:', decodedPayload.substring(0, 100));
+    }
+
     const parsedPayload = JSON.parse(decodedPayload) as unknown;
 
     // Type guard: verify payload has id property
     if (parsedPayload && typeof parsedPayload === 'object' && 'id' in parsedPayload) {
       const id = (parsedPayload as Record<string, unknown>).id;
       if (typeof id === 'string' && id.length > 0) {
+        if (isProduction) {
+          console.error('[CSRF-JWT-EXTRACTION-SUCCESS]', { extractedId: id });
+        }
         return id;
       }
+    }
+
+    if (isProduction) {
+      console.error('[CSRF-JWT-EXTRACTION-DEBUG]', {
+        error: 'Payload missing id or id is not string',
+        hasIdProperty: 'id' in (parsedPayload as Record<string, unknown>),
+        idType: typeof (parsedPayload as Record<string, unknown>).id
+      });
     }
 
     return null;
@@ -75,6 +105,7 @@ const extractUserIdFromJWT = (cookieHeader: string): string | null => {
     if (isProduction) {
       console.error('[CSRF-JWT-EXTRACTION-ERROR]', {
         error: error instanceof Error ? error.message : 'Unknown error',
+        errorStack: error instanceof Error ? error.stack : 'No stack',
         cookieHeaderLength: cookieHeader?.length || 0
       });
     }
@@ -139,6 +170,41 @@ const CSRF_EXCLUDED_ROUTES = [
   '/api/auth/forgot-password',
   '/api/auth/reset-password'
 ];
+
+/**
+ * Middleware para limpiar cookies CSRF antiguos/duplicados
+ * Problema: Tenemos psifi_csrf_token (antiguo) y psifi.x-csrf-token (nuevo)
+ * Chrome añade __Host-psifi.x-csrf-token
+ * Solución: Eliminar los cookies viejos para evitar conflictos
+ */
+export const cleanupOldCsrfCookies = (req: Request, res: Response, next: NextFunction): void => {
+  // Cookies antiguos a eliminar
+  const oldCookieNames = ['psifi_csrf_token', '__Host-psifi.x-csrf-token'];
+  
+  // Si el navegador tiene cookies antiguos, eliminarlos
+  oldCookieNames.forEach((cookieName) => {
+    if (req.cookies[cookieName]) {
+      // Establecer cookie con max-age=0 para eliminarlo
+      res.clearCookie(cookieName, {
+        path: '/',
+        domain: isProduction ? '.onrender.com' : undefined,
+        secure: isProduction,
+        httpOnly: true,
+        sameSite: isProduction ? 'none' : 'lax'
+      });
+      
+      if (isProduction) {
+        console.error('[CSRF-CLEANUP-OLD-COOKIES]', {
+          removedCookie: cookieName,
+          path: req.path
+        });
+      }
+    }
+  });
+  
+  next();
+};
+
 // Exportar el middleware de protección CSRF
 export const csrfProtectionMiddleware = (req: Request, res: Response, next: NextFunction): void => {
   if (CSRF_EXCLUDED_ROUTES.includes(req.path)) {
