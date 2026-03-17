@@ -42,32 +42,54 @@ const csrfProtection = doubleCsrf({
       : ['GET', 'HEAD', 'OPTIONS'],
   // Extract user ID from JWT token in cookies to use as session identifier
   // This ensures CSRF tokens remain valid across the entire user session
-  // Session identifier: Use JWT token hash for stability (unique per user session)
+  // ✅ FIX: Use actual user ID instead of JWT token prefix to avoid invalidation on token refresh
   getSessionIdentifier: (req: Request): string => {
     const cookieHeader = req.headers.cookie;
     
-    // Try to use JWT token as session identifier (most stable)
+    // Try to extract user ID from JWT token (most stable)
     if (cookieHeader && typeof cookieHeader === 'string') {
       const cookies = cookieHeader.split(';').map(c => c.trim());
       for (const cookie of cookies) {
         if (cookie.startsWith('token=')) {
           const jwtToken = cookie.substring(6);
           
-          // Use first 32 chars of JWT as session ID - unique per user session
-          // JWT format: header.payload.signature - payload contains user ID
-          const sessionId = jwtToken.substring(0, 32);
-          
-          if (isProduction && req.method !== 'GET') {
-            console.error('[CSRF-SESSION-ID]', {
-              method: req.method,
-              path: req.path,
-              sessionId: sessionId.substring(0, 20) + '...',
-              sessionIdType: 'jwt-based',
-              jwtTokenLength: jwtToken.length
-            });
+          try {
+            // Decode JWT without verification to extract user ID
+            // This is safe because:
+            // 1. JWT signature is verified by other middlewares
+            // 2. We only use the ID for CSRF session binding
+            // 3. If JWT is invalid/expired, authentication will fail elsewhere
+            const parts = jwtToken.split('.');
+            if (parts.length === 3) {
+              // Decode payload (second part of JWT)
+              const decodedPayload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf-8')) as { id?: string };
+              const userId = decodedPayload.id;
+              
+              if (userId && typeof userId === 'string') {
+                if (isProduction && req.method !== 'GET') {
+                  console.error('[CSRF-SESSION-ID]', {
+                    method: req.method,
+                    path: req.path,
+                    sessionIdType: 'user-id-based',
+                    userId: userId.substring(0, 12) + '...',
+                    message: '✅ Using stable user ID instead of JWT token prefix'
+                  });
+                }
+                
+                // Return user ID as session identifier (stable across token refreshes)
+                return userId;
+              }
+            }
+          } catch (error) {
+            // JWT decode failed - fallback to anonymous
+            if (isProduction && (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH' || req.method === 'DELETE')) {
+              console.error('[CSRF-SESSION-ID-ERROR]', {
+                path: req.path,
+                error: error instanceof Error ? error.message : 'Unknown error',
+                message: 'Failed to decode JWT payload'
+              });
+            }
           }
-          
-          return sessionId;
         }
       }
     }

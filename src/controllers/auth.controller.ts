@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { RegisterUserDto, LoginUserDto, ResetPasswordDto } from '../services/auth.service';
 import { AuthRequest } from '../middlewares/auth.middleware';
-import { getAuthCookieOptions, getAuthCookieClearOptions } from '../utils/cookie-options';
+import { getAuthCookieOptions, getAuthCookieClearOptions, getCsrfCookieClearOptions } from '../utils/cookie-options';
 import {
   registerUser,
   loginUser,
@@ -124,12 +124,20 @@ export async function login(
 
 /**
  * Controlador de cierre de sesión
- * Limpia la cookie del token JWT
+ * Limpia la cookie del token JWT y la cookie CSRF
+ *
+ * ✅ FIX CSRF 403: Limpiar cookies CSRF al desloguear para evitar que persistan
+ * en la siguiente sesión de otro usuario
  */
 export function logout(_req: AuthRequest, res: Response, next: NextFunction): void {
   try {
-    // Limpiar la cookie del token
+    // Limpiar la cookie del token JWT
     res.clearCookie('token', getAuthCookieClearOptions());
+    
+    // ✅ FIX: Limpiar también la cookie CSRF para evitar conflictos cuando cambia el usuario
+    // Si no se limpia, la cookie CSRF vieja persiste y causa 403 cuando otro usuario loguea
+    res.clearCookie('psifi.x-csrf-token', getCsrfCookieClearOptions());
+    
     res.json({ message: 'Logout successful' });
   } catch (err: unknown) {
     next(err);
@@ -212,8 +220,10 @@ export async function resetPasswordController(
 
     await resetPassword({ token, newPassword, confirmPassword });
 
-    // opcional recomendado: limpiar cookie si existiera
+    // Limpiar cookies: JWT y CSRF (similar a logout)
+    // el usuario necesitará loguear de nuevo tras resetear contraseña
     res.clearCookie('token', getAuthCookieClearOptions());
+    res.clearCookie('psifi.x-csrf-token', getCsrfCookieClearOptions());
 
     res.json({ message: 'Password reset successful' });
     return;

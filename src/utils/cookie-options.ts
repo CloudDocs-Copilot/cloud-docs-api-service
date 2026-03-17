@@ -43,6 +43,24 @@ export const getAuthCookieClearOptions = (): CookieOptions => {
   };
 };
 
+/**
+ * Opciones para limpiar (clearCookie) el token CSRF.
+ * Debe coincidir exactamente con las opciones usadas por csrf-csrf en csrf.middleware.ts
+ * para que el navegador identifique la cookie correctamente y la elimine.
+ *
+ * Nota: La cookie CSRF es generada por csrf-csrf con httpOnly=true, secure=true en producción
+ */
+export const getCsrfCookieClearOptions = (): CookieOptions => {
+  const isProd = process.env.NODE_ENV === 'production';
+  return {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+    path: '/'
+  };
+};
+
 // Retrocompatibilidad: constantes estáticas para uso fuera de tests
 export const AUTH_COOKIE_OPTIONS: CookieOptions = getAuthCookieOptions();
 export const AUTH_COOKIE_CLEAR_OPTIONS: CookieOptions = getAuthCookieClearOptions();
+export const CSRF_COOKIE_CLEAR_OPTIONS: CookieOptions = getCsrfCookieClearOptions();
